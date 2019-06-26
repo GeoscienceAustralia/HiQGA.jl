@@ -89,8 +89,6 @@ function main(opt_in::TransD_GP.Options, din::AbstractArray, Tmax::Float64, nsam
     T = 10.0.^range(0, stop = log10(Tmax), length = nworkers())
 
     d = filldarray(din[:])
-    doneflag = SharedArray{Bool}(nworkers())
-#    d[:] = din
 
     till = TransD_GP.closestmultbelow(nsamples-1, opt_in.save_freq) + 1
     nstore = length(1:opt_in.save_freq:till)
@@ -105,11 +103,9 @@ function main(opt_in::TransD_GP.Options, din::AbstractArray, Tmax::Float64, nsam
     @show typeof(d[1])
 
     function do_one_step(isample::Int, idx::Int, Tin::Float64)
-        doneflag[idx] = false
         do_mcmc_step(m[idx], opt[idx], stat[idx],
                      current_misfit[idx], localpart(d),
                     Tin, isample, opt_EM[idx])
-        doneflag[idx] = true
     end
 
     storecount = 1
@@ -128,12 +124,8 @@ function main(opt_in::TransD_GP.Options, din::AbstractArray, Tmax::Float64, nsam
             end
         end
         
-        for(idx, pid) in enumerate(workers())
-            remote_do(do_one_step, pid, isample, idx, T[idx])
-        end
-        
-        while true
-            sum(doneflag) == nworkers() && break
+        @async for(idx, pid) in enumerate(workers())
+            @async remotecall(do_one_step, pid, isample, idx, T[idx])
         end
         
         if mod(isample-1, 10000) == 0

@@ -6,7 +6,7 @@ import MCMC_Driver, Plot2D
 Random.seed!(12)
 sd = 0.05
 fractrain = 0.02
-dec = 8
+dec = 2
 f = Gray.(load("4.2.01.tiff"))
 f = convert(Array{Float64, 2}, f)[1:dec:end,:1:dec:end]
 f = -1 .+ 3*f
@@ -96,8 +96,8 @@ opt_EM.MLnoise = false
 @info "RMS error is" sqrt(2.0*MCMC_Driver.get_misfit(m, noisyd, opt_in, opt_EM)/sum(.!(isnan.(noisyd))))
 opt_EM.MLnoise = MLnoise
 ## run
-nsamples = 1001
-nchains = 4
+nsamples = 10001
+nchains = 8
 Tmax = 2.5
 rmprocs(workers()); addprocs(nchains)
 @info "workers are $(workers())"
@@ -109,7 +109,7 @@ rmprocs(workers()); addprocs(nchains)
 end
 save("misfit_T0_"*fdataname*".jld", "misfit", misfit, "T0loc", T0loc)
 ##
-burnin = 500
+burnin = 5000
 M = TransD_GP.history(opt_in, stat=:fstar)
 n = TransD_GP.history(opt_in, stat=:nodes)
 x_ft = TransD_GP.history(opt_in, stat=:x_ftrain)
