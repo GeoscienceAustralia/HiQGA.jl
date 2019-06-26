@@ -61,6 +61,13 @@ function do_mcmc_step(m::TransD_GP.Model, opt::TransD_GP.Options, stat::TransD_G
     #abs(Temp-1.0) < 1e-12 && write_history(isample, opt, m, current_misfit, stat, wp)
 end
 
+function do_mcmc_step(m::DArray, opt::DArray, stat::DArray, current_misfit::DArray, 
+                      d::DArray, T::Float64, isample::Int, opt_EM::DArray)
+
+        do_mcmc_step(localpart(m), localpart(opt), localpart(stat), localpart(current_misfit),
+                     localpart(d), T, isample, localpart(opt_EM))
+end
+
 function filldarray(a::AbstractArray)
     r = Array{Future, 1}(undef, nworkers())
     for (ipid, pid) in enumerate(workers())
@@ -102,11 +109,11 @@ function main(opt_in::TransD_GP.Options, din::AbstractArray, Tmax::Float64, nsam
     @show typeof(d)
     @show typeof(d[1])
 
-    function do_one_step(isample::Int, idx::Int, Tin::Float64)
-        do_mcmc_step(m[idx], opt[idx], stat[idx],
-                     current_misfit[idx], localpart(d),
-                    Tin, isample, opt_EM[idx])
-    end
+#    function do_one_step(isample::Int, idx::Int, Tin::Float64)
+#        do_mcmc_step(m[idx], opt[idx], stat[idx],
+#                     current_misfit[idx], localpart(d),
+#                    Tin, isample, opt_EM[idx])
+#    end
 
     storecount = 1
     t1 = time()
@@ -125,7 +132,10 @@ function main(opt_in::TransD_GP.Options, din::AbstractArray, Tmax::Float64, nsam
         end
         
         @sync for(idx, pid) in enumerate(workers())
-            @async remotecall(do_one_step, pid, isample, idx, T[idx])
+            #@async remotecall(do_one_step, pid, isample, idx, T[idx])
+            @spawnat pid do_mcmc_step(m[idx], opt[idx], stat[idx],
+                                    current_misfit[idx], localpart(d),
+                                    T[idx], isample, opt_EM[idx])
         end
         
         if mod(isample-1, 1000) == 0
