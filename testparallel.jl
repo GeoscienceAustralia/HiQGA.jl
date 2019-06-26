@@ -10,3 +10,19 @@ function filldarray(a::AbstractArray)
     DArray(r)
 end    
 
+function fillarray()
+    r = [@spawnat pid myid()*ones(2) for pid in workers()]
+    DArray(r)
+end   
+
+function testclosure(d::DArray, a)
+    function myclosure(a)
+        localpart(d)[:] *= a
+    end
+
+
+    for(idx, pid) in enumerate(workers())
+       remote_do(myclosure, pid, a)
+    end
+end    
+              

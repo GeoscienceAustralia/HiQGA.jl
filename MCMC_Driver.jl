@@ -79,7 +79,7 @@ function init_chain_darrays(opt_in::TransD_GP.Options, opt_EM_in::EMoptions, d::
     end
     m, opt, stat, opt_EM = map(x -> DArray(x), (m_, opt_, stat_, opt_EM_))
     for(idx, pid) in enumerate(workers())
-        current_misfit_[idx] = @spawnat pid [[get_misfit(m[idx], d, opt[idx], opt_EM[idx])]]
+        current_misfit_[idx] = @spawnat pid [[get_misfit(m[idx], localpart(d), opt[idx], opt_EM[idx])]]
     end
     current_misfit = DArray(current_misfit_)
     return m, opt, stat, opt_EM, current_misfit
@@ -88,9 +88,9 @@ end
 function main(opt_in::TransD_GP.Options, din::AbstractArray, Tmax::Float64, nsamples::Int, opt_EM_in::EMoptions)
     T = 10.0.^range(0, stop = log10(Tmax), length = nworkers())
 
-    d = SharedArray{eltype(din)}(size(din))
+    d = filldarray(din[:])
     doneflag = SharedArray{Bool}(nworkers())
-    d[:] = din
+#    d[:] = din
 
     till = TransD_GP.closestmultbelow(nsamples-1, opt_in.save_freq) + 1
     nstore = length(1:opt_in.save_freq:till)
@@ -107,7 +107,7 @@ function main(opt_in::TransD_GP.Options, din::AbstractArray, Tmax::Float64, nsam
     function do_one_step(isample::Int, idx::Int, Tin::Float64)
         doneflag[idx] = false
         do_mcmc_step(m[idx], opt[idx], stat[idx],
-                    current_misfit[idx], d,
+                     current_misfit[idx], localpart(d),
                     Tin, isample, opt_EM[idx])
         doneflag[idx] = true
     end
@@ -116,7 +116,7 @@ function main(opt_in::TransD_GP.Options, din::AbstractArray, Tmax::Float64, nsam
     t1 = time()
     t2 = time()
     for isample = 1:nsamples
-        @info isample
+        
         for ichain in nworkers():-1:2
             jchain = rand(1:ichain)
             if ichain != jchain
@@ -127,14 +127,15 @@ function main(opt_in::TransD_GP.Options, din::AbstractArray, Tmax::Float64, nsam
                 end
             end
         end
-
+        
         for(idx, pid) in enumerate(workers())
             remote_do(do_one_step, pid, isample, idx, T[idx])
         end
+        
         while true
             sum(doneflag) == nworkers() && break
         end
-
+        
         if mod(isample-1, 10000) == 0
             dt = time() - t2 #seconds
             t2 = time()

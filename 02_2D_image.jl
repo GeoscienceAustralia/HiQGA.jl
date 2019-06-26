@@ -6,7 +6,7 @@ import MCMC_Driver, Plot2D
 Random.seed!(12)
 sd = 0.05
 fractrain = 0.02
-dec = 2
+dec = 8
 f = Gray.(load("4.2.01.tiff"))
 f = convert(Array{Float64, 2}, f)[1:dec:end,:1:dec:end]
 f = -1 .+ 3*f
@@ -79,7 +79,7 @@ opt_in = TransD_GP.Options(nmin = nmin,
                         λ = λ,
                         δ = δ,
                         demean = demean,
-                        save_freq = 20,
+                        save_freq = 100,
                         sdev_prop = sdev_prop,
                         sdev_pos = sdev_pos,
                         pnorm = pnorm,
@@ -97,7 +97,7 @@ opt_EM.MLnoise = false
 opt_EM.MLnoise = MLnoise
 ## run
 nsamples = 1001
-nchains = 8
+nchains = 4
 Tmax = 2.5
 rmprocs(workers()); addprocs(nchains)
 @info "workers are $(workers())"
