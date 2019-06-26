@@ -124,11 +124,11 @@ function main(opt_in::TransD_GP.Options, din::AbstractArray, Tmax::Float64, nsam
             end
         end
         
-        @async for(idx, pid) in enumerate(workers())
+        @sync for(idx, pid) in enumerate(workers())
             @async remotecall(do_one_step, pid, isample, idx, T[idx])
         end
         
-        if mod(isample-1, 10000) == 0
+        if mod(isample-1, 1000) == 0
             dt = time() - t2 #seconds
             t2 = time()
             @info("*****$dt**sec*****")
