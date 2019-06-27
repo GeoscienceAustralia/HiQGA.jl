@@ -89,12 +89,12 @@ opt_in = TransD_GP.Options(nmin = nmin,
                         x_ftrain_filename = "points_"*fdataname*".bin"
                         )
 
-opt_EM = opt_EM = MCMC_Driver.EMoptions(sd=δtry)
-m = TransD_GP.init(opt_in)
-m.fstar[:] = f[:]
-opt_EM.MLnoise = false
-@info "RMS error is" sqrt(2.0*MCMC_Driver.get_misfit(m, noisyd, opt_in, opt_EM)/sum(.!(isnan.(noisyd))))
-opt_EM.MLnoise = MLnoise
+opt_EM_in  = MCMC_Driver.EMoptions(sd=δtry)
+m_true = TransD_GP.init(opt_in)
+m_true.fstar[:] = f[:]
+opt_EM_in.MLnoise = false
+@info "RMS error is" sqrt(2.0*MCMC_Driver.get_misfit(m_true, noisyd, opt_in, opt_EM_in)/sum(.!(isnan.(noisyd))))
+opt_EM_in.MLnoise = MLnoise
 ## run
 nsamples = 10001
 nchains = 8
@@ -102,10 +102,12 @@ Tmax = 2.5
 rmprocs(workers()); addprocs(nchains)
 @info "workers are $(workers())"
 @everywhere any(pwd() .== LOAD_PATH) || push!(LOAD_PATH, pwd())
-@everywhere using Distributed
+@everywhere using Distributed, Revise
 @everywhere import MCMC_Driver
+# m, opt, stat, opt_EM, d, current_misfit = MCMC_Driver.init_chain_darrays(opt_in, opt_EM_in, noisyd[:])
+##
 @time begin
-    misfit, T0loc = MCMC_Driver.main(opt_in, noisyd, Tmax, nsamples, opt_EM)
+    misfit, T0loc = MCMC_Driver.main(opt_in, noisyd, Tmax, nsamples, opt_EM_in)
 end
 save("misfit_T0_"*fdataname*".jld", "misfit", misfit, "T0loc", T0loc)
 ##
@@ -136,10 +138,11 @@ for i = iburn:length(M)
     global s+= M[i]
 end
 s = s/(1-iburn+length(M))
+m = deepcopy(m_true)
 m.fstar[:] = M[end]
-opt_EM.MLnoise = false
-@info "RMS error is" sqrt(2.0*MCMC_Driver.get_misfit(m, noisyd, opt_in, opt_EM)/sum(.!(isnan.(noisyd))))
-opt_EM.MLnoise = MLnoise
+opt_EM_in.MLnoise = false
+@info "RMS error is" sqrt(2.0*MCMC_Driver.get_misfit(m, noisyd, opt_in, opt_EM_in)/sum(.!(isnan.(noisyd))))
+opt_EM_in.MLnoise = MLnoise
 f3, ax3 = plt[:subplots](1,2,figsize=(10,5), sharex=true, sharey=true)
 nmodel = iburn
 im1 = ax3[1][:imshow](reshape(M[nmodel],length(y), length(x)), extent=[x[1],x[end],y[end],y[1]])

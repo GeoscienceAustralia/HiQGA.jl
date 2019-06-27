@@ -25,4 +25,9 @@ function testclosure(d::DArray, a)
        remote_do(myclosure, pid, a)
     end
 end    
-              
+  
+function fillarraywithnoarray()
+    r = [@spawnat pid myid() for pid in workers()]
+    DArray(r)
+end    
+
