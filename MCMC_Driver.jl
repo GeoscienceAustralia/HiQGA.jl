@@ -45,7 +45,7 @@ end
 
 function do_mcmc_step(m::TransD_GP.Model, opt::TransD_GP.Options, stat::TransD_GP.Stats,
     current_misfit::Array{Float64, 1}, d::AbstractArray,
-    Temp::Float64, isample::Int, opt_EM::EMoptions)
+    Temp::Float64, isample::Int, opt_EM::EMoptions, wp::TransD_GP.Writepointers)
 
     # select move and do it
     movetype, priorviolate = TransD_GP.do_move!(m, opt, stat)
@@ -58,14 +58,7 @@ function do_mcmc_step(m::TransD_GP.Model, opt::TransD_GP.Options, stat::TransD_G
     TransD_GP.get_acceptance_stats!(isample, opt, stat)
 
     # write models
-    #abs(Temp-1.0) < 1e-12 && write_history(isample, opt, m, current_misfit, stat, wp)
-end
-
-function do_mcmc_step(m::DArray, opt::DArray, stat::DArray, current_misfit::DArray,
-                      d::DArray, T::Float64, isample::Int, opt_EM::DArray)
-
-        do_mcmc_step(localpart(m), localpart(opt), localpart(stat), localpart(current_misfit),
-                     localpart(d), T, isample, localpart(opt_EM))
+    abs(Temp-1.0) < 1e-12 && TransD_GP.write_history(isample, opt, m, current_misfit[1], stat, wp)
 end
 
 function filldarray(a::AbstractArray)
@@ -146,7 +139,7 @@ function main(opt_in::TransD_GP.Options, din::AbstractArray, Tmax::Float64, nsam
         @sync for(idx, pid) in enumerate(workers())
             @spawnat pid do_mcmc_step(m[idx], opt[idx], stat[idx],
                                     current_misfit[idx], localpart(d),
-                                    T[idx], isample, opt_EM[idx])
+                                    T[idx], isample, opt_EM[idx], wp[idx])
         end
 
         if mod(isample-1, 1000) == 0
@@ -160,7 +153,7 @@ function main(opt_in::TransD_GP.Options, din::AbstractArray, Tmax::Float64, nsam
                 @info("sample: $isample target worker: $(workers()[T0idx]) misfit $(current_misfit[T0idx]) points $(m[T0idx].n)")
                 t1 = time()
             end
-            TransD_GP.write_history(isample, opt[T0idx], m[T0idx], current_misfit[T0idx][1], stat[T0idx], wp)
+            #TransD_GP.write_history(isample, opt[T0idx], m[T0idx], current_misfit[T0idx][1], stat[T0idx], wp)
             misfit[storecount] = current_misfit[T0idx][1]
             T0store[storecount] = T0idx
             storecount = storecount + 1

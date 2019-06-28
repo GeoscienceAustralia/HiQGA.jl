@@ -97,7 +97,7 @@ opt_EM_in.MLnoise = false
 opt_EM_in.MLnoise = MLnoise
 ## run
 nsamples = 10001
-nchains = 8
+nchains = 2
 Tmax = 2.5
 rmprocs(workers()); addprocs(nchains)
 @info "workers are $(workers())"
