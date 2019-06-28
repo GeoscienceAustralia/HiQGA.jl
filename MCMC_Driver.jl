@@ -122,7 +122,6 @@ function main(opt_in::TransD_GP.Options, din::AbstractArray, Tmax::Float64, nsam
         end
 
         @sync for(idx, pid) in enumerate(workers())
-            #@async remotecall(do_one_step, pid, isample, idx, T[idx])
             @spawnat pid do_mcmc_step(m[idx], opt[idx], stat[idx],
                                     current_misfit[idx], localpart(d),
                                     T[idx], isample, opt_EM[idx])
