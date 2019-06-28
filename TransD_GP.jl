@@ -424,7 +424,8 @@ end
 
 function write_history(opt::Options, fstar::AbstractArray, x_ftrain::AbstractArray, U::Float64, acceptanceRateBirth::Float64,
                     acceptanceRateDeath::Float64, acceptanceRatePosition::Float64, acceptanceRateProperty::Float64, nodes::Int,
-                    iter::Int, fp_costs::IOStream, fp_fstar::IOStream, fp_x_ftrain::IOStream)
+                    iter::Int, fp_costs::Union{IOStream, Nothing}, fp_fstar::Union{IOStream, Nothing}, 
+                    fp_x_ftrain::Union{IOStream, Nothing})
     if (mod(iter-1, opt.save_freq) == 0 || iter == 1)
         if fp_costs != nothing
             msg = @sprintf("%d %e %e %e %e %d %e\n", iter, acceptanceRateBirth, acceptanceRateDeath,
