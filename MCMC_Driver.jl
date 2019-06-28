@@ -76,18 +76,41 @@ function filldarray(a::AbstractArray)
     DArray(r)
 end
 
-function init_chain_darrays(opt_in::TransD_GP.Options, opt_EM_in::EMoptions, d_in::AbstractArray)
-    m_, opt_, stat_, opt_EM_, d_in_, current_misfit_  = map(x -> Array{Future, 1}(undef, nworkers()), 1:6)
-    for(idx, pid) in enumerate(workers())
-        m_[idx]         = @spawnat pid [TransD_GP.init(opt_in)]
-        opt_[idx]       = @spawnat pid [opt_in]
-        stat_[idx]      = @spawnat pid [TransD_GP.Stats()]
-        opt_EM_[idx]    = @spawnat pid [opt_EM_in]
-        d_in_[idx]      = @spawnat pid d_in
-        current_misfit_[idx] = @spawnat pid [[get_misfit(fetch(m_[idx])[1], localpart(fetch(d_in_[idx])), fetch(opt_[idx])[1], fetch(opt_EM_[idx])[1])]]
+function close_history(wp::DArray)
+    for (idx, pid) in enumerate(procs(wp))
+        @spawnat pid TransD_GP.close_history(wp[idx])
     end
-    current_misfit = DArray(current_misfit_)
-    m, opt, stat, opt_EM, d, current_misfit = map(x -> DArray(x), (m_, opt_, stat_, opt_EM_, d_in_, current_misfit_))
+end
+
+function init_chain_darrays(opt_in::TransD_GP.Options, opt_EM_in::EMoptions, d_in::AbstractArray)
+    m_, opt_, stat_, opt_EM_, d_in_, current_misfit_, wp_  = map(x -> Array{Future, 1}(undef, nworkers()), 1:7)
+    
+    costs_filename = opt_in.costs_filename[1:end-4]
+    fstar_filename = opt_in.fstar_filename[1:end-4]
+    x_ftrain_filename = opt_in.x_ftrain_filename[1:end-4]
+
+    for(idx, pid) in enumerate(workers())
+        m_[idx]              = @spawnat pid [TransD_GP.init(opt_in)]
+
+        opt_in.costs_filename    = costs_filename*"_$idx.bin"
+        opt_in.fstar_filename    = fstar_filename*"_$idx.bin"
+        opt_in.x_ftrain_filename = x_ftrain_filename*"_$idx.bin"
+        
+        opt_[idx]            = @spawnat pid [opt_in]
+        stat_[idx]           = @spawnat pid [TransD_GP.Stats()]
+        opt_EM_[idx]         = @spawnat pid [opt_EM_in]
+        d_in_[idx]           = @spawnat pid d_in
+        current_misfit_[idx] = @spawnat pid [[get_misfit(fetch(m_[idx])[1], 
+                                              localpart(fetch(d_in_[idx])), 
+                                              fetch(opt_[idx])[1], 
+                                              fetch(opt_EM_[idx])[1])]]
+        wp_[idx]             = @spawnat pid [TransD_GP.open_history(opt_in)]
+
+    end
+
+    current_misfit           = DArray(current_misfit_)
+    m, opt, stat, opt_EM, d, 
+    current_misfit, wp       = map(x -> DArray(x), (m_, opt_, stat_, opt_EM_, d_in_, current_misfit_, wp_))
 end
 
 function main(opt_in::TransD_GP.Options, din::AbstractArray, Tmax::Float64, nsamples::Int, opt_EM_in::EMoptions)
@@ -97,9 +120,8 @@ function main(opt_in::TransD_GP.Options, din::AbstractArray, Tmax::Float64, nsam
     nstore = length(1:opt_in.save_freq:till)
     misfit = zeros(Float64, nstore)
     T0store = zeros(Int, nstore)
-    wp = TransD_GP.open_history(opt_in)
 
-    m, opt, stat, opt_EM, d, current_misfit = init_chain_darrays(opt_in, opt_EM_in, din[:])
+    m, opt, stat, opt_EM, d, current_misfit, wp = init_chain_darrays(opt_in, opt_EM_in, din[:])
 
     @show typeof(m)
     @show typeof(d)

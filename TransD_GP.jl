@@ -396,6 +396,7 @@ function close_history(wp::Writepointers)
     if wp.fp_x_ftrain != nothing
         close(wp.fp_x_ftrain)
     end
+    @info "closed files"
 end
 
 function clear_history(opt::Options)
