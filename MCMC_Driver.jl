@@ -88,17 +88,10 @@ function init_chain_darrays(opt_in::TransD_GP.Options, opt_EM_in::EMoptions, d_i
     end
     current_misfit = DArray(current_misfit_)
     m, opt, stat, opt_EM, d, current_misfit = map(x -> DArray(x), (m_, opt_, stat_, opt_EM_, d_in_, current_misfit_))
-    # for(idx, pid) in enumerate(workers())
-    #     current_misfit_[idx] = @spawnat pid [[get_misfit(m[idx], localpart(d), opt[idx], opt_EM[idx])]]
-    # end
-    # current_misfit = DArray(current_misfit_)
-    # return m, opt, stat, opt_EM, current_misfit, d
 end
 
 function main(opt_in::TransD_GP.Options, din::AbstractArray, Tmax::Float64, nsamples::Int, opt_EM_in::EMoptions)
     T = 10.0.^range(0, stop = log10(Tmax), length = nworkers())
-
-    #d = filldarray(din[:])
 
     till = TransD_GP.closestmultbelow(nsamples-1, opt_in.save_freq) + 1
     nstore = length(1:opt_in.save_freq:till)
@@ -111,12 +104,6 @@ function main(opt_in::TransD_GP.Options, din::AbstractArray, Tmax::Float64, nsam
     @show typeof(m)
     @show typeof(d)
     @show typeof(d[1])
-
-#    function do_one_step(isample::Int, idx::Int, Tin::Float64)
-#        do_mcmc_step(m[idx], opt[idx], stat[idx],
-#                     current_misfit[idx], localpart(d),
-#                    Tin, isample, opt_EM[idx])
-#    end
 
     storecount = 1
     t1 = time()
