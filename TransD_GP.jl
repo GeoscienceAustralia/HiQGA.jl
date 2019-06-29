@@ -14,6 +14,7 @@ mutable struct Options
     sdev_pos            :: Array{Float64,1}
     pnorm               :: Float64
     stat_window         :: Int
+    dispstatstoscreen   :: Bool
     report_freq         :: Int
     save_freq           :: Int
     history_mode        :: String
@@ -36,6 +37,7 @@ function Options(;
         sdev_pos = [0.05;0.05],
         pnorm = 2,
         stat_window = 100,
+        dispstatstoscreen = true,
         report_freq = 10,
         save_freq = 100,
         history_mode = "w",
@@ -54,7 +56,7 @@ function Options(;
         x_ftrain_filename = "points_"*fdataname*".bin"
 
         Options(nmin, nmax, xbounds, fbounds, xall, λ, δ, demean, sdev_prop, sdev_pos, pnorm,
-                stat_window, report_freq, save_freq, history_mode, costs_filename, fstar_filename, x_ftrain_filename, debug)
+                stat_window, dispstatstoscreen, report_freq, save_freq, history_mode, costs_filename, fstar_filename, x_ftrain_filename, debug)
 end
 
 mutable struct Model
@@ -359,12 +361,14 @@ end
 function get_acceptance_stats!(isample::Int, opt::Options, stat::Stats)
     if mod(isample-1, opt.stat_window) == 0
         stat.accept_rate[:] = 100. *stat.accepted_moves./stat.move_tries
-        msg = @sprintf("Acceptance rates Birth %5.2f Death %5.2f Position %5.2f Property %5.2f",
-                        stat.accept_rate[1],
-                        stat.accept_rate[2],
-                        stat.accept_rate[3],
-                        stat.accept_rate[4])
-        @info(msg)
+        if opt.dispstatstoscreen
+            msg = @sprintf("Acceptance rates Birth %5.2f Death %5.2f Position %5.2f Property %5.2f",
+                            stat.accept_rate[1],
+                            stat.accept_rate[2],
+                            stat.accept_rate[3],
+                            stat.accept_rate[4])
+            @info(msg)
+        end    
         fill!(stat.move_tries, 0)
         fill!(stat.accepted_moves, 0)
     end
