@@ -1,5 +1,5 @@
 module TransD_GP
-using Printf, LinearAlgebra, Statistics, Distributed, SharedArrays, DistributedArrays
+using Printf, LinearAlgebra, Statistics, Distributed
 
 mutable struct Options
     nmin                :: Int
@@ -39,16 +39,20 @@ function Options(;
         report_freq = 10,
         save_freq = 100,
         history_mode = "w",
-        costs_filename = "misfits.bin",
-        fstar_filename = "models.bin",
-        x_ftrain_filename = "points.bin",
-        debug             = false)
+        fdataname = "",
+        debug             = false
+        )
+
         @assert xall != nothing
         @assert all(diff(xbounds, dims=2) .> 0)
         @assert diff(fbounds, dims=2)[1] > 0
         @assert ndims(sdev_pos) == 1
         @assert length(sdev_pos) == size(xbounds, 1)
         @assert length(λ) == size(xbounds, 1)
+        costs_filename = "misfits_"*fdataname*".bin"
+        fstar_filename = "models_"*fdataname*".bin"
+        x_ftrain_filename = "points_"*fdataname*".bin"
+
         Options(nmin, nmax, xbounds, fbounds, xall, λ, δ, demean, sdev_prop, sdev_pos, pnorm,
                 stat_window, report_freq, save_freq, history_mode, costs_filename, fstar_filename, x_ftrain_filename, debug)
 end
@@ -416,17 +420,17 @@ function mode_history(opt::Options, mode::String)
     opt.history_mode = mode
 end
 
-function write_history(isample::Int, opt::Options, m::Model, misfit::Float64, stat::Stats, wp::Writepointers)
+function write_history(isample::Int, opt::Options, m::Model, misfit::Float64, stat::Stats, wp::Writepointers, writemodel::Bool)
     write_history(opt, m.fstar, [m.xtrain' m.ftrain], misfit, stat.accept_rate[1],
                         stat.accept_rate[2], stat.accept_rate[3], stat.accept_rate[4], m.n,
-                       isample, wp.fp_costs, wp.fp_fstar, wp.fp_x_ftrain)
+                       isample, wp.fp_costs, wp.fp_fstar, wp.fp_x_ftrain, writemodel)
 end
 
 
 function write_history(opt::Options, fstar::AbstractArray, x_ftrain::AbstractArray, U::Float64, acceptanceRateBirth::Float64,
                     acceptanceRateDeath::Float64, acceptanceRatePosition::Float64, acceptanceRateProperty::Float64, nodes::Int,
                     iter::Int, fp_costs::Union{IOStream, Nothing}, fp_fstar::Union{IOStream, Nothing}, 
-                    fp_x_ftrain::Union{IOStream, Nothing})
+                    fp_x_ftrain::Union{IOStream, Nothing}, writemodel::Bool)
     if (mod(iter-1, opt.save_freq) == 0 || iter == 1)
         if fp_costs != nothing
             msg = @sprintf("%d %e %e %e %e %d %e\n", iter, acceptanceRateBirth, acceptanceRateDeath,
@@ -434,14 +438,16 @@ function write_history(opt::Options, fstar::AbstractArray, x_ftrain::AbstractArr
             write(fp_costs, msg)
             flush(fp_costs)
         end
-        if fp_fstar != nothing
-            write(fp_fstar, convert(Array{eltype(Float64)},fstar))
-            flush(fp_fstar)
-        end
-        if fp_x_ftrain != nothing
-            write(fp_x_ftrain, convert(Array{eltype(Float64)},x_ftrain))
-            flush(fp_x_ftrain)
-        end
+        if writemodel
+            if fp_fstar != nothing
+                write(fp_fstar, convert(Array{eltype(Float64)},fstar))
+                flush(fp_fstar)
+            end
+            if fp_x_ftrain != nothing
+                write(fp_x_ftrain, convert(Array{eltype(Float64)},x_ftrain))
+                flush(fp_x_ftrain)
+            end
+        end    
     end
 end
 

@@ -84,9 +84,7 @@ opt_in = TransD_GP.Options(nmin = nmin,
                         sdev_pos = sdev_pos,
                         pnorm = pnorm,
                         debug = debug,
-                        costs_filename = "misfits_"*fdataname*".bin",
-                        fstar_filename = "models_"*fdataname*".bin",
-                        x_ftrain_filename = "points_"*fdataname*".bin"
+                        fdataname = fdataname
                         )
 
 opt_EM_in  = MCMC_Driver.EMoptions(sd=δtry)
@@ -96,7 +94,7 @@ opt_EM_in.MLnoise = false
 @info "RMS error is" sqrt(2.0*MCMC_Driver.get_misfit(m_true, noisyd, opt_in, opt_EM_in)/sum(.!(isnan.(noisyd))))
 opt_EM_in.MLnoise = MLnoise
 ## run
-nsamples = 10001
+nsamples = 1001
 nchains = 2
 Tmax = 2.5
 rmprocs(workers()); addprocs(nchains)
@@ -106,51 +104,50 @@ rmprocs(workers()); addprocs(nchains)
 @everywhere import MCMC_Driver
 # m, opt, stat, opt_EM, d, current_misfit = MCMC_Driver.init_chain_darrays(opt_in, opt_EM_in, noisyd[:])
 ##
-@time begin
-    misfit, T0loc = MCMC_Driver.main(opt_in, noisyd, Tmax, nsamples, opt_EM_in)
-end
-save("misfit_T0_"*fdataname*".jld", "misfit", misfit, "T0loc", T0loc)
-##
-burnin = 5000
-M = TransD_GP.history(opt_in, stat=:fstar)
-n = TransD_GP.history(opt_in, stat=:nodes)
-x_ft = TransD_GP.history(opt_in, stat=:x_ftrain)
-iter = TransD_GP.history(opt_in, stat=:iter)
-misfit = load("misfit_T0_"*fdataname*".jld", "misfit")
-T0loc = load("misfit_T0_"*fdataname*".jld", "T0loc")
-f2, ax2 = plt[:subplots](2,1, sharex=true, figsize=(8,4))
-ax2[1][:plot](iter,n)
-ax2[1][:grid]()
-ax2[2][:plot](iter, misfit)
-ax2[2][:grid]()
-ax2[2][:set_xlabel]("iterations")
-ax2[2][:set_ylabel]("-log likelihood")
-ax2[1][:set_ylabel]("# training")
-MCMC_Driver.nicenup(gcf(), fsize=14)
-# gca()[:get_legend]()[:remove]()
-savefig("2D_conv.png", dpi=300)
-#gca()[:set_ylim](50, 200)
-# subplot(313)
-# plot(iter, T0loc)
-s = zeros(size(M[1]))
-iburn = findfirst(iter.>burnin)
-for i = iburn:length(M)
-    global s+= M[i]
-end
-s = s/(1-iburn+length(M))
-m = deepcopy(m_true)
-m.fstar[:] = M[end]
-opt_EM_in.MLnoise = false
-@info "RMS error is" sqrt(2.0*MCMC_Driver.get_misfit(m, noisyd, opt_in, opt_EM_in)/sum(.!(isnan.(noisyd))))
-opt_EM_in.MLnoise = MLnoise
-f3, ax3 = plt[:subplots](1,2,figsize=(10,5), sharex=true, sharey=true)
-nmodel = iburn
-im1 = ax3[1][:imshow](reshape(M[nmodel],length(y), length(x)), extent=[x[1],x[end],y[end],y[1]])
-ax3[1][:scatter](x_ft[nmodel][1:n[nmodel],1], x_ft[nmodel][1:n[nmodel],2], s=20, color="black", alpha=0.5)
-cb1 = colorbar(im1, ax=ax3[1])
-im2 = ax3[2][:imshow](reshape(s,length(y), length(x)), extent=[x[1],x[end],y[end],y[1]])
-cb2 = colorbar(im2, ax=ax3[2])
-MCMC_Driver.nicenup(gcf(), fsize=14)
-# gca()[:get_legend]()[:remove]()
-savefig("2D_final.png", dpi=300)
+@time MCMC_Driver.main(opt_in, noisyd, Tmax, nsamples, opt_EM_in)
+#
+#save("misfit_T0_"*fdataname*".jld", "misfit", misfit, "T0loc", T0loc)
+###
+#burnin = 5000
+#M = TransD_GP.history(opt_in, stat=:fstar)
+#n = TransD_GP.history(opt_in, stat=:nodes)
+#x_ft = TransD_GP.history(opt_in, stat=:x_ftrain)
+#iter = TransD_GP.history(opt_in, stat=:iter)
+#misfit = load("misfit_T0_"*fdataname*".jld", "misfit")
+#T0loc = load("misfit_T0_"*fdataname*".jld", "T0loc")
+#f2, ax2 = plt[:subplots](2,1, sharex=true, figsize=(8,4))
+#ax2[1][:plot](iter,n)
+#ax2[1][:grid]()
+#ax2[2][:plot](iter, misfit)
+#ax2[2][:grid]()
+#ax2[2][:set_xlabel]("iterations")
+#ax2[2][:set_ylabel]("-log likelihood")
+#ax2[1][:set_ylabel]("# training")
+#MCMC_Driver.nicenup(gcf(), fsize=14)
+## gca()[:get_legend]()[:remove]()
+#savefig("2D_conv.png", dpi=300)
+##gca()[:set_ylim](50, 200)
+## subplot(313)
+## plot(iter, T0loc)
+#s = zeros(size(M[1]))
+#iburn = findfirst(iter.>burnin)
+#for i = iburn:length(M)
+#    global s+= M[i]
+#end
+#s = s/(1-iburn+length(M))
+#m = deepcopy(m_true)
+#m.fstar[:] = M[end]
+#opt_EM_in.MLnoise = false
+#@info "RMS error is" sqrt(2.0*MCMC_Driver.get_misfit(m, noisyd, opt_in, opt_EM_in)/sum(.!(isnan.(noisyd))))
+#opt_EM_in.MLnoise = MLnoise
+#f3, ax3 = plt[:subplots](1,2,figsize=(10,5), sharex=true, sharey=true)
+#nmodel = iburn
+#im1 = ax3[1][:imshow](reshape(M[nmodel],length(y), length(x)), extent=[x[1],x[end],y[end],y[1]])
+#ax3[1][:scatter](x_ft[nmodel][1:n[nmodel],1], x_ft[nmodel][1:n[nmodel],2], s=20, color="black", alpha=0.5)
+#cb1 = colorbar(im1, ax=ax3[1])
+#im2 = ax3[2][:imshow](reshape(s,length(y), length(x)), extent=[x[1],x[end],y[end],y[1]])
+#cb2 = colorbar(im2, ax=ax3[2])
+#MCMC_Driver.nicenup(gcf(), fsize=14)
+## gca()[:get_legend]()[:remove]()
+#savefig("2D_final.png", dpi=300)
 ##
