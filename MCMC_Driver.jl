@@ -17,7 +17,7 @@ end
 struct Tpointer
     fp   :: IOStream
     fstr :: String
-end    
+end
 
 function get_misfit(m::TransD_GP.Model, d::AbstractArray, opt::TransD_GP.Options, opt_EM::EMoptions)
     chi2by2 = 0.0
@@ -68,12 +68,15 @@ function do_mcmc_step(m::TransD_GP.Model, opt::TransD_GP.Options, stat::TransD_G
     TransD_GP.write_history(isample, opt, m, current_misfit[1], stat, wp, writemodel)
 end
 
-function filldarray(a::AbstractArray)
-    r = Array{Future, 1}(undef, nworkers())
-    for (ipid, pid) in enumerate(workers())
-        r[ipid] = @spawnat pid a
-    end
-    DArray(r)
+function do_mcmc_step(m::DArray{TransD_GP.Model}, opt::DArray{TransD_GP.Options},
+    stat::DArray{TransD_GP.Stats}, current_misfit::DArray{Array{Float64, 1}},
+    d::AbstractArray, Temp::Float64, isample::Int, opt_EM::DArray{EMoptions},
+    wp::DArray{TransD_GP.Writepointers})
+
+    do_mcmc_step(localpart(m)[1], localpart(opt)[1], localpart(stat)[1],
+                            localpart(current_misfit)[1], localpart(d),
+                            Temp, isample, localpart(opt_EM)[1], localpart(wp)[1])
+
 end
 
 function close_history(wp::DArray)
@@ -91,22 +94,22 @@ function open_temperature_file(opt_in::TransD_GP.Options, T::Array{Float64, 1})
     end
     fmt = fmt*"{:f}"
     tpointer = Tpointer(fp_temps, fmt)
-end    
+end
 
 function write_temperatures(iter::Int, T::Array{Float64, 1}, tpointer::Tpointer, opt_in::TransD_GP.Options)
     if (mod(iter-1, opt_in.save_freq) == 0 || iter == 1)
         printfmtln(tpointer.fp, tpointer.fstr, iter, T...)
         flush(tpointer.fp)
     end
-end    
+end
 
 function close_temperature_file(fp::IOStream)
     close(fp)
-end    
+end
 
 function init_chain_darrays(opt_in::TransD_GP.Options, opt_EM_in::EMoptions, d_in::AbstractArray)
     m_, opt_, stat_, opt_EM_, d_in_, current_misfit_, wp_  = map(x -> Array{Future, 1}(undef, nworkers()), 1:7)
-    
+
     costs_filename = opt_in.costs_filename[1:end-4]
     fstar_filename = opt_in.fstar_filename[1:end-4]
     x_ftrain_filename = opt_in.x_ftrain_filename[1:end-4]
@@ -117,20 +120,20 @@ function init_chain_darrays(opt_in::TransD_GP.Options, opt_EM_in::EMoptions, d_i
         opt_in.costs_filename    = costs_filename*"_$idx.bin"
         opt_in.fstar_filename    = fstar_filename*"_$idx.bin"
         opt_in.x_ftrain_filename = x_ftrain_filename*"_$idx.bin"
-        
+
         opt_[idx]            = @spawnat pid [opt_in]
         stat_[idx]           = @spawnat pid [TransD_GP.Stats()]
         opt_EM_[idx]         = @spawnat pid [opt_EM_in]
         d_in_[idx]           = @spawnat pid d_in
-        current_misfit_[idx] = @spawnat pid [[get_misfit(fetch(m_[idx])[1], 
-                                              localpart(fetch(d_in_[idx])), 
-                                              fetch(opt_[idx])[1], 
+        current_misfit_[idx] = @spawnat pid [[get_misfit(fetch(m_[idx])[1],
+                                              localpart(fetch(d_in_[idx])),
+                                              fetch(opt_[idx])[1],
                                               fetch(opt_EM_[idx])[1])]]
         wp_[idx]             = @spawnat pid [TransD_GP.open_history(opt_in)]
 
     end
 
-    m, opt, stat, opt_EM, d, 
+    m, opt, stat, opt_EM, d,
     current_misfit, wp       = map(x -> DArray(x), (m_, opt_, stat_, opt_EM_, d_in_, current_misfit_, wp_))
 end
 
@@ -144,7 +147,7 @@ function main(opt_in::TransD_GP.Options, din::AbstractArray, Tmax::Float64, nsam
 
     fp_temps = open_temperature_file(opt_in::TransD_GP.Options, T)
     m, opt, stat, opt_EM, d, current_misfit, wp = init_chain_darrays(opt_in, opt_EM_in, din[:])
-    
+
     @show typeof(m)
     @show typeof(d)
     @show typeof(d[1])
@@ -166,11 +169,11 @@ function main(opt_in::TransD_GP.Options, din::AbstractArray, Tmax::Float64, nsam
         end
 
         @sync for(idx, pid) in enumerate(workers())
-            @spawnat pid do_mcmc_step(m[idx], opt[idx], stat[idx],
-                                    current_misfit[idx], localpart(d),
-                                    T[idx], isample, opt_EM[idx], wp[idx])
+            @async remotecall_fetch(do_mcmc_step, pid, m, opt, stat,
+                                    current_misfit, d,
+                                    T[idx], isample, opt_EM, wp)
         end
-        
+
         write_temperatures(isample, T, fp_temps, opt_in)
 
         if mod(isample-1, 1000) == 0
