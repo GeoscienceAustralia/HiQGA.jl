@@ -95,8 +95,8 @@ opt_EM_in.MLnoise = false
 @info "RMS error is" sqrt(2.0*MCMC_Driver.get_misfit(m_true, noisyd, opt_in, opt_EM_in)/sum(.!(isnan.(noisyd))))
 opt_EM_in.MLnoise = MLnoise
 ## run
-nsamples = 1001
-nchains = 2
+nsamples = 4001
+nchains = 4
 Tmax = 2.5
 rmprocs(workers()); addprocs(nchains)
 @info "workers are $(workers())"
