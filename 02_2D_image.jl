@@ -67,7 +67,7 @@ demean = true
 sdev_prop = 0.1
 sdev_pos = [10.0, 10.0]
 pnorm = 2.
-debug = false
+debug = true
 MLnoise = true
 
 xbounds = [x[1] x[end];y[1] y[end]]

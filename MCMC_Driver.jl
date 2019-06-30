@@ -66,6 +66,8 @@ function do_mcmc_step(m::TransD_GP.Model, opt::TransD_GP.Options, stat::TransD_G
     writemodel = false
     abs(Temp-1.0) < 1e-12 && (writemodel = true)
     TransD_GP.write_history(isample, opt, m, current_misfit[1], stat, wp, writemodel)
+
+    return current_misfit[1]
 end
 
 function do_mcmc_step(m::DArray{TransD_GP.Model}, opt::DArray{TransD_GP.Options},
@@ -73,7 +75,7 @@ function do_mcmc_step(m::DArray{TransD_GP.Model}, opt::DArray{TransD_GP.Options}
     d::AbstractArray, Temp::Float64, isample::Int, opt_EM::DArray{EMoptions},
     wp::DArray{TransD_GP.Writepointers})
 
-    do_mcmc_step(localpart(m)[1], localpart(opt)[1], localpart(stat)[1],
+    misfit = do_mcmc_step(localpart(m)[1], localpart(opt)[1], localpart(stat)[1],
                             localpart(current_misfit)[1], localpart(d),
                             Temp, isample, localpart(opt_EM)[1], localpart(wp)[1])
 
@@ -140,10 +142,7 @@ end
 function main(opt_in::TransD_GP.Options, din::AbstractArray, Tmax::Float64, nsamples::Int, opt_EM_in::EMoptions)
     T = 10.0.^range(0, stop = log10(Tmax), length = nworkers())
 
-    till = TransD_GP.closestmultbelow(nsamples-1, opt_in.save_freq) + 1
-    nstore = length(1:opt_in.save_freq:till)
-    misfit = zeros(Float64, nstore)
-    T0store = zeros(Int, nstore)
+    misfit = zeros(Float64, length(T))
 
     fp_temps = open_temperature_file(opt_in::TransD_GP.Options, T)
     m, opt, stat, opt_EM, d, current_misfit, wp = init_chain_darrays(opt_in, opt_EM_in, din[:])
@@ -152,15 +151,13 @@ function main(opt_in::TransD_GP.Options, din::AbstractArray, Tmax::Float64, nsam
     @show typeof(d)
     @show typeof(d[1])
 
-    storecount = 1
-    t1 = time()
     t2 = time()
     for isample = 1:nsamples
 
         for ichain in nworkers():-1:2
             jchain = rand(1:ichain)
             if ichain != jchain
-                logalpha = (current_misfit[ichain][1] - current_misfit[jchain][1]) *
+                logalpha = (misfit[ichain] - misfit[jchain]) *
                                 (1.0/T[ichain] - 1.0/T[jchain])
                 if log(rand()) < logalpha
                     T[ichain], T[jchain] = T[jchain], T[ichain]
@@ -169,7 +166,7 @@ function main(opt_in::TransD_GP.Options, din::AbstractArray, Tmax::Float64, nsam
         end
 
         @sync for(idx, pid) in enumerate(workers())
-            @async remotecall_fetch(do_mcmc_step, pid, m, opt, stat,
+            @async misfit[idx] = remotecall_fetch(do_mcmc_step, pid, m, opt, stat,
                                     current_misfit, d,
                                     T[idx], isample, opt_EM, wp)
         end
@@ -181,17 +178,7 @@ function main(opt_in::TransD_GP.Options, din::AbstractArray, Tmax::Float64, nsam
             t2 = time()
             @info("*****$dt**sec*****")
         end
-#        if mod(isample-1, opt_in.save_freq) == 0
-#            T0idx = argmin(abs.(T.-1.0))
-#            if time() - t1 >= 2. #seconds
-#                @info("sample: $isample target worker: $(workers()[T0idx]) misfit $(current_misfit[T0idx]) points $(m[T0idx].n)")
-#                t1 = time()
-#            end
-#            #TransD_GP.write_history(isample, opt[T0idx], m[T0idx], current_misfit[T0idx][1], stat[T0idx], wp)
-#            misfit[storecount] = current_misfit[T0idx][1]
-#            T0store[storecount] = T0idx
-#            storecount = storecount + 1
-#        end
+
     end
 
     close_history(wp)
