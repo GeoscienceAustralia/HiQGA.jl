@@ -147,10 +147,6 @@ function main(opt_in::TransD_GP.Options, din::AbstractArray, Tmax::Float64, nsam
     fp_temps = open_temperature_file(opt_in::TransD_GP.Options, T)
     m, opt, stat, opt_EM, d, current_misfit, wp = init_chain_darrays(opt_in, opt_EM_in, din[:])
 
-    @show typeof(m)
-    @show typeof(d)
-    @show typeof(d[1])
-
     t2 = time()
     for isample = 1:nsamples
 

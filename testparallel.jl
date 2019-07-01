@@ -1,7 +1,7 @@
 using Distributed, LinearAlgebra
 addprocs(2)
 @everywhere using DistributedArrays, LinearAlgebra
-
+##
 function filldarray(a::AbstractArray)
     r = Array{Future, 1}(undef, nworkers())
     for (ipid, pid) in enumerate(workers())
@@ -61,4 +61,13 @@ function dosvd2(d::DArray)
         @async s[ipid] = remotecall_fetch(fetchlocalsvd, pid, d)
     end
     s
+end
+
+##
+function testnp(np::Int, sleeptime::Float64)
+    rmprocs(workers())
+    addprocs(np)
+    @time @sync for (ipid, pid) in enumerate(workers())
+        @async remotecall_fetch(sleep, pid, sleeptime)
+    end
 end

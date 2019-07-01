@@ -71,11 +71,6 @@ mutable struct Model
     iremember     :: Int # stores old changed point index to recover state
 end
 
-# function copy(m::Model)
-#     return Model(Base.copy(m.xtrain), Base.copy(m.ftrain,), Base.copy(m.K_y), Base.copy(m.Kstar),
-#                  m.n, Base.copy(m.ftrain_old), Base.copy(m.xtrain_old), m.iremember)
-# end
-
 mutable struct Stats
     move_tries::Array{Int, 1}
     accepted_moves::Array{Int, 1}
@@ -368,7 +363,7 @@ function get_acceptance_stats!(isample::Int, opt::Options, stat::Stats)
                             stat.accept_rate[3],
                             stat.accept_rate[4])
             @info(msg)
-        end    
+        end
         fill!(stat.move_tries, 0)
         fill!(stat.accepted_moves, 0)
     end
@@ -433,7 +428,7 @@ end
 
 function write_history(opt::Options, fstar::AbstractArray, x_ftrain::AbstractArray, U::Float64, acceptanceRateBirth::Float64,
                     acceptanceRateDeath::Float64, acceptanceRatePosition::Float64, acceptanceRateProperty::Float64, nodes::Int,
-                    iter::Int, fp_costs::Union{IOStream, Nothing}, fp_fstar::Union{IOStream, Nothing}, 
+                    iter::Int, fp_costs::Union{IOStream, Nothing}, fp_fstar::Union{IOStream, Nothing},
                     fp_x_ftrain::Union{IOStream, Nothing}, writemodel::Bool)
     if (mod(iter-1, opt.save_freq) == 0 || iter == 1)
         if fp_costs != nothing
@@ -451,7 +446,7 @@ function write_history(opt::Options, fstar::AbstractArray, x_ftrain::AbstractArr
                 write(fp_x_ftrain, convert(Array{eltype(Float64)},x_ftrain))
                 flush(fp_x_ftrain)
             end
-        end    
+        end
     end
 end
 
