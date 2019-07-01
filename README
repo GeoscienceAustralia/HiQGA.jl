@@ -1,0 +1,6 @@
+Implements TransD_GP algorithm as published in
+
+Bayesian geophysical inversion with trans-dimensional Gaussian process machine learning
+A Ray, D Myer - Geophysical Journal International, 2019
+
+run 02_2D_image.jl in > Julia 1.1.0
