@@ -1,5 +1,5 @@
 module MCMC_Driver
-using TransD_GP, Distributed, SharedArrays, DistributedArrays,
+using TransD_GP, Distributed, DistributedArrays,
      PyPlot, LinearAlgebra, Formatting
 
 mutable struct EMoptions
@@ -82,7 +82,7 @@ function do_mcmc_step(m::DArray{TransD_GP.Model}, opt::DArray{TransD_GP.Options}
 end
 
 function close_history(wp::DArray)
-    for (idx, pid) in enumerate(procs(wp))
+    @sync for (idx, pid) in enumerate(procs(wp))
         @spawnat pid TransD_GP.close_history(wp[idx])
     end
 end
@@ -185,15 +185,15 @@ end
 
 function nicenup(g::PyPlot.Figure;fsize=14)
     for ax in gcf()[:axes]
-        ax[:tick_params]("both",labelsize=fsize)
-        ax[:xaxis][:label][:set_fontsize](fsize)
-        ax[:yaxis][:label][:set_fontsize](fsize)
-        ax[:title][:set_fontsize](fsize)
-        if typeof(ax[:get_legend_handles_labels]()[1]) != Array{Any,1}
-            ax[:legend](loc="best", fontsize=fsize)
+        ax.tick_params("both",labelsize=fsize)
+        ax.xaxis.label.set_fontsize(fsize)
+        ax.yaxis.label.set_fontsize(fsize)
+        ax.title.set_fontsize(fsize)
+        if typeof(ax.get_legend_handles_labels()[1]) != Array{Any,1}
+            ax.legend(loc="best", fontsize=fsize)
         end
     end
-    g[:tight_layout]()
+    g.tight_layout()
 end
 
 end
