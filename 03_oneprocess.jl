@@ -101,7 +101,7 @@ current_misfit = [MCMC_Driver.get_misfit(m, noisyd, opt_in, opt_EM_in)]
 # run 1001 steps on single process - about 20 seconds
 @info MCMC_Driver.get_misfit(m, noisyd, opt_in, opt_EM_in)
 function foo()
-    for isample=1:1001
+    for isample=1:4001
         MCMC_Driver.do_mcmc_step(m, opt_in, stat_in, current_misfit, noisyd[:],
             Temp, isample, opt_EM_in, wp_in)
     end
