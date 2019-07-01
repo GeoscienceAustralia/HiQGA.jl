@@ -1,6 +1,10 @@
 Implements TransD_GP algorithm as published in
 
-Bayesian geophysical inversion with trans-dimensional Gaussian process machine learning
+Bayesian geophysical inversion with trans-dimensional Gaussian process machine
+learning
 A Ray, D Myer - Geophysical Journal International, 2019
 
-run 02_2D_image.jl in > Julia 1.1.0
+run 02_2D_image.jl in > Julia 1.1.0 for a parallel version on 4 cores, takes
+about 213 seconds for 4001 parallel iterations
+
+belatedly added a single process version on 03_oneprocess.jl

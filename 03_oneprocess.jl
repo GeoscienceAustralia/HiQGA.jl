@@ -53,12 +53,7 @@ im2 = ax1[2].scatter(Xall[1,:], Xall[2,:], c=noisyd[:], s=10)
 cb2 = colorbar(im2)
 ax1[2].axis([x[1],x[end],y[end],y[1]])
 MCMC_Driver.nicenup(gcf(), fsize=14)
-# savefig("2D_setup.png", dpi=300)
-## Simple gaussian process reconstruction if you want
-# @time ftest, = GP.GPfit(ftrain, Xtrain, Xall, λ, δtry, nogetvars=true)
-# figure()
-# imshow(reshape(ftest,length(y), length(x)), extent=[x[1],x[end],y[end],y[1]])
-# colorbar()
+
 ## now for McMC inversion parameters
 fdataname = "2Dtest_smooth"
 nmin, nmax = 2, 100
@@ -91,25 +86,29 @@ opt_in = TransD_GP.Options(nmin = nmin,
                         )
 
 opt_EM_in  = MCMC_Driver.EMoptions(sd=δtry)
-m_true = TransD_GP.init(opt_in)
+m = TransD_GP.init(opt_in)
+m_true = deepcopy(m)
 m_true.fstar[:] = f[:]
 opt_EM_in.MLnoise = false
-@info "RMS error is" sqrt(2.0*MCMC_Driver.get_misfit(m_true, noisyd, opt_in, opt_EM_in)/sum(.!(isnan.(noisyd))))
+current_misfit = [MCMC_Driver.get_misfit(m_true, noisyd, opt_in, opt_EM_in)]
+@info "True RMS error is" sqrt(2.0*current_misfit[1]/sum(.!(isnan.(noisyd))))
+
 opt_EM_in.MLnoise = MLnoise
-# actual run of McMC
-nsamples = 4001
-nchains = 4
-Tmax = 2.5
-rmprocs(workers()); addprocs(nchains)
-@info "workers are $(workers())"
-@everywhere any(pwd() .== LOAD_PATH) || push!(LOAD_PATH, pwd())
-@everywhere using Distributed, Revise
-@everywhere import MCMC_Driver
-@time MCMC_Driver.main(opt_in, noisyd, Tmax, nsamples, opt_EM_in)
-## plot last sampeld model in target chain
-iter_T = readdlm(fdataname*"_temps.txt")
-last_target_model_idx = findfirst(abs.(iter_T[end,2:end] .-1.0) .< 1e-12)
-opt_in.fstar_filename = "models_2Dtest_smooth_$last_target_model_idx.bin"
-m_last = TransD_GP.history(opt_in, stat=:fstar)[end]
+stat_in = TransD_GP.Stats()
+wp_in = TransD_GP.open_history(opt_in)
+Temp = 1.0
+current_misfit = [MCMC_Driver.get_misfit(m, noisyd, opt_in, opt_EM_in)]
+# run 1001 steps on single process - about 20 seconds
+@info MCMC_Driver.get_misfit(m, noisyd, opt_in, opt_EM_in)
+function foo()
+    for isample=1:1001
+        MCMC_Driver.do_mcmc_step(m, opt_in, stat_in, current_misfit, noisyd[:],
+            Temp, isample, opt_EM_in, wp_in)
+    end
+    nothing
+end
+@time foo()
+TransD_GP.close_history(wp_in)
+@info MCMC_Driver.get_misfit(m, noisyd, opt_in, opt_EM_in)
 figure()
-imshow(reshape(m_last,length(y), length(x)), extent=[x[1],x[end],y[end],y[1]])
+imshow(reshape(m.fstar,length(y), length(x)), extent=[x[1],x[end],y[end],y[1]])

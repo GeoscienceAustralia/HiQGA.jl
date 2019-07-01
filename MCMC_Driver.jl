@@ -184,7 +184,7 @@ function main(opt_in::TransD_GP.Options, din::AbstractArray, Tmax::Float64, nsam
 end
 
 function nicenup(g::PyPlot.Figure;fsize=14)
-    for ax in gcf()[:axes]
+    for ax in gcf().axes
         ax.tick_params("both",labelsize=fsize)
         ax.xaxis.label.set_fontsize(fsize)
         ax.yaxis.label.set_fontsize(fsize)
