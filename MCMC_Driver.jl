@@ -116,7 +116,7 @@ function init_chain_darrays(opt_in::TransD_GP.Options, opt_EM_in::EMoptions, d_i
     fstar_filename = opt_in.fstar_filename[1:end-4]
     x_ftrain_filename = opt_in.x_ftrain_filename[1:end-4]
 
-    for(idx, pid) in enumerate(workers())
+    @sync for(idx, pid) in enumerate(workers())
         m_[idx]              = @spawnat pid [TransD_GP.init(opt_in)]
 
         opt_in.costs_filename    = costs_filename*"_$idx.bin"
