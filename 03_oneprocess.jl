@@ -98,7 +98,7 @@ stat_in = TransD_GP.Stats()
 wp_in = TransD_GP.open_history(opt_in)
 Temp = 1.0
 current_misfit = [MCMC_Driver.get_misfit(m, noisyd, opt_in, opt_EM_in)]
-# run 1001 steps on single process - about 20 seconds
+# run 4001 steps on single process - about 113 seconds
 @info MCMC_Driver.get_misfit(m, noisyd, opt_in, opt_EM_in)
 function foo()
     for isample=1:4001
