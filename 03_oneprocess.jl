@@ -56,7 +56,7 @@ MCMC_Driver.nicenup(gcf(), fsize=14)
 
 ## now for McMC inversion parameters
 fdataname = "2Dtest_smooth"
-nmin, nmax = 2, 100
+nmin, nmax = 2, 20
 λ, δ = [150.0, 150.0], 0.2
 fbounds = [-1 2]
 demean = true
@@ -76,7 +76,7 @@ opt_in = TransD_GP.Options(nmin = nmin,
                         λ = λ,
                         δ = δ,
                         demean = demean,
-                        save_freq = 100,
+                        save_freq = 500,
                         dispstatstoscreen = false,
                         sdev_prop = sdev_prop,
                         sdev_pos = sdev_pos,
