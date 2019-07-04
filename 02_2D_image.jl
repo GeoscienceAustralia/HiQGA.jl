@@ -104,7 +104,7 @@ Tmax = 2.5
 rmprocs(workers()); addprocs(nchains)
 @info "workers are $(workers())"
 @everywhere any(pwd() .== LOAD_PATH) || push!(LOAD_PATH, pwd())
-@everywhere using Distributed, Revise
+@everywhere using Distributed
 @everywhere import MCMC_Driver
 @time MCMC_Driver.main(opt_in, noisyd, Tmax, nsamples, opt_EM_in)
 ## plot last sampeld model in target chain
