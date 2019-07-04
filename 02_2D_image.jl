@@ -1,9 +1,10 @@
 # Reconstruct a badly sampled image with parsimonious representation
 pwd()[2] == ':' && (ENV["MPLBACKEND"]="qt4agg")
 any(pwd() .== LOAD_PATH) || push!(LOAD_PATH, pwd())
-using PyPlot, Random, GP, TransD_GP, Revise,
+using PyPlot, Random, GP, TransD_GP, MPI,
         Distributed, Images, FileIO, DelimitedFiles
-import MCMC_Driver, Plot2D
+import MCMC_Driver
+mgr = MPI.start_main_loop(MPI.MPI_TRANSPORT_ALL)
 ## get random points from image
 Random.seed!(12)
 sd = 0.05
@@ -98,7 +99,7 @@ opt_EM_in.MLnoise = false
 opt_EM_in.MLnoise = MLnoise
 # actual run of McMC
 nsamples = 4001
-nchains = 8
+nchains = 32
 Tmax = 2.5
 rmprocs(workers()); addprocs(nchains)
 @info "workers are $(workers())"
@@ -113,3 +114,4 @@ opt_in.fstar_filename = "models_2Dtest_smooth_$last_target_model_idx.bin"
 m_last = TransD_GP.history(opt_in, stat=:fstar)[end]
 figure()
 imshow(reshape(m_last,length(y), length(x)), extent=[x[1],x[end],y[end],y[1]])
+MPI.stop_main_loop(mgr)
