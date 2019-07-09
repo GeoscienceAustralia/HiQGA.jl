@@ -17,6 +17,7 @@ mutable struct Options
     dispstatstoscreen   :: Bool
     report_freq         :: Int
     save_freq           :: Int
+    fdataname           :: String
     history_mode        :: String
     costs_filename      :: String
     fstar_filename      :: String
@@ -56,7 +57,7 @@ function Options(;
         x_ftrain_filename = "points_"*fdataname*".bin"
 
         Options(nmin, nmax, xbounds, fbounds, xall, λ, δ, demean, sdev_prop, sdev_pos, pnorm,
-                stat_window, dispstatstoscreen, report_freq, save_freq, history_mode, costs_filename, fstar_filename, x_ftrain_filename, debug)
+                stat_window, dispstatstoscreen, report_freq, save_freq, fdataname, history_mode, costs_filename, fstar_filename, x_ftrain_filename, debug)
 end
 
 mutable struct Model

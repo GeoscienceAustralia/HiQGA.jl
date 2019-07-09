@@ -112,9 +112,9 @@ end
 function init_chain_darrays(opt_in::TransD_GP.Options, opt_EM_in::EMoptions, d_in::AbstractArray)
     m_, opt_, stat_, opt_EM_, d_in_, current_misfit_, wp_  = map(x -> Array{Future, 1}(undef, nworkers()), 1:7)
 
-    costs_filename = opt_in.costs_filename[1:end-4]
-    fstar_filename = opt_in.fstar_filename[1:end-4]
-    x_ftrain_filename = opt_in.x_ftrain_filename[1:end-4]
+    costs_filename = "misfits_"*opt_in.fdataname
+    fstar_filename = "models_"*opt_in.fdataname
+    x_ftrain_filename = "points_"*opt_in.fdataname
 
     @sync for(idx, pid) in enumerate(workers())
         m_[idx]              = @spawnat pid [TransD_GP.init(opt_in)]
