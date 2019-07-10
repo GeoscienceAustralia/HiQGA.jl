@@ -40,7 +40,7 @@ opt_EM_in  = MCMC_Driver.EMoptions(sd=sd)
 ImageRegression.calc_simple_RMS(d, img, opt_in, opt_EM_in, sd)
 
 # actual run of McMC
-nsamples, nchains, Tmax = 4001, 32, 2.5
+nsamples, nchains, Tmax = 4001, 4, 2.5
 mgr = MPI.start_main_loop(MPI.MPI_TRANSPORT_ALL)
 
 addprocs(nchains)

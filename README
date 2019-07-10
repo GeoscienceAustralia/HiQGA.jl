@@ -4,9 +4,7 @@ Bayesian geophysical inversion with trans-dimensional Gaussian process machine
 learning
 A Ray, D Myer - Geophysical Journal International, 2019
 
-run 02_2D_image.jl in > Julia 1.1.0 for a parallel version on 4 cores, takes
-about 213 seconds for 4001 parallel iterations. variable nchains controls the
-number of parallel workers
+Use run_image_regression.jl in > Julia 1.1.0 for a parallel version on, please remember to specify nchains before start, it takes about 139 seconds for 4001 parallel iterations on 4 cores, 398 seconds on 32 cores. Variable nchains controls the number of parallel workers.
 
-belatedly added a single process version on 03_oneprocess.jl, takes 113 s for
+Belatedly added a single process version on 03_oneprocess.jl, takes 113 s for
 4001 iterations
