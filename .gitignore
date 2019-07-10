@@ -1,0 +1,4 @@
+*.bin
+*.run
+*_temps.txt
+*.out
