@@ -203,10 +203,10 @@ function main(opt_in::TransD_GP.Options, din::AbstractArray, opt_EM_in::EMoption
         
         swap_temps(chains)        
 
-        @sync for ichain in 1:nchains
-            @async chains[ichain].misfit = remotecall_fetch(do_mcmc_step, chains[ichain].pids[1], m, opt, stat,
+        @sync for(ichain, chain) in enumerate(chains)
+            @async chain.misfit = remotecall_fetch(do_mcmc_step, chain.pids[1], m, opt, stat,
                                                              current_misfit, d,
-                                                             chains[ichain].T, isample, opt_EM, wp)
+                                                             chain.T, isample, opt_EM, wp)
         end
 
         write_temperatures(isample, chains, fp_temps, opt_in)
