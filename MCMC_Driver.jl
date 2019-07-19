@@ -159,12 +159,11 @@ function init_chain_darrays(opt_in::TransD_GP.Options, opt_EM_in::EMoptions, d_i
         stat_[idx]           = @spawnat chain.pids[1] [TransD_GP.Stats()]
         opt_EM_[idx]         = @spawnat chain.pids[1] [opt_EM_in]
         d_in_[idx]           = @spawnat chain.pids[1] d_in
-        chain.misfit         = fetch( @spawnat chain.pids[1] get_misfit(fetch(m_[idx])[1],
+        current_misfit_[idx] = @spawnat chain.pids[1] [[ get_misfit(fetch(m_[idx])[1],
                                                localpart(fetch(d_in_[idx])),
                                                fetch(opt_[idx])[1],
-                                               fetch(opt_EM_[idx])[1]) )
+                                               fetch(opt_EM_[idx])[1]) ]]
  
-        current_misfit_[idx] = @spawnat chain.pids[1] [[chain.misfit ]]
         wp_[idx]             = @spawnat chain.pids[1] [TransD_GP.open_history(opt_in)]
 
     end
