@@ -34,6 +34,38 @@ function get_misfit(m::TransD_GP.Model, d::AbstractArray, opt::TransD_GP.Options
     return chi2by2
 end
 
+mutable struct Chain
+    pids     :: Array{Int, 1}
+    T        :: Float64
+    misfit   :: Float64
+end 
+
+function Chain(nchains::Int;
+               Tmax          = 2.5,
+               nchainsatone  = 1,
+              )
+
+    @assert nchains > 1
+    @assert Tmax > 1
+    @assert mod(nworkers(), nchains) == 0
+    
+    npidsperchain = floor(Int, nworkers()/nchains)
+    @info "npidsperchain = $npidsperchain"
+    T = 10.0.^range(0, stop = log10(Tmax), length = nchains-nchainsatone+1)
+    append!(T, ones(nchainsatone-1))
+    chains = Array{Chain, 1}(undef, nchains)
+    
+    pid_end = 0
+    for ichain in 1:nchains
+        pid_start      = pid_end + 1
+        pid_end        = pid_start + npidsperchain - 1
+        pids           = workers()[pid_start:pid_end]
+        
+        chains[ichain] = Chain(pids, T[ichain], 0.0)
+    end
+    chains
+end               
+
 function mh_step!(m::TransD_GP.Model, d::AbstractArray,
     opt::TransD_GP.Options, stat::TransD_GP.Stats,
     Temp::Float64, movetype::Int, current_misfit::Array{Float64, 1}, opt_EM::EMoptions)
@@ -87,20 +119,20 @@ function close_history(wp::DArray)
     end
 end
 
-function open_temperature_file(opt_in::TransD_GP.Options, T::Array{Float64, 1})
+function open_temperature_file(opt_in::TransD_GP.Options, nchains::Int)
     fdataname = opt_in.costs_filename[9:end-4]
     fp_temps  = open(fdataname*"_temps.txt", opt_in.history_mode)
     fmt = "{:d} "
-    for i = 1:length(T)-1
+    for i = 1:nchains-1
         fmt = fmt*"{:f} "
     end
     fmt = fmt*"{:f}"
     tpointer = Tpointer(fp_temps, fmt)
 end
 
-function write_temperatures(iter::Int, T::Array{Float64, 1}, tpointer::Tpointer, opt_in::TransD_GP.Options)
+function write_temperatures(iter::Int, chains::Array{Chain, 1}, tpointer::Tpointer, opt_in::TransD_GP.Options)
     if (mod(iter-1, opt_in.save_freq) == 0 || iter == 1)
-        printfmtln(tpointer.fp, tpointer.fstr, iter, T...)
+        printfmtln(tpointer.fp, tpointer.fstr, iter, (getproperty.(chains,:T))...)
         flush(tpointer.fp)
     end
 end
@@ -109,29 +141,31 @@ function close_temperature_file(fp::IOStream)
     close(fp)
 end
 
-function init_chain_darrays(opt_in::TransD_GP.Options, opt_EM_in::EMoptions, d_in::AbstractArray)
+function init_chain_darrays(opt_in::TransD_GP.Options, opt_EM_in::EMoptions, d_in::AbstractArray, chains::Array{Chain, 1})
     m_, opt_, stat_, opt_EM_, d_in_, current_misfit_, wp_  = map(x -> Array{Future, 1}(undef, nworkers()), 1:7)
 
     costs_filename = "misfits_"*opt_in.fdataname
     fstar_filename = "models_"*opt_in.fdataname
     x_ftrain_filename = "points_"*opt_in.fdataname
 
-    @sync for(idx, pid) in enumerate(workers())
-        m_[idx]              = @spawnat pid [TransD_GP.init(opt_in)]
+    @sync for(idx, chain) in enumerate(chains)
+        m_[idx]              = @spawnat chain.pids[1] [TransD_GP.init(opt_in)]
 
         opt_in.costs_filename    = costs_filename*"_$idx.bin"
         opt_in.fstar_filename    = fstar_filename*"_$idx.bin"
         opt_in.x_ftrain_filename = x_ftrain_filename*"_$idx.bin"
 
-        opt_[idx]            = @spawnat pid [opt_in]
-        stat_[idx]           = @spawnat pid [TransD_GP.Stats()]
-        opt_EM_[idx]         = @spawnat pid [opt_EM_in]
-        d_in_[idx]           = @spawnat pid d_in
-        current_misfit_[idx] = @spawnat pid [[get_misfit(fetch(m_[idx])[1],
-                                              localpart(fetch(d_in_[idx])),
-                                              fetch(opt_[idx])[1],
-                                              fetch(opt_EM_[idx])[1])]]
-        wp_[idx]             = @spawnat pid [TransD_GP.open_history(opt_in)]
+        opt_[idx]            = @spawnat chain.pids[1] [opt_in]
+        stat_[idx]           = @spawnat chain.pids[1] [TransD_GP.Stats()]
+        opt_EM_[idx]         = @spawnat chain.pids[1] [opt_EM_in]
+        d_in_[idx]           = @spawnat chain.pids[1] d_in
+        chain.misfit         = fetch( @spawnat chain.pids[1] get_misfit(fetch(m_[idx])[1],
+                                               localpart(fetch(d_in_[idx])),
+                                               fetch(opt_[idx])[1],
+                                               fetch(opt_EM_[idx])[1]) )
+ 
+        current_misfit_[idx] = @spawnat chain.pids[1] [[chain.misfit ]]
+        wp_[idx]             = @spawnat chain.pids[1] [TransD_GP.open_history(opt_in)]
 
     end
 
@@ -139,35 +173,43 @@ function init_chain_darrays(opt_in::TransD_GP.Options, opt_EM_in::EMoptions, d_i
     current_misfit, wp       = map(x -> DArray(x), (m_, opt_, stat_, opt_EM_, d_in_, current_misfit_, wp_))
 end
 
-function main(opt_in::TransD_GP.Options, din::AbstractArray, Tmax::Float64, nsamples::Int, opt_EM_in::EMoptions)
-    T = 10.0.^range(0, stop = log10(Tmax), length = nworkers())
+function swap_temps(chains::Array{Chain, 1})
+    for ichain in length(chains):-1:2
+        jchain = rand(1:ichain)
+        if ichain != jchain
+            logalpha = (chains[ichain].misfit - chains[jchain].misfit) *
+                            (1.0/chains[ichain].T - 1.0/chains[jchain].T)
+            if log(rand()) < logalpha
+                chains[ichain].T, chains[jchain].T = chains[jchain].T, chains[ichain].T
+            end
+        end
+    end
+ 
+end    
 
-    misfit = zeros(Float64, length(T))
+function main(opt_in::TransD_GP.Options, din::AbstractArray, opt_EM_in::EMoptions ;
+              nsamples     = 4001,
+              nchains      = 1,
+              nchainsatone = 1,
+              Tmax         = 2.5)
 
-    fp_temps = open_temperature_file(opt_in::TransD_GP.Options, T)
-    m, opt, stat, opt_EM, d, current_misfit, wp = init_chain_darrays(opt_in, opt_EM_in, din[:])
+
+    chains = Chain(nchains, Tmax=Tmax, nchainsatone=nchainsatone)
+    fp_temps = open_temperature_file(opt_in::TransD_GP.Options, nchains)
+    m, opt, stat, opt_EM, d, current_misfit, wp = init_chain_darrays(opt_in, opt_EM_in, din[:], chains)
 
     t2 = time()
     for isample = 1:nsamples
+        
+        swap_temps(chains)        
 
-        for ichain in nworkers():-1:2
-            jchain = rand(1:ichain)
-            if ichain != jchain
-                logalpha = (misfit[ichain] - misfit[jchain]) *
-                                (1.0/T[ichain] - 1.0/T[jchain])
-                if log(rand()) < logalpha
-                    T[ichain], T[jchain] = T[jchain], T[ichain]
-                end
-            end
+        @sync for ichain in 1:nchains
+            @async chains[ichain].misfit = remotecall_fetch(do_mcmc_step, chains[ichain].pids[1], m, opt, stat,
+                                                             current_misfit, d,
+                                                             chains[ichain].T, isample, opt_EM, wp)
         end
 
-        @sync for(idx, pid) in enumerate(workers())
-            @async misfit[idx] = remotecall_fetch(do_mcmc_step, pid, m, opt, stat,
-                                    current_misfit, d,
-                                    T[idx], isample, opt_EM, wp)
-        end
-
-        write_temperatures(isample, T, fp_temps, opt_in)
+        write_temperatures(isample, chains, fp_temps, opt_in)
 
         if mod(isample-1, 1000) == 0
             dt = time() - t2 #seconds
