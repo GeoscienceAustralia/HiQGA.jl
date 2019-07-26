@@ -143,7 +143,7 @@ function close_temperature_file(fp::IOStream)
 end
 
 function init_chain_darrays(opt_in::TransD_GP.Options, opt_EM_in::EMoptions, d_in::AbstractArray, chains::Array{Chain, 1})
-    m_, opt_, stat_, opt_EM_, d_in_, current_misfit_, wp_  = map(x -> Array{Future, 1}(undef, length(chains), 1:7)
+    m_, opt_, stat_, opt_EM_, d_in_, current_misfit_, wp_  = map(x -> Array{Future, 1}(undef, length(chains)), 1:7)
 
     costs_filename = "misfits_"*opt_in.fdataname
     fstar_filename = "models_"*opt_in.fdataname

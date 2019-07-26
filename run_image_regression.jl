@@ -54,5 +54,6 @@ addprocs(nchains)
 ##
 rmprocs(workers())
 MPI.stop_main_loop(mgr)
-
+## plot
+ImageRegression.getchi2forall(opt_in)
 ImageRegression.plot_last_target_model(img, opt_in)
