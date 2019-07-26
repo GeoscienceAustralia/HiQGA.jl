@@ -1,15 +1,15 @@
 any(pwd() .== LOAD_PATH) || push!(LOAD_PATH, pwd())
 using ImageRegression, TransD_GP, MCMC_Driver, MPI, Distributed
-
+##
 img = ImageRegression.Img(
           filename         = "4.2.01.tiff",
           dx               = 10.0,
           fractrain        = 0.02,
           dec              = 2,
           gausskernelwidth = 7)
-
+##
 d, sd, ftrain, Xtrain =  ImageRegression.get_training_data(img,
-                   sdmaxfrac = 0.05, 
+                   sdmaxfrac = 0.05,
                    ybreak = 1000,
                    takeevery = 4)
 
@@ -49,8 +49,9 @@ addprocs(nchains)
 @everywhere any(pwd() .== LOAD_PATH) || push!(LOAD_PATH, pwd())
 @everywhere using Distributed
 @everywhere import MCMC_Driver
+##
 @time MCMC_Driver.main(opt_in, d, opt_EM_in, Tmax=Tmax, nsamples=nsamples, nchains=nchains, nchainsatone=nchainsatone)
-
+##
 rmprocs(workers())
 MPI.stop_main_loop(mgr)
 

@@ -420,21 +420,22 @@ function mode_history(opt::Options, mode::String)
     opt.history_mode = mode
 end
 
-function write_history(isample::Int, opt::Options, m::Model, misfit::Float64, stat::Stats, wp::Writepointers, writemodel::Bool)
+function write_history(isample::Int, opt::Options, m::Model, misfit::Float64,
+                        stat::Stats, wp::Writepointers, T::Float64, writemodel::Bool)
     write_history(opt, m.fstar, [m.xtrain' m.ftrain], misfit, stat.accept_rate[1],
                         stat.accept_rate[2], stat.accept_rate[3], stat.accept_rate[4], m.n,
-                       isample, wp.fp_costs, wp.fp_fstar, wp.fp_x_ftrain, writemodel)
+                       isample, wp.fp_costs, wp.fp_fstar, wp.fp_x_ftrain, T, writemodel)
 end
 
 
 function write_history(opt::Options, fstar::AbstractArray, x_ftrain::AbstractArray, U::Float64, acceptanceRateBirth::Float64,
                     acceptanceRateDeath::Float64, acceptanceRatePosition::Float64, acceptanceRateProperty::Float64, nodes::Int,
                     iter::Int, fp_costs::Union{IOStream, Nothing}, fp_fstar::Union{IOStream, Nothing},
-                    fp_x_ftrain::Union{IOStream, Nothing}, writemodel::Bool)
+                    fp_x_ftrain::Union{IOStream, Nothing}, T::Float64, writemodel::Bool)
     if (mod(iter-1, opt.save_freq) == 0 || iter == 1)
         if fp_costs != nothing
-            msg = @sprintf("%d %e %e %e %e %d %e\n", iter, acceptanceRateBirth, acceptanceRateDeath,
-                                        acceptanceRatePosition, acceptanceRateProperty, nodes, U)
+            msg = @sprintf("%d %e %e %e %e %d %e %e\n", iter, acceptanceRateBirth, acceptanceRateDeath,
+                                        acceptanceRatePosition, acceptanceRateProperty, nodes, U, T)
             write(fp_costs, msg)
             flush(fp_costs)
         end
@@ -458,7 +459,8 @@ function history(opt::Options; stat=:U)
                                 (:acceptanceRatePosition, Float64,  4),
                                 (:acceptanceRateProperty, Float64,  5),
                                 (:nodes,                  Int,      6),
-                                (:U,                      Float64,  7))
+                                (:U,                      Float64,  7),
+                                (:T,                      Float64,  8))
 
         if stat == statname
             if length(opt.costs_filename) == 0
