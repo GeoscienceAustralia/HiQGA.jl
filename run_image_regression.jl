@@ -19,7 +19,7 @@ Xall = ImageRegression.get_all_prediction_points(img)
 
 opt_in = TransD_GP.Options(
               nmin = 2,
-              nmax = 20,
+              nmax = 75,
               xbounds           = [img.x[1] img.x[end];img.y[1] img.y[end]],
               fbounds           = [-1 2],
               xall              = Xall,
@@ -40,7 +40,7 @@ opt_EM_in  = MCMC_Driver.EMoptions(sd=sd)
 ImageRegression.calc_simple_RMS(d, img, opt_in, opt_EM_in, sd)
 
 # actual run of McMC
-nsamples, nchains, nchainsatone = 4001, 4, 1
+nsamples, nchains, nchainsatone = 300001, 8, 1
 Tmax = 2.5
 mgr = MPI.start_main_loop(MPI.MPI_TRANSPORT_ALL)
 

@@ -35,7 +35,8 @@ opt = TransD_GP.Options(nmin = nmin,
                         demean = demean,
                         sdev_prop = sdev_prop,
                         sdev_pos = sdev_pos,
-                        pnorm = pnorm
+                        pnorm = pnorm,
+                        quasimultid = false                        
                         )
 @time m = TransD_GP.init(opt)
 ## run tests for the different McMC moves

@@ -23,27 +23,31 @@ mutable struct Options
     fstar_filename      :: String
     x_ftrain_filename   :: String
     debug               :: Bool
+    quasimultid         :: Bool
+    influenceradius     :: Float64
 end
 
 function Options(;
-        nmin = 1,
-        nmax = 50,
-        xbounds = [0 1.794; 0 1.2],
-        fbounds = [-1 1],
-        xall = nothing,
-        λ = 0.3,
-        δ = 0.1,
-        demean = true,
-        sdev_prop = 0.01,
-        sdev_pos = [0.05;0.05],
-        pnorm = 2,
-        stat_window = 100,
-        dispstatstoscreen = true,
-        report_freq = 10,
-        save_freq = 100,
-        history_mode = "w",
-        fdataname = "",
-        debug             = false
+        nmin               = 1,
+        nmax               = 50,
+        xbounds            = [0 1.794; 0 1.2],
+        fbounds            = [-1 1],
+        xall               = nothing,
+        λ                 = [0.3],
+        δ                 = 0.1,
+        demean             = true,
+        sdev_prop          = 0.01,
+        sdev_pos           = [0.05;0.05],
+        pnorm              = 2,
+        stat_window        = 100,
+        dispstatstoscreen  = true,
+        report_freq        = 10,
+        save_freq          = 100,
+        history_mode       = "w",
+        fdataname          = "",
+        debug              = false,
+        quasimultid        = "",
+        influenceradius    = -9.9
         )
 
         @assert xall != nothing
@@ -52,12 +56,16 @@ function Options(;
         @assert ndims(sdev_pos) == 1
         @assert length(sdev_pos) == size(xbounds, 1)
         @assert length(λ) == size(xbounds, 1)
+        @assert quasimultid != "" "specify true or false explicitly"
+        quasimultid && @assert influenceradius > 0.0
         costs_filename = "misfits_"*fdataname*".bin"
         fstar_filename = "models_"*fdataname*".bin"
         x_ftrain_filename = "points_"*fdataname*".bin"
 
         Options(nmin, nmax, xbounds, fbounds, xall, λ, δ, demean, sdev_prop, sdev_pos, pnorm,
-                stat_window, dispstatstoscreen, report_freq, save_freq, fdataname, history_mode, costs_filename, fstar_filename, x_ftrain_filename, debug)
+                stat_window, dispstatstoscreen, report_freq, save_freq, 
+                fdataname, history_mode, costs_filename, fstar_filename, x_ftrain_filename, 
+                debug, quasimultid, influenceradius)
 end
 
 mutable struct Model
@@ -70,6 +78,7 @@ mutable struct Model
     ftrain_old    :: Float64
     xtrain_old    :: Array{Float64}
     iremember     :: Int # stores old changed point index to recover state
+    xtrain_focus  :: Array{Float64} # for quasimultid to keep track of
 end
 
 mutable struct Stats
@@ -126,12 +135,13 @@ function init(opt::TransD_GP.Options)
     U = cholesky(K_y[1:n,1:n]).U
     fstar = mf .+ (Kstar[1:n,:])'*(U\(U'\rhs))
     return Model(fstar, xtrain, ftrain, K_y, Kstar, n,
-                 0.0, zeros(Float64, size(opt.xbounds, 1)), 0)
+                 0.0, zeros(Float64, size(opt.xbounds, 1)), 0, zeros(Float64, size(opt.xbounds, 1)))
 end
 
 function birth!(m::Model, opt::TransD_GP.Options)
     xtrain, ftrain, K_y,  Kstar, n = m.xtrain, m.ftrain, m.K_y,  m.Kstar, m.n
     xtrain[:,n+1] = opt.xbounds[:,1] + diff(opt.xbounds, dims=2).*rand(size(opt.xbounds, 1))
+    copy!(m.xtrain_focus, xtrain[:,n+1]) 
     ftrain[n+1] = opt.fbounds[1] + diff(opt.fbounds, dims=2)[1]*rand()
     tempx, tempy = zeros(Float64, size(xtrain,1)), zeros(Float64, size(xtrain,1))
     for k = 1:size(xtrain,1)
@@ -168,6 +178,7 @@ end
 function death!(m::Model, opt::TransD_GP.Options)
     xtrain, ftrain, K_y,  Kstar, n = m.xtrain, m.ftrain, m.K_y,  m.Kstar, m.n
     ipoint = 1 + floor(Int, rand()*n)
+    copy!(m.xtrain_focus, xtrain[:,ipoint]) 
     xtrain[:,ipoint], xtrain[:,n] = xtrain[:,n], xtrain[:,ipoint]
     ftrain[ipoint], ftrain[n] = ftrain[n], ftrain[ipoint]
     Kstar[ipoint,:], Kstar[n,:] = Kstar[n,:], Kstar[ipoint,:]
@@ -216,6 +227,7 @@ function property_change!(m::Model, opt::TransD_GP.Options)
     ipoint = 1 + floor(Int, rand()*n)
     m.iremember = ipoint
     m.ftrain_old = ftrain[ipoint]
+    copy!(m.xtrain_focus, m.xtrain[:,ipoint]) 
     ftrain[ipoint] = ftrain[ipoint] + opt.sdev_prop*randn()
     while (ftrain[ipoint]<opt.fbounds[1]) || (ftrain[ipoint]>opt.fbounds[2])
             (ftrain[ipoint]<opt.fbounds[1]) && (ftrain[ipoint] = 2*opt.fbounds[1] - ftrain[ipoint])
@@ -242,6 +254,7 @@ function position_change!(m::Model, opt::TransD_GP.Options)
     m.iremember = ipoint
     m.xtrain_old[:] = xtrain[:,ipoint]
     xtrain[:,ipoint] = xtrain[:,ipoint] + opt.sdev_pos.*randn(size(opt.xbounds, 1))
+    copy!(m.xtrain_focus, xtrain[:,ipoint])
     for i in eachindex(xtrain[:,ipoint])
         while (xtrain[i,ipoint]<opt.xbounds[i,1]) || (xtrain[i,ipoint]>opt.xbounds[i,2])
                 (xtrain[i,ipoint]<opt.xbounds[i,1]) && (xtrain[i,ipoint] = 2*opt.xbounds[i,1] - xtrain[i,ipoint])
