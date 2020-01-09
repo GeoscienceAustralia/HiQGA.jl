@@ -3,9 +3,7 @@ using TransD_GP, Distributed, DistributedArrays,
      PyPlot, LinearAlgebra, Formatting
 
 mutable struct Sounding
-   x    :: Float64   
-   y    :: Float64
-   z    :: Float64
+   x    :: Array{Float64,1}
 end
 
 mutable struct EMoptions
@@ -13,7 +11,7 @@ mutable struct EMoptions
     MLnoise   :: Bool
     soundings :: Array{Sounding, 1}
     ncellsz   :: Int
-    dz        :: Float64  
+    dz        :: Float64
 end
 
 function EMoptions(;
@@ -26,7 +24,7 @@ function EMoptions(;
     @assert sd != 0.0
     @assert soundings != nothing
     @assert ncellsz > 10
-    @assert dz > 0.5 
+    @assert dz > 0.5
     EMoptions(sd, MLnoise, soundings, ncellsz, dz)
 end
 
@@ -35,14 +33,32 @@ struct Tpointer
     fstr :: String
 end
 
-function get_misfit(m::TransD_GP.Model, d::AbstractArray, opt::TransD_GP.Options, opt_EM::EMoptions, movetype::Int)
+function get_misfit(m::TransD_GP.Model, d::AbstractArray, opt::TransD_GP.Options,
+                    opt_EM::EMoptions, movetype::Int)
     chi2by2 = 0.0
     if !opt.debug
-        for sounding in opt_EM.soundings
-            
-        end    
+        recompute = falses(length(opt_EM.soundings))
+        for (isounding, sounding) in enumerate(opt_EM.soundings)
+            # next line for birth, death, property_change
+            δ = m.xtrain_focus[1:end-1,:] - sounding.x
+            if abs(δ) <= opt.influenceradius
+            recompute[isounding] = true
+            # next line for position_change
+            if movetype == 3 && recompute[isounding] == false
+                δ =   m.xtrain_old[1:end-1,:] - sounding.x
+                if abs(δ) <= opt.influenceradius
+                    recompute[isounding] = true
+                end
+            end
+            # now for the stride bit in xall
+        end
     end
     return chi2by2
+end
+
+function get_misfit(m::TransD_GP.Model, d::AbstractArray, opt::TransD_GP.Options,
+                    opt_EM::EMoptions)
+    chi2by2 = 0.0
 end
 
 mutable struct Chain
@@ -82,7 +98,11 @@ function mh_step!(m::TransD_GP.Model, d::AbstractArray,
     opt::TransD_GP.Options, stat::TransD_GP.Stats,
     Temp::Float64, movetype::Int, current_misfit::Array{Float64, 1}, opt_EM::EMoptions)
 
-    new_misfit = get_misfit(m, d, opt, opt_EM, movetype)
+    if opt.quasimultid
+        new_misfit = get_misfit(m, d, opt, opt_EM, movetype)
+    else
+        new_misfit = get_misfit(m, d, opt, opt_EM)
+    end
     logalpha = (current_misfit[1] - new_misfit)/Temp
     if log(rand()) < logalpha
         current_misfit[1] = new_misfit
