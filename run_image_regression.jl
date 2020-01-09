@@ -1,5 +1,6 @@
 any(pwd() .== LOAD_PATH) || push!(LOAD_PATH, pwd())
-using ImageRegression, TransD_GP, MCMC_Driver, MPI, Distributed
+using ImageRegression, TransD_GP, MCMC_Driver, Distributed
+using MPI
 ##
 img = ImageRegression.Img(
           filename         = "4.2.01.tiff",
