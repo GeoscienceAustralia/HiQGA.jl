@@ -2,16 +2,32 @@ module MCMC_Driver
 using TransD_GP, Distributed, DistributedArrays,
      PyPlot, LinearAlgebra, Formatting
 
+mutable struct Sounding
+   x    :: Float64   
+   y    :: Float64
+   z    :: Float64
+end
+
 mutable struct EMoptions
-    sd      :: Float64
-    MLnoise :: Bool
+    sd        :: Float64
+    MLnoise   :: Bool
+    soundings :: Array{Sounding, 1}
+    ncellsz   :: Int
+    dz        :: Float64  
 end
 
 function EMoptions(;
-            sd = 0.0,
-            MLnoise = true)
+            sd         = 0.0,
+            MLnoise    = true,
+            soundings  = nothing,
+            ncellsz    = 100,
+            dz         = 2.0
+                  )
     @assert sd != 0.0
-    EMoptions(sd, MLnoise)
+    @assert soundings != nothing
+    @assert ncellsz > 10
+    @assert dz > 0.5 
+    EMoptions(sd, MLnoise, soundings, ncellsz, dz)
 end
 
 struct Tpointer
@@ -19,17 +35,12 @@ struct Tpointer
     fstr :: String
 end
 
-function get_misfit(m::TransD_GP.Model, d::AbstractArray, opt::TransD_GP.Options, opt_EM::EMoptions)
+function get_misfit(m::TransD_GP.Model, d::AbstractArray, opt::TransD_GP.Options, opt_EM::EMoptions, movetype::Int)
     chi2by2 = 0.0
-    select = .!isnan.(d[:])
     if !opt.debug
-        r = m.fstar[select] - d[select]
-        if !opt_EM.MLnoise
-            chi2by2 = 0.5*norm(r/opt_EM.sd)^2
-        else
-            N = sum(select)
-            chi2by2 = 0.5*N*log(norm(r)^2)
-        end
+        for sounding in opt_EM.soundings
+            
+        end    
     end
     return chi2by2
 end
@@ -71,7 +82,7 @@ function mh_step!(m::TransD_GP.Model, d::AbstractArray,
     opt::TransD_GP.Options, stat::TransD_GP.Stats,
     Temp::Float64, movetype::Int, current_misfit::Array{Float64, 1}, opt_EM::EMoptions)
 
-    new_misfit = get_misfit(m, d, opt, opt_EM)
+    new_misfit = get_misfit(m, d, opt, opt_EM, movetype)
     logalpha = (current_misfit[1] - new_misfit)/Temp
     if log(rand()) < logalpha
         current_misfit[1] = new_misfit
