@@ -2,7 +2,7 @@ module UseGA_AEM
 using Libdl
 using Cxx 
 
-mutable struct emforward
+mutable struct EMforward
     TLM  :: Cxx.CxxCore.CppPtr
     THM  :: Cxx.CxxCore.CppPtr
     PX   :: Float64
@@ -69,11 +69,10 @@ function init_GA_AEM()
                            pointer(geometryHM),Ref(PX),Ref(PY),Ref(PZ),
                            pointer(SXHM),pointer(SYHM),pointer(SZHM))
 
-
-    emforward(TLM, THM, PX, PY, PZ, SXLM, SYLM, SZLM, SXHM, SYHM, SZHM)
+    EMforward(TLM, THM, PX, PY, PZ, SXLM, SYLM, SZLM, SXHM, SYHM, SZHM)
 end
 
-function(em::emforward)()
+function(em::EMforward)()
     
     # Set the input arrays
     geometryLM   = [35.0,0.0,0.0,0.0,-17.0,0.0,+2.0,0.0,0.0,0.0]
@@ -88,6 +87,49 @@ function(em::emforward)()
     @cxx em.THM->forwardmodel(nlayers,pointer(conductivity),pointer(thickness),
                            pointer(geometryHM),Ref(em.PX),Ref(em.PY),Ref(em.PZ),
                            pointer(em.SXHM),pointer(em.SYHM),pointer(em.SZHM))
+end
+
+mutable struct Geometry
+    geometryLM  :: Array{Float64, 1}
+    geometryHM  :: Array{Float64, 1}
+end    
+
+function Geometry(;ztx  =  35.0,
+                   rrx  = -17.0,
+                   dzrxLM =   2.0, 
+                   dzrxHM =   0.2
+                 )
+    @assert ztx  > 0.0
+    @assert rrx  < 0.0
+    @assert dzrxLM > 0.0
+    @assert dzrxHM > 0.0
+    
+    geometryLM   = [ztx,0.0,0.0,0.0,rrx,0.0,dzrxLM,0.0,0.0,0.0]
+    geometryHM   = [ztx,0.0,0.0,0.0,rrx,0.0,dzrxHM,0.0,0.0,0.0]
+
+    Geometry(geometryLM, geometryHM)
+end    
+
+
+function (em::EMforward)(g::Geometry, conductivity::Array{Float64, 1}, thickness::Array{Float64, 1})
+    nlayers      = length(conductivity)
+    @cxx em.TLM->forwardmodel(nlayers,pointer(conductivity),pointer(thickness),
+                           pointer(g.geometryLM),Ref(em.PX),Ref(em.PY),Ref(em.PZ),
+                           pointer(em.SXLM),pointer(em.SYLM),pointer(em.SZLM))
+    @cxx em.THM->forwardmodel(nlayers,pointer(conductivity),pointer(thickness),
+                           pointer(g.geometryHM),Ref(em.PX),Ref(em.PY),Ref(em.PZ),
+                           pointer(em.SXHM),pointer(em.SYHM),pointer(em.SZHM))
+end
+
+mutable struct EMoperator
+    em :: EMforward
+    g  :: Geometry
+end    
+
+function (op::EMoperator)(ztx::Float64, conductivity::Array{Float64, 1}, thickness::Array{Float64,1 })
+    op.g.geometryLM[1] = ztx
+    op.g.geometryHM[1] = ztx
+    op.em(op.g, conductivity, thickness)
 end
 
 end

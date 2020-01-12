@@ -1,9 +1,10 @@
 module MCMC_Driver
 using TransD_GP, Distributed, DistributedArrays,
-     PyPlot, LinearAlgebra, Formatting
+     PyPlot, LinearAlgebra, Formatting, UseGA_AEM
 
 mutable struct Sounding
-   x    :: Array{Float64,1}
+    data :: Array{Float64} 
+    x    :: Array{Float64,1}
 end
 
 mutable struct EMoptions
@@ -33,7 +34,7 @@ struct Tpointer
     fstr :: String
 end
 
-function get_misfit(m::TransD_GP.Model, d::AbstractArray, opt::TransD_GP.Options,
+function get_misfit(m::TransD_GP.Model, r::AbstractArray, opt::TransD_GP.Options,
                     opt_EM::EMoptions, movetype::Int)
     chi2by2 = 0.0
     if !opt.debug
@@ -51,10 +52,19 @@ function get_misfit(m::TransD_GP.Model, d::AbstractArray, opt::TransD_GP.Options
                 end
             end
             # now for the stride bit in xall
+            for s in findall(recompute)
+                f = forward(m, soundings[s])
+                r[s] = soundings[s].data - f # other stuff *needed* here
+            end    
         end
+        chi2by2 = sum(r)
     end
     return chi2by2
 end
+
+function forward(m::TransD_GP.Model, sounding::Sounding)
+
+end    
 
 function get_misfit(m::TransD_GP.Model, d::AbstractArray, opt::TransD_GP.Options,
                     opt_EM::EMoptions)
