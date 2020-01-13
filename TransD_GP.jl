@@ -57,7 +57,10 @@ function Options(;
         @assert length(sdev_pos) == size(xbounds, 1)
         @assert length(λ) == size(xbounds, 1)
         @assert quasimultid != "" "specify true or false explicitly"
-        quasimultid && @assert influenceradius[1] > 0.0
+        if quasimultid 
+            @assert influenceradius[1] > 0.0
+            @assert length(influenceradius) == size(xall, 1) - 1
+        end    
         costs_filename = "misfits_"*fdataname*".bin"
         fstar_filename = "models_"*fdataname*".bin"
         x_ftrain_filename = "points_"*fdataname*".bin"
