@@ -24,7 +24,7 @@ mutable struct Options
     x_ftrain_filename   :: String
     debug               :: Bool
     quasimultid         :: Bool
-    influenceradius     :: Float64
+    influenceradius     :: Array{Float64, 1}
 end
 
 function Options(;
@@ -47,7 +47,7 @@ function Options(;
         fdataname          = "",
         debug              = false,
         quasimultid        = "",
-        influenceradius    = -9.9
+        influenceradius    = [-9.9]
         )
 
         @assert xall != nothing
@@ -57,7 +57,7 @@ function Options(;
         @assert length(sdev_pos) == size(xbounds, 1)
         @assert length(λ) == size(xbounds, 1)
         @assert quasimultid != "" "specify true or false explicitly"
-        quasimultid && @assert influenceradius > 0.0
+        quasimultid && @assert influenceradius[1] > 0.0
         costs_filename = "misfits_"*fdataname*".bin"
         fstar_filename = "models_"*fdataname*".bin"
         x_ftrain_filename = "points_"*fdataname*".bin"

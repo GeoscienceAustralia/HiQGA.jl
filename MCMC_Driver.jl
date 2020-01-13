@@ -42,12 +42,13 @@ function get_misfit(m::TransD_GP.Model, r::AbstractArray, opt::TransD_GP.Options
         for (isounding, sounding) in enumerate(opt_EM.soundings)
             # next line for birth, death, property_change
             δ = m.xtrain_focus[1:end-1,:] - sounding.x
-            if abs(δ) <= opt.influenceradius
-            recompute[isounding] = true
+            if norm(δ./opt.influenceradius) < 1.0
+                recompute[isounding] = true
+            end    
             # next line for position_change
             if movetype == 3 && recompute[isounding] == false
                 δ =   m.xtrain_old[1:end-1,:] - sounding.x
-                if abs(δ) <= opt.influenceradius
+                if norm(δ./opt.influenceradius) < 1.0
                     recompute[isounding] = true
                 end
             end
