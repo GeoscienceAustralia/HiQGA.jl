@@ -5,6 +5,8 @@ using TransD_GP, Distributed, DistributedArrays,
 mutable struct Sounding
     dataLM    :: Array{Float64, 1}
     dataHM    :: Array{Float64, 1}
+    sdLM      :: Array{Float64, 1}   
+    sdHM      :: Array{Float64, 1}
     x         :: Array{Float64, 1}
     ztx       :: Float64
     thickness :: Array{Float64, 1}
@@ -61,12 +63,16 @@ function get_misfit(m::TransD_GP.Model, sqmisfit::AbstractArray, opt::TransD_GP.
                 idxHM = !.isnan(sounding.dataHM)
                 nLM = sum(idxLM)
                 nHM = sum(idxHM)
-                rLM = sounding.dataLM - op.em.SZLM
-                rHM = sounding.dataHM - op.em.SZHM
+                rLM = (abs.(sounding.dataLM) - abs.(op.em.SZLM))[idxLM]
+                rHM = (abs.(sounding.dataHM) - abs.(op.em.SZHM))[idxHM]
                 if opt_EM.MLnoise
+                    rLM = rLM./sounding.dataLM[idxLM]
+                    rHM = rHM./sounding.dataHM[idxHM]
                     sqmisfit[isounding] = 0.5*(nLM*log(r_LM'*r_LM) +
                                                nHM*log(r_HM'*r_HM))
                 else
+                    rLM = rLM./sounding.sdLM[idxLM]
+                    rHM = rHM./sounding.sdHM[idxHM]
                     sqmisfit[isounding] = 0.5*(rLM'*rLM + rHM'*rHM)
                 end    
             end    
