@@ -3,30 +3,28 @@ using TransD_GP, Distributed, DistributedArrays,
      PyPlot, LinearAlgebra, Formatting, UseGA_AEM
 
 mutable struct Sounding
-    data :: Array{Float64} 
-    x    :: Array{Float64,1}
+    dataLM    :: Array{Float64, 1}
+    dataHM    :: Array{Float64, 1}
+    x         :: Array{Float64, 1}
+    ztx       :: Float64
+    thickness :: Array{Float64, 1}
 end
 
 mutable struct EMoptions
     sd        :: Float64
     MLnoise   :: Bool
     soundings :: Array{Sounding, 1}
-    ncellsz   :: Int
-    dz        :: Float64
 end
 
 function EMoptions(;
             sd         = 0.0,
             MLnoise    = true,
             soundings  = nothing,
-            ncellsz    = 100,
-            dz         = 2.0
                   )
     @assert sd != 0.0
     @assert soundings != nothing
-    @assert ncellsz > 10
     @assert dz > 0.5
-    EMoptions(sd, MLnoise, soundings, ncellsz, dz)
+    EMoptions(sd, MLnoise, soundings)
 end
 
 struct Tpointer
@@ -34,38 +32,49 @@ struct Tpointer
     fstr :: String
 end
 
-function get_misfit(m::TransD_GP.Model, r::AbstractArray, opt::TransD_GP.Options,
-                    opt_EM::EMoptions, movetype::Int)
+function get_misfit(m::TransD_GP.Model, sqmisfit::AbstractArray, opt::TransD_GP.Options,
+                    opt_EM::EMoptions, op::UseGA_AEM.EMoperator, movetype::Int)
     chi2by2 = 0.0
     if !opt.debug
-        recompute = falses(length(opt_EM.soundings))
         for (isounding, sounding) in enumerate(opt_EM.soundings)
+            recompute = false    
+            # NaN at start of McMC
+            sqmisfit[isounding] == NaN && (recompute = true)
             # next line for birth, death, property_change
             δ = m.xtrain_focus[1:end-1,:] - sounding.x
             if norm(δ./opt.influenceradius) < 1.0
-                recompute[isounding] = true
+                recompute = true
             end    
             # next line for position_change
             if movetype == 3 && recompute[isounding] == false
                 δ =   m.xtrain_old[1:end-1,:] - sounding.x
                 if norm(δ./opt.influenceradius) < 1.0
-                    recompute[isounding] = true
+                    recompute = true
                 end
             end
-            # now for the stride bit in xall
-            for s in findall(recompute)
-                f = forward(m, soundings[s])
-                r[s] = soundings[s].data - f # other stuff *needed* here
+            # recompute sounding if necessary
+            if recompute
+                nz = length(sounding.thickness)
+                conductivity = 10 .^(m.fstar[(isounding-1)*nz + 1:isounding*nz])
+                op(sounding.ztx, conductivity, sounding.thickness)
+                idxLM = !.isnan(sounding.dataLM)
+                idxHM = !.isnan(sounding.dataHM)
+                nLM = sum(idxLM)
+                nHM = sum(idxHM)
+                rLM = sounding.dataLM - op.em.SZLM
+                rHM = sounding.dataHM - op.em.SZHM
+                if opt_EM.MLnoise
+                    sqmisfit[isounding] = 0.5*(nLM*log(r_LM'*r_LM) +
+                                               nHM*log(r_HM'*r_HM))
+                else
+                    sqmisfit[isounding] = 0.5*(rLM'*rLM + rHM'*rHM)
+                end    
             end    
         end
-        chi2by2 = sum(r)
+        chi2by2 = sum(sqmisfit)
     end
     return chi2by2
 end
-
-function forward(m::TransD_GP.Model, sounding::Sounding)
-
-end    
 
 function get_misfit(m::TransD_GP.Model, d::AbstractArray, opt::TransD_GP.Options,
                     opt_EM::EMoptions)
