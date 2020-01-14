@@ -132,4 +132,14 @@ function (op::EMoperator)(ztx::Float64, conductivity::Array{Float64, 1}, thickne
     op.em(op.g, conductivity, thickness)
 end
 
+mutable struct Sounding
+    dataLM    :: Array{Float64, 1}
+    dataHM    :: Array{Float64, 1}
+    sdLM      :: Array{Float64, 1}   
+    sdHM      :: Array{Float64, 1}
+    x         :: Array{Float64, 1}
+    ztx       :: Float64
+    thickness :: Array{Float64, 1}
+end
+
 end

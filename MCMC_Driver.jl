@@ -2,31 +2,23 @@ module MCMC_Driver
 using TransD_GP, Distributed, DistributedArrays,
      PyPlot, LinearAlgebra, Formatting, UseGA_AEM
 
-mutable struct Sounding
-    dataLM    :: Array{Float64, 1}
-    dataHM    :: Array{Float64, 1}
-    sdLM      :: Array{Float64, 1}   
-    sdHM      :: Array{Float64, 1}
-    x         :: Array{Float64, 1}
-    ztx       :: Float64
-    thickness :: Array{Float64, 1}
-end
-
 mutable struct EMoptions
     sd        :: Float64
     MLnoise   :: Bool
-    soundings :: Array{Sounding, 1}
+    soundings :: Array{UseGA_AEM::Sounding, 1}
+    operator  :: Array{UseGA_AEM::EMoperator, 1}
 end
 
 function EMoptions(;
             sd         = 0.0,
             MLnoise    = true,
             soundings  = nothing,
+            operator   = nothing, 
                   )
     @assert sd != 0.0
     @assert soundings != nothing
-    @assert dz > 0.5
-    EMoptions(sd, MLnoise, soundings)
+    @assert operator  != nothing
+    EMoptions(sd, MLnoise, soundings, operator)
 end
 
 struct Tpointer
@@ -35,7 +27,7 @@ struct Tpointer
 end
 
 function get_misfit(m::TransD_GP.Model, sqmisfit::AbstractArray, opt::TransD_GP.Options,
-                    opt_EM::EMoptions, op::UseGA_AEM.EMoperator, movetype::Int)
+                    opt_EM::EMoptions, movetype::Int)
     chi2by2 = 0.0
     if !opt.debug
         for (isounding, sounding) in enumerate(opt_EM.soundings)
@@ -58,6 +50,7 @@ function get_misfit(m::TransD_GP.Model, sqmisfit::AbstractArray, opt::TransD_GP.
             if recompute
                 nz = length(sounding.thickness)
                 conductivity = 10 .^(m.fstar[(isounding-1)*nz + 1:isounding*nz])
+                op = opt_EM.operator[isounding]
                 op(sounding.ztx, conductivity, sounding.thickness)
                 idxLM = !.isnan(sounding.dataLM)
                 idxHM = !.isnan(sounding.dataHM)
