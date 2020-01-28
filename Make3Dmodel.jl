@@ -17,7 +17,7 @@ d, sd = Tools3D.get_training_data(ρ, opt, dz=dz, extendfrac=extendfrac, zbreak=
 
 Tools3D.calc_simple_RMS(d, ρ, sd)
 ## set up McMC
-nsamples, nchains, nchainsatone = 5001, 8, 1
+nsamples, nchains, nchainsatone = 500001, 8, 1
 Tmax = 2.5
 
 addprocs(nchains)
@@ -26,9 +26,10 @@ addprocs(nchains)
 @everywhere using Distributed
 @everywhere import MCMC_Driver
 ## run McMC
-MCMC_Driver.main(opt, d, Tmax=Tmax, nsamples=nsamples, nchains=nchains, nchainsatone=nchainsatone)
+@time MCMC_Driver.main(opt, d, Tmax=Tmax, nsamples=nsamples, nchains=nchains, nchainsatone=nchainsatone)
 ##
 MCMC_Driver.getchi2forall(opt)
-Tools3D.plot_last_target_model(opt; slicesx=[20], slicesy=[], slicesz=[], dz=dz, extendfrac=extendfrac)
-Tools3D.plot_last_target_model(opt; slicesx=[], slicesy=[20], slicesz=[], dz=dz, extendfrac=extendfrac)
-Tools3D.plot_last_target_model(opt; slicesx=[], slicesy=[], slicesz=[17], dz=dz, extendfrac=extendfrac)
+Tools3D.plot_last_target_model(opt, d, sd; slicesx=[20], slicesy=[], slicesz=[], dz=dz, extendfrac=extendfrac)
+Tools3D.plot_last_target_model(opt, d, sd; slicesx=[], slicesy=[20], slicesz=[], dz=dz, extendfrac=extendfrac)
+Tools3D.plot_last_target_model(opt, d, sd; slicesx=[], slicesy=[], slicesz=[17], dz=dz, extendfrac=extendfrac)
+rmprocs(workers())

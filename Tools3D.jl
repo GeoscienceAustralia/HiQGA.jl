@@ -72,13 +72,14 @@ function makezn(;n          = 20,
 end
 
 function makeopt(;nmin      = 2,
-                  nmax      = 200,
+                  nmax      = 400,
                   λ         = [100.0, 200.0, 1.0],
                   δ         = 0.1,
                   fbounds   = [0.5 4],
                   demean    = true,
-                  sdev_prop = 0.1,
+                  sdev_prop = 0.4,
                   sdev_pos  = [80.0;80.0;1.0],
+                  stat_window = 500,
                   pnorm     = 2.0,
                   λx        = 1600.0,
                   λy        = 1600.0,
@@ -114,6 +115,7 @@ function makeopt(;nmin      = 2,
                             demean = demean,
                             sdev_prop = sdev_prop,
                             sdev_pos = sdev_pos,
+                            stat_window = stat_window,
                             pnorm = pnorm,
                             quasimultid = false
                             )
@@ -284,7 +286,7 @@ function get_training_data(fstar::Array{Float64, 1},
     noisyd, δtry
 end
 
-function plot_last_target_model(opt_in::TransD_GP.Options;
+function plot_last_target_model(opt_in::TransD_GP.Options, d::Array{Float64, 1}, sd::Float64;
                                 slicesx    = nothing,
                                 slicesy    = nothing,
                                 slicesz    = nothing,
@@ -320,8 +322,9 @@ function plot_last_target_model(opt_in::TransD_GP.Options;
         opt_in.fstar_filename = "models_"*opt_in.fdataname*"_$idx.bin"
         m_last = TransD_GP.history(opt_in, stat=:fstar)[end]
         slicemodel(m_last, 0,[0. 0.],[0.], opt_in, slicesx=slicesx, slicesy=slicesy, slicesz=slicesz, dz=dz, extendfrac=extendfrac)
+        sd > 0.0 && calc_simple_RMS(d, m_last, sd)
     end
-
+    
 end
 
 function calc_simple_RMS(d::AbstractArray, fstar::Array{Float64, 1}, sd::Float64)
@@ -331,6 +334,22 @@ function calc_simple_RMS(d::AbstractArray, fstar::Array{Float64, 1}, sd::Float64
     n = sum(select)
     @info "χ^2 error is $(r'*r) for $n points RMS: $(sqrt(r'*r/n))"
     nothing
+end
+
+function boxcar3(A::AbstractArray)
+    out = similar(A)
+    R = CartesianIndices(A)
+    Ifirst, Ilast = first(R), last(R)
+    I1 = oneunit(Ifirst)
+    for I in R
+        n, s = 0, zero(eltype(out))
+        for J in max(Ifirst, I-I1):min(Ilast, I+I1)
+            s += A[J]
+            n += 1
+        end
+        out[I] = s/n
+    end
+    out
 end
 
 end
