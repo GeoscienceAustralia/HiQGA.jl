@@ -231,7 +231,7 @@ function makecubemodel(opt::TransD_GP.Options;
             ρ[i] = ρ1 + (z-zmin)/(zmax-z1)*(ρ2-ρ1)
         end
     end
-    opt.fbounds = [minimum(ρ) maximum(ρ)]
+    opt.fbounds = [0.98*minimum(ρ) 1.02*maximum(ρ)]
     return ρ
 end
 
