@@ -75,7 +75,7 @@ function makeopt(;nmin      = 2,
                   nmax      = 200,
                   λ         = [150.0, 400.0, 1.0],
                   δ         = 0.1,
-                  fbounds   = [-2.5 0.25],
+                  fbounds   = [0.5 4],
                   demean    = true,
                   sdev_prop = 0.1,
                   sdev_pos  = [8;8.0;1.4],
@@ -120,37 +120,36 @@ function makeopt(;nmin      = 2,
     return opt, x, y
 end
 
-function slicemodel(m::TransD_GP.Model;
-                    x          = nothing,
-                    y          = nothing,
-                    z          = nothing,
+function slicemodel(m::TransD_GP.Model,
+                    opt::TransD_GP.Options;
                     slicesx    = nothing,
                     slicesy    = nothing,
                     slicesz    = nothing,
                     dz         = nothing,
                     extendfrac = nothing,
                     )
-    @assert !any((x, y, z, slicesx, slicesy, slicesz,
+    @assert !any((slicesx, slicesy, slicesz,
                   dz, extendfrac) .== nothing)
     @assert !(slicesz != [] && (slicesx != [] || slicesy != []))
     @assert !(slicesx != [] && (slicesz != [] || slicesy != []))
     @assert !(slicesx == [] && slicesy == [] && slicesz ==[])
-    slicemodel(m.fstar, m.n, m.xtrain, m.ftrain, x=x, y=y, z=z, slicesx=slicesx, slicesy=slicesy, slicesz=slicesz,
+    slicemodel(m.fstar, m.n, m.xtrain, m.ftrain, opt::TransD_GP.Options; slicesx=slicesx, slicesy=slicesy, slicesz=slicesz,
                 dz=dz, extendfrac=extendfrac)
 end
 
 function slicemodel(fstar::Array{Float64, 1}, npoints::Int,
-                    xtrain::Array{Float64, 2}, ftrain::Array{Float64, 1};
-                    x          = nothing,
-                    y          = nothing,
-                    z          = nothing,
+                    xtrain::Array{Float64, 2}, ftrain::Array{Float64, 1},
+                    opt::TransD_GP.Options;
                     slicesx    = nothing,
                     slicesy    = nothing,
                     slicesz    = nothing,
                     dz         = nothing,
                     extendfrac = nothing,
                     )
-    @assert !any((x, y, z, slicesx, slicesy, slicesz,
+    x = unique(opt.xall[1,:])
+    y = unique(opt.xall[2,:])
+    z = geomprogdepth.(unique(opt.xall[3,:]), dz, extendfrac)
+    @assert !any((slicesx, slicesy, slicesz,
                   dz, extendfrac) .== nothing)
     @assert !(slicesz != [] && (slicesx != [] || slicesy != []))
     @assert !(slicesx != [] && (slicesz != [] || slicesy != []))
@@ -162,7 +161,7 @@ function slicemodel(fstar::Array{Float64, 1}, npoints::Int,
         l = slicesz
         for i in l
             c=(v[:,:,i].-minimum(v))./(maximum(v)-minimum(v))
-            plot_surface(xx, yy, z[i]*ones(size(yy)), facecolors=plt.cm.jet(c), shade=false)
+            plot_surface(xx, yy, z[i]*ones(size(yy)), facecolors=plt.cm.jet_r(c), shade=false)
         end
     elseif slicesx!=[]
         yy,zz = meshgrid(y,z)
@@ -170,7 +169,7 @@ function slicemodel(fstar::Array{Float64, 1}, npoints::Int,
         l = slicesx
         for i in l
             c=(v[i,:,:].-minimum(v))./(maximum(v)-minimum(v))
-            plot_surface(x[i]*ones(size(yy)), yy, zz, facecolors=plt.cm.jet(c), shade=false)
+            plot_surface(x[i]*ones(size(yy)), yy, zz, facecolors=plt.cm.jet_r(c), shade=false)
         end
     elseif slicesy!=[]
         xx,zz = meshgrid(x,z)
@@ -178,12 +177,12 @@ function slicemodel(fstar::Array{Float64, 1}, npoints::Int,
         l = slicesy
         for i in l
             c=(v[:,i,:].-minimum(v))./(maximum(v)-minimum(v))
-            plot_surface(xx, y[i]*ones(size(zz)), zz, facecolors=plt.cm.jet(c), shade=false)
+            plot_surface(xx, y[i]*ones(size(zz)), zz, facecolors=plt.cm.jet_r(c), shade=false)
         end
     end
     if npoints>0
         scatter3D(xtrain[1,1:npoints], xtrain[2,1:npoints], geomprogdepth.(xtrain[3,1:npoints], dz, extendfrac),
-                c=ftrain[1:npoints], vmin=minimum(v), vmax=maximum(v), s=50, cmap="jet")
+                c=ftrain[1:npoints], vmin=minimum(v), vmax=maximum(v), s=50, cmap="jet_r")
     end
     xlim(extrema(x))
     ylim(extrema(y))
@@ -191,8 +190,8 @@ function slicemodel(fstar::Array{Float64, 1}, npoints::Int,
     xlabel("x km")
     ylabel("y km")
     zlabel("depth km")
-    cbar = f.colorbar(plt.cm.ScalarMappable(cmap="jet",norm=matplotlib.colors.Normalize(vmin=minimum(v), vmax=maximum(v))),ax=gca())
-    cbar.set_label(L"\log_{10} \sigma")
+    cbar = f.colorbar(plt.cm.ScalarMappable(cmap="jet_r",norm=matplotlib.colors.Normalize(vmin=minimum(v), vmax=maximum(v))),ax=gca())
+    cbar.set_label(L"\log_{10} \rho")
     gca().zaxis.label.set_fontsize(14); nicenup(gcf())
     gca().invert_zaxis()
 end
@@ -208,9 +207,10 @@ function makecubemodel(opt::TransD_GP.Options;
                         xdown      = 580.0,
                         zup        = 70.0,
                         zdown      = 250.0,
-                        ρ1         = 2.0,
+                        ρ0         = 2,
+                        ρ1         = 4,
                         ρ2         = 0.5,
-                        ρanom      = 0.5
+                        ρanom      = 1.2
                         )
     @assert extendfrac != nothing
     @assert dz != nothing
@@ -224,9 +224,9 @@ function makecubemodel(opt::TransD_GP.Options;
         x, y, zn = opt.xall[:,i]
         z = geomprogdepth(zn, dz, extendfrac)
         if z<z1
-            ρ[i] = ρ1
+            ρ[i] = ρ0
         elseif (zup<z<zdown) & (yleft<y<yright) & (xdown<x<xup)
-            ρ[i] = ρanom
+            ρ[i] = ρanom*(ρ1 + (z-zmin)/(zmax-z1)*(ρ2-ρ1)) #ρanom
         elseif z>z2
             ρ[i] = ρ2
         else
