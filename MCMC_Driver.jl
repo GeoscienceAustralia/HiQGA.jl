@@ -5,15 +5,15 @@ using TransD_GP, Distributed, DistributedArrays,
 mutable struct EMoptions
     sd        :: Float64
     MLnoise   :: Bool
-    soundings :: Array{UseGA_AEM::Sounding, 1}
-    operator  :: Array{UseGA_AEM::EMoperator, 1}
+    soundings :: Array{UseGA_AEM.Sounding, 1}
+    operator  :: Array{UseGA_AEM.EMoperator, 1}
 end
 
 function EMoptions(;
             sd         = 0.0,
             MLnoise    = true,
             soundings  = nothing,
-            operator   = nothing, 
+            operator   = nothing,
                   )
     @assert sd != 0.0
     @assert soundings != nothing
@@ -31,14 +31,14 @@ function get_misfit(m::TransD_GP.Model, sqmisfit::AbstractArray, opt::TransD_GP.
     chi2by2 = 0.0
     if !opt.debug
         for (isounding, sounding) in enumerate(opt_EM.soundings)
-            recompute = false    
+            recompute = false
             # NaN at start of McMC
             sqmisfit[isounding] == NaN && (recompute = true)
             # next line for birth, death, property_change
             δ = m.xtrain_focus[1:end-1,:] - sounding.x
             if norm(δ./opt.influenceradius) < 1.0
                 recompute = true
-            end    
+            end
             # next line for position_change
             if movetype == 3 && recompute[isounding] == false
                 δ =   m.xtrain_old[1:end-1,:] - sounding.x
@@ -52,8 +52,8 @@ function get_misfit(m::TransD_GP.Model, sqmisfit::AbstractArray, opt::TransD_GP.
                 conductivity = 10 .^(m.fstar[(isounding-1)*nz + 1:isounding*nz])
                 op = opt_EM.operator[isounding]
                 op(sounding.ztx, conductivity, sounding.thickness)
-                idxLM = !.isnan(sounding.dataLM)
-                idxHM = !.isnan(sounding.dataHM)
+                idxLM = .!isnan(sounding.dataLM)
+                idxHM = .!isnan(sounding.dataHM)
                 nLM = sum(idxLM)
                 nHM = sum(idxHM)
                 rLM = (abs.(sounding.dataLM) - abs.(op.em.SZLM))[idxLM]
@@ -67,8 +67,8 @@ function get_misfit(m::TransD_GP.Model, sqmisfit::AbstractArray, opt::TransD_GP.
                     rLM = rLM./sounding.sdLM[idxLM]
                     rHM = rHM./sounding.sdHM[idxHM]
                     sqmisfit[isounding] = 0.5*(rLM'*rLM + rHM'*rHM)
-                end    
-            end    
+                end
+            end
         end
         chi2by2 = sum(sqmisfit)
     end
@@ -126,6 +126,24 @@ function mh_step!(m::TransD_GP.Model, d::AbstractArray,
     if opt.quasimultid
         new_misfit = get_misfit(m, d, opt, opt_EM, movetype)
     else
+        new_misfit = get_misfit(m, d, opt, opt_EM)
+    end
+    logalpha = (current_misfit[1] - new_misfit)/Temp
+    if log(rand()) < logalpha
+        current_misfit[1] = new_misfit
+        stat.accepted_moves[movetype] += 1
+    else
+        TransD_GP.undo_move!(movetype, m, opt)
+    end
+end
+
+function mh_step!(m::TransD_GP.Model, d::AbstractArray,
+    opt::TransD_GP.Options, stat::TransD_GP.Stats,
+    Temp::Float64, movetype::Int, current_misfit::Array{Float64, 1})
+
+    if opt.quasimultid
+        new_misfit = get_misfit(m, d, opt, movetype)
+    else
         new_misfit = get_misfit(m, d, opt)
     end
     logalpha = (current_misfit[1] - new_misfit)/Temp
@@ -167,6 +185,39 @@ function do_mcmc_step(m::DArray{TransD_GP.Model}, opt::DArray{TransD_GP.Options}
     misfit = do_mcmc_step(localpart(m)[1], localpart(opt)[1], localpart(stat)[1],
                             localpart(current_misfit)[1], localpart(d),
                             Temp, isample, localpart(opt_EM)[1], localpart(wp)[1])
+
+end
+
+function do_mcmc_step(m::TransD_GP.Model, opt::TransD_GP.Options, stat::TransD_GP.Stats,
+    current_misfit::Array{Float64, 1}, d::AbstractArray,
+    Temp::Float64, isample::Int, wp::TransD_GP.Writepointers)
+
+    # select move and do it
+    movetype, priorviolate = TransD_GP.do_move!(m, opt, stat)
+
+    if !priorviolate
+        mh_step!(m, d, opt, stat, Temp, movetype, current_misfit)
+    end
+
+    # acceptance stats
+    TransD_GP.get_acceptance_stats!(isample, opt, stat)
+
+    # write models
+    writemodel = false
+    abs(Temp-1.0) < 1e-12 && (writemodel = true)
+    TransD_GP.write_history(isample, opt, m, current_misfit[1], stat, wp, Temp, writemodel)
+
+    return current_misfit[1]
+end
+
+function do_mcmc_step(m::DArray{TransD_GP.Model}, opt::DArray{TransD_GP.Options},
+    stat::DArray{TransD_GP.Stats}, current_misfit::DArray{Array{Float64, 1}},
+    d::AbstractArray, Temp::Float64, isample::Int,
+    wp::DArray{TransD_GP.Writepointers})
+
+    misfit = do_mcmc_step(localpart(m)[1], localpart(opt)[1], localpart(stat)[1],
+                            localpart(current_misfit)[1], localpart(d),
+                            Temp, isample, localpart(wp)[1])
 
 end
 
@@ -306,6 +357,39 @@ function main(opt_in::TransD_GP.Options, din::AbstractArray, opt_EM_in::EMoption
     nothing
 end
 
+function main(opt_in::TransD_GP.Options, din::AbstractArray;
+              nsamples     = 4001,
+              nchains      = 1,
+              nchainsatone = 1,
+              Tmax         = 2.5)
+
+
+    chains = Chain(nchains, Tmax=Tmax, nchainsatone=nchainsatone)
+    m, opt, stat, d, current_misfit, wp = init_chain_darrays(opt_in, din[:], chains)
+
+    t2 = time()
+    for isample = 1:nsamples
+
+        swap_temps(chains)
+
+        @sync for(ichain, chain) in enumerate(chains)
+            @async chain.misfit = remotecall_fetch(do_mcmc_step, chain.pid, m, opt, stat,
+                                                             current_misfit, d,
+                                                             chain.T, isample, wp)
+        end
+
+        if mod(isample-1, 1000) == 0
+            dt = time() - t2 #seconds
+            t2 = time()
+            @info("*****$dt**sec*****")
+        end
+
+    end
+
+    close_history(wp)
+    nothing
+end
+
 function getchi2forall(opt_in::TransD_GP.Options;
                         nchains          = 1,
                         figsize          = (12,6),
@@ -330,7 +414,7 @@ function getchi2forall(opt_in::TransD_GP.Options;
         kacrosschains[:,ichain] = TransD_GP.history(opt_in, stat=:nodes)
         X2by2inchains[:,ichain] = TransD_GP.history(opt_in, stat=:U)
     end
- 
+
     f, ax = plt.subplots(3,2, sharex=true, figsize=figsize)
     ax[1].plot(iters, kacrosschains)
     ax[1].set_title("unsorted by temperature")
@@ -343,7 +427,7 @@ function getchi2forall(opt_in::TransD_GP.Options;
     ax[3].plot(iters, Tacrosschains)
     ax[3].set_ylabel("Temperature")
     ax[3].set_xlabel("iterations")
-    
+
     for jstep = 1:niters
         sortidx = sortperm(vec(Tacrosschains[jstep,:]))
         X2by2inchains[jstep,:] = X2by2inchains[jstep,sortidx]
@@ -363,10 +447,10 @@ function getchi2forall(opt_in::TransD_GP.Options;
     ax[6].plot(iters, Tacrosschains[:,1:nchainsatone], "k")
     ax[6].grid()
     ax[6].set_xlabel("iterations")
-    
+
     nicenup(f, fsize=fsize)
 
-end    
+end
 
 function nicenup(g::PyPlot.Figure;fsize=14)
     for ax in gcf().axes

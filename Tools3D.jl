@@ -73,12 +73,12 @@ end
 
 function makeopt(;nmin      = 2,
                   nmax      = 200,
-                  λ         = [150.0, 400.0, 1.0],
+                  λ         = [100.0, 200.0, 1.0],
                   δ         = 0.1,
                   fbounds   = [0.5 4],
                   demean    = true,
                   sdev_prop = 0.1,
-                  sdev_pos  = [8;8.0;1.4],
+                  sdev_pos  = [80.0;80.0;1.0],
                   pnorm     = 2.0,
                   λx        = 1600.0,
                   λy        = 1600.0,
@@ -238,12 +238,12 @@ end
 function get_training_data(fstar::Array{Float64, 1},
                            opt::TransD_GP.Options;
                            dz = nothing,
-                           extendfrac = nothing,  
+                           extendfrac = nothing,
                            sdmaxfrac = 0.05,
                            rseed     = 12,
                            zbreak    = 12321.0,
                            takeevery = 4,
-                           fractrain = 0.05 
+                           fractrain = 0.05
                           )
     @assert extendfrac != nothing
     @assert dz != nothing
@@ -268,7 +268,7 @@ function get_training_data(fstar::Array{Float64, 1},
         end
     end
     f = figure(figsize=(10,10))
-    scatter3D(opt.xall[1,:], opt.xall[2,:], geomprogdepth.(opt.xall[3,:], dz, extendfrac), 
+    scatter3D(opt.xall[1,:], opt.xall[2,:], geomprogdepth.(opt.xall[3,:], dz, extendfrac),
                           c=noisyd, vmin=minimum(fstar), vmax=maximum(fstar), cmap="jet_r")
     xlim(extrema(x))
     ylim(extrema(y))
@@ -281,17 +281,16 @@ function get_training_data(fstar::Array{Float64, 1},
     gca().zaxis.label.set_fontsize(14); nicenup(gcf())
     gca().invert_zaxis()
 
-    noisyd
+    noisyd, δtry
 end
 
-function plot_last_target_model(m::TransD_GP.Model,
-                                opt_in::TransD_GP.Options;
+function plot_last_target_model(opt_in::TransD_GP.Options;
                                 slicesx    = nothing,
                                 slicesy    = nothing,
                                 slicesz    = nothing,
                                 dz         = nothing,
                                 extendfrac = nothing,
-                                nchains    = 1, 
+                                nchains    = 1,
                                 fsize      = 14
                                )
     @assert !any((slicesx, slicesy, slicesz,
@@ -320,9 +319,18 @@ function plot_last_target_model(m::TransD_GP.Model,
     for idx in last_target_model_idx
         opt_in.fstar_filename = "models_"*opt_in.fdataname*"_$idx.bin"
         m_last = TransD_GP.history(opt_in, stat=:fstar)[end]
-        slicemodel(m, opt, slicesx=slicesx, slicesy=slicesy, slicesz=slicesz, dz=dz, extendfrac=extendfrac)        
+        slicemodel(m_last, 0,[0. 0.],[0.], opt_in, slicesx=slicesx, slicesy=slicesy, slicesz=slicesz, dz=dz, extendfrac=extendfrac)
     end
 
+end
+
+function calc_simple_RMS(d::AbstractArray, fstar::Array{Float64, 1}, sd::Float64)
+
+    select = .!isnan.(d)
+    r = (d[select] - fstar[select])/sd
+    n = sum(select)
+    @info "χ^2 error is $(r'*r) for $n points RMS: $(sqrt(r'*r/n))"
+    nothing
 end
 
 end
