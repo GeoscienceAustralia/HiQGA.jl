@@ -155,9 +155,9 @@ function slicemodel(fstar::Array{Float64, 1}, npoints::Int,
     @assert !(slicesx != [] && (slicesz != [] || slicesy != []))
     @assert !(slicesx == [] && slicesy == [] && slicesz ==[])
     v = reshape(fstar,length(x), length(y), length(z))
+    f = figure(figsize=(10,10))
     if slicesz!=[]
         xx,yy = meshgrid(x,y)
-        f = figure(figsize=(10,10))
         l = slicesz
         for i in l
             c=(v[:,:,i].-minimum(v))./(maximum(v)-minimum(v))
@@ -165,7 +165,6 @@ function slicemodel(fstar::Array{Float64, 1}, npoints::Int,
         end
     elseif slicesx!=[]
         yy,zz = meshgrid(y,z)
-        f = figure(figsize=(10,10))
         l = slicesx
         for i in l
             c=(v[i,:,:].-minimum(v))./(maximum(v)-minimum(v))
@@ -173,7 +172,6 @@ function slicemodel(fstar::Array{Float64, 1}, npoints::Int,
         end
     elseif slicesy!=[]
         xx,zz = meshgrid(x,z)
-        f = figure(figsize=(10,10))
         l = slicesy
         for i in l
             c=(v[:,i,:].-minimum(v))./(maximum(v)-minimum(v))
@@ -210,7 +208,7 @@ function makecubemodel(opt::TransD_GP.Options;
                         ρ0         = 2,
                         ρ1         = 4,
                         ρ2         = 0.5,
-                        ρanom      = 1.2
+                        ρanom      = 0.8
                         )
     @assert extendfrac != nothing
     @assert dz != nothing
@@ -233,7 +231,58 @@ function makecubemodel(opt::TransD_GP.Options;
             ρ[i] = ρ1 + (z-zmin)/(zmax-z1)*(ρ2-ρ1)
         end
     end
+    opt.fbounds = [minimum(ρ) maximum(ρ)]
     return ρ
 end
+
+function get_training_data(fstar::Array{Float64, 1},
+                           opt::TransD_GP.Options;
+                           dz = nothing,
+                           extendfrac = nothing,  
+                           sdmaxfrac = 0.05,
+                           rseed     = 12,
+                           zbreak    = 12321.0,
+                           takeevery = 4,
+                           fractrain = 0.05 
+                          )
+    @assert extendfrac != nothing
+    @assert dz != nothing
+    @assert zbreak != 12321.0
+    @assert sdmaxfrac > 0 && sdmaxfrac < 1
+    Random.seed!(rseed)
+    x, y =  unique(opt.xall[1,:]), unique(opt.xall[2,:])
+    z = geomprogdepth.(unique(opt.xall[3,:]), dz, extendfrac)
+    @assert minimum(z) < zbreak < maximum(z)
+    noisyd = NaN .+ zeros(Float64, size(fstar))
+    ntrain = round(Int, fractrain*length(fstar))
+    linidx = randperm(length(fstar))[1:ntrain]
+    δtry = sdmaxfrac*maximum(abs.(fstar))
+    for l in linidx
+        row, col, zid = Tuple(CartesianIndices((length(x),length(y),length(z)))[l])
+        if z[zid] > zbreak
+            noisyd[l] = fstar[l] + δtry*randn()
+        else
+            if rem(row, takeevery) == 0 && rem(col, takeevery) == 0 && rem(zid, takeevery) == 0
+                noisyd[l] = fstar[l] + δtry*randn()
+            end
+        end
+    end
+    f = figure(figsize=(10,10))
+    scatter3D(opt.xall[1,:], opt.xall[2,:], geomprogdepth.(opt.xall[3,:], dz, extendfrac), 
+                          c=noisyd, vmin=minimum(fstar), vmax=maximum(fstar), cmap="jet_r")
+    xlim(extrema(x))
+    ylim(extrema(y))
+    zlim(extrema(z))
+    xlabel("x km")
+    ylabel("y km")
+    zlabel("depth km")
+    cbar = f.colorbar(plt.cm.ScalarMappable(cmap="jet_r",norm=matplotlib.colors.Normalize(vmin=minimum(fstar), vmax=maximum(fstar))),ax=gca())
+    cbar.set_label(L"\log_{10} \rho")
+    gca().zaxis.label.set_fontsize(14); nicenup(gcf())
+    gca().invert_zaxis()
+
+    noisyd
+end
+
 
 end

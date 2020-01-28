@@ -9,7 +9,9 @@ m = TransD_GP.init(opt)
 Tools3D.slicemodel(m, opt, slicesx=[], slicesy=[], slicesz=[16,19], dz=dz, extendfrac=extendfrac)
 Tools3D.slicemodel(m, opt, slicesx=[30], slicesy=[], slicesz=[], dz=dz, extendfrac=extendfrac)
 
-ρ = Tools3D.makecubemodel(opt, dz=dz, extendfrac=extendfrac)
+ρ = Tools3D.makecubemodel(opt, dz=dz, extendfrac=extendfrac, ρanom=0.2)
 Tools3D.slicemodel(ρ,0,[0. 0.],[0.], opt, slicesx=[20], slicesy=[], slicesz=[], dz=dz, extendfrac=extendfrac)
 Tools3D.slicemodel(ρ,0,[0. 0.],[0.], opt, slicesx=[], slicesy=[20], slicesz=[], dz=dz, extendfrac=extendfrac)
 Tools3D.slicemodel(ρ,0,[0. 0.],[0.], opt, slicesx=[], slicesy=[], slicesz=[17], dz=dz, extendfrac=extendfrac)
+
+d = Tools3D.get_training_data(ρ, opt, dz=dz, extendfrac=extendfrac, zbreak=100.0, fractrain=0.05)
