@@ -229,6 +229,36 @@ function init_chain_darrays(opt_in::TransD_GP.Options, opt_EM_in::EMoptions, d_i
     current_misfit, wp       = map(x -> DArray(x), (m_, opt_, stat_, opt_EM_, d_in_, current_misfit_, wp_))
 end
 
+function init_chain_darrays(opt_in::TransD_GP.Options, d_in::AbstractArray, chains::Array{Chain, 1})
+    m_, opt_, stat_, d_in_, current_misfit_, wp_  = map(x -> Array{Future, 1}(undef, length(chains)), 1:6)
+
+    costs_filename = "misfits_"*opt_in.fdataname
+    fstar_filename = "models_"*opt_in.fdataname
+    x_ftrain_filename = "points_"*opt_in.fdataname
+
+    @sync for(idx, chain) in enumerate(chains)
+        m_[idx]              = @spawnat chain.pid [TransD_GP.init(opt_in)]
+
+        opt_in.costs_filename    = costs_filename*"_$idx.bin"
+        opt_in.fstar_filename    = fstar_filename*"_$idx.bin"
+        opt_in.x_ftrain_filename = x_ftrain_filename*"_$idx.bin"
+
+        opt_[idx]            = @spawnat chain.pid [opt_in]
+        stat_[idx]           = @spawnat chain.pid [TransD_GP.Stats()]
+        d_in_[idx]           = @spawnat chain.pid d_in
+        current_misfit_[idx] = @spawnat chain.pid [[ get_misfit(fetch(m_[idx])[1],
+                                               localpart(fetch(d_in_[idx])),
+                                               fetch(opt_[idx])[1]) ]]
+
+        wp_[idx]             = @spawnat chain.pid [TransD_GP.open_history(opt_in)]
+
+    end
+
+    m, opt, stat, d,
+    current_misfit, wp       = map(x -> DArray(x), (m_, opt_, stat_, d_in_, current_misfit_, wp_))
+end
+
+
 function swap_temps(chains::Array{Chain, 1})
     for ichain in length(chains):-1:2
         jchain = rand(1:ichain)

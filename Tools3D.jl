@@ -284,5 +284,45 @@ function get_training_data(fstar::Array{Float64, 1},
     noisyd
 end
 
+function plot_last_target_model(m::TransD_GP.Model,
+                                opt_in::TransD_GP.Options;
+                                slicesx    = nothing,
+                                slicesy    = nothing,
+                                slicesz    = nothing,
+                                dz         = nothing,
+                                extendfrac = nothing,
+                                nchains    = 1, 
+                                fsize      = 14
+                               )
+    @assert !any((slicesx, slicesy, slicesz,
+                  dz, extendfrac) .== nothing)
+    @assert !(slicesz != [] && (slicesx != [] || slicesy != []))
+    @assert !(slicesx != [] && (slicesz != [] || slicesy != []))
+    @assert !(slicesx == [] && slicesy == [] && slicesz ==[])
+
+    if nchains == 1 # then actually find out how many chains there are saved
+        nchains = length(filter( x -> occursin(r"misfits.*bin", x), readdir(pwd()) )) # my terrible regex
+    end
+    # now look at any chain to get how many iterations
+    costs_filename = "misfits_"*opt_in.fdataname
+    opt_in.costs_filename    = costs_filename*"_1.bin"
+    iters          = TransD_GP.history(opt_in, stat=:iter)
+    niters         = length(iters)
+    # then create arrays of unsorted by temperature T
+    Tacrosschains  = zeros(Float64, niters, nchains)
+    # get the values into the arrays
+    for ichain in 1:nchains
+        opt_in.costs_filename = costs_filename*"_$ichain.bin"
+        Tacrosschains[:,ichain] = TransD_GP.history(opt_in, stat=:T)
+    end
+
+    last_target_model_idx = findall(abs.(Tacrosschains[end,:] .-1.0) .< 1e-12)
+    for idx in last_target_model_idx
+        opt_in.fstar_filename = "models_"*opt_in.fdataname*"_$idx.bin"
+        m_last = TransD_GP.history(opt_in, stat=:fstar)[end]
+        slicemodel(m, opt, slicesx=slicesx, slicesy=slicesy, slicesz=slicesz, dz=dz, extendfrac=extendfrac)        
+    end
+
+end
 
 end
