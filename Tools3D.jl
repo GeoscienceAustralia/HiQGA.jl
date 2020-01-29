@@ -264,12 +264,8 @@ function get_training_data(fstar::Array{Float64, 1},
     δtry = sdmaxfrac*maximum(abs.(fstar))
     for l in linidx
         row, col, zid = Tuple(CartesianIndices((length(x),length(y),length(z)))[l])
-        if z[zid] > zbreak
+        if z[zid] > zbreak || (rem(row, takeevery) == 0 && rem(col, takeevery) == 0 && rem(zid, takeevery) == 0)
             noisyd[l] = fstar[l] + δtry*randn()
-        else
-            if rem(row, takeevery) == 0 && rem(col, takeevery) == 0 && rem(zid, takeevery) == 0
-                noisyd[l] = fstar[l] + δtry*randn()
-            end
         end
     end
     f = figure(figsize=(10,10))
