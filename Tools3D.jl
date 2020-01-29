@@ -210,7 +210,8 @@ function makecubemodel(opt::TransD_GP.Options;
                         ρ0         = 2,
                         ρ1         = 4,
                         ρ2         = 0.5,
-                        ρanom      = 0.8
+                        ρanom      = 0.8,
+                        ntosmooth  = 1,
                         )
     @assert extendfrac != nothing
     @assert dz != nothing
@@ -233,6 +234,8 @@ function makecubemodel(opt::TransD_GP.Options;
             ρ[i] = ρ1 + (z-zmin)/(zmax-z1)*(ρ2-ρ1)
         end
     end
+    nx, ny, nz = length(unique(opt.xall[1,:])), length(unique(opt.xall[2,:])), length(unique(opt.xall[3,:]))
+    ρ .= boxcarn(reshape(ρ, nx, ny, nz), ntosmooth)[:]
     opt.fbounds = [0.98*minimum(ρ) 1.02*maximum(ρ)]
     return ρ
 end
@@ -336,14 +339,14 @@ function calc_simple_RMS(d::AbstractArray, fstar::Array{Float64, 1}, sd::Float64
     nothing
 end
 
-function boxcar3(A::AbstractArray)
-    out = similar(A)
+function boxcarn(A::AbstractArray, ntosmooth::Int)
+    out = zeros(eltype(A), size(A))
     R = CartesianIndices(A)
     Ifirst, Ilast = first(R), last(R)
     I1 = oneunit(Ifirst)
     for I in R
         n, s = 0, zero(eltype(out))
-        for J in max(Ifirst, I-I1):min(Ilast, I+I1)
+        for J in max(Ifirst, I-ntosmooth*I1):min(Ilast, I+ntosmooth*I1)
             s += A[J]
             n += 1
         end
