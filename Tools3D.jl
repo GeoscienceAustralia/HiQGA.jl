@@ -15,7 +15,9 @@ function nicenup(g::PyPlot.Figure;fsize=16)
         ax.tick_params("both",labelsize=fsize)
         ax.xaxis.label.set_fontsize(fsize)
         ax.yaxis.label.set_fontsize(fsize)
+        any(keys(ax) .== :zaxis) && ax.zaxis.label.set_fontsize(fsize)
         ax.title.set_fontsize(fsize)
+
         if typeof(ax.get_legend_handles_labels()[1]) != Array{Any,1}
             ax.legend(loc="best", fontsize=fsize)
         end
@@ -124,76 +126,88 @@ end
 
 function slicemodel(m::TransD_GP.Model,
                     opt::TransD_GP.Options;
-                    slicesx    = nothing,
-                    slicesy    = nothing,
-                    slicesz    = nothing,
+                    slicesx    = [],
+                    slicesy    = [],
+                    slicesz    = [],
                     dz         = nothing,
                     extendfrac = nothing,
+                    figsize    = (8,10)
                     )
-    @assert !any((slicesx, slicesy, slicesz,
-                  dz, extendfrac) .== nothing)
-    @assert !(slicesz != [] && (slicesx != [] || slicesy != []))
-    @assert !(slicesx != [] && (slicesz != [] || slicesy != []))
-    @assert !(slicesx == [] && slicesy == [] && slicesz ==[])
+    @assert !any((dz, extendfrac) .== nothing)
+    @assert any([slicesx !=  [], slicesy != [], slicesz !=[]])
     slicemodel(m.fstar, m.n, m.xtrain, m.ftrain, opt::TransD_GP.Options; slicesx=slicesx, slicesy=slicesy, slicesz=slicesz,
-                dz=dz, extendfrac=extendfrac)
+                dz=dz, extendfrac=extendfrac, figsize=figsize)
 end
 
 function slicemodel(fstar::Array{Float64, 1}, npoints::Int,
                     xtrain::Array{Float64, 2}, ftrain::Array{Float64, 1},
                     opt::TransD_GP.Options;
-                    slicesx    = nothing,
-                    slicesy    = nothing,
-                    slicesz    = nothing,
+                    slicesx    = [],
+                    slicesy    = [],
+                    slicesz    = [],
                     dz         = nothing,
                     extendfrac = nothing,
+                    figsize    = (8,10)
                     )
     x = unique(opt.xall[1,:])
     y = unique(opt.xall[2,:])
     z = geomprogdepth.(unique(opt.xall[3,:]), dz, extendfrac)
-    @assert !any((slicesx, slicesy, slicesz,
-                  dz, extendfrac) .== nothing)
-    @assert !(slicesz != [] && (slicesx != [] || slicesy != []))
-    @assert !(slicesx != [] && (slicesz != [] || slicesy != []))
-    @assert !(slicesx == [] && slicesy == [] && slicesz ==[])
+    @assert !any((dz, extendfrac) .== nothing)
+    @assert any([slicesx !=  [], slicesy != [], slicesz !=[]])
+    nplots = sum([slicesx != [], slicesy != [], slicesz != []])
     v = reshape(fstar,length(x), length(y), length(z))
-    f = figure(figsize=(10,10))
-    if slicesz!=[]
+    fig = figure(figsize=(nplots*figsize[1],figsize[2]))
+    ax = Array{Any,1}(undef, nplots)
+    iplot = 0
+    if slicesz!=[] 
         xx,yy = meshgrid(x,y)
         l = slicesz
+        iplot+=1
+        ax[iplot]=fig.add_subplot(1, nplots, iplot, projection="3d")
         for i in l
             c=(v[:,:,i].-minimum(v))./(maximum(v)-minimum(v))
-            plot_surface(xx, yy, z[i]*ones(size(yy)), facecolors=plt.cm.jet_r(c), shade=false)
+            ax[iplot].plot_surface(xx, yy, z[i]*ones(size(yy)), facecolors=plt.cm.jet_r(c), shade=false)
         end
-    elseif slicesx!=[]
+    end    
+    if slicesx!=[]
         yy,zz = meshgrid(y,z)
         l = slicesx
+        iplot+=1
+        ax[iplot]=fig.add_subplot(1, nplots, iplot, projection="3d")
         for i in l
             c=(v[i,:,:].-minimum(v))./(maximum(v)-minimum(v))
-            plot_surface(x[i]*ones(size(yy)), yy, zz, facecolors=plt.cm.jet_r(c), shade=false)
+            ax[iplot].plot_surface(x[i]*ones(size(yy)), yy, zz, facecolors=plt.cm.jet_r(c), shade=false)
         end
-    elseif slicesy!=[]
+    end
+   if slicesy!=[]
         xx,zz = meshgrid(x,z)
         l = slicesy
+        iplot+=1
+        ax[iplot]=fig.add_subplot(1, nplots, iplot, projection="3d")
         for i in l
             c=(v[:,i,:].-minimum(v))./(maximum(v)-minimum(v))
-            plot_surface(xx, y[i]*ones(size(zz)), zz, facecolors=plt.cm.jet_r(c), shade=false)
+            ax[iplot].plot_surface(xx, y[i]*ones(size(zz)), zz, facecolors=plt.cm.jet_r(c), shade=false)
         end
     end
-    if npoints>0
-        scatter3D(xtrain[1,1:npoints], xtrain[2,1:npoints], geomprogdepth.(xtrain[3,1:npoints], dz, extendfrac),
+    for a in ax
+        if npoints>0
+            a.scatter3D(xtrain[1,1:npoints], xtrain[2,1:npoints], geomprogdepth.(xtrain[3,1:npoints], dz, extendfrac),
                 c=ftrain[1:npoints], vmin=minimum(v), vmax=maximum(v), s=50, cmap="jet_r")
+        end
+        a.set_xlim(extrema(x))
+        a.set_ylim(extrema(y))
+        a.set_zlim(extrema(z))
+        a.set_xlabel("x km")
+        a.set_ylabel("y km")
+        a.set_zlabel("depth km")
+        a.invert_zaxis()
     end
-    xlim(extrema(x))
-    ylim(extrema(y))
-    zlim(extrema(z))
-    xlabel("x km")
-    ylabel("y km")
-    zlabel("depth km")
-    cbar = f.colorbar(plt.cm.ScalarMappable(cmap="jet_r",norm=matplotlib.colors.Normalize(vmin=minimum(v), vmax=maximum(v))),ax=gca())
-    cbar.set_label(L"\log_{10} \rho")
-    gca().zaxis.label.set_fontsize(14); nicenup(gcf())
-    gca().invert_zaxis()
+    nicenup(gcf(),fsize=14)
+    fig.subplots_adjust(right=0.9)
+    cbar_ax = fig.add_axes([0.91, 0.15, 0.05, 0.7])
+    cbar = fig.colorbar(plt.cm.ScalarMappable(cmap="jet_r",norm=matplotlib.colors.Normalize(vmin=minimum(v), vmax=maximum(v))), cax=cbar_ax)
+    cbar.set_label(L"\log_{10} \rho", fontsize=14)
+    cbar.ax.tick_params(labelsize=14)
 end
 
 function makecubemodel(opt::TransD_GP.Options;
@@ -286,20 +300,16 @@ function get_training_data(fstar::Array{Float64, 1},
 end
 
 function plot_last_target_model(opt_in::TransD_GP.Options, d::Array{Float64, 1}, sd::Float64;
-                                slicesx    = nothing,
-                                slicesy    = nothing,
-                                slicesz    = nothing,
+                                slicesx    = [],
+                                slicesy    = [],
+                                slicesz    = [],
                                 dz         = nothing,
                                 extendfrac = nothing,
                                 nchains    = 1,
                                 fsize      = 14
                                )
-    @assert !any((slicesx, slicesy, slicesz,
-                  dz, extendfrac) .== nothing)
-    @assert !(slicesz != [] && (slicesx != [] || slicesy != []))
-    @assert !(slicesx != [] && (slicesz != [] || slicesy != []))
-    @assert !(slicesx == [] && slicesy == [] && slicesz ==[])
-
+    @assert !any((dz, extendfrac) .== nothing)
+    @assert any([slicesx !=  [], slicesy != [], slicesz !=[]])
     if nchains == 1 # then actually find out how many chains there are saved
         nchains = length(filter( x -> occursin(r"misfits.*bin", x), readdir(pwd()) )) # my terrible regex
     end
@@ -315,7 +325,6 @@ function plot_last_target_model(opt_in::TransD_GP.Options, d::Array{Float64, 1},
         opt_in.costs_filename = costs_filename*"_$ichain.bin"
         Tacrosschains[:,ichain] = TransD_GP.history(opt_in, stat=:T)
     end
-
     last_target_model_idx = findall(abs.(Tacrosschains[end,:] .-1.0) .< 1e-12)
     for idx in last_target_model_idx
         opt_in.fstar_filename = "models_"*opt_in.fdataname*"_$idx.bin"
@@ -350,5 +359,7 @@ function boxcarn(A::AbstractArray, ntosmooth::Int)
     end
     out
 end
+
+
 
 end
