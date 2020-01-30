@@ -157,6 +157,7 @@ function slicemodel(fstar::Array{Float64, 1}, npoints::Int,
     nplots = sum([slicesx != [], slicesy != [], slicesz != []])
     v = reshape(fstar,length(x), length(y), length(z))
     fig = figure(figsize=(nplots*figsize[1],figsize[2]))
+    using3D()
     ax = Array{Any,1}(undef, nplots)
     iplot = 0
     if slicesz!=[] 
@@ -305,26 +306,11 @@ function plot_last_target_model(opt_in::TransD_GP.Options, d::Array{Float64, 1},
                                 slicesz    = [],
                                 dz         = nothing,
                                 extendfrac = nothing,
-                                nchains    = 1,
                                 fsize      = 14
                                )
     @assert !any((dz, extendfrac) .== nothing)
     @assert any([slicesx !=  [], slicesy != [], slicesz !=[]])
-    if nchains == 1 # then actually find out how many chains there are saved
-        nchains = length(filter( x -> occursin(r"misfits.*bin", x), readdir(pwd()) )) # my terrible regex
-    end
-    # now look at any chain to get how many iterations
-    costs_filename = "misfits_"*opt_in.fdataname
-    opt_in.costs_filename    = costs_filename*"_1.bin"
-    iters          = TransD_GP.history(opt_in, stat=:iter)
-    niters         = length(iters)
-    # then create arrays of unsorted by temperature T
-    Tacrosschains  = zeros(Float64, niters, nchains)
-    # get the values into the arrays
-    for ichain in 1:nchains
-        opt_in.costs_filename = costs_filename*"_$ichain.bin"
-        Tacrosschains[:,ichain] = TransD_GP.history(opt_in, stat=:T)
-    end
+    Tacrosschains = gettargtemps(opt_in)
     last_target_model_idx = findall(abs.(Tacrosschains[end,:] .-1.0) .< 1e-12)
     for idx in last_target_model_idx
         opt_in.fstar_filename = "models_"*opt_in.fdataname*"_$idx.bin"
@@ -334,6 +320,47 @@ function plot_last_target_model(opt_in::TransD_GP.Options, d::Array{Float64, 1},
     end
     
 end
+
+function gettargtemps(opt_in::TransD_GP.Options)
+    nchains = length(filter( x -> occursin(r"misfits.*bin", x), readdir(pwd()) )) # my terrible regex
+    @info "Number of chains is $nchains"
+    # now look at any chain to get how many iterations
+    costs_filename = "misfits_"*opt_in.fdataname
+    opt_in.costs_filename    = costs_filename*"_1.bin"
+    iters          = TransD_GP.history(opt_in, stat=:iter)
+    niters         = length(iters)
+    @info "McMC has run for $(iters[end]) iterations"
+    # then create arrays of unsorted by temperature T
+    Tacrosschains  = zeros(Float64, niters, nchains)
+    # get the values into the arrays
+    for ichain in 1:nchains
+        opt_in.costs_filename = costs_filename*"_$ichain.bin"
+        Tacrosschains[:,ichain] = TransD_GP.history(opt_in, stat=:T)
+    end
+    Tacrosschains
+end    
+
+function assembleTat1(opt::TransD_GP.Options, irange::StepRange{Int})
+    Tacrosschains = gettargtemps(opt)
+    iters = TransD_GP.history(opt, stat=:iter)
+    @assert 0<irange.start<=length(iters)
+    @assert irange.stop<=length(iters)
+    @info "obtaining models $(iters[irange.start]) to $(iters[irange.stop])"
+    nat1 = length(findall(abs.(Tacrosschains[end,:] .-1.0) .< 1e-12))
+    @info "No. of chains at 1 is $nat1"
+    niters = length(irange)
+    mat1 = zeros(Float64, size(opt.xall,2), niters, nat1)
+    cumT = cumsum(Tacrosschains .== 1,dims=1) 
+    @info size(mat1)
+    for (istep, stp) in enumerate(irange)
+        @info stp
+        for (itemp, idx) in enumerate(findall(abs.(Tacrosschains[stp,:] .-1.0) .< 1e-12))
+            opt.fstar_filename = "models_"*opt.fdataname*"_$idx.bin"
+            mat1[:,istep,itemp] = TransD_GP.history(opt, stat=:fstar)[cumT[stp,idx]]
+        end    
+    end
+    mat1
+end    
 
 function calc_simple_RMS(d::AbstractArray, fstar::Array{Float64, 1}, sd::Float64)
 
