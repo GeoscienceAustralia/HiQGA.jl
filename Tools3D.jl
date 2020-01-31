@@ -384,6 +384,36 @@ function assembleTat1(opt::TransD_GP.Options; burninfrac=0.5)
     mat1
 end    
 
+function savepngs(opt::TransD_GP.Options, irange::StepRange{Int}; 
+                  slicesx    = [],
+                  slicesy    = [],
+                  slicesz    = [],
+                  dz         = nothing,
+                  extendfrac = nothing,
+                  fsize      = 14
+                 )
+    @assert !any((dz, extendfrac) .== nothing)
+    @assert any([slicesx !=  [], slicesy != [], slicesz !=[]])
+    Tacrosschains = gettargtemps(opt)
+    iters = TransD_GP.history(opt, stat=:iter)
+    @assert 0<irange.start<=length(iters)
+    @assert irange.stop<=length(iters)
+    nat1 = length(findall(abs.(Tacrosschains[end,:] .-1.0) .< 1e-12))
+    @info "No. of chains at 1 is $nat1"
+    @info "obtaining models $(iters[irange.start]) to $(iters[irange.stop])"
+    M = assembleTat1(opt,irange)
+    for (iridx, ir) in enumerate(irange), ic in 1:nat1
+        Tools3D.slicemodel(M[:,iridx,ic],0,[0. 0.],[0.], opt, 
+                            slicesx=slicesx, slicesy=slicesy, slicesz=slicesz, 
+                            dz=dz, extendfrac=extendfrac)
+        @info "saving target model $(iters[ir]) chain $ic"
+        gcf().suptitle("model_"*lpad(iters[ir],7,'0')*"_chain_"*lpad(ic,3,'0'))
+        savefig("model_"*lpad(iters[ir],7,'0')*"_chain_"*lpad(ic,3,'0')*".png", dpi=300)
+        close()
+    end
+    nothing
+end
+
 function calc_simple_RMS(d::AbstractArray, fstar::Array{Float64, 1}, sd::Float64)
 
     select = .!isnan.(d)

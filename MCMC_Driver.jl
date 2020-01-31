@@ -392,7 +392,7 @@ end
 
 function getchi2forall(opt_in::TransD_GP.Options;
                         nchains          = 1,
-                        figsize          = (12,6),
+                        figsize          = (17,8),
                         fsize            = 14,
                       )
     if nchains == 1 # then actually find out how many chains there are saved

@@ -8,4 +8,4 @@ addprocs(nchains)
 @everywhere import MCMC_Driver
 ## run McMC
 @time MCMC_Driver.main(opt, d, Tmax=Tmax, nsamples=nsamples, nchains=nchains, nchainsatone=nchainsatone)
-
+rmprocs(workers())
