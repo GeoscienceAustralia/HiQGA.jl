@@ -15,7 +15,7 @@ d, sd = Tools3D.get_training_data(ρ, opt, dz=dz, extendfrac=extendfrac, zbreak=
 
 Tools3D.calc_simple_RMS(d, ρ, sd)
 ## set up McMC
-nsamples, nchains, nchainsatone = 200001, 16, 1
+nsamples, nchains, nchainsatone = 200001, 16, 2
 Tmax = 2.5
 
 addprocs(nchains)

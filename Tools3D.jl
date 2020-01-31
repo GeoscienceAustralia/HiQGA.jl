@@ -131,7 +131,7 @@ function slicemodel(m::TransD_GP.Model,
                     slicesz    = [],
                     dz         = nothing,
                     extendfrac = nothing,
-                    figsize    = (8,10)
+                    figsize    = (7,9)
                     )
     @assert !any((dz, extendfrac) .== nothing)
     @assert any([slicesx !=  [], slicesy != [], slicesz !=[]])
@@ -147,7 +147,7 @@ function slicemodel(fstar::Array{Float64, 1}, npoints::Int,
                     slicesz    = [],
                     dz         = nothing,
                     extendfrac = nothing,
-                    figsize    = (8,10)
+                    figsize    = (7,9)
                     )
     x = unique(opt.xall[1,:])
     y = unique(opt.xall[2,:])
@@ -205,7 +205,7 @@ function slicemodel(fstar::Array{Float64, 1}, npoints::Int,
     end
     nicenup(gcf(),fsize=14)
     fig.subplots_adjust(right=0.9)
-    cbar_ax = fig.add_axes([0.91, 0.15, 0.05, 0.7])
+    cbar_ax = fig.add_axes([0.92, 0.15, 0.025, 0.7])
     cbar = fig.colorbar(plt.cm.ScalarMappable(cmap="jet_r",norm=matplotlib.colors.Normalize(vmin=minimum(v), vmax=maximum(v))), cax=cbar_ax)
     cbar.set_label(L"\log_{10} \rho", fontsize=14)
     cbar.ax.tick_params(labelsize=14)
@@ -353,11 +353,33 @@ function assembleTat1(opt::TransD_GP.Options, irange::StepRange{Int})
     cumT = cumsum(Tacrosschains .== 1,dims=1) 
     @info size(mat1)
     for (istep, stp) in enumerate(irange)
-        @info stp
+        @info "$(istep/niters*100)% done"
         for (itemp, idx) in enumerate(findall(abs.(Tacrosschains[stp,:] .-1.0) .< 1e-12))
             opt.fstar_filename = "models_"*opt.fdataname*"_$idx.bin"
             mat1[:,istep,itemp] = TransD_GP.history(opt, stat=:fstar)[cumT[stp,idx]]
         end    
+    end
+    mat1
+end    
+
+function assembleTat1(opt::TransD_GP.Options; burninfrac=0.5)
+    @assert 0.0<1.0burninfrac<1.0
+    Tacrosschains = gettargtemps(opt)
+    iters = TransD_GP.history(opt, stat=:iter)
+    start = round(Int, length(iters)*burninfrac)
+    @info "obtaining models $(iters[start]) to $(iters[end])"
+    nmodels = sum((Tacrosschains[start:end,:] .== 1))
+    # storing models column wise in nmodels rows
+    mat1 = zeros(Float64, size(opt.xall,2), nmodels)
+    imodel = 0
+    for ichain in 1:size(Tacrosschains, 2)
+        @info "chain $ichain"
+        at1idx = findall(Tacrosschains[:,ichain].==1).>= start
+        ninchain = sum(at1idx)
+        ninchain == 0 && continue
+        opt.fstar_filename = "models_"*opt.fdataname*"_$ichain.bin"
+        mat1[:,imodel+1:imodel+ninchain] .= reduce(hcat, TransD_GP.history(opt, stat=:fstar)[at1idx])
+        imodel += ninchain
     end
     mat1
 end    
