@@ -1,5 +1,5 @@
 module GP
-using Statistics, LinearAlgebra, Distributions
+using Statistics, LinearAlgebra
 function gaussiankernel(x::AbstractArray, y::AbstractArray, p)
     return exp(-0.5*norm(x-y,p)^p)
 end

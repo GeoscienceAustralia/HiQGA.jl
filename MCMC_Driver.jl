@@ -2,13 +2,6 @@ module MCMC_Driver
 using TransD_GP, Distributed, DistributedArrays,
      PyPlot, LinearAlgebra, Formatting
 
-mutable struct EMoptions
-    sd        :: Float64
-    MLnoise   :: Bool
-    soundings :: Array{UseGA_AEM.Sounding, 1}
-    operator  :: Array{UseGA_AEM.EMoperator, 1}
-end
-
 struct Tpointer
     fp   :: IOStream
     fstr :: String
