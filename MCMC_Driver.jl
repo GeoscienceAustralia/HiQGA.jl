@@ -1,6 +1,6 @@
 module MCMC_Driver
 using TransD_GP, Distributed, DistributedArrays,
-     PyPlot, LinearAlgebra, Formatting, UseGA_AEM
+     PyPlot, LinearAlgebra, Formatting
 
 mutable struct EMoptions
     sd        :: Float64
@@ -9,70 +9,9 @@ mutable struct EMoptions
     operator  :: Array{UseGA_AEM.EMoperator, 1}
 end
 
-function EMoptions(;
-            sd         = 0.0,
-            MLnoise    = true,
-            soundings  = nothing,
-            operator   = nothing,
-                  )
-    @assert sd != 0.0
-    @assert soundings != nothing
-    @assert operator  != nothing
-    EMoptions(sd, MLnoise, soundings, operator)
-end
-
 struct Tpointer
     fp   :: IOStream
     fstr :: String
-end
-
-function get_misfit(m::TransD_GP.Model, sqmisfit::AbstractArray, opt::TransD_GP.Options,
-                    opt_EM::EMoptions, movetype::Int)
-    chi2by2 = 0.0
-    if !opt.debug
-        for (isounding, sounding) in enumerate(opt_EM.soundings)
-            recompute = false
-            # NaN at start of McMC
-            sqmisfit[isounding] == NaN && (recompute = true)
-            # next line for birth, death, property_change
-            δ = m.xtrain_focus[1:end-1,:] - sounding.x
-            if norm(δ./opt.influenceradius) < 1.0
-                recompute = true
-            end
-            # next line for position_change
-            if movetype == 3 && recompute[isounding] == false
-                δ =   m.xtrain_old[1:end-1,:] - sounding.x
-                if norm(δ./opt.influenceradius) < 1.0
-                    recompute = true
-                end
-            end
-            # recompute sounding if necessary
-            if recompute
-                nz = length(sounding.thickness)
-                conductivity = 10 .^(m.fstar[(isounding-1)*nz + 1:isounding*nz])
-                op = opt_EM.operator[isounding]
-                op(sounding.ztx, conductivity, sounding.thickness)
-                idxLM = .!isnan(sounding.dataLM)
-                idxHM = .!isnan(sounding.dataHM)
-                nLM = sum(idxLM)
-                nHM = sum(idxHM)
-                rLM = (abs.(sounding.dataLM) - abs.(op.em.SZLM))[idxLM]
-                rHM = (abs.(sounding.dataHM) - abs.(op.em.SZHM))[idxHM]
-                if opt_EM.MLnoise
-                    rLM = rLM./sounding.dataLM[idxLM]
-                    rHM = rHM./sounding.dataHM[idxHM]
-                    sqmisfit[isounding] = 0.5*(nLM*log(r_LM'*r_LM) +
-                                               nHM*log(r_HM'*r_HM))
-                else
-                    rLM = rLM./sounding.sdLM[idxLM]
-                    rHM = rHM./sounding.sdHM[idxHM]
-                    sqmisfit[isounding] = 0.5*(rLM'*rLM + rHM'*rHM)
-                end
-            end
-        end
-        chi2by2 = sum(sqmisfit)
-    end
-    return chi2by2
 end
 
 function get_misfit(m::TransD_GP.Model, d::AbstractArray, opt::TransD_GP.Options)
@@ -121,24 +60,6 @@ end
 
 function mh_step!(m::TransD_GP.Model, d::AbstractArray,
     opt::TransD_GP.Options, stat::TransD_GP.Stats,
-    Temp::Float64, movetype::Int, current_misfit::Array{Float64, 1}, opt_EM::EMoptions)
-
-    if opt.quasimultid
-        new_misfit = get_misfit(m, d, opt, opt_EM, movetype)
-    else
-        new_misfit = get_misfit(m, d, opt, opt_EM)
-    end
-    logalpha = (current_misfit[1] - new_misfit)/Temp
-    if log(rand()) < logalpha
-        current_misfit[1] = new_misfit
-        stat.accepted_moves[movetype] += 1
-    else
-        TransD_GP.undo_move!(movetype, m, opt)
-    end
-end
-
-function mh_step!(m::TransD_GP.Model, d::AbstractArray,
-    opt::TransD_GP.Options, stat::TransD_GP.Stats,
     Temp::Float64, movetype::Int, current_misfit::Array{Float64, 1})
 
     if opt.quasimultid
@@ -153,39 +74,6 @@ function mh_step!(m::TransD_GP.Model, d::AbstractArray,
     else
         TransD_GP.undo_move!(movetype, m, opt)
     end
-end
-
-function do_mcmc_step(m::TransD_GP.Model, opt::TransD_GP.Options, stat::TransD_GP.Stats,
-    current_misfit::Array{Float64, 1}, d::AbstractArray,
-    Temp::Float64, isample::Int, opt_EM::EMoptions, wp::TransD_GP.Writepointers)
-
-    # select move and do it
-    movetype, priorviolate = TransD_GP.do_move!(m, opt, stat)
-
-    if !priorviolate
-        mh_step!(m, d, opt, stat, Temp, movetype, current_misfit, opt_EM)
-    end
-
-    # acceptance stats
-    TransD_GP.get_acceptance_stats!(isample, opt, stat)
-
-    # write models
-    writemodel = false
-    abs(Temp-1.0) < 1e-12 && (writemodel = true)
-    TransD_GP.write_history(isample, opt, m, current_misfit[1], stat, wp, Temp, writemodel)
-
-    return current_misfit[1]
-end
-
-function do_mcmc_step(m::DArray{TransD_GP.Model}, opt::DArray{TransD_GP.Options},
-    stat::DArray{TransD_GP.Stats}, current_misfit::DArray{Array{Float64, 1}},
-    d::AbstractArray, Temp::Float64, isample::Int, opt_EM::DArray{EMoptions},
-    wp::DArray{TransD_GP.Writepointers})
-
-    misfit = do_mcmc_step(localpart(m)[1], localpart(opt)[1], localpart(stat)[1],
-                            localpart(current_misfit)[1], localpart(d),
-                            Temp, isample, localpart(opt_EM)[1], localpart(wp)[1])
-
 end
 
 function do_mcmc_step(m::TransD_GP.Model, opt::TransD_GP.Options, stat::TransD_GP.Stats,
@@ -249,37 +137,6 @@ function close_temperature_file(fp::IOStream)
     close(fp)
 end
 
-function init_chain_darrays(opt_in::TransD_GP.Options, opt_EM_in::EMoptions, d_in::AbstractArray, chains::Array{Chain, 1})
-    m_, opt_, stat_, opt_EM_, d_in_, current_misfit_, wp_  = map(x -> Array{Future, 1}(undef, length(chains)), 1:7)
-
-    costs_filename = "misfits_"*opt_in.fdataname
-    fstar_filename = "models_"*opt_in.fdataname
-    x_ftrain_filename = "points_"*opt_in.fdataname
-
-    @sync for(idx, chain) in enumerate(chains)
-        m_[idx]              = @spawnat chain.pid [TransD_GP.init(opt_in)]
-
-        opt_in.costs_filename    = costs_filename*"_$idx.bin"
-        opt_in.fstar_filename    = fstar_filename*"_$idx.bin"
-        opt_in.x_ftrain_filename = x_ftrain_filename*"_$idx.bin"
-
-        opt_[idx]            = @spawnat chain.pid [opt_in]
-        stat_[idx]           = @spawnat chain.pid [TransD_GP.Stats()]
-        opt_EM_[idx]         = @spawnat chain.pid [opt_EM_in]
-        d_in_[idx]           = @spawnat chain.pid d_in
-        current_misfit_[idx] = @spawnat chain.pid [[ get_misfit(fetch(m_[idx])[1],
-                                               localpart(fetch(d_in_[idx])),
-                                               fetch(opt_[idx])[1],
-                                               fetch(opt_EM_[idx])[1]) ]]
-
-        wp_[idx]             = @spawnat chain.pid [TransD_GP.open_history(opt_in)]
-
-    end
-
-    m, opt, stat, opt_EM, d,
-    current_misfit, wp       = map(x -> DArray(x), (m_, opt_, stat_, opt_EM_, d_in_, current_misfit_, wp_))
-end
-
 function init_chain_darrays(opt_in::TransD_GP.Options, d_in::AbstractArray, chains::Array{Chain, 1})
     m_, opt_, stat_, d_in_, current_misfit_, wp_  = map(x -> Array{Future, 1}(undef, length(chains)), 1:6)
 
@@ -309,7 +166,6 @@ function init_chain_darrays(opt_in::TransD_GP.Options, d_in::AbstractArray, chai
     current_misfit, wp       = map(x -> DArray(x), (m_, opt_, stat_, d_in_, current_misfit_, wp_))
 end
 
-
 function swap_temps(chains::Array{Chain, 1})
     for ichain in length(chains):-1:2
         jchain = rand(1:ichain)
@@ -322,39 +178,6 @@ function swap_temps(chains::Array{Chain, 1})
         end
     end
 
-end
-
-function main(opt_in::TransD_GP.Options, din::AbstractArray, opt_EM_in::EMoptions ;
-              nsamples     = 4001,
-              nchains      = 1,
-              nchainsatone = 1,
-              Tmax         = 2.5)
-
-
-    chains = Chain(nchains, Tmax=Tmax, nchainsatone=nchainsatone)
-    m, opt, stat, opt_EM, d, current_misfit, wp = init_chain_darrays(opt_in, opt_EM_in, din[:], chains)
-
-    t2 = time()
-    for isample = 1:nsamples
-
-        swap_temps(chains)
-
-        @sync for(ichain, chain) in enumerate(chains)
-            @async chain.misfit = remotecall_fetch(do_mcmc_step, chain.pid, m, opt, stat,
-                                                             current_misfit, d,
-                                                             chain.T, isample, opt_EM, wp)
-        end
-
-        if mod(isample-1, 1000) == 0
-            dt = time() - t2 #seconds
-            t2 = time()
-            @info("*****$dt**sec*****")
-        end
-
-    end
-
-    close_history(wp)
-    nothing
 end
 
 function main(opt_in::TransD_GP.Options, din::AbstractArray;
