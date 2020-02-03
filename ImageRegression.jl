@@ -1,8 +1,6 @@
-module ImageRegression
-using PyPlot, Random, Images, FileIO, DelimitedFiles, TransD_GP, MCMC_Driver
+using LinearAlgebra, PyPlot, Random, Images, FileIO, DelimitedFiles, TransD_GP
 
-
-mutable struct Img
+mutable struct Img<:Operator
 
     filename          :: String
     x                 :: StepRangeLen
@@ -11,7 +9,7 @@ mutable struct Img
     dec               :: Int
     gausskernelwidth  :: Int 
     f                 :: Array{Float64, 2}
-
+    d                 :: Array{Float64, 2}
 end
 
 function Img(;
@@ -27,7 +25,7 @@ function Img(;
     f = get_image(filename, gausskernelwidth, dec)
     x = 0:dx:dx*size(f,2)-1
     y = 0:dx:dx*size(f,1)-1
-    Img(filename, x, y, fractrain, dec, gausskernelwidth, f)
+    Img(filename, x, y, fractrain, dec, gausskernelwidth, f, f)
 end    
 
 function get_image(filename::String, gausskernelwidth::Int, dec)
@@ -69,7 +67,8 @@ function get_training_data(img::Img;
             end
         end
     end
-    noisyd, δtry, noisyd[lgood], Xtrain
+    img.d = noisyd
+    δtry, noisyd[lgood], Xtrain
 end
 
 function get_all_prediction_points(img::Img)
@@ -96,80 +95,13 @@ function plot_data(ftrain::Array{Float64, 1}, Xtrain::Array{Float64, 2},
 
 end
 
-function calc_simple_RMS(d::AbstractArray, img::Img, opt_in::TransD_GP.Options, 
-                         opt_EM_in::MCMC_Driver.EMoptions, sd::Float64)
-    
-    m_true = TransD_GP.init(opt_in)
-    m_true.fstar[:] = img.f
-    MLnoise = opt_EM_in.MLnoise
-    opt_EM_in.MLnoise = false
-    @info "RMS error is" sqrt(2.0*MCMC_Driver.get_misfit(m_true, d, opt_in, opt_EM_in)/
-                              sum(.!(isnan.(d))))
-    opt_EM_in.MLnoise = MLnoise
-
+function calc_simple_RMS(img::Img, sd::Float64)
+    select = .!isnan.(img.d)
+    r = (img.d[select] - img.f[select])/sd
+    n = sum(select)
+    @info "χ^2 error is $(r'*r) for $n points RMS: $(sqrt(r'*r/n))"
+    nothing
 end
-
-function getchi2forall(opt_in::TransD_GP.Options;
-                        nchains          = 1,
-                        figsize          = (12,6),
-                        fsize            = 14,
-                      )
-    if nchains == 1 # then actually find out how many chains there are saved
-        nchains = length(filter( x -> occursin(r"misfits.*bin", x), readdir(pwd()) )) # my terrible regex
-    end
-    # now look at any chain to get how many iterations
-    costs_filename = "misfits_"*opt_in.fdataname
-    opt_in.costs_filename    = costs_filename*"_1.bin"
-    iters          = TransD_GP.history(opt_in, stat=:iter)
-    niters         = length(iters)
-    # then create arrays of unsorted by temperature T, k, and chi2
-    Tacrosschains  = zeros(Float64, niters, nchains)
-    kacrosschains  = zeros(Int, niters, nchains)
-    X2by2inchains  = zeros(Float64, niters, nchains)
-    # get the values into the arrays
-    for ichain in 1:nchains
-        opt_in.costs_filename = costs_filename*"_$ichain.bin"
-        Tacrosschains[:,ichain] = TransD_GP.history(opt_in, stat=:T)
-        kacrosschains[:,ichain] = TransD_GP.history(opt_in, stat=:nodes)
-        X2by2inchains[:,ichain] = TransD_GP.history(opt_in, stat=:U)
-    end
- 
-    f, ax = plt.subplots(3,2, sharex=true, figsize=figsize)
-    ax[1].plot(iters, kacrosschains)
-    ax[1].set_title("unsorted by temperature")
-    ax[1].grid()
-    ax[1].set_ylabel("# nodes")
-    ax[2].plot(iters, X2by2inchains)
-    ax[2].grid()
-    ax[2].set_ylabel("-Log L")
-    ax[3].grid()
-    ax[3].plot(iters, Tacrosschains)
-    ax[3].set_ylabel("Temperature")
-    ax[3].set_xlabel("iterations")
-    
-    for jstep = 1:niters
-        sortidx = sortperm(vec(Tacrosschains[jstep,:]))
-        X2by2inchains[jstep,:] = X2by2inchains[jstep,sortidx]
-        kacrosschains[jstep,:] = kacrosschains[jstep,sortidx]
-        Tacrosschains[jstep,:] = Tacrosschains[jstep,sortidx]
-    end
-
-    nchainsatone = sum(Tacrosschains[1,:] .== 1)
-    ax[4].plot(iters, kacrosschains)
-    ax[4].set_title("sorted by temperature")
-    ax[4].plot(iters, kacrosschains[:,1:nchainsatone], "k")
-    ax[4].grid()
-    ax[5].plot(iters, X2by2inchains)
-    ax[5].plot(iters, X2by2inchains[:,1:nchainsatone], "k")
-    ax[5].grid()
-    ax[6].plot(iters, Tacrosschains)
-    ax[6].plot(iters, Tacrosschains[:,1:nchainsatone], "k")
-    ax[6].grid()
-    ax[6].set_xlabel("iterations")
-    
-    nicenup(f, fsize=fsize)
-
-end    
 
 function plot_last_target_model(img::Img, opt_in::TransD_GP.Options;
                                nchains          = 1, 
@@ -215,5 +147,16 @@ function nicenup(g::PyPlot.Figure;fsize=14)
     g.tight_layout()
 end
 
+function get_misfit(m::TransD_GP.Model, opt::TransD_GP.Options, F::Img)
+    chi2by2 = 0.0 
+    if !opt.debug
+        d = F.d
+        select = .!isnan.(d[:])
+        r = m.fstar[select] - d[select]
+        N = sum(select)
+        chi2by2 = 0.5*N*log(norm(r)^2)
+    end 
+    return chi2by2
 end
-        
+
+export get_misfit, get_training_data, plot_data, get_all_prediction_points, calc_simple_RMS, plot_last_target_model, Img

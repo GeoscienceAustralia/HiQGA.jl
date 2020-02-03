@@ -1,22 +1,21 @@
 any(pwd() .== LOAD_PATH) || push!(LOAD_PATH, pwd())
-using ImageRegression, TransD_GP, MCMC_Driver, Distributed
-using MPI
+using TransD_GP, Distributed, Revise, GeophysOperator, MCMC_Driver
 ##
-img = ImageRegression.Img(
+img =     Img(
           filename         = "4.2.01.tiff",
           dx               = 10.0,
           fractrain        = 0.02,
           dec              = 2,
           gausskernelwidth = 7)
 ##
-d, sd, ftrain, Xtrain =  ImageRegression.get_training_data(img,
+sd, ftrain, Xtrain =  get_training_data(img,
                    sdmaxfrac = 0.05,
                    ybreak = 1000,
                    takeevery = 4)
 
-ImageRegression.plot_data(ftrain, Xtrain, img)
+plot_data(ftrain, Xtrain, img)
 
-Xall = ImageRegression.get_all_prediction_points(img)
+Xall = get_all_prediction_points(img)
 
 opt_in = TransD_GP.Options(
               nmin = 2,
@@ -33,17 +32,15 @@ opt_in = TransD_GP.Options(
               sdev_pos          = [10.0, 10.0],
               pnorm             = 2,
               debug             = false,
-              fdataname         = "2Dtest_smooth"
+              fdataname         = "2Dtest_smooth",
+              quasimultid       = false
               )
 
-opt_EM_in  = MCMC_Driver.EMoptions(sd=sd)
-
-ImageRegression.calc_simple_RMS(d, img, opt_in, opt_EM_in, sd)
+calc_simple_RMS(img, sd)
 
 # actual run of McMC
-nsamples, nchains, nchainsatone = 300001, 8, 1
+nsamples, nchains, nchainsatone = 501, 8, 1
 Tmax = 2.5
-mgr = MPI.start_main_loop(MPI.MPI_TRANSPORT_ALL)
 
 addprocs(nchains)
 @info "workers are $(workers())"
@@ -51,10 +48,9 @@ addprocs(nchains)
 @everywhere using Distributed
 @everywhere import MCMC_Driver
 ##
-@time MCMC_Driver.main(opt_in, d, opt_EM_in, Tmax=Tmax, nsamples=nsamples, nchains=nchains, nchainsatone=nchainsatone)
+@time MCMC_Driver.main(opt_in, img, Tmax=Tmax, nsamples=nsamples, nchains=nchains, nchainsatone=nchainsatone)
 ##
 rmprocs(workers())
-MPI.stop_main_loop(mgr)
 ## plot
-ImageRegression.getchi2forall(opt_in)
-ImageRegression.plot_last_target_model(img, opt_in)
+#ImageRegression.getchi2forall(opt_in)
+#ImageRegression.plot_last_target_model(img, opt_in)

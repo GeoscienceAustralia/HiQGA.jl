@@ -1,21 +1,10 @@
 module MCMC_Driver
 using TransD_GP, Distributed, DistributedArrays,
-     PyPlot, LinearAlgebra, Formatting
+     PyPlot, LinearAlgebra, Formatting, GeophysOperator
 
 struct Tpointer
     fp   :: IOStream
     fstr :: String
-end
-
-function get_misfit(m::TransD_GP.Model, d::AbstractArray, opt::TransD_GP.Options)
-    chi2by2 = 0.0
-    if !opt.debug
-        select = .!isnan.(d[:])
-        r = m.fstar[select] - d[select]
-        N = sum(select)
-        chi2by2 = 0.5*N*log(norm(r)^2)
-    end
-    return chi2by2
 end
 
 mutable struct Chain
@@ -51,14 +40,14 @@ function Chain(nchains::Int;
     chains
 end
 
-function mh_step!(m::TransD_GP.Model, d::AbstractArray,
+function mh_step!(m::TransD_GP.Model, F::Operator,
     opt::TransD_GP.Options, stat::TransD_GP.Stats,
     Temp::Float64, movetype::Int, current_misfit::Array{Float64, 1})
 
     if opt.quasimultid
-        new_misfit = get_misfit(m, d, opt, movetype)
+        new_misfit = get_misfit(m, opt, movetype, F)
     else
-        new_misfit = get_misfit(m, d, opt)
+        new_misfit = get_misfit(m, opt, F)
     end
     logalpha = (current_misfit[1] - new_misfit)/Temp
     if log(rand()) < logalpha
@@ -70,14 +59,14 @@ function mh_step!(m::TransD_GP.Model, d::AbstractArray,
 end
 
 function do_mcmc_step(m::TransD_GP.Model, opt::TransD_GP.Options, stat::TransD_GP.Stats,
-    current_misfit::Array{Float64, 1}, d::AbstractArray,
+    current_misfit::Array{Float64, 1}, F::Operator,
     Temp::Float64, isample::Int, wp::TransD_GP.Writepointers)
 
     # select move and do it
     movetype, priorviolate = TransD_GP.do_move!(m, opt, stat)
 
     if !priorviolate
-        mh_step!(m, d, opt, stat, Temp, movetype, current_misfit)
+        mh_step!(m, F, opt, stat, Temp, movetype, current_misfit)
     end
 
     # acceptance stats
@@ -93,11 +82,11 @@ end
 
 function do_mcmc_step(m::DArray{TransD_GP.Model}, opt::DArray{TransD_GP.Options},
     stat::DArray{TransD_GP.Stats}, current_misfit::DArray{Array{Float64, 1}},
-    d::AbstractArray, Temp::Float64, isample::Int,
-    wp::DArray{TransD_GP.Writepointers})
+    F::DArray{x}, Temp::Float64, isample::Int,
+    wp::DArray{TransD_GP.Writepointers}) where x<:Operator
 
     misfit = do_mcmc_step(localpart(m)[1], localpart(opt)[1], localpart(stat)[1],
-                            localpart(current_misfit)[1], localpart(d),
+                          localpart(current_misfit)[1], localpart(F)[1],
                             Temp, isample, localpart(wp)[1])
 
 end
@@ -130,8 +119,8 @@ function close_temperature_file(fp::IOStream)
     close(fp)
 end
 
-function init_chain_darrays(opt_in::TransD_GP.Options, d_in::AbstractArray, chains::Array{Chain, 1})
-    m_, opt_, stat_, d_in_, current_misfit_, wp_  = map(x -> Array{Future, 1}(undef, length(chains)), 1:6)
+function init_chain_darrays(opt_in::TransD_GP.Options, F_in::Operator, chains::Array{Chain, 1})
+    m_, opt_, F_in_, stat_, d_in_, current_misfit_, wp_  = map(x -> Array{Future, 1}(undef, length(chains)), 1:7)
 
     costs_filename = "misfits_"*opt_in.fdataname
     fstar_filename = "models_"*opt_in.fdataname
@@ -146,17 +135,17 @@ function init_chain_darrays(opt_in::TransD_GP.Options, d_in::AbstractArray, chai
 
         opt_[idx]            = @spawnat chain.pid [opt_in]
         stat_[idx]           = @spawnat chain.pid [TransD_GP.Stats()]
-        d_in_[idx]           = @spawnat chain.pid d_in
+        F_in_[idx]           = @spawnat chain.pid [F_in]
         current_misfit_[idx] = @spawnat chain.pid [[ get_misfit(fetch(m_[idx])[1],
-                                               localpart(fetch(d_in_[idx])),
-                                               fetch(opt_[idx])[1]) ]]
+                                               fetch(opt_[idx])[1],
+                                               fetch(F_in_[idx])[1]) ]]
 
         wp_[idx]             = @spawnat chain.pid [TransD_GP.open_history(opt_in)]
 
     end
 
-    m, opt, stat, d,
-    current_misfit, wp       = map(x -> DArray(x), (m_, opt_, stat_, d_in_, current_misfit_, wp_))
+    m, opt, stat, F,
+    current_misfit, wp       = map(x -> DArray(x), (m_, opt_, stat_, F_in_, current_misfit_, wp_))
 end
 
 function swap_temps(chains::Array{Chain, 1})
@@ -173,7 +162,7 @@ function swap_temps(chains::Array{Chain, 1})
 
 end
 
-function main(opt_in::TransD_GP.Options, din::AbstractArray;
+function main(opt_in::TransD_GP.Options, F_in::Operator;
               nsamples     = 4001,
               nchains      = 1,
               nchainsatone = 1,
@@ -181,7 +170,7 @@ function main(opt_in::TransD_GP.Options, din::AbstractArray;
 
 
     chains = Chain(nchains, Tmax=Tmax, nchainsatone=nchainsatone)
-    m, opt, stat, d, current_misfit, wp = init_chain_darrays(opt_in, din[:], chains)
+    m, opt, stat, F, current_misfit, wp = init_chain_darrays(opt_in, F_in, chains)
 
     t2 = time()
     for isample = 1:nsamples
@@ -190,7 +179,7 @@ function main(opt_in::TransD_GP.Options, din::AbstractArray;
 
         @sync for(ichain, chain) in enumerate(chains)
             @async chain.misfit = remotecall_fetch(do_mcmc_step, chain.pid, m, opt, stat,
-                                                             current_misfit, d,
+                                                             current_misfit, F,
                                                              chain.T, isample, wp)
         end
 
