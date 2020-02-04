@@ -39,7 +39,7 @@ opt_in = TransD_GP.Options(
 calc_simple_RMS(img, sd)
 
 # actual run of McMC
-nsamples, nchains, nchainsatone = 501, 8, 1
+nsamples, nchains, nchainsatone = 300001, 8, 1
 Tmax = 2.5
 
 addprocs(nchains)
@@ -52,5 +52,5 @@ addprocs(nchains)
 ##
 rmprocs(workers())
 ## plot
-#ImageRegression.getchi2forall(opt_in)
-#ImageRegression.plot_last_target_model(img, opt_in)
+MCMC_Driver.getchi2forall(opt_in)
+plot_last_target_model(img, opt_in)
