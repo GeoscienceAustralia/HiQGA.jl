@@ -1,5 +1,5 @@
 module TransD_GP
-using Printf, LinearAlgebra, Statistics, Distributed
+using Printf, LinearAlgebra, Statistics, Distributed, Distances
 
 mutable struct Options
     nmin                :: Int
@@ -57,17 +57,17 @@ function Options(;
         @assert length(sdev_pos) == size(xbounds, 1)
         @assert length(λ) == size(xbounds, 1)
         @assert quasimultid != "" "specify true or false explicitly"
-        if quasimultid 
+        if quasimultid
             @assert influenceradius[1] > 0.0
             @assert length(influenceradius) == size(xall, 1) - 1
-        end    
+        end
         costs_filename = "misfits_"*fdataname*".bin"
         fstar_filename = "models_"*fdataname*".bin"
         x_ftrain_filename = "points_"*fdataname*".bin"
 
         Options(nmin, nmax, xbounds, fbounds, xall, λ, δ, demean, sdev_prop, sdev_pos, pnorm,
-                stat_window, dispstatstoscreen, report_freq, save_freq, 
-                fdataname, history_mode, costs_filename, fstar_filename, x_ftrain_filename, 
+                stat_window, dispstatstoscreen, report_freq, save_freq,
+                fdataname, history_mode, costs_filename, fstar_filename, x_ftrain_filename,
                 debug, quasimultid, influenceradius)
 end
 
@@ -111,25 +111,11 @@ function init(opt::TransD_GP.Options)
     ftrain = zeros(Float64, opt.nmax)
     ftrain[1:n] = opt.fbounds[1] .+ diff(opt.fbounds, dims=2)[1]*rand(n)
     K_y = zeros(opt.nmax, opt.nmax)
-    tempx, tempy = zeros(Float64, size(xtrain,1)), zeros(Float64, size(xtrain,1))
-    for i = 1:n, j = 1:n
-        for k = 1:size(xtrain,1)
-            tempx[k] = xtrain[k,i]/opt.λ[k]
-            tempy[k] = xtrain[k,j]/opt.λ[k]
-        end
-        K_y[i,j] = gaussiankernel(tempx, tempy, opt.pnorm)
-        if i == j
-            K_y[i,i] = K_y[i,i] + opt.δ^2
-        end
-    end
+    map!(x²->exp(-x²/2),K_y,pairwise(WeightedSqEuclidean(opt.λ.^-2), xtrain, dims=2))
+    K_y[diagind(K_y)] .+= opt.δ^2
     Kstar = zeros(Float64, opt.nmax, size(opt.xall,2))
-    for i = 1:n, j = 1:size(opt.xall,2)
-        for k = 1:size(xtrain,1)
-            tempx[k] = xtrain[k,i]/opt.λ[k]
-            tempy[k] = opt.xall[k,j]/opt.λ[k]
-        end
-        Kstar[i,j] = gaussiankernel(tempx, tempy, opt.pnorm)
-    end
+    xtest = opt.xall
+    map!(x²->exp(-x²/2),Kstar,pairwise(WeightedSqEuclidean(opt.λ.^-2), xtrain, xtest, dims=2))
     mf = 0.
     if opt.demean && n>1
         mf = mean(ftrain[1:n])
@@ -144,24 +130,13 @@ end
 function birth!(m::Model, opt::TransD_GP.Options)
     xtrain, ftrain, K_y,  Kstar, n = m.xtrain, m.ftrain, m.K_y,  m.Kstar, m.n
     xtrain[:,n+1] = opt.xbounds[:,1] + diff(opt.xbounds, dims=2).*rand(size(opt.xbounds, 1))
-    copy!(m.xtrain_focus, xtrain[:,n+1]) 
+    copy!(m.xtrain_focus, xtrain[:,n+1])
     ftrain[n+1] = opt.fbounds[1] + diff(opt.fbounds, dims=2)[1]*rand()
-    tempx, tempy = zeros(Float64, size(xtrain,1)), zeros(Float64, size(xtrain,1))
-    for k = 1:size(xtrain,1)
-        tempx[k] = xtrain[k,n+1]/opt.λ[k]
-    end
-    for icol in 1:size(opt.xall,2)
-        for k = 1:size(xtrain,1)
-            tempy[k] = opt.xall[k,icol]/opt.λ[k]
-        end
-        Kstar[n+1,icol] = gaussiankernel(tempx, tempy, opt.pnorm)
-    end
-    for icol in 1:n+1
-        for k = 1:size(xtrain,1)
-            tempy[k] = xtrain[k,icol]/opt.λ[k]
-        end
-        K_y[n+1,icol] = gaussiankernel(tempx, tempy, opt.pnorm)
-    end
+    xtest = opt.xall
+    Kstarv = @view Kstar[n+1,:]
+    map!(x²->exp(-x²/2),Kstarv,colwise(WeightedSqEuclidean(opt.λ.^-2), xtrain[:,n+1], xtest))
+    K_yv = @view K_y[n+1,1:n+1]
+    map!(x²->exp(-x²/2),K_yv,colwise(WeightedSqEuclidean(opt.λ.^-2), xtrain[:,n+1], xtrain[:,1:n+1]))
     K_y[1:n+1,n+1] = K_y[n+1,1:n+1]
     K_y[n+1,n+1] = K_y[n+1,n+1] + opt.δ^2
     mf = 0.
@@ -180,22 +155,14 @@ end
 
 function death!(m::Model, opt::TransD_GP.Options)
     xtrain, ftrain, K_y,  Kstar, n = m.xtrain, m.ftrain, m.K_y,  m.Kstar, m.n
-    ipoint = 1 + floor(Int, rand()*n)
-    copy!(m.xtrain_focus, xtrain[:,ipoint]) 
+    ipoint = rand(1:n)
+    copy!(m.xtrain_focus, xtrain[:,ipoint])
     xtrain[:,ipoint], xtrain[:,n] = xtrain[:,n], xtrain[:,ipoint]
     ftrain[ipoint], ftrain[n] = ftrain[n], ftrain[ipoint]
     Kstar[ipoint,:], Kstar[n,:] = Kstar[n,:], Kstar[ipoint,:]
     K_y[ipoint,1:n], K_y[n,1:n] = K_y[n,1:n], K_y[ipoint,1:n]
-    tempx, tempy = zeros(Float64, size(xtrain,1)), zeros(Float64, size(xtrain,1))
-    for k = 1:size(xtrain,1)
-        tempx[k] = xtrain[k,ipoint]/opt.λ[k]
-    end
-    for icol in 1:n-1
-        for k = 1:size(xtrain,1)
-            tempy[k] = xtrain[k,icol]/opt.λ[k]
-        end
-        K_y[ipoint,icol] = gaussiankernel(tempx, tempy, opt.pnorm)
-    end
+    K_yv = @view K_y[ipoint,1:n-1]
+    map!(x²->exp(-x²/2),K_yv,colwise(WeightedSqEuclidean(opt.λ.^-2), xtrain[:,ipoint], xtrain[:,1:n-1]))
     K_y[1:n-1,ipoint] = K_y[ipoint,1:n-1]
     K_y[ipoint,ipoint] = K_y[ipoint,ipoint] + opt.δ^2
     mf = 0.
@@ -211,16 +178,8 @@ end
 function undo_death!(m::Model, opt::TransD_GP.Options)
     m.n = m.n + 1
     xtrain, K_y, n = m.xtrain, m.K_y, m.n
-    tempx, tempy = zeros(Float64, size(xtrain,1)), zeros(Float64, size(xtrain,1))
-    for k = 1:size(xtrain,1)
-        tempx[k] = xtrain[k,n]/opt.λ[k]
-    end
-    for icol in 1:n
-        for k = 1:size(xtrain,1)
-            tempy[k] = xtrain[k,icol]/opt.λ[k]
-        end
-        K_y[n,icol] = gaussiankernel(tempx, tempy, opt.pnorm)
-    end
+    K_yv = @view K_y[n,1:n]
+    map!(x²->exp(-x²/2),K_yv,colwise(WeightedSqEuclidean(opt.λ.^-2), xtrain[:,n], xtrain[:,1:n]))
     K_y[1:n,n] = K_y[n,1:n]
     K_y[n,n] = K_y[n,n] + opt.δ^2
 end
@@ -230,7 +189,7 @@ function property_change!(m::Model, opt::TransD_GP.Options)
     ipoint = 1 + floor(Int, rand()*n)
     m.iremember = ipoint
     m.ftrain_old = ftrain[ipoint]
-    copy!(m.xtrain_focus, m.xtrain[:,ipoint]) 
+    copy!(m.xtrain_focus, m.xtrain[:,ipoint])
     ftrain[ipoint] = ftrain[ipoint] + opt.sdev_prop*randn()
     while (ftrain[ipoint]<opt.fbounds[1]) || (ftrain[ipoint]>opt.fbounds[2])
             (ftrain[ipoint]<opt.fbounds[1]) && (ftrain[ipoint] = 2*opt.fbounds[1] - ftrain[ipoint])
@@ -264,22 +223,11 @@ function position_change!(m::Model, opt::TransD_GP.Options)
                 (xtrain[i,ipoint]>opt.xbounds[i,2]) && (xtrain[i,ipoint] = 2*opt.xbounds[i,2] - xtrain[i,ipoint])
         end
     end
-    tempx, tempy = zeros(Float64, size(xtrain,1)), zeros(Float64, size(xtrain,1))
-    for k = 1:size(xtrain,1)
-        tempx[k] = xtrain[k,ipoint]/opt.λ[k]
-    end
-    for icol in 1:size(opt.xall,2)
-        for k = 1:size(xtrain,1)
-            tempy[k] = opt.xall[k,icol]/opt.λ[k]
-        end
-        Kstar[ipoint,icol] = gaussiankernel(tempx, tempy, opt.pnorm)
-    end
-    for icol in 1:n
-        for k = 1:size(xtrain,1)
-            tempy[k] = xtrain[k,icol]/opt.λ[k]
-        end
-        K_y[ipoint,icol] = gaussiankernel(tempx, tempy, opt.pnorm)
-    end
+    xtest = opt.xall
+    Kstarv = @view Kstar[ipoint,:]
+    map!(x²->exp(-x²/2),Kstarv,colwise(WeightedSqEuclidean(opt.λ.^-2), xtrain[:,ipoint], xtest))
+    K_yv = @view K_y[ipoint,1:n]
+    map!(x²->exp(-x²/2),K_yv,colwise(WeightedSqEuclidean(opt.λ.^-2), xtrain[:,ipoint], xtrain[:,1:n]))
     K_y[1:n,ipoint] = K_y[ipoint,1:n]
     K_y[ipoint,ipoint] = K_y[ipoint,ipoint] + opt.δ^2
     mf = 0.
@@ -296,22 +244,27 @@ function undo_position_change!(m::Model, opt::TransD_GP.Options)
     xtrain, K_y, Kstar, n = m.xtrain, m.K_y, m.Kstar, m.n
     ipoint = m.iremember
     xtrain[:,ipoint] = m.xtrain_old
-    tempx, tempy = zeros(Float64, size(xtrain,1)), zeros(Float64, size(xtrain,1))
-    for k = 1:size(xtrain,1)
-        tempx[k] = xtrain[k,ipoint]/opt.λ[k]
-    end
-    for icol in 1:size(opt.xall,2)
-        for k = 1:size(xtrain,1)
-            tempy[k] = opt.xall[k,icol]/opt.λ[k]
-        end
-        Kstar[ipoint,icol] = gaussiankernel(tempx, tempy, opt.pnorm)
-    end
-    for icol in 1:n
-        for k = 1:size(xtrain,1)
-            tempy[k] = xtrain[k,icol]/opt.λ[k]
-        end
-        K_y[ipoint,icol] = gaussiankernel(tempx, tempy, opt.pnorm)
-    end
+    # tempx, tempy = zeros(Float64, size(xtrain,1)), zeros(Float64, size(xtrain,1))
+    # for k = 1:size(xtrain,1)
+    #     tempx[k] = xtrain[k,ipoint]/opt.λ[k]
+    # end
+    # for icol in 1:size(opt.xall,2)
+    #     for k = 1:size(xtrain,1)
+    #         tempy[k] = opt.xall[k,icol]/opt.λ[k]
+    #     end
+    #     Kstar[ipoint,icol] = gaussiankernel(tempx, tempy, opt.pnorm)
+    # end
+    xtest = opt.xall
+    Kstarv = @view Kstar[ipoint,:]
+    map!(x²->exp(-x²/2),Kstarv,colwise(WeightedSqEuclidean(opt.λ.^-2), xtrain[:,ipoint], xtest))
+    # for icol in 1:n
+    #     for k = 1:size(xtrain,1)
+    #         tempy[k] = xtrain[k,icol]/opt.λ[k]
+    #     end
+    #     K_y[ipoint,icol] = gaussiankernel(tempx, tempy, opt.pnorm)
+    # end
+    K_yv = @view K_y[ipoint,1:n]
+    map!(x²->exp(-x²/2),K_yv,colwise(WeightedSqEuclidean(opt.λ.^-2), xtrain[:,ipoint], xtrain[:,1:n]))
     K_y[1:n,ipoint] = K_y[ipoint,1:n]
     K_y[ipoint,ipoint] = K_y[ipoint,ipoint] + opt.δ^2
 end
