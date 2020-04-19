@@ -74,7 +74,7 @@ function GPfit(ytrain, xtrain, xtest, λtest::Array{Float64,2}, λtrain::Array{F
     ytest = my .+ Kstar'*(U\(U'\ytrain))
     var_prior, var_y = [],[]
     if !nogetvars
-        var_prior = GP.makekernel(xtest, xtest, λtest, p)
+        var_prior = GP.makekernel(xtest, xtest, λtest, λtest, p)
         var_y =  var_prior - Kstar'*(U\(U'\Kstar))
     end
     ytest, var_y, var_prior

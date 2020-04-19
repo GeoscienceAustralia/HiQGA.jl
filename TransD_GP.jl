@@ -113,16 +113,16 @@ function init(opt::TransD_GP.Options)
     K_y = zeros(opt.nmax, opt.nmax)
     map!(x²->exp(-x²/2),K_y,pairwise(WeightedSqEuclidean(opt.λ.^-2), xtrain, dims=2))
     K_y[diagind(K_y)] .+= opt.δ^2
-    Kstar = zeros(Float64, opt.nmax, size(opt.xall,2))
+    Kstar = zeros(Float64, size(opt.xall,2), opt.nmax)
     xtest = opt.xall
-    map!(x²->exp(-x²/2),Kstar,pairwise(WeightedSqEuclidean(opt.λ.^-2), xtrain, xtest, dims=2))
+    map!(x²->exp(-x²/2),Kstar,pairwise(WeightedSqEuclidean(opt.λ.^-2), xtest, xtrain, dims=2))
     mf = 0.
     if opt.demean && n>1
         mf = mean(ftrain[1:n])
     end
     rhs = ftrain[1:n] .- mf
     U = cholesky(K_y[1:n,1:n]).U
-    fstar = mf .+ (Kstar[1:n,:])'*(U\(U'\rhs))
+    fstar = mf .+ Kstar[:,1:n]*(U\(U'\rhs))
     return Model(fstar, xtrain, ftrain, K_y, Kstar, n,
                  0.0, zeros(Float64, size(opt.xbounds, 1)), 0, zeros(Float64, size(opt.xbounds, 1)))
 end
@@ -133,7 +133,7 @@ function birth!(m::Model, opt::TransD_GP.Options)
     copy!(m.xtrain_focus, xtrain[:,n+1])
     ftrain[n+1] = opt.fbounds[1] + diff(opt.fbounds, dims=2)[1]*rand()
     xtest = opt.xall
-    Kstarv = @view Kstar[n+1,:]
+    Kstarv = @view Kstar[:,n+1]
     map!(x²->exp(-x²/2),Kstarv,colwise(WeightedSqEuclidean(opt.λ.^-2), xtrain[:,n+1], xtest))
     K_yv = @view K_y[n+1,1:n+1]
     map!(x²->exp(-x²/2),K_yv,colwise(WeightedSqEuclidean(opt.λ.^-2), xtrain[:,n+1], xtrain[:,1:n+1]))
@@ -145,7 +145,7 @@ function birth!(m::Model, opt::TransD_GP.Options)
     end
     rhs = ftrain[1:n+1] .- mf
     U = cholesky(K_y[1:n+1, 1:n+1]).U
-    m.fstar[:] = mf .+ (Kstar[1:n+1,:])'*(U\(U'\rhs))
+    m.fstar[:] = mf .+ Kstar[:,1:n+1]*(U\(U'\rhs))
     m.n = n+1
 end
 
@@ -159,7 +159,7 @@ function death!(m::Model, opt::TransD_GP.Options)
     copy!(m.xtrain_focus, xtrain[:,ipoint])
     xtrain[:,ipoint], xtrain[:,n] = xtrain[:,n], xtrain[:,ipoint]
     ftrain[ipoint], ftrain[n] = ftrain[n], ftrain[ipoint]
-    Kstar[ipoint,:], Kstar[n,:] = Kstar[n,:], Kstar[ipoint,:]
+    Kstar[:,ipoint], Kstar[:,n] = Kstar[:,n], Kstar[:,ipoint]
     K_y[ipoint,1:n], K_y[n,1:n] = K_y[n,1:n], K_y[ipoint,1:n]
     K_yv = @view K_y[ipoint,1:n-1]
     map!(x²->exp(-x²/2),K_yv,colwise(WeightedSqEuclidean(opt.λ.^-2), xtrain[:,ipoint], xtrain[:,1:n-1]))
@@ -171,7 +171,7 @@ function death!(m::Model, opt::TransD_GP.Options)
     end
     rhs = ftrain[1:n-1] .- mf
     U = cholesky(K_y[1:n-1, 1:n-1]).U
-    m.fstar[:] = mf .+ (Kstar[1:n-1, :])'*(U\(U'\rhs))
+    m.fstar[:] = mf .+ Kstar[:,1:n-1]*(U\(U'\rhs))
     m.n = n-1
 end
 
@@ -202,7 +202,7 @@ function property_change!(m::Model, opt::TransD_GP.Options)
     rhs = ftrain[1:n] .- mf
     # could potentially store chol if very time consuming
     U = cholesky(K_y[1:n, 1:n]).U
-    m.fstar[:] = mf .+ (Kstar[1:n,:])'*(U\(U'\rhs))
+    m.fstar[:] = mf .+ Kstar[:,1:n]*(U\(U'\rhs))
 end
 
 function undo_property_change!(m::Model, opt::TransD_GP.Options)
@@ -224,7 +224,7 @@ function position_change!(m::Model, opt::TransD_GP.Options)
         end
     end
     xtest = opt.xall
-    Kstarv = @view Kstar[ipoint,:]
+    Kstarv = @view Kstar[:,ipoint]
     map!(x²->exp(-x²/2),Kstarv,colwise(WeightedSqEuclidean(opt.λ.^-2), xtrain[:,ipoint], xtest))
     K_yv = @view K_y[ipoint,1:n]
     map!(x²->exp(-x²/2),K_yv,colwise(WeightedSqEuclidean(opt.λ.^-2), xtrain[:,ipoint], xtrain[:,1:n]))
@@ -237,32 +237,16 @@ function position_change!(m::Model, opt::TransD_GP.Options)
     rhs = ftrain[1:n] .- mf
     # could potentially store chol if very time consuming
     U = cholesky(K_y[1:n, 1:n]).U
-    m.fstar[:] = mf .+ (Kstar[1:n,:])'*(U\(U'\rhs))
+    m.fstar[:] = mf .+ Kstar[:,1:n]*(U\(U'\rhs))
 end
 
 function undo_position_change!(m::Model, opt::TransD_GP.Options)
     xtrain, K_y, Kstar, n = m.xtrain, m.K_y, m.Kstar, m.n
     ipoint = m.iremember
     xtrain[:,ipoint] = m.xtrain_old
-    # tempx, tempy = zeros(Float64, size(xtrain,1)), zeros(Float64, size(xtrain,1))
-    # for k = 1:size(xtrain,1)
-    #     tempx[k] = xtrain[k,ipoint]/opt.λ[k]
-    # end
-    # for icol in 1:size(opt.xall,2)
-    #     for k = 1:size(xtrain,1)
-    #         tempy[k] = opt.xall[k,icol]/opt.λ[k]
-    #     end
-    #     Kstar[ipoint,icol] = gaussiankernel(tempx, tempy, opt.pnorm)
-    # end
     xtest = opt.xall
-    Kstarv = @view Kstar[ipoint,:]
+    Kstarv = @view Kstar[:,ipoint]
     map!(x²->exp(-x²/2),Kstarv,colwise(WeightedSqEuclidean(opt.λ.^-2), xtrain[:,ipoint], xtest))
-    # for icol in 1:n
-    #     for k = 1:size(xtrain,1)
-    #         tempy[k] = xtrain[k,icol]/opt.λ[k]
-    #     end
-    #     K_y[ipoint,icol] = gaussiankernel(tempx, tempy, opt.pnorm)
-    # end
     K_yv = @view K_y[ipoint,1:n]
     map!(x²->exp(-x²/2),K_yv,colwise(WeightedSqEuclidean(opt.λ.^-2), xtrain[:,ipoint], xtrain[:,1:n]))
     K_y[1:n,ipoint] = K_y[ipoint,1:n]
@@ -278,7 +262,7 @@ function sync_model!(m::Model, opt::Options)
     rhs = ftrain[1:n] .- mf
     # could potentially store chol if very time consuming
     U = cholesky(K_y[1:n, 1:n]).U
-    m.fstar[:] = mf .+ (Kstar[1:n,:])'*(U\(U'\rhs))
+    m.fstar[:] = mf .+ Kstar[:,1:n]*(U\(U'\rhs))
 end
 
 function do_move!(m::Model, opt::Options, stat::Stats)
