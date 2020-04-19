@@ -86,4 +86,18 @@ function getPI(y::Array{Float64, 1}, fₓ::Array{Float64, 1}, σₓ²::Array{Flo
     return ccdf.(d, X)
 end
 
+function nonstatkernel(xtrain, xtest)
+    nrows = size(xtrain, 2)
+    ncols = size(xtest, 2)
+    ϕ = zeros(nrows, ncols)
+    nd = size(λtrain, 1)
+    for i = 1:nrows, j = 1:ncols
+        ϕ[i,j] = 2^(nd/2)*
+                (det(diagm(0=>λtrain[:,i].^2))*det(diagm(0=>λtest[:,j].^2)))^0.25 *
+                det(diagm(0=>(λtrain[:,i].^2 + λtest[:,j].^2)))^-0.5 *
+                exp(-0.5*((sqrt(2)*norm((xtrain[:,i] - xtest[:,j])./(sqrt.(λtrain[:,i].^2 + λtest[:,j].^2)),p))^p))
+    end
+    return ϕ
+end
+
 end

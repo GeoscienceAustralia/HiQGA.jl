@@ -7,7 +7,7 @@ mutable struct Options
     xbounds             :: Array{Float64}
     fbounds             :: Array{Float64}
     xall                :: Array{Float64}
-    λ                   :: Array{Float64,1}
+    λ⁻²                 :: Array{Float64,1}
     δ                   :: Float64
     demean              :: Bool
     sdev_prop           :: Float64
@@ -65,7 +65,7 @@ function Options(;
         fstar_filename = "models_"*fdataname*".bin"
         x_ftrain_filename = "points_"*fdataname*".bin"
 
-        Options(nmin, nmax, xbounds, fbounds, xall, λ, δ, demean, sdev_prop, sdev_pos, pnorm,
+        Options(nmin, nmax, xbounds, fbounds, xall, λ.^-2 , δ, demean, sdev_prop, sdev_pos, pnorm,
                 stat_window, dispstatstoscreen, report_freq, save_freq,
                 fdataname, history_mode, costs_filename, fstar_filename, x_ftrain_filename,
                 debug, quasimultid, influenceradius)
@@ -111,11 +111,11 @@ function init(opt::TransD_GP.Options)
     ftrain = zeros(Float64, opt.nmax)
     ftrain[1:n] = opt.fbounds[1] .+ diff(opt.fbounds, dims=2)[1]*rand(n)
     K_y = zeros(opt.nmax, opt.nmax)
-    map!(x²->exp(-x²/2),K_y,pairwise(WeightedSqEuclidean(opt.λ.^-2), xtrain, dims=2))
+    map!(x²->exp(-x²/2),K_y,pairwise(WeightedSqEuclidean(opt.λ⁻² ), xtrain, dims=2))
     K_y[diagind(K_y)] .+= opt.δ^2
     Kstar = zeros(Float64, size(opt.xall,2), opt.nmax)
     xtest = opt.xall
-    map!(x²->exp(-x²/2),Kstar,pairwise(WeightedSqEuclidean(opt.λ.^-2), xtest, xtrain, dims=2))
+    map!(x²->exp(-x²/2),Kstar,pairwise(WeightedSqEuclidean(opt.λ⁻² ), xtest, xtrain, dims=2))
     mf = 0.
     if opt.demean && n>1
         mf = mean(ftrain[1:n])
@@ -134,9 +134,9 @@ function birth!(m::Model, opt::TransD_GP.Options)
     ftrain[n+1] = opt.fbounds[1] + diff(opt.fbounds, dims=2)[1]*rand()
     xtest = opt.xall
     Kstarv = @view Kstar[:,n+1]
-    map!(x²->exp(-x²/2),Kstarv,colwise(WeightedSqEuclidean(opt.λ.^-2), xtrain[:,n+1], xtest))
+    map!(x²->exp(-x²/2),Kstarv,colwise(WeightedSqEuclidean(opt.λ⁻² ), xtrain[:,n+1], xtest))
     K_yv = @view K_y[n+1,1:n+1]
-    map!(x²->exp(-x²/2),K_yv,colwise(WeightedSqEuclidean(opt.λ.^-2), xtrain[:,n+1], xtrain[:,1:n+1]))
+    map!(x²->exp(-x²/2),K_yv,colwise(WeightedSqEuclidean(opt.λ⁻² ), xtrain[:,n+1], xtrain[:,1:n+1]))
     K_y[1:n+1,n+1] = K_y[n+1,1:n+1]
     K_y[n+1,n+1] = K_y[n+1,n+1] + opt.δ^2
     mf = 0.
@@ -162,7 +162,7 @@ function death!(m::Model, opt::TransD_GP.Options)
     Kstar[:,ipoint], Kstar[:,n] = Kstar[:,n], Kstar[:,ipoint]
     K_y[ipoint,1:n], K_y[n,1:n] = K_y[n,1:n], K_y[ipoint,1:n]
     K_yv = @view K_y[ipoint,1:n-1]
-    map!(x²->exp(-x²/2),K_yv,colwise(WeightedSqEuclidean(opt.λ.^-2), xtrain[:,ipoint], xtrain[:,1:n-1]))
+    map!(x²->exp(-x²/2),K_yv,colwise(WeightedSqEuclidean(opt.λ⁻² ), xtrain[:,ipoint], xtrain[:,1:n-1]))
     K_y[1:n-1,ipoint] = K_y[ipoint,1:n-1]
     K_y[ipoint,ipoint] = K_y[ipoint,ipoint] + opt.δ^2
     mf = 0.
@@ -179,7 +179,7 @@ function undo_death!(m::Model, opt::TransD_GP.Options)
     m.n = m.n + 1
     xtrain, K_y, n = m.xtrain, m.K_y, m.n
     K_yv = @view K_y[n,1:n]
-    map!(x²->exp(-x²/2),K_yv,colwise(WeightedSqEuclidean(opt.λ.^-2), xtrain[:,n], xtrain[:,1:n]))
+    map!(x²->exp(-x²/2),K_yv,colwise(WeightedSqEuclidean(opt.λ⁻² ), xtrain[:,n], xtrain[:,1:n]))
     K_y[1:n,n] = K_y[n,1:n]
     K_y[n,n] = K_y[n,n] + opt.δ^2
 end
@@ -225,9 +225,9 @@ function position_change!(m::Model, opt::TransD_GP.Options)
     end
     xtest = opt.xall
     Kstarv = @view Kstar[:,ipoint]
-    map!(x²->exp(-x²/2),Kstarv,colwise(WeightedSqEuclidean(opt.λ.^-2), xtrain[:,ipoint], xtest))
+    map!(x²->exp(-x²/2),Kstarv,colwise(WeightedSqEuclidean(opt.λ⁻² ), xtrain[:,ipoint], xtest))
     K_yv = @view K_y[ipoint,1:n]
-    map!(x²->exp(-x²/2),K_yv,colwise(WeightedSqEuclidean(opt.λ.^-2), xtrain[:,ipoint], xtrain[:,1:n]))
+    map!(x²->exp(-x²/2),K_yv,colwise(WeightedSqEuclidean(opt.λ⁻² ), xtrain[:,ipoint], xtrain[:,1:n]))
     K_y[1:n,ipoint] = K_y[ipoint,1:n]
     K_y[ipoint,ipoint] = K_y[ipoint,ipoint] + opt.δ^2
     mf = 0.
@@ -246,9 +246,9 @@ function undo_position_change!(m::Model, opt::TransD_GP.Options)
     xtrain[:,ipoint] = m.xtrain_old
     xtest = opt.xall
     Kstarv = @view Kstar[:,ipoint]
-    map!(x²->exp(-x²/2),Kstarv,colwise(WeightedSqEuclidean(opt.λ.^-2), xtrain[:,ipoint], xtest))
+    map!(x²->exp(-x²/2),Kstarv,colwise(WeightedSqEuclidean(opt.λ⁻² ), xtrain[:,ipoint], xtest))
     K_yv = @view K_y[ipoint,1:n]
-    map!(x²->exp(-x²/2),K_yv,colwise(WeightedSqEuclidean(opt.λ.^-2), xtrain[:,ipoint], xtrain[:,1:n]))
+    map!(x²->exp(-x²/2),K_yv,colwise(WeightedSqEuclidean(opt.λ⁻² ), xtrain[:,ipoint], xtrain[:,1:n]))
     K_y[1:n,ipoint] = K_y[ipoint,1:n]
     K_y[ipoint,ipoint] = K_y[ipoint,ipoint] + opt.δ^2
 end
