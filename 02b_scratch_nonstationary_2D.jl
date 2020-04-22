@@ -1,8 +1,8 @@
 srcdir = "/Users/anray/Desktop/TDGP/src"
 any(srcdir .== LOAD_PATH) || push!(LOAD_PATH, srcdir)
 any(pwd() .== LOAD_PATH) || push!(LOAD_PATH, pwd())
-using PyPlot, Random, Statistics, Revise, LinearAlgebra, MCMC_Driver
-import GP
+using PyPlot, Random, Statistics, Linear Algebra, Test, Revise,
+MCMC_Driver, GP
 ##
 Random.seed!(13)
 xtest = collect(0:0.01:1)'
@@ -74,4 +74,15 @@ end
 @info "loops and full expression"
 @time for i = 1:1000
     GP.makekernel(xtrain, xtest, λtest, λtrain, p)
+end
+## unit tests
+@testset "Non stationary kernel tests" begin
+    @testset "broadcast and map" begin
+        @test norm(mean(GP.meshkernel(xtrain, xtest, λtest, λtrain, p) -
+                    GP.mapkernel(xtrain, xtest, λtest, λtrain))) < 1e-12
+        end
+    @testset "map and full kernel" begin
+        @test norm(mean(GP.makekernel(xtrain, xtest, λtest, λtrain, p) -
+                GP.mapkernel(xtrain, xtest, λtest, λtrain)')) < 1e-12
+        end
 end

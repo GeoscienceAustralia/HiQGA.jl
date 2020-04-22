@@ -19,8 +19,8 @@ for i in 1:size(xall,2)
     yid, xid = Tuple(CartesianIndices((length(y),length(x)))[i])
     xall[:,i] = [x[xid]; y[yid]]
 end
-xbounds = zeros(Float64,ndims(xall),2)
-for dim in 1:ndims(xall)
+xbounds = zeros(Float64,size(xall, 1), 2)
+for dim in 1:size(xall, 1)
     xbounds[dim,:] = [minimum(xall[dim,:]), maximum(xall[dim,:])]
 end
 ## Initialize a model using these options
