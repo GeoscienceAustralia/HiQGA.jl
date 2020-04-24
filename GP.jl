@@ -123,9 +123,13 @@ end
 function kernel(xtrain::AbstractArray, xtest::AbstractArray,
                 λtest::AbstractArray, λtrain::AbstractArray; p=2)
     avλ² = 0.5*(λtrain.^2 + λtest.^2)
+    dist = norm((xtrain - xtest)./sqrt.(avλ²),p)
     det(diagm(0=>(λtrain.*λtest).^2))^0.25 *
     det(diagm(0=>(avλ²)))^-0.5 *
-    exp(-0.5*((norm((xtrain - xtest)./sqrt.(avλ²),p))^p))
+    κ(dist, p)
 end
 
+#κ(d::Real, p::Int) = exp(-0.5*(d^p))
+κ(d::Real, p::Int) = (1.0 + sqrt(3.0) * d) * exp(-sqrt(3.0) * d)
+#κ(d::Real, p::Int) = (1.0 + sqrt(5.0) * d + 5.0 * d^2 / 3.0) * exp(-sqrt(5.0) * d)
 end

@@ -4,21 +4,19 @@ any(pwd() .== LOAD_PATH) || push!(LOAD_PATH, pwd())
 using PyPlot, Random, Statistics, LinearAlgebra, Test, Revise,
 MCMC_Driver, GP
 ##
-Random.seed!(13)
+Random.seed!(11)
 xtest = collect(0:0.005:1)'
 λ = [0.05]
-δ = 0.02
-δtry = 5δ
+δ = 0.01
+δtry = 10δ
 p = 2
 demean = true
 
 f = zeros(size(xtest,2))
-change2 = round(Int, 3/4*length(f))
-change1 = round(Int, 1/4*length(f))
-f[change2:end] .= 2
-f[change1:change2-1] .= 1
+change1 = round(Int, 1/2*length(f))
+f[change1:end] .= 1
 ynoisy = f + δ*randn(length(f))
-dec = 4
+dec = 8
 ytrain = ynoisy[1:dec:end]
 xtrain = xtest[1:dec:end]'
 
@@ -32,7 +30,7 @@ ytest, σ2, σ_prior  = GP.GPfit(ytrain, xtrain, xtest, λ, δtry, p=p, demean=d
 # plot(xtest[:],ytest-2sqrt.(diag(σ2)),"--b",alpha=0.2)
 
 ## non stationary
-λ[1] = 0.05
+λ[1] = 0.1
 λtest = λ[1]*ones(size(xtest))
 λtrain = λ[1]*ones(Float64, size(xtrain))
 ytest_ns, σ2_ns, σ_prior_ns  = GP.GPfit(ytrain, xtrain, xtest, λtest, λtrain, δtry, p=p, demean=demean)
@@ -44,10 +42,9 @@ ax2[1].plot(xtest[:],ytest_ns,label="fixed λ", linewidth=3)
 # plot(xtest[:],ytest_ns+2sqrt.(diag(σ2_ns)),"--r",alpha=0.2)
 # plot(xtest[:],ytest_ns-2sqrt.(diag(σ2_ns)),"--b",alpha=0.2)
 ##
-lscale_max = 0.05
-dropoff = 0.0005
-λtest = lscale_max*(1 .+eps() .- (exp.(-1/dropoff*abs.(xtest.-xtest[change1+1]).^2) +
-                    exp.(-1/dropoff*abs.(xtest.-xtest[change2-2]).^2)))
+lscale_max = λ[1]
+dropoff = 0.00025
+λtest = lscale_max*(1 .+eps() .- exp.(-1/dropoff*abs.(xtest.-xtest[change1+1]).^2))
 λtrain[:] = λtest[1:dec:end]
 ytest_ns, σ2_ns, σ_prior_ns  = GP.GPfit(ytrain, xtrain,
     xtest, λtest, λtrain, δtry, p=2, demean=demean, nogetvars=false)
@@ -86,7 +83,7 @@ end
         end
 end
 ## now to 2D
-Random.seed!(2)
+Random.seed!(11)
 x, y = xtest, xtest[1:round(Int, length(xtest)/2)]
 x2D_test = zeros(2,length(x)*length(y))
 λ2D_test = zeros(2,length(x)*length(y))
@@ -106,8 +103,10 @@ x2D_train = x2D_test[:,lidx]
 ## fit GPs
 y2D_test_ns, = GP.GPfit(y2D_train, x2D_train,
     x2D_test, λ2D_test, λ2D_train, δtry, p=2, demean=demean, nogetvars=true)
-y2D_test, = GP.GPfit(y2D_train, x2D_train,
-        x2D_test, [λ[1], abs(y[end]-y[1])], δtry, p=2, demean=demean, nogetvars=true)
+y2D_test, = GP.GPfit(y2D_train, x2D_train,x2D_test,
+            [λ[1], λ2D_test[2,1]].*ones(size(λ2D_test)),
+            [λ[1], λ2D_test[2,1]].*ones(size(λ2D_train)),
+            δtry, p=2, demean=demean, nogetvars=true)
 ## plot
 fig, ax = plt.subplots(1,3, sharex=true, sharey=true)
 im1 = ax[1].imshow(y2D_noisy)
