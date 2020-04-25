@@ -161,10 +161,8 @@ function death!(m::Model, opt::TransD_GP.Options)
     ftrain[ipoint], ftrain[n] = ftrain[n], ftrain[ipoint]
     Kstar[:,ipoint], Kstar[:,n] = Kstar[:,n], Kstar[:,ipoint]
     K_y[ipoint,1:n], K_y[n,1:n] = K_y[n,1:n], K_y[ipoint,1:n]
-    K_yv = @view K_y[ipoint,1:n-1]
-    map!(x²->exp(-x²/2),K_yv,colwise(WeightedSqEuclidean(1 ./opt.λ² ), xtrain[:,ipoint], xtrain[:,1:n-1]))
     K_y[1:n-1,ipoint] = K_y[ipoint,1:n-1]
-    K_y[ipoint,ipoint] = K_y[ipoint,ipoint] + opt.δ^2
+    K_y[ipoint,ipoint] = 1.0 + opt.δ^2
     mf = 0.
     if opt.demean && n>2
         mf = mean(ftrain[1:n-1])
