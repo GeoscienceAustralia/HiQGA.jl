@@ -156,6 +156,7 @@ end
 function death!(m::Model, opt::TransD_GP.Options)
     xtrain, ftrain, K_y,  Kstar, n = m.xtrain, m.ftrain, m.K_y,  m.Kstar, m.n
     ipoint = rand(1:n)
+    m.iremember = ipoint
     copy!(m.xtrain_focus, xtrain[:,ipoint])
     xtrain[:,ipoint], xtrain[:,n] = xtrain[:,n], xtrain[:,ipoint]
     ftrain[ipoint], ftrain[n] = ftrain[n], ftrain[ipoint]
@@ -175,11 +176,14 @@ end
 
 function undo_death!(m::Model, opt::TransD_GP.Options)
     m.n = m.n + 1
-    xtrain, K_y, n = m.xtrain, m.K_y, m.n
-    K_yv = @view K_y[n,1:n]
-    map!(x²->exp(-x²/2),K_yv,colwise(WeightedSqEuclidean(1 ./opt.λ² ), xtrain[:,n], xtrain[:,1:n]))
-    K_y[1:n,n] = K_y[n,1:n]
-    K_y[n,n] = K_y[n,n] + opt.δ^2
+    ftrain, xtrain, Kstar, K_y, n, ipoint = m.ftrain, m.xtrain, m.Kstar, m.K_y, m.n, m.iremember
+    xtrain[:,ipoint], xtrain[:,n] = xtrain[:,n], xtrain[:,ipoint]
+    ftrain[ipoint], ftrain[n] = ftrain[n], ftrain[ipoint]
+    Kstar[:,ipoint], Kstar[:,n] = Kstar[:,n], Kstar[:,ipoint]
+    K_y[ipoint,1:n], K_y[n,1:n] = K_y[n,1:n], K_y[ipoint,1:n]
+    K_y[1:n,ipoint] = K_y[ipoint,1:n]
+    K_y[ipoint,ipoint] = 1.0 + opt.δ^2
+    K_y[n,n] = 1.0 + opt.δ^2
 end
 
 function property_change!(m::Model, opt::TransD_GP.Options)
