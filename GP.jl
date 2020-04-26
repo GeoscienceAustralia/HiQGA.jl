@@ -4,7 +4,18 @@ function gaussiankernel(x::AbstractArray, y::AbstractArray, p)
     return exp(-0.5*norm(x-y,p)^p)
 end
 
-function makekernel(xtrain::AbstractArray, xtest::AbstractArray, λ::AbstractArray, p)
+abstract type Kernel end
+
+struct SqEuclidean <: Kernel end
+struct Mat32 <:Kernel end
+struct Mat52 <: Kernel end
+
+κ(K::SqEuclidean, d::Real, p::Int) = exp(-0.5*(d^p))
+κ(K::Mat32, d::Real, p::Int) = (1.0 + sqrt(3.0) * d) * exp(-sqrt(3.0) * d)
+κ(K::Mat52, p::Int) = (1.0 + sqrt(5.0) * d + 5.0 * d^2 / 3.0) * exp(-sqrt(5.0) * d)
+
+function makekernel(K::Kernel, xtrain::AbstractArray, xtest::AbstractArray,
+                    λ::AbstractArray, p::Real)
     # each input data arranged in a column
     nrows = size(xtrain, 2)
     ncols = size(xtest, 2)
@@ -15,32 +26,34 @@ function makekernel(xtrain::AbstractArray, xtest::AbstractArray, λ::AbstractArr
             tempx[k] = xtrain[k,i]/λ[k]
             tempy[k] =  xtest[k,j]/λ[k]
         end
-            ϕ[i,j] = gaussiankernel(tempx, tempy, p)
+            d = norm(tempx-tempy, p)
+            ϕ[i,j] = κ(K, d, p)
     end
     return ϕ
 end
 
-function GPfit(ytrain, xtrain, xtest, λ::Array{Float64,1}, δ ;nogetvars=false, demean=true, p=2)
+function GPfit(K::Kernel, ytrain, xtrain, xtest, λ::Array{Float64,1}, δ::Real ;nogetvars=false,
+            demean=true, p=2)
     @assert length(λ) == size(xtrain,1)
     my = 0
     if demean
         my = mean(ytrain)
     end
     ytrain = ytrain .- my
-    Kstar = GP.makekernel(xtrain, xtest, λ, p)
-    K_y = GP.makekernel(xtrain, xtrain, λ, p) + Matrix(δ^2*I, (size(xtrain,2)), (size(xtrain,2)))
+    Kstar = GP.makekernel(K, xtrain, xtest, λ, p)
+    K_y = GP.makekernel(K, xtrain, xtrain, λ, p) + Matrix(δ^2*I, (size(xtrain,2)), (size(xtrain,2)))
     U = cholesky(K_y).U
     ytest = my .+ Kstar'*(U\(U'\ytrain))
     var_prior, var_y = [],[]
     if !nogetvars
-        var_prior = GP.makekernel(xtest, xtest, λ, p)
+        var_prior = GP.makekernel(K, xtest, xtest, λ, p)
         var_y =  var_prior - Kstar'*(U\(U'\Kstar))
     end
     ytest, var_y, var_prior
 end
 
-function makekernel(xtrain::AbstractArray, xtest::AbstractArray, λtest::Array{Float64, 2},
-    λtrain::Array{Float64,2}, p)
+function makekernel(K::Kernel, xtrain::AbstractArray, xtest::AbstractArray,
+    λtest::Array{Float64, 2}, λtrain::Array{Float64,2}, p)
     # each input data arranged in a column
     nrows = size(xtrain, 2)
     ncols = size(xtest, 2)
@@ -52,14 +65,16 @@ function makekernel(xtrain::AbstractArray, xtest::AbstractArray, λtest::Array{F
         #     tempy[k] =  xtest[k,j]/λ[k]
         # end
         #     ϕ[i,j] = gaussiankernel(tempx, tempy, p)
+        d = norm((xtrain[:,i] - xtest[:,j])./(sqrt.(0.5*(λtrain[:,i].^2 + λtest[:,j].^2))), p)
         ϕ[i,j] = 2^(size(λtrain,1)/2)*
                 (det(diagm(0=>λtrain[:,i].^2))*det(diagm(0=>λtest[:,j].^2)))^0.25 *
-                det(diagm(0=>(λtrain[:,i].^2 + λtest[:,j].^2)))^-0.5 *exp(-0.5*((sqrt(2)*norm((xtrain[:,i] - xtest[:,j])./(sqrt.(λtrain[:,i].^2 + λtest[:,j].^2)),p))^p))
+                det(diagm(0=>(λtrain[:,i].^2 + λtest[:,j].^2)))^-0.5 *
+                κ(K, d, p)
     end
     return ϕ
 end
 
-function GPfit(ytrain, xtrain, xtest, λtest::Array{Float64,2}, λtrain::Array{Float64,2},
+function GPfit(K::Kernel, ytrain, xtrain, xtest, λtest::Array{Float64,2}, λtrain::Array{Float64,2},
             δ ;nogetvars=false, demean=true, p=2)
     @assert size(λtest) == size(xtest)
     @assert size(λtrain) == size(xtrain)
@@ -68,13 +83,13 @@ function GPfit(ytrain, xtrain, xtest, λtest::Array{Float64,2}, λtrain::Array{F
         my = mean(ytrain)
     end
     ytrain = ytrain .- my
-    Kstar = GP.meshkernel(xtrain, xtest, λtest, λtrain, p)
-    K_y = GP.meshkernel(xtrain, xtrain, λtrain, λtrain, p) + Matrix(δ^2*I, (size(xtrain,2)), (size(xtrain,2)))
+    Kstar = GP.meshkernel(K, xtrain, xtest, λtest, λtrain, p)
+    K_y = GP.meshkernel(K, xtrain, xtrain, λtrain, λtrain, p) + Matrix(δ^2*I, (size(xtrain,2)), (size(xtrain,2)))
     U = cholesky(K_y).U
     ytest = my .+ Kstar*(U\(U'\ytrain))
     var_prior, var_y = [],[]
     if !nogetvars
-        var_prior = GP.meshkernel(xtest, xtest, λtest, λtest, p)
+        var_prior = GP.meshkernel(K, xtest, xtest, λtest, λtest, p)
         var_y =  var_prior - Kstar*(U\(U'\Kstar'))
     end
     ytest, var_y, var_prior
@@ -86,23 +101,23 @@ function getPI(y::Array{Float64, 1}, fₓ::Array{Float64, 1}, σₓ²::Array{Flo
     return ccdf.(d, X)
 end
 
-function meshkernel(xtrain::AbstractArray, xtest::AbstractArray,
+function meshkernel(K::Kernel, xtrain::AbstractArray, xtest::AbstractArray,
                     λtest::AbstractArray, λtrain::AbstractArray, p)
     nrows = size(xtest, 2)
     ncols = size(xtrain, 2)
-        ϕ = [kernel(xtrain[:,j], xtest[:,i], λtrain[:,j], λtest[:,i]) for i = 1:nrows, j = 1:ncols]
+        ϕ = [kernel(K, xtrain[:,j], xtest[:,i], λtrain[:,j], λtest[:,i]) for i = 1:nrows, j = 1:ncols]
     return ϕ
 end
 
-function mapkernel(xtrain::AbstractArray, xtest::AbstractArray,
+function mapkernel(K::Kernel, xtrain::AbstractArray, xtest::AbstractArray,
                     λtest::AbstractArray, λtrain::AbstractArray; p=2)
     nrows = size(xtest, 2)
     ncols = size(xtrain, 2)
     ϕ = Array{Float64, 2}(undef, nrows, ncols)
-    map!(x->x, ϕ, pairwise(xtrain, xtest, λtrain, λtest))
+    map!(x->x, ϕ, pairwise(K, xtrain, xtest, λtrain, λtest))
 end
 
-function colwise(xtrain::AbstractArray, xtest::AbstractArray,
+function colwise(K::Kernel, xtrain::AbstractArray, xtest::AbstractArray,
                  λtrain::AbstractArray, λtest::AbstractArray)
     na, nb = size(xtrain, 2), size(xtest, 2)
     @assert min(na, nb) == 1
@@ -111,25 +126,22 @@ function colwise(xtrain::AbstractArray, xtest::AbstractArray,
     else
         a, b, la, lb = xtest, xtrain, λtest, λtrain
     end
-    [kernel(a, la, b[:,j], lb[:,j]) for j = 1:max(na, nb)]
+    [kernel(K::Kernel, a, b[:,j], la, lb[:,j]) for j = 1:max(na, nb)]
 end
 
-function pairwise(xtrain, xtest, λtrain, λtest)
+function pairwise(K::Kernel, xtrain, xtest, λtrain, λtest)
     nrows = size(xtest, 2)
     ncols = size(xtrain, 2)
-    [kernel(xtrain[:,j], xtest[:,i], λtrain[:,j], λtest[:,i]) for i = 1:nrows, j = 1:ncols]
+    [kernel(K, xtrain[:,j], xtest[:,i], λtrain[:,j], λtest[:,i]) for i = 1:nrows, j = 1:ncols]
 end
 
-function kernel(xtrain::AbstractArray, xtest::AbstractArray,
+function kernel(K::Kernel, xtrain::AbstractArray, xtest::AbstractArray,
                 λtest::AbstractArray, λtrain::AbstractArray; p=2)
     avλ² = 0.5*(λtrain.^2 + λtest.^2)
     dist = norm((xtrain - xtest)./sqrt.(avλ²),p)
     det(diagm(0=>(λtrain.*λtest).^2))^0.25 *
     det(diagm(0=>(avλ²)))^-0.5 *
-    κ(dist, p)
+    κ(K, dist, p)
 end
 
-#κ(d::Real, p::Int) = exp(-0.5*(d^p))
-κ(d::Real, p::Int) = (1.0 + sqrt(3.0) * d) * exp(-sqrt(3.0) * d)
-#κ(d::Real, p::Int) = (1.0 + sqrt(5.0) * d + 5.0 * d^2 / 3.0) * exp(-sqrt(5.0) * d)
 end
