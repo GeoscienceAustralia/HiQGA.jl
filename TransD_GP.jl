@@ -1,5 +1,5 @@
 module TransD_GP
-using Printf, LinearAlgebra, Statistics, Distributed, Distances
+using Printf, LinearAlgebra, Statistics, Distributed, Distances, GP
 
 mutable struct Options
     nmin                :: Int
@@ -25,6 +25,7 @@ mutable struct Options
     debug               :: Bool
     quasimultid         :: Bool
     influenceradius     :: Array{Float64, 1}
+    K                   :: GP.Kernel
 end
 
 function Options(;
@@ -47,7 +48,8 @@ function Options(;
         fdataname          = "",
         debug              = false,
         quasimultid        = "",
-        influenceradius    = [-9.9]
+        influenceradius    = [-9.9],
+        K                  = GP.SqEuclidean()
         )
 
         @assert xall != nothing
@@ -61,6 +63,7 @@ function Options(;
             @assert influenceradius[1] > 0.0
             @assert length(influenceradius) == size(xall, 1) - 1
         end
+        @assert typeof(K) <: GP.Kernel
         costs_filename = "misfits_"*fdataname*".bin"
         fstar_filename = "models_"*fdataname*".bin"
         x_ftrain_filename = "points_"*fdataname*".bin"
@@ -68,7 +71,7 @@ function Options(;
         Options(nmin, nmax, xbounds, fbounds, xall, λ.^2 , δ, demean, sdev_prop, sdev_pos, pnorm,
                 stat_window, dispstatstoscreen, report_freq, save_freq,
                 fdataname, history_mode, costs_filename, fstar_filename, x_ftrain_filename,
-                debug, quasimultid, influenceradius)
+                debug, quasimultid, influenceradius, K)
 end
 
 mutable struct Model
@@ -111,11 +114,11 @@ function init(opt::TransD_GP.Options)
     ftrain = zeros(Float64, opt.nmax)
     ftrain[1:n] = opt.fbounds[1] .+ diff(opt.fbounds, dims=2)[1]*rand(n)
     K_y = zeros(opt.nmax, opt.nmax)
-    map!(x²->exp(-x²/2),K_y,pairwise(WeightedSqEuclidean(1 ./opt.λ² ), xtrain, dims=2))
+    map!(x->GP.κ(opt.K, x),K_y,pairwise(WeightedEuclidean(1 ./opt.λ² ), xtrain, dims=2))
     K_y[diagind(K_y)] .+= opt.δ^2
     Kstar = zeros(Float64, size(opt.xall,2), opt.nmax)
     xtest = opt.xall
-    map!(x²->exp(-x²/2),Kstar,pairwise(WeightedSqEuclidean(1 ./opt.λ² ), xtest, xtrain, dims=2))
+    map!(x->GP.κ(opt.K, x),Kstar,pairwise(WeightedEuclidean(1 ./opt.λ² ), xtest, xtrain, dims=2))
     mf = 0.
     if opt.demean && n>1
         mf = mean(ftrain[1:n])
@@ -134,9 +137,9 @@ function birth!(m::Model, opt::TransD_GP.Options)
     ftrain[n+1] = opt.fbounds[1] + diff(opt.fbounds, dims=2)[1]*rand()
     xtest = opt.xall
     Kstarv = @view Kstar[:,n+1]
-    map!(x²->exp(-x²/2),Kstarv,colwise(WeightedSqEuclidean(1 ./opt.λ² ), xtrain[:,n+1], xtest))
+    map!(x->GP.κ(opt.K, x),Kstarv,colwise(WeightedEuclidean(1 ./opt.λ² ), xtrain[:,n+1], xtest))
     K_yv = @view K_y[n+1,1:n+1]
-    map!(x²->exp(-x²/2),K_yv,colwise(WeightedSqEuclidean(1 ./opt.λ² ), xtrain[:,n+1], xtrain[:,1:n+1]))
+    map!(x->GP.κ(opt.K, x),K_yv,colwise(WeightedEuclidean(1 ./opt.λ² ), xtrain[:,n+1], xtrain[:,1:n+1]))
     K_y[1:n+1,n+1] = K_y[n+1,1:n+1]
     K_y[n+1,n+1] = K_y[n+1,n+1] + opt.δ^2
     mf = 0.
@@ -227,9 +230,9 @@ function position_change!(m::Model, opt::TransD_GP.Options)
     end
     xtest = opt.xall
     Kstarv = @view Kstar[:,ipoint]
-    map!(x²->exp(-x²/2),Kstarv,colwise(WeightedSqEuclidean(1 ./opt.λ² ), xtrain[:,ipoint], xtest))
+    map!(x->GP.κ(opt.K, x),Kstarv,colwise(WeightedEuclidean(1 ./opt.λ² ), xtrain[:,ipoint], xtest))
     K_yv = @view K_y[ipoint,1:n]
-    map!(x²->exp(-x²/2),K_yv,colwise(WeightedSqEuclidean(1 ./opt.λ² ), xtrain[:,ipoint], xtrain[:,1:n]))
+    map!(x->GP.κ(opt.K, x),K_yv,colwise(WeightedEuclidean(1 ./opt.λ² ), xtrain[:,ipoint], xtrain[:,1:n]))
     K_y[1:n,ipoint] = K_y[ipoint,1:n]
     K_y[ipoint,ipoint] = K_y[ipoint,ipoint] + opt.δ^2
     mf = 0.
@@ -248,9 +251,9 @@ function undo_position_change!(m::Model, opt::TransD_GP.Options)
     xtrain[:,ipoint] = m.xtrain_old
     xtest = opt.xall
     Kstarv = @view Kstar[:,ipoint]
-    map!(x²->exp(-x²/2),Kstarv,colwise(WeightedSqEuclidean(1 ./opt.λ² ), xtrain[:,ipoint], xtest))
+    map!(x->GP.κ(opt.K, x),Kstarv,colwise(WeightedEuclidean(1 ./opt.λ² ), xtrain[:,ipoint], xtest))
     K_yv = @view K_y[ipoint,1:n]
-    map!(x²->exp(-x²/2),K_yv,colwise(WeightedSqEuclidean(1 ./opt.λ² ), xtrain[:,ipoint], xtrain[:,1:n]))
+    map!(x->GP.κ(opt.K, x),K_yv,colwise(WeightedEuclidean(1 ./opt.λ² ), xtrain[:,ipoint], xtrain[:,1:n]))
     K_y[1:n,ipoint] = K_y[ipoint,1:n]
     K_y[ipoint,ipoint] = K_y[ipoint,ipoint] + opt.δ^2
 end

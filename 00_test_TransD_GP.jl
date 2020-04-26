@@ -10,7 +10,7 @@ demean = true
 sdev_prop = 0.1
 sdev_pos = [0.05;0.05]
 pnorm = 2.
-K = GP.SqEuclidean()
+K = GP.Mat32()
 
 λx,λy = 0.6,0.6
 x = 0:(0.01λx):λx
@@ -37,25 +37,26 @@ opt = TransD_GP.Options(nmin = nmin,
                         sdev_prop = sdev_prop,
                         sdev_pos = sdev_pos,
                         pnorm = pnorm,
-                        quasimultid = false
+                        quasimultid = false,
+                        K = K
                         )
 @time m = TransD_GP.init(opt)
 ## run tests for the different McMC moves
 @testset "GP and MCMC move do and undo state tests" begin
-    ftest = GP.GPfit(K, m.ftrain[1:m.n], m.xtrain[:,1:m.n], opt.xall, sqrt.(opt.λ²), opt.δ, nogetvars=true, demean=demean, p=pnorm)[1]
+    ftest = GP.GPfit(K, m.ftrain[1:m.n], m.xtrain[:,1:m.n], opt.xall, opt.λ², opt.δ, nogetvars=true, demean=demean, p=pnorm)[1]
     @testset "init test" begin @test norm(mean(ftest - m.fstar)) < 1e-12 end
     @testset "birth tests" begin
     for i = 1:100
         TransD_GP.birth!(m, opt)
     end
-    ftest = GP.GPfit(K, m.ftrain[1:m.n], m.xtrain[:,1:m.n], opt.xall, sqrt.(opt.λ²), opt.δ, nogetvars=true, demean=demean, p=pnorm)[1]
+    ftest = GP.GPfit(K, m.ftrain[1:m.n], m.xtrain[:,1:m.n], opt.xall, opt.λ², opt.δ, nogetvars=true, demean=demean, p=pnorm)[1]
     @test norm(mean(ftest - m.fstar)) < 1e-12
     end
     @testset "death tests" begin
     for i = 1:100
         TransD_GP.death!(m, opt)
     end
-    ftest = GP.GPfit(K, m.ftrain[1:m.n], m.xtrain[:,1:m.n], opt.xall, sqrt.(opt.λ²), opt.δ, nogetvars=true, demean=demean, p=pnorm)[1]
+    ftest = GP.GPfit(K, m.ftrain[1:m.n], m.xtrain[:,1:m.n], opt.xall, opt.λ², opt.δ, nogetvars=true, demean=demean, p=pnorm)[1]
     @test norm(mean(ftest - m.fstar)) < 1e-12
     end
     # birth and death hold correct states if tests above passed
@@ -64,7 +65,7 @@ opt = TransD_GP.Options(nmin = nmin,
     TransD_GP.birth!(m, opt)
     TransD_GP.undo_birth!(m, opt)
     TransD_GP.sync_model!(m, opt)
-    ftest = GP.GPfit(K, m.ftrain[1:m.n], m.xtrain[:,1:m.n], opt.xall, sqrt.(opt.λ²), opt.δ, nogetvars=true, demean=demean, p=pnorm)[1]
+    ftest = GP.GPfit(K, m.ftrain[1:m.n], m.xtrain[:,1:m.n], opt.xall, opt.λ², opt.δ, nogetvars=true, demean=demean, p=pnorm)[1]
     @test norm(mean(ftest - m.fstar)) < 1e-12
     @test norm(mean(mold.fstar - m.fstar)) < 1e-12
     end
@@ -76,7 +77,7 @@ opt = TransD_GP.Options(nmin = nmin,
     TransD_GP.birth!(m, opt)
     TransD_GP.undo_birth!(m, opt)
     TransD_GP.sync_model!(m, opt)
-    ftest = GP.GPfit(K, m.ftrain[1:m.n], m.xtrain[:,1:m.n], opt.xall, sqrt.(opt.λ²), opt.δ, nogetvars=true, demean=demean, p=pnorm)[1]
+    ftest = GP.GPfit(K, m.ftrain[1:m.n], m.xtrain[:,1:m.n], opt.xall, opt.λ², opt.δ, nogetvars=true, demean=demean, p=pnorm)[1]
     @test norm(mean(ftest - m.fstar)) < 1e-12
     @test norm(mean(mold.fstar - m.fstar)) < 1e-12
     end
@@ -86,7 +87,7 @@ opt = TransD_GP.Options(nmin = nmin,
     TransD_GP.death!(m, opt)
     TransD_GP.undo_death!(m, opt)
     TransD_GP.sync_model!(m, opt)
-    ftest = GP.GPfit(K, m.ftrain[1:m.n], m.xtrain[:,1:m.n], opt.xall, sqrt.(opt.λ²), opt.δ, nogetvars=true, demean=demean, p=pnorm)[1]
+    ftest = GP.GPfit(K, m.ftrain[1:m.n], m.xtrain[:,1:m.n], opt.xall, opt.λ², opt.δ, nogetvars=true, demean=demean, p=pnorm)[1]
     @test norm(mean(ftest - m.fstar)) < 1e-12
     @test norm(mean(mold.fstar - m.fstar)) < 1e-12
     end
@@ -99,14 +100,14 @@ opt = TransD_GP.Options(nmin = nmin,
     TransD_GP.death!(m, opt)
     TransD_GP.undo_death!(m, opt)
     TransD_GP.sync_model!(m, opt)
-    ftest = GP.GPfit(K, m.ftrain[1:m.n], m.xtrain[:,1:m.n], opt.xall, sqrt.(opt.λ²), opt.δ, nogetvars=true, demean=demean, p=pnorm)[1]
+    ftest = GP.GPfit(K, m.ftrain[1:m.n], m.xtrain[:,1:m.n], opt.xall, opt.λ², opt.δ, nogetvars=true, demean=demean, p=pnorm)[1]
     @test norm(mean(ftest - m.fstar)) < 1e-12
     @test norm(mean(mold.fstar - m.fstar)) < 1e-12
     end
     # undo_death holds state as well for multiple births and deaths till here
     @testset "property change" begin
     TransD_GP.property_change!(m, opt)
-    ftest = GP.GPfit(K, m.ftrain[1:m.n], m.xtrain[:,1:m.n], opt.xall, sqrt.(opt.λ²), opt.δ, nogetvars=true, demean=demean, p=pnorm)[1]
+    ftest = GP.GPfit(K, m.ftrain[1:m.n], m.xtrain[:,1:m.n], opt.xall, opt.λ², opt.δ, nogetvars=true, demean=demean, p=pnorm)[1]
     @test norm(mean(ftest - m.fstar)) < 1e-12
     end
     # property change works if here
@@ -115,14 +116,14 @@ opt = TransD_GP.Options(nmin = nmin,
     TransD_GP.property_change!(m, opt)
     TransD_GP.undo_property_change!(m, opt)
     TransD_GP.sync_model!(m, opt)
-    ftest = GP.GPfit(K, m.ftrain[1:m.n], m.xtrain[:,1:m.n], opt.xall, sqrt.(opt.λ²), opt.δ, nogetvars=true, demean=demean, p=pnorm)[1]
+    ftest = GP.GPfit(K, m.ftrain[1:m.n], m.xtrain[:,1:m.n], opt.xall, opt.λ², opt.δ, nogetvars=true, demean=demean, p=pnorm)[1]
     @test norm(mean(ftest - m.fstar)) < 1e-12
     @test norm(mean(mold.fstar - m.fstar)) < 1e-12
     end
     # undo property change works if here
     @testset "position change" begin
     TransD_GP.position_change!(m, opt)
-    ftest = GP.GPfit(K, m.ftrain[1:m.n], m.xtrain[:,1:m.n], opt.xall, sqrt.(opt.λ²), opt.δ, nogetvars=true, demean=demean, p=pnorm)[1]
+    ftest = GP.GPfit(K, m.ftrain[1:m.n], m.xtrain[:,1:m.n], opt.xall, opt.λ², opt.δ, nogetvars=true, demean=demean, p=pnorm)[1]
     @test norm(mean(ftest - m.fstar)) < 1e-12
     end
     # position change works if here
@@ -131,7 +132,7 @@ opt = TransD_GP.Options(nmin = nmin,
     TransD_GP.position_change!(m, opt)
     TransD_GP.undo_position_change!(m, opt)
     TransD_GP.sync_model!(m, opt)
-    ftest = GP.GPfit(K, m.ftrain[1:m.n], m.xtrain[:,1:m.n], opt.xall, sqrt.(opt.λ²), opt.δ, nogetvars=true, demean=demean, p=pnorm)[1]
+    ftest = GP.GPfit(K, m.ftrain[1:m.n], m.xtrain[:,1:m.n], opt.xall, opt.λ², opt.δ, nogetvars=true, demean=demean, p=pnorm)[1]
     @test norm(mean(ftest - m.fstar)) < 1e-12
     @test norm(mean(mold.fstar - m.fstar)) < 1e-12
     end
