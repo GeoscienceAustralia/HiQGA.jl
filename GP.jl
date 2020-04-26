@@ -10,9 +10,9 @@ struct SqEuclidean <: Kernel end
 struct Mat32 <:Kernel end
 struct Mat52 <: Kernel end
 
-κ(K::SqEuclidean, d::Real, p::Int) = exp(-0.5*(d^p))
-κ(K::Mat32, d::Real, p::Int) = (1.0 + sqrt(3.0) * d) * exp(-sqrt(3.0) * d)
-κ(K::Mat52, p::Int) = (1.0 + sqrt(5.0) * d + 5.0 * d^2 / 3.0) * exp(-sqrt(5.0) * d)
+κ(K::SqEuclidean, d::Real, p::Real) = exp(-0.5*(d^p))
+κ(K::Mat32, d::Real, p::Real) = (1.0 + sqrt(3.0) * d) * exp(-sqrt(3.0) * d)
+κ(K::Mat52, p::Real) = (1.0 + sqrt(5.0) * d + 5.0 * d^2 / 3.0) * exp(-sqrt(5.0) * d)
 
 function makekernel(K::Kernel, xtrain::AbstractArray, xtest::AbstractArray,
                     λ::AbstractArray, p::Real)
