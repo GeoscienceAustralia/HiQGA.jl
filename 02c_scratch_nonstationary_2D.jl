@@ -126,7 +126,7 @@ B = copy(K_y)
 # change a training point
 n = rand(1:length(y2D_train))
 x2D_train[:,n] = x2D_test[:,n]
-λ2D_train[:,n] = λ2D_test[:,n]
+λ²2D_train[:,n] = λ²2D_test[:,n]
 y2D_train[n]   = y2D_noisy[CartesianIndices((length(x),length(y)))[n]]
 D, = GP.GPfit(K, y2D_train, x2D_train,
     x2D_test, λ²2D_test, λ²2D_train, δtry, p=2, demean=demean, nogetvars=true)
