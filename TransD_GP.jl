@@ -7,11 +7,11 @@ mutable struct Options
     xbounds             :: Array{Float64}
     fbounds             :: Array{Float64}
     xall                :: Array{Float64}
-    λ²                 :: Array{Float64,1}
+    λ²                  :: Array{Float64,1}
     δ                   :: Float64
     demean              :: Bool
-    sdev_prop           :: Float64
-    sdev_pos            :: Array{Float64,1}
+    sdev_prop           :: Array{Float64, 1}
+    sdev_pos            :: Array{Float64, 1}
     pnorm               :: Float64
     stat_window         :: Int
     dispstatstoscreen   :: Bool
@@ -37,7 +37,7 @@ function Options(;
         λ                 = [0.3],
         δ                 = 0.1,
         demean             = true,
-        sdev_prop          = 0.01,
+        sdev_prop          = [0.01],
         sdev_pos           = [0.05;0.05],
         pnorm              = 2,
         stat_window        = 100,
@@ -54,7 +54,9 @@ function Options(;
 
         @assert xall != nothing
         @assert all(diff(xbounds, dims=2) .> 0)
-        @assert diff(fbounds, dims=2)[1] > 0
+        @assert all(diff(fbounds, dims=2) .> 0)
+        @assert ndims(sdev_prop) == 1
+        @assert length(sdev_prop) == size(fbounds, 1)
         @assert ndims(sdev_pos) == 1
         @assert length(sdev_pos) == size(xbounds, 1)
         @assert length(λ) == size(xbounds, 1)
@@ -81,7 +83,7 @@ mutable struct Model
     K_y           :: Array{Float64, 2}
     Kstar         :: Array{Float64, 2}
     n             :: Int
-    ftrain_old    :: Float64
+    ftrain_old    :: Array{Float64}
     xtrain_old    :: Array{Float64}
     iremember     :: Int # stores old changed point index to recover state
     xtrain_focus  :: Array{Float64} # for quasimultid to keep track of
@@ -111,30 +113,30 @@ function init(opt::TransD_GP.Options)
     n = opt.nmin
     xtrain = zeros(Float64, size(opt.xbounds,1), opt.nmax)
     xtrain[:,1:n] = opt.xbounds[:,1] .+ diff(opt.xbounds, dims=2).*rand(size(opt.xbounds, 1), n)
-    ftrain = zeros(Float64, opt.nmax)
-    ftrain[1:n] = opt.fbounds[1] .+ diff(opt.fbounds, dims=2)[1]*rand(n)
+    ftrain = zeros(Float64, size(opt.fbounds,1), opt.nmax)
+    ftrain[:,1:n] = opt.fbounds[:,1] .+ diff(opt.fbounds, dims=2).*rand(size(opt.fbounds, 1), n)
     K_y = zeros(opt.nmax, opt.nmax)
     map!(x->GP.κ(opt.K, x),K_y,pairwise(WeightedEuclidean(1 ./opt.λ² ), xtrain, dims=2))
     K_y[diagind(K_y)] .+= opt.δ^2
     Kstar = zeros(Float64, size(opt.xall,2), opt.nmax)
     xtest = opt.xall
     map!(x->GP.κ(opt.K, x),Kstar,pairwise(WeightedEuclidean(1 ./opt.λ² ), xtest, xtrain, dims=2))
-    mf = 0.
+    mf = zeros(size(opt.fbounds, 1))
     if opt.demean && n>1
-        mf = mean(ftrain[1:n])
+        mf = mean(ftrain[:,1:n], dims=2)
     end
-    rhs = ftrain[1:n] .- mf
+    rhs = ftrain[:,1:n] .- mf
     U = cholesky(K_y[1:n,1:n]).U
-    fstar = mf .+ Kstar[:,1:n]*(U\(U'\rhs))
+    fstar = mf' .+ Kstar[:,1:n]*(U\(U'\rhs'))
     return Model(fstar, xtrain, ftrain, K_y, Kstar, n,
-                 0.0, zeros(Float64, size(opt.xbounds, 1)), 0, zeros(Float64, size(opt.xbounds, 1)))
+                 [0.0], zeros(Float64, size(opt.xbounds, 1)), 0, zeros(Float64, size(opt.xbounds, 1)))
 end
 
 function birth!(m::Model, opt::TransD_GP.Options)
     xtrain, ftrain, K_y,  Kstar, n = m.xtrain, m.ftrain, m.K_y,  m.Kstar, m.n
     xtrain[:,n+1] = opt.xbounds[:,1] + diff(opt.xbounds, dims=2).*rand(size(opt.xbounds, 1))
     copy!(m.xtrain_focus, xtrain[:,n+1])
-    ftrain[n+1] = opt.fbounds[1] + diff(opt.fbounds, dims=2)[1]*rand()
+    ftrain[:,n+1] = opt.fbounds[:,1] + diff(opt.fbounds, dims=2).*rand(size(opt.fbounds, 1))
     xtest = opt.xall
     Kstarv = @view Kstar[:,n+1]
     map!(x->GP.κ(opt.K, x),Kstarv,colwise(WeightedEuclidean(1 ./opt.λ² ), xtrain[:,n+1], xtest))
@@ -142,13 +144,13 @@ function birth!(m::Model, opt::TransD_GP.Options)
     map!(x->GP.κ(opt.K, x),K_yv,colwise(WeightedEuclidean(1 ./opt.λ² ), xtrain[:,n+1], xtrain[:,1:n+1]))
     K_y[1:n+1,n+1] = K_y[n+1,1:n+1]
     K_y[n+1,n+1] = K_y[n+1,n+1] + opt.δ^2
-    mf = 0.
+    mf = zeros(size(opt.fbounds, 1))
     if opt.demean
-        mf = mean(ftrain[1:n+1])
+        mf = mean(ftrain[:,1:n+1], dims=2)
     end
-    rhs = ftrain[1:n+1] .- mf
+    rhs = ftrain[:,1:n+1] .- mf
     U = cholesky(K_y[1:n+1, 1:n+1]).U
-    m.fstar[:] = mf .+ Kstar[:,1:n+1]*(U\(U'\rhs))
+    m.fstar[:] = mf .+ Kstar[:,1:n+1]*(U\(U'\rhs'))
     m.n = n+1
 end
 
@@ -162,18 +164,18 @@ function death!(m::Model, opt::TransD_GP.Options)
     m.iremember = ipoint
     copy!(m.xtrain_focus, xtrain[:,ipoint])
     xtrain[:,ipoint], xtrain[:,n] = xtrain[:,n], xtrain[:,ipoint]
-    ftrain[ipoint], ftrain[n] = ftrain[n], ftrain[ipoint]
+    ftrain[:,ipoint], ftrain[:,n] = ftrain[:,n], ftrain[:,ipoint]
     Kstar[:,ipoint], Kstar[:,n] = Kstar[:,n], Kstar[:,ipoint]
     K_y[ipoint,1:n], K_y[n,1:n] = K_y[n,1:n], K_y[ipoint,1:n]
     K_y[1:n-1,ipoint] = K_y[ipoint,1:n-1]
     K_y[ipoint,ipoint] = 1.0 + opt.δ^2
-    mf = 0.
+    mf = zeros(size(opt.fbounds, 1))
     if opt.demean && n>2
-        mf = mean(ftrain[1:n-1])
+        mf = mean(ftrain[:,1:n-1], dims=2)
     end
-    rhs = ftrain[1:n-1] .- mf
+    rhs = ftrain[:,1:n-1] .- mf
     U = cholesky(K_y[1:n-1, 1:n-1]).U
-    m.fstar[:] = mf .+ Kstar[:,1:n-1]*(U\(U'\rhs))
+    m.fstar[:] = mf .+ Kstar[:,1:n-1]*(U\(U'\rhs'))
     m.n = n-1
 end
 
@@ -181,7 +183,7 @@ function undo_death!(m::Model, opt::TransD_GP.Options)
     m.n = m.n + 1
     ftrain, xtrain, Kstar, K_y, n, ipoint = m.ftrain, m.xtrain, m.Kstar, m.K_y, m.n, m.iremember
     xtrain[:,ipoint], xtrain[:,n] = xtrain[:,n], xtrain[:,ipoint]
-    ftrain[ipoint], ftrain[n] = ftrain[n], ftrain[ipoint]
+    ftrain[:,ipoint], ftrain[:,n] = ftrain[:,n], ftrain[:,ipoint]
     Kstar[:,ipoint], Kstar[:,n] = Kstar[:,n], Kstar[:,ipoint]
     K_y[ipoint,1:n], K_y[n,1:n] = K_y[n,1:n], K_y[ipoint,1:n]
     K_y[1:n,ipoint] = K_y[ipoint,1:n]
@@ -193,26 +195,27 @@ function property_change!(m::Model, opt::TransD_GP.Options)
     ftrain, K_y, Kstar, n = m.ftrain, m.K_y, m. Kstar, m.n
     ipoint = 1 + floor(Int, rand()*n)
     m.iremember = ipoint
-    m.ftrain_old = ftrain[ipoint]
-    copy!(m.xtrain_focus, m.xtrain[:,ipoint])
-    ftrain[ipoint] = ftrain[ipoint] + opt.sdev_prop*randn()
-    while (ftrain[ipoint]<opt.fbounds[1]) || (ftrain[ipoint]>opt.fbounds[2])
-            (ftrain[ipoint]<opt.fbounds[1]) && (ftrain[ipoint] = 2*opt.fbounds[1] - ftrain[ipoint])
-            (ftrain[ipoint]>opt.fbounds[2]) && (ftrain[ipoint] = 2*opt.fbounds[2] - ftrain[ipoint])
+    m.ftrain_old[:] = ftrain[:,ipoint]
+    ftrain[:,ipoint] = ftrain[:,ipoint] + opt.sdev_prop.*randn(size(opt.fbounds, 1))
+    for i in eachindex(ftrain[:,ipoint])
+        while (ftrain[i,ipoint]<opt.fbounds[i,1]) || (ftrain[i,ipoint]>opt.fbounds[i,2])
+                (ftrain[i,ipoint]<opt.fbounds[i,1]) && (ftrain[i,ipoint] = 2*opt.fbounds[i,1] - ftrain[i,ipoint])
+                (ftrain[i,ipoint]>opt.fbounds[i,2]) && (ftrain[i,ipoint] = 2*opt.fbounds[i,2] - ftrain[i,ipoint])
+        end
     end
-    mf = 0.
+    mf = zeros(size(opt.fbounds, 1))
     if opt.demean
-        mf = mean(ftrain[1:n])
+        mf = mean(ftrain[:,1:n], dims=2)
     end
-    rhs = ftrain[1:n] .- mf
+    rhs = ftrain[:,1:n] .- mf
     # could potentially store chol if very time consuming
     U = cholesky(K_y[1:n, 1:n]).U
-    m.fstar[:] = mf .+ Kstar[:,1:n]*(U\(U'\rhs))
+    m.fstar[:] = mf .+ Kstar[:,1:n]*(U\(U'\rhs'))
 end
 
 function undo_property_change!(m::Model, opt::TransD_GP.Options)
     ipoint, ftrain = m.iremember, m.ftrain
-    ftrain[ipoint] = m.ftrain_old
+    ftrain[:,ipoint] = m.ftrain_old
 end
 
 function position_change!(m::Model, opt::TransD_GP.Options)
@@ -235,14 +238,14 @@ function position_change!(m::Model, opt::TransD_GP.Options)
     map!(x->GP.κ(opt.K, x),K_yv,colwise(WeightedEuclidean(1 ./opt.λ² ), xtrain[:,ipoint], xtrain[:,1:n]))
     K_y[1:n,ipoint] = K_y[ipoint,1:n]
     K_y[ipoint,ipoint] = K_y[ipoint,ipoint] + opt.δ^2
-    mf = 0.
+    mf = zeros(size(opt.fbounds, 1))
     if opt.demean
-        mf = mean(ftrain[1:n])
+        mf = mean(ftrain[:,1:n], dims=2)
     end
-    rhs = ftrain[1:n] .- mf
+    rhs = ftrain[:,1:n] .- mf
     # could potentially store chol if very time consuming
     U = cholesky(K_y[1:n, 1:n]).U
-    m.fstar[:] = mf .+ Kstar[:,1:n]*(U\(U'\rhs))
+    m.fstar[:] = mf .+ Kstar[:,1:n]*(U\(U'\rhs'))
 end
 
 function undo_position_change!(m::Model, opt::TransD_GP.Options)
@@ -260,14 +263,14 @@ end
 
 function sync_model!(m::Model, opt::Options)
     ftrain, K_y, Kstar, n = m.ftrain, m.K_y, m.Kstar, m.n
-    mf = 0.
+    mf = zeros(size(opt.fbounds, 1))
     if opt.demean
-        mf = mean(ftrain[1:n])
+        mf = mean(ftrain[:,1:n], dims=2)
     end
-    rhs = ftrain[1:n] .- mf
+    rhs = ftrain[:,1:n] .- mf
     # could potentially store chol if very time consuming
     U = cholesky(K_y[1:n, 1:n]).U
-    m.fstar[:] = mf .+ Kstar[:,1:n]*(U\(U'\rhs))
+    m.fstar[:] = mf .+ Kstar[:,1:n]*(U\(U'\rhs'))
 end
 
 function do_move!(m::Model, opt::Options, stat::Stats)

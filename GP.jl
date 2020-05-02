@@ -35,15 +35,15 @@ end
 function GPfit(K::Kernel, ytrain, xtrain, xtest, λ²::Array{Float64,1}, δ::Real ;nogetvars=false,
             demean=true, p=2)
     @assert length(λ²) == size(xtrain,1)
-    my = 0
+    my = zeros(size(ytrain, 1))
     if demean
-        my = mean(ytrain)
+        my = mean(ytrain, dims=2)
     end
     ytrain = ytrain .- my
     Kstar = GP.makekernel(K, xtrain, xtest, λ², p)
     K_y = GP.makekernel(K, xtrain, xtrain, λ², p) + Matrix(δ^2*I, (size(xtrain,2)), (size(xtrain,2)))
     U = cholesky(K_y).U
-    ytest = my .+ Kstar'*(U\(U'\ytrain))
+    ytest = my .+ Kstar'*(U\(U'\ytrain'))
     var_prior, var_y = [],[]
     if !nogetvars
         var_prior = GP.makekernel(K, xtest, xtest, λ², p)
@@ -78,15 +78,15 @@ function GPfit(K::Kernel, ytrain, xtrain, xtest, λ²test::Array{Float64,2}, λ�
             δ ;nogetvars=false, demean=true, p=2)
     @assert size(λ²test) == size(xtest)
     @assert size(λ²train) == size(xtrain)
-    my = 0
+    my = zeros(size(ytrain, 1))
     if demean
-        my = mean(ytrain)
+        my = mean(ytrain, dims=2)
     end
     ytrain = ytrain .- my
     Kstar = GP.meshkernel(K, xtrain, xtest, λ²test, λ²train, p)
     K_y = GP.meshkernel(K, xtrain, xtrain, λ²train, λ²train, p) + Matrix(δ^2*I, (size(xtrain,2)), (size(xtrain,2)))
     U = cholesky(K_y).U
-    ytest = my .+ Kstar*(U\(U'\ytrain))
+    ytest = my .+ Kstar*(U\(U'\ytrain'))
     var_prior, var_y = [],[]
     if !nogetvars
         var_prior = GP.meshkernel(K, xtest, xtest, λ²test, λ²test, p)

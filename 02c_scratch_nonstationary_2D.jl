@@ -18,7 +18,7 @@ change1 = round(Int, 1/2*length(f))
 f[change1:end] .= 1
 ynoisy = f + δ*randn(length(f))
 dec = 8
-ytrain = ynoisy[1:dec:end]
+ytrain = ynoisy[1:dec:end]'
 xtrain = xtest[1:dec:end]'
 
 # f1 = figure()
@@ -96,7 +96,7 @@ end
 λ²2D_test[2,:] .= abs(y[end]-y[1])^2
 y2D       = [f[i] for i in 1:length(x), j in 1:length(y)]
 y2D_noisy = y2D + δ*randn(size(y2D))
-y2D_train = y2D_noisy[1:dec:end, 1:dec:end][:]
+y2D_train = y2D_noisy[1:dec:end, 1:dec:end][:]'
 lidx = LinearIndices((1:length(x),1:length(y)))[1:dec:end, 1:dec:end][:]
 λ²2D_train = λ²2D_test[:,lidx]
 x2D_train = x2D_test[:,lidx]
@@ -127,7 +127,7 @@ B = copy(K_y)
 n = rand(1:length(y2D_train))
 x2D_train[:,n] = x2D_test[:,n]
 λ2D_train[:,n] = λ2D_test[:,n]
-y2D_train[n]   = y2D_noisy[CartesianIndices((length(x),length(y)))[n]]
+y2D_train[:,n] = [y2D_noisy[CartesianIndices((length(x),length(y)))[n]]]
 D, = GP.GPfit(K, y2D_train, x2D_train,
     x2D_test, λ²2D_test, λ²2D_train, δtry, p=2, demean=demean, nogetvars=true)
 @time begin
@@ -137,9 +137,9 @@ K_yv = @view K_y[n,:]
 map!(x²->x²,K_yv,GP.colwise(K, x2D_train[:,n], x2D_train, λ²2D_train[:,n], λ²2D_train))
 K_y[:,n] = K_y[n,:]
 K_y[n,n] = K_y[n,n] + δtry^2
-my = mean(y2D_train)
+my = mean(y2D_train, dims=2)
 y2D_train = y2D_train .- my
 U = cholesky(K_y).U
-C = my .+ Kstar*(U\(U'\y2D_train))
+C = my .+ Kstar*(U\(U'\y2D_train'))
 end
 @test norm(mean(C - D)) < 1e-12
