@@ -16,6 +16,7 @@ K = GP.Mat32()
 f = zeros(size(xtest,2))
 change1 = round(Int, 1/2*length(f))
 f[change1:end] .= 1
+f .-= 0.5
 ynoisy = f + δ*randn(length(f))
 dec = 8
 ytrain = ynoisy[1:dec:end]'
@@ -140,6 +141,6 @@ K_y[n,n] = K_y[n,n] + δtry^2
 my = mean(y2D_train, dims=2)
 y2D_train = y2D_train .- my
 U = cholesky(K_y).U
-C = my .+ Kstar*(U\(U'\y2D_train'))
+C = my' .+ Kstar*(U\(U'\y2D_train'))
 end
 @test norm(mean(C - D)) < 1e-12

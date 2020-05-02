@@ -105,10 +105,6 @@ mutable struct Writepointers
     fp_x_ftrain   :: IOStream
 end
 
-function gaussiankernel(x::AbstractArray, y::AbstractArray, p)
-    return exp(-0.5*(norm(x-y,p)^p))
-end
-
 function init(opt::TransD_GP.Options)
     n = opt.nmin
     xtrain = zeros(Float64, size(opt.xbounds,1), opt.nmax)
@@ -150,7 +146,7 @@ function birth!(m::Model, opt::TransD_GP.Options)
     end
     rhs = ftrain[:,1:n+1] .- mf
     U = cholesky(K_y[1:n+1, 1:n+1]).U
-    m.fstar[:] = mf .+ Kstar[:,1:n+1]*(U\(U'\rhs'))
+    m.fstar[:] = mf' .+ Kstar[:,1:n+1]*(U\(U'\rhs'))
     m.n = n+1
 end
 
@@ -175,7 +171,7 @@ function death!(m::Model, opt::TransD_GP.Options)
     end
     rhs = ftrain[:,1:n-1] .- mf
     U = cholesky(K_y[1:n-1, 1:n-1]).U
-    m.fstar[:] = mf .+ Kstar[:,1:n-1]*(U\(U'\rhs'))
+    m.fstar[:] = mf' .+ Kstar[:,1:n-1]*(U\(U'\rhs'))
     m.n = n-1
 end
 
@@ -210,7 +206,7 @@ function property_change!(m::Model, opt::TransD_GP.Options)
     rhs = ftrain[:,1:n] .- mf
     # could potentially store chol if very time consuming
     U = cholesky(K_y[1:n, 1:n]).U
-    m.fstar[:] = mf .+ Kstar[:,1:n]*(U\(U'\rhs'))
+    m.fstar[:] = mf' .+ Kstar[:,1:n]*(U\(U'\rhs'))
 end
 
 function undo_property_change!(m::Model, opt::TransD_GP.Options)
@@ -245,7 +241,7 @@ function position_change!(m::Model, opt::TransD_GP.Options)
     rhs = ftrain[:,1:n] .- mf
     # could potentially store chol if very time consuming
     U = cholesky(K_y[1:n, 1:n]).U
-    m.fstar[:] = mf .+ Kstar[:,1:n]*(U\(U'\rhs'))
+    m.fstar[:] = mf' .+ Kstar[:,1:n]*(U\(U'\rhs'))
 end
 
 function undo_position_change!(m::Model, opt::TransD_GP.Options)
@@ -270,7 +266,7 @@ function sync_model!(m::Model, opt::Options)
     rhs = ftrain[:,1:n] .- mf
     # could potentially store chol if very time consuming
     U = cholesky(K_y[1:n, 1:n]).U
-    m.fstar[:] = mf .+ Kstar[:,1:n]*(U\(U'\rhs'))
+    m.fstar[:] = mf' .+ Kstar[:,1:n]*(U\(U'\rhs'))
 end
 
 function do_move!(m::Model, opt::Options, stat::Stats)
