@@ -4,10 +4,10 @@ using Printf, LinearAlgebra, Statistics, Distributed, Distances, GP
 mutable struct Options
     nmin                :: Int
     nmax                :: Int
-    xbounds             :: Array{Float64}
-    fbounds             :: Array{Float64}
-    xall                :: Array{Float64}
-    λ²                  :: Array{Float64,1}
+    xbounds             :: Array{Float64, 2}
+    fbounds             :: Array{Float64, 2}
+    xall                :: Array{Float64, 2}
+    λ²                  :: Array{Float64}
     δ                   :: Float64
     demean              :: Bool
     sdev_prop           :: Array{Float64, 1}
@@ -59,7 +59,7 @@ function Options(;
         @assert length(sdev_prop) == size(fbounds, 1)
         @assert ndims(sdev_pos) == 1
         @assert length(sdev_pos) == size(xbounds, 1)
-        @assert length(λ) == size(xbounds, 1)
+        @assert size(λ, 1) == size(xbounds, 1)
         @assert quasimultid != "" "specify true or false explicitly"
         if quasimultid
             @assert influenceradius[1] > 0.0
