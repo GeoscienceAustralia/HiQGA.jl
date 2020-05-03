@@ -146,7 +146,7 @@ function birth!(m::Model, opt::TransD_GP.Options)
     end
     rhs = ftrain[:,1:n+1] .- mf
     U = cholesky(K_y[1:n+1, 1:n+1]).U
-    m.fstar[:] = mf' .+ Kstar[:,1:n+1]*(U\(U'\rhs'))
+    copy!(m.fstar, mf' .+ Kstar[:,1:n+1]*(U\(U'\rhs')))
     m.n = n+1
 end
 
@@ -171,7 +171,7 @@ function death!(m::Model, opt::TransD_GP.Options)
     end
     rhs = ftrain[:,1:n-1] .- mf
     U = cholesky(K_y[1:n-1, 1:n-1]).U
-    m.fstar[:] = mf' .+ Kstar[:,1:n-1]*(U\(U'\rhs'))
+    copy!(m.fstar, mf' .+ Kstar[:,1:n-1]*(U\(U'\rhs')))
     m.n = n-1
 end
 
@@ -191,7 +191,7 @@ function property_change!(m::Model, opt::TransD_GP.Options)
     ftrain, K_y, Kstar, n = m.ftrain, m.K_y, m. Kstar, m.n
     ipoint = 1 + floor(Int, rand()*n)
     m.iremember = ipoint
-    m.ftrain_old[:] = ftrain[:,ipoint]
+    copy!(m.ftrain_old, ftrain[:,ipoint])
     ftrain[:,ipoint] = ftrain[:,ipoint] + opt.sdev_prop.*randn(size(opt.fbounds, 1))
     for i in eachindex(ftrain[:,ipoint])
         while (ftrain[i,ipoint]<opt.fbounds[i,1]) || (ftrain[i,ipoint]>opt.fbounds[i,2])
@@ -206,7 +206,7 @@ function property_change!(m::Model, opt::TransD_GP.Options)
     rhs = ftrain[:,1:n] .- mf
     # could potentially store chol if very time consuming
     U = cholesky(K_y[1:n, 1:n]).U
-    m.fstar[:] = mf' .+ Kstar[:,1:n]*(U\(U'\rhs'))
+    copy!(m.fstar, mf' .+ Kstar[:,1:n]*(U\(U'\rhs')))
 end
 
 function undo_property_change!(m::Model, opt::TransD_GP.Options)
@@ -241,7 +241,7 @@ function position_change!(m::Model, opt::TransD_GP.Options)
     rhs = ftrain[:,1:n] .- mf
     # could potentially store chol if very time consuming
     U = cholesky(K_y[1:n, 1:n]).U
-    m.fstar[:] = mf' .+ Kstar[:,1:n]*(U\(U'\rhs'))
+    copy!(m.fstar, mf' .+ Kstar[:,1:n]*(U\(U'\rhs')))
 end
 
 function undo_position_change!(m::Model, opt::TransD_GP.Options)
@@ -266,7 +266,7 @@ function sync_model!(m::Model, opt::Options)
     rhs = ftrain[:,1:n] .- mf
     # could potentially store chol if very time consuming
     U = cholesky(K_y[1:n, 1:n]).U
-    m.fstar[:] = mf' .+ Kstar[:,1:n]*(U\(U'\rhs'))
+    copy!(m.fstar, mf' .+ Kstar[:,1:n]*(U\(U'\rhs')))
 end
 
 function do_move!(m::Model, opt::Options, stat::Stats)
