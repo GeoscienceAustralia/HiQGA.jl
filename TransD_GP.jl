@@ -1,5 +1,7 @@
 module TransD_GP
-using Printf, LinearAlgebra, Statistics, Distributed, Distances, GP
+using Printf, LinearAlgebra, Statistics, Distributed,
+      Distances, NearestNeighbors,
+      GP
 
 mutable struct Options
     nmin                :: Int
@@ -26,6 +28,7 @@ mutable struct Options
     quasimultid         :: Bool
     influenceradius     :: Array{Float64, 1}
     K                   :: GP.Kernel
+    kdtree              :: KDTree
 end
 
 function Options(;
@@ -69,11 +72,11 @@ function Options(;
         costs_filename = "misfits_"*fdataname*".bin"
         fstar_filename = "models_"*fdataname*".bin"
         x_ftrain_filename = "points_"*fdataname*".bin"
-
+        kdtree = KDTree(xall)
         Options(nmin, nmax, xbounds, fbounds, xall, λ.^2 , δ, demean, sdev_prop, sdev_pos, pnorm,
                 stat_window, dispstatstoscreen, report_freq, save_freq,
                 fdataname, history_mode, costs_filename, fstar_filename, x_ftrain_filename,
-                debug, quasimultid, influenceradius, K)
+                debug, quasimultid, influenceradius, K, kdtree)
 end
 
 mutable struct Model
@@ -117,6 +120,35 @@ function init(opt::TransD_GP.Options)
     Kstar = zeros(Float64, size(opt.xall,2), opt.nmax)
     xtest = opt.xall
     map!(x->GP.κ(opt.K, x),Kstar,pairwise(WeightedEuclidean(1 ./opt.λ² ), xtest, xtrain, dims=2))
+    mf = zeros(size(opt.fbounds, 1))
+    if opt.demean && n>1
+        mf = mean(ftrain[:,1:n], dims=2)
+    end
+    rhs = ftrain[:,1:n] .- mf
+    U = cholesky(K_y[1:n,1:n]).U
+    fstar = mf' .+ Kstar[:,1:n]*(U\(U'\rhs'))
+    return Model(fstar, xtrain, ftrain, K_y, Kstar, n,
+                 [0.0], zeros(Float64, size(opt.xbounds, 1)), 0,
+                 zeros(Float64, size(opt.xbounds, 1)))
+end
+
+function init_ns(opt::TransD_GP.Options, m::Model)
+    λ² = 10 .^(2*m.fstar)'
+    n = opt.nmin
+    xtrain = zeros(Float64, size(opt.xbounds,1), opt.nmax)
+    xtrain[:,1:n] = opt.xbounds[:,1] .+ diff(opt.xbounds, dims=2).*rand(size(opt.xbounds, 1), n)
+    ftrain = zeros(Float64, size(opt.fbounds,1), opt.nmax)
+    ftrain[:,1:n] = opt.fbounds[:,1] .+ diff(opt.fbounds, dims=2).*rand(size(opt.fbounds, 1), n)
+    K_y = zeros(opt.nmax, opt.nmax)
+    idxs,  = knn(opt.kdtree, xtrain[:,1:n], 1)
+    ridxs = reduce(vcat, idxs)
+    ky = view(K_y, 1:n, 1:n)
+    map!(x->x, ky, GP.pairwise(opt.K, xtrain[:,1:n], xtrain[:,1:n], λ²[:,ridxs], λ²[:,ridxs]))
+    K_y[diagind(K_y)] .+= opt.δ^2
+    Kstar = zeros(Float64, size(opt.xall,2), opt.nmax)
+    xtest = opt.xall
+    ks = view(Kstar, :, 1:n)
+    map!(x->x, Kstar, GP.pairwise(opt.K, xtrain[:,1:n], xtest, λ²[:,ridxs], λ²))
     mf = zeros(size(opt.fbounds, 1))
     if opt.demean && n>1
         mf = mean(ftrain[:,1:n], dims=2)
