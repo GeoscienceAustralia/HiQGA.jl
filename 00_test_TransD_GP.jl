@@ -43,21 +43,21 @@ opt = TransD_GP.Options(nmin = nmin,
 @time m = TransD_GP.init(opt)
 ## run tests for the different McMC moves
 @testset "GP and MCMC move do and undo state tests" begin
-    ftest, = GP.GPfit(K, m.ftrain[1:m.n]', m.xtrain[:,1:m.n], opt.xall, opt.λ², opt.δ, nogetvars=true, demean=demean, p=pnorm)
-    @testset "init test" begin @test norm(mean(ftest - m.fstar)) < 1e-12 end
+    ftest, = GP.GPfit(K, m.ftrain[:,1:m.n], m.xtrain[:,1:m.n], opt.xall, opt.λ², opt.δ, nogetvars=true, demean=demean, p=pnorm)
+    @testset "init test" begin @test norm(mean(ftest' - 0.5log10.(m.fstar))) < 1e-12 end
     @testset "birth tests" begin
     for i = 1:100
         TransD_GP.birth!(m, opt)
     end
-    ftest, = GP.GPfit(K, m.ftrain[1:m.n]', m.xtrain[:,1:m.n], opt.xall, opt.λ², opt.δ, nogetvars=true, demean=demean, p=pnorm)
-    @test norm(mean(ftest - m.fstar)) < 1e-12
+    ftest, = GP.GPfit(K, m.ftrain[:,1:m.n], m.xtrain[:,1:m.n], opt.xall, opt.λ², opt.δ, nogetvars=true, demean=demean, p=pnorm)
+    @test norm(mean(ftest' - 0.5log10.(m.fstar))) < 1e-12
     end
     @testset "death tests" begin
     for i = 1:100
         TransD_GP.death!(m, opt)
     end
-    ftest, = GP.GPfit(K, m.ftrain[1:m.n]', m.xtrain[:,1:m.n], opt.xall, opt.λ², opt.δ, nogetvars=true, demean=demean, p=pnorm)
-    @test norm(mean(ftest - m.fstar)) < 1e-12
+    ftest, = GP.GPfit(K, m.ftrain[:,1:m.n], m.xtrain[:,1:m.n], opt.xall, opt.λ², opt.δ, nogetvars=true, demean=demean, p=pnorm)
+    @test norm(mean(ftest' - 0.5log10.(m.fstar))) < 1e-12
     end
     # birth and death hold correct states if tests above passed
     @testset "undo birth" begin
@@ -65,8 +65,8 @@ opt = TransD_GP.Options(nmin = nmin,
     TransD_GP.birth!(m, opt)
     TransD_GP.undo_birth!(m, opt)
     TransD_GP.sync_model!(m, opt)
-    ftest, = GP.GPfit(K, m.ftrain[1:m.n]', m.xtrain[:,1:m.n], opt.xall, opt.λ², opt.δ, nogetvars=true, demean=demean, p=pnorm)
-    @test norm(mean(ftest - m.fstar)) < 1e-12
+    ftest, = GP.GPfit(K, m.ftrain[:,1:m.n], m.xtrain[:,1:m.n], opt.xall, opt.λ², opt.δ, nogetvars=true, demean=demean, p=pnorm)
+    @test norm(mean(ftest' - 0.5log10.(m.fstar))) < 1e-12
     @test norm(mean(mold.fstar - m.fstar)) < 1e-12
     end
     # undo_birth holds state if gotten till here
@@ -77,8 +77,8 @@ opt = TransD_GP.Options(nmin = nmin,
     TransD_GP.birth!(m, opt)
     TransD_GP.undo_birth!(m, opt)
     TransD_GP.sync_model!(m, opt)
-    ftest, = GP.GPfit(K, m.ftrain[1:m.n]', m.xtrain[:,1:m.n], opt.xall, opt.λ², opt.δ, nogetvars=true, demean=demean, p=pnorm)
-    @test norm(mean(ftest - m.fstar)) < 1e-12
+    ftest, = GP.GPfit(K, m.ftrain[:,1:m.n], m.xtrain[:,1:m.n], opt.xall, opt.λ², opt.δ, nogetvars=true, demean=demean, p=pnorm)
+    @test norm(mean(ftest' - 0.5log10.(m.fstar))) < 1e-12
     @test norm(mean(mold.fstar - m.fstar)) < 1e-12
     end
     # undo_birth holds state as well for multiple births and deaths till here
@@ -87,8 +87,8 @@ opt = TransD_GP.Options(nmin = nmin,
     TransD_GP.death!(m, opt)
     TransD_GP.undo_death!(m, opt)
     TransD_GP.sync_model!(m, opt)
-    ftest, = GP.GPfit(K, m.ftrain[1:m.n]', m.xtrain[:,1:m.n], opt.xall, opt.λ², opt.δ, nogetvars=true, demean=demean, p=pnorm)
-    @test norm(mean(ftest - m.fstar)) < 1e-12
+    ftest, = GP.GPfit(K, m.ftrain[:,1:m.n], m.xtrain[:,1:m.n], opt.xall, opt.λ², opt.δ, nogetvars=true, demean=demean, p=pnorm)
+    @test norm(mean(ftest' - 0.5log10.(m.fstar))) < 1e-12
     @test norm(mean(mold.fstar - m.fstar)) < 1e-12
     end
     # undo death holds state if here
@@ -100,15 +100,15 @@ opt = TransD_GP.Options(nmin = nmin,
     TransD_GP.death!(m, opt)
     TransD_GP.undo_death!(m, opt)
     TransD_GP.sync_model!(m, opt)
-    ftest, = GP.GPfit(K, m.ftrain[1:m.n]', m.xtrain[:,1:m.n], opt.xall, opt.λ², opt.δ, nogetvars=true, demean=demean, p=pnorm)
-    @test norm(mean(ftest - m.fstar)) < 1e-12
+    ftest, = GP.GPfit(K, m.ftrain[:,1:m.n], m.xtrain[:,1:m.n], opt.xall, opt.λ², opt.δ, nogetvars=true, demean=demean, p=pnorm)
+    @test norm(mean(ftest' - 0.5log10.(m.fstar))) < 1e-12
     @test norm(mean(mold.fstar - m.fstar)) < 1e-12
     end
     # undo_death holds state as well for multiple births and deaths till here
     @testset "property change" begin
     TransD_GP.property_change!(m, opt)
-    ftest, = GP.GPfit(K, m.ftrain[1:m.n]', m.xtrain[:,1:m.n], opt.xall, opt.λ², opt.δ, nogetvars=true, demean=demean, p=pnorm)
-    @test norm(mean(ftest - m.fstar)) < 1e-12
+    ftest, = GP.GPfit(K, m.ftrain[:,1:m.n], m.xtrain[:,1:m.n], opt.xall, opt.λ², opt.δ, nogetvars=true, demean=demean, p=pnorm)
+    @test norm(mean(ftest' - 0.5log10.(m.fstar))) < 1e-12
     end
     # property change works if here
     @testset "undo property change" begin
@@ -116,15 +116,15 @@ opt = TransD_GP.Options(nmin = nmin,
     TransD_GP.property_change!(m, opt)
     TransD_GP.undo_property_change!(m, opt)
     TransD_GP.sync_model!(m, opt)
-    ftest, = GP.GPfit(K, m.ftrain[1:m.n]', m.xtrain[:,1:m.n], opt.xall, opt.λ², opt.δ, nogetvars=true, demean=demean, p=pnorm)
-    @test norm(mean(ftest - m.fstar)) < 1e-12
+    ftest, = GP.GPfit(K, m.ftrain[:,1:m.n], m.xtrain[:,1:m.n], opt.xall, opt.λ², opt.δ, nogetvars=true, demean=demean, p=pnorm)
+    @test norm(mean(ftest' - 0.5log10.(m.fstar))) < 1e-12
     @test norm(mean(mold.fstar - m.fstar)) < 1e-12
     end
     # undo property change works if here
     @testset "position change" begin
     TransD_GP.position_change!(m, opt)
-    ftest, = GP.GPfit(K, m.ftrain[1:m.n]', m.xtrain[:,1:m.n], opt.xall, opt.λ², opt.δ, nogetvars=true, demean=demean, p=pnorm)
-    @test norm(mean(ftest - m.fstar)) < 1e-12
+    ftest, = GP.GPfit(K, m.ftrain[:,1:m.n], m.xtrain[:,1:m.n], opt.xall, opt.λ², opt.δ, nogetvars=true, demean=demean, p=pnorm)
+    @test norm(mean(ftest' - 0.5log10.(m.fstar))) < 1e-12
     end
     # position change works if here
     @testset "undo position change" begin
@@ -132,8 +132,8 @@ opt = TransD_GP.Options(nmin = nmin,
     TransD_GP.position_change!(m, opt)
     TransD_GP.undo_position_change!(m, opt)
     TransD_GP.sync_model!(m, opt)
-    ftest, = GP.GPfit(K, m.ftrain[1:m.n]', m.xtrain[:,1:m.n], opt.xall, opt.λ², opt.δ, nogetvars=true, demean=demean, p=pnorm)
-    @test norm(mean(ftest - m.fstar)) < 1e-12
+    ftest, = GP.GPfit(K, m.ftrain[:,1:m.n], m.xtrain[:,1:m.n], opt.xall, opt.λ², opt.δ, nogetvars=true, demean=demean, p=pnorm)
+    @test norm(mean(ftest' - 0.5log10.(m.fstar))) < 1e-12
     @test norm(mean(mold.fstar - m.fstar)) < 1e-12
     end
     # undo position change works if here
@@ -143,11 +143,14 @@ end
           TransD_GP.birth!(m, opt)
 end
 ##
-figure()
-imshow(reshape(m.fstar,length(y), length(x)), extent=[x[1],x[end],y[end],y[1]]); colorbar()
-scatter(m.xtrain[1,1:m.n], m.xtrain[2,1:m.n],marker="+",c="r")
-scatter(m.xtrain[1,1:m.n], m.xtrain[2,1:m.n],c=m.ftrain[1:m.n], alpha=0.8)
-clim(minimum(m.fstar), maximum(m.fstar))
+m.fstar = 0.5log10.(m.fstar)
+fig,ax = plt.subplots(1, 1, sharex=true, sharey=true)
+vmin, vmax = minimum(m.fstar[1,:]), maximum(m.fstar[1,:])
+im1 = ax.imshow(reshape(m.fstar[1,:],length(y), length(x)), extent=[x[1],x[end],y[end],y[1]],
+    vmin=vmin, vmax=vmax)
+colorbar(im1, ax=ax)
+ax.scatter(m.xtrain[1,1:m.n], m.xtrain[2,1:m.n],marker="+",c="r")
+ax.scatter(m.xtrain[1,1:m.n], m.xtrain[2,1:m.n],c=m.ftrain[1,1:m.n], alpha=0.8)
 ## Multichannel Trans-D
 Random.seed!(11)
 fbounds = [-2 2.; 3 4]
@@ -170,20 +173,20 @@ opt = TransD_GP.Options(nmin = nmin,
 ## run tests for the different McMC moves, multichannel training/test
 @testset "MultichannelGP and MCMC move do and undo state tests" begin
     ftest, = GP.GPfit(K, m.ftrain[:,1:m.n], m.xtrain[:,1:m.n], opt.xall, opt.λ², opt.δ, nogetvars=true, demean=demean, p=pnorm)
-    @testset "init test" begin @test norm(mean(ftest - m.fstar)) < 1e-12 end
+    @testset "init test" begin @test norm(mean(ftest' - 0.5log10.(m.fstar))) < 1e-12 end
     @testset "birth tests" begin
     for i = 1:100
         TransD_GP.birth!(m, opt)
     end
     ftest, = GP.GPfit(K, m.ftrain[:,1:m.n], m.xtrain[:,1:m.n], opt.xall, opt.λ², opt.δ, nogetvars=true, demean=demean, p=pnorm)
-    @test norm(mean(ftest - m.fstar)) < 1e-12
+    @test norm(mean(ftest' - 0.5log10.(m.fstar))) < 1e-12
     end
     @testset "death tests" begin
     for i = 1:100
         TransD_GP.death!(m, opt)
     end
     ftest, = GP.GPfit(K, m.ftrain[:,1:m.n], m.xtrain[:,1:m.n], opt.xall, opt.λ², opt.δ, nogetvars=true, demean=demean, p=pnorm)
-    @test norm(mean(ftest - m.fstar)) < 1e-12
+    @test norm(mean(ftest' - 0.5log10.(m.fstar))) < 1e-12
     end
     # birth and death hold correct states if tests above passed
     @testset "undo birth" begin
@@ -192,7 +195,7 @@ opt = TransD_GP.Options(nmin = nmin,
     TransD_GP.undo_birth!(m, opt)
     TransD_GP.sync_model!(m, opt)
     ftest, = GP.GPfit(K, m.ftrain[:,1:m.n], m.xtrain[:,1:m.n], opt.xall, opt.λ², opt.δ, nogetvars=true, demean=demean, p=pnorm)
-    @test norm(mean(ftest - m.fstar)) < 1e-12
+    @test norm(mean(ftest' - 0.5log10.(m.fstar))) < 1e-12
     @test norm(mean(mold.fstar - m.fstar)) < 1e-12
     end
     # undo_birth holds state if gotten till here
@@ -204,7 +207,7 @@ opt = TransD_GP.Options(nmin = nmin,
     TransD_GP.undo_birth!(m, opt)
     TransD_GP.sync_model!(m, opt)
     ftest, = GP.GPfit(K, m.ftrain[:,1:m.n], m.xtrain[:,1:m.n], opt.xall, opt.λ², opt.δ, nogetvars=true, demean=demean, p=pnorm)
-    @test norm(mean(ftest - m.fstar)) < 1e-12
+    @test norm(mean(ftest' - 0.5log10.(m.fstar))) < 1e-12
     @test norm(mean(mold.fstar - m.fstar)) < 1e-12
     end
     # undo_birth holds state as well for multiple births and deaths till here
@@ -214,7 +217,7 @@ opt = TransD_GP.Options(nmin = nmin,
     TransD_GP.undo_death!(m, opt)
     TransD_GP.sync_model!(m, opt)
     ftest, = GP.GPfit(K, m.ftrain[:,1:m.n], m.xtrain[:,1:m.n], opt.xall, opt.λ², opt.δ, nogetvars=true, demean=demean, p=pnorm)
-    @test norm(mean(ftest - m.fstar)) < 1e-12
+    @test norm(mean(ftest' - 0.5log10.(m.fstar))) < 1e-12
     @test norm(mean(mold.fstar - m.fstar)) < 1e-12
     end
     # undo death holds state if here
@@ -227,14 +230,14 @@ opt = TransD_GP.Options(nmin = nmin,
     TransD_GP.undo_death!(m, opt)
     TransD_GP.sync_model!(m, opt)
     ftest, = GP.GPfit(K, m.ftrain[:,1:m.n], m.xtrain[:,1:m.n], opt.xall, opt.λ², opt.δ, nogetvars=true, demean=demean, p=pnorm)
-    @test norm(mean(ftest - m.fstar)) < 1e-12
+    @test norm(mean(ftest' - 0.5log10.(m.fstar))) < 1e-12
     @test norm(mean(mold.fstar - m.fstar)) < 1e-12
     end
     # undo_death holds state as well for multiple births and deaths till here
     @testset "property change" begin
     TransD_GP.property_change!(m, opt)
     ftest, = GP.GPfit(K, m.ftrain[:,1:m.n], m.xtrain[:,1:m.n], opt.xall, opt.λ², opt.δ, nogetvars=true, demean=demean, p=pnorm)
-    @test norm(mean(ftest - m.fstar)) < 1e-12
+    @test norm(mean(ftest' - 0.5log10.(m.fstar))) < 1e-12
     end
     # property change works if here
     @testset "undo property change" begin
@@ -243,14 +246,14 @@ opt = TransD_GP.Options(nmin = nmin,
     TransD_GP.undo_property_change!(m, opt)
     TransD_GP.sync_model!(m, opt)
     ftest, = GP.GPfit(K, m.ftrain[:,1:m.n], m.xtrain[:,1:m.n], opt.xall, opt.λ², opt.δ, nogetvars=true, demean=demean, p=pnorm)
-    @test norm(mean(ftest - m.fstar)) < 1e-12
+    @test norm(mean(ftest' - 0.5log10.(m.fstar))) < 1e-12
     @test norm(mean(mold.fstar - m.fstar)) < 1e-12
     end
     # undo property change works if here
     @testset "position change" begin
     TransD_GP.position_change!(m, opt)
     ftest, = GP.GPfit(K, m.ftrain[:,1:m.n], m.xtrain[:,1:m.n], opt.xall, opt.λ², opt.δ, nogetvars=true, demean=demean, p=pnorm)
-    @test norm(mean(ftest - m.fstar)) < 1e-12
+    @test norm(mean(ftest' - 0.5log10.(m.fstar))) < 1e-12
     end
     # position change works if here
     @testset "undo position change" begin
@@ -259,7 +262,7 @@ opt = TransD_GP.Options(nmin = nmin,
     TransD_GP.undo_position_change!(m, opt)
     TransD_GP.sync_model!(m, opt)
     ftest, = GP.GPfit(K, m.ftrain[:,1:m.n], m.xtrain[:,1:m.n], opt.xall, opt.λ², opt.δ, nogetvars=true, demean=demean, p=pnorm)
-    @test norm(mean(ftest - m.fstar)) < 1e-12
+    @test norm(mean(ftest' - 0.5log10.(m.fstar))) < 1e-12
     @test norm(mean(mold.fstar - m.fstar)) < 1e-12
     end
     # undo position change works if here
@@ -269,14 +272,18 @@ end
               TransD_GP.birth!(m, opt)
     end
 ## plot
+    m.fstar = 0.5log10.(m.fstar)
     fig,ax = plt.subplots(1,2, sharex=true, sharey=true)
-    im1 = ax[1].imshow(reshape(m.fstar[:,1],length(y), length(x)), extent=[x[1],x[end],y[end],y[1]])
+    vmin, vmax = minimum(m.fstar[1,:]), maximum(m.fstar[1,:])
+    im1 = ax[1].imshow(reshape(m.fstar[1,:],length(y), length(x)), extent=[x[1],x[end],y[end],y[1]],
+        vmin=vmin, vmax=vmax)
     colorbar(im1, ax=ax[1])
     ax[1].scatter(m.xtrain[1,1:m.n], m.xtrain[2,1:m.n],marker="+",c="r")
-    ax[1].scatter(m.xtrain[1,1:m.n], m.xtrain[2,1:m.n],c=m.ftrain[1:m.n], alpha=0.8)
-    im1.set_clim(minimum(m.fstar[:,1]), maximum(m.fstar[:,1]))
-    im2 = ax[2].imshow(reshape(m.fstar[:,2],length(y), length(x)), extent=[x[1],x[end],y[end],y[1]])
+    ax[1].scatter(m.xtrain[1,1:m.n], m.xtrain[2,1:m.n],c=m.ftrain[1,1:m.n], alpha=0.8)
+    vmin, vmax = minimum(m.fstar[2,:]), maximum(m.fstar[2,:])
+    im2 = ax[2].imshow(reshape(m.fstar[2,:],length(y), length(x)), extent=[x[1],x[end],y[end],y[1]],
+        vmin=vmin, vmax=vmax)
     colorbar(im2, ax=ax[2])
     ax[2].scatter(m.xtrain[1,1:m.n], m.xtrain[2,1:m.n],marker="+",c="r")
-    ax[2].scatter(m.xtrain[1,1:m.n], m.xtrain[2,1:m.n],c=m.ftrain[1:m.n], alpha=0.8)
-    im2.set_clim(minimum(m.fstar[:,2]), maximum(m.fstar[:,2]))
+    ax[2].scatter(m.xtrain[1,1:m.n], m.xtrain[2,1:m.n],c=m.ftrain[2,1:m.n], alpha=0.8,
+        vmin=vmin, vmax=vmax)
