@@ -64,5 +64,9 @@ opt = TransD_GP.Options(nmin = nmin,
                         K = K
                         )
 ##
-λ² = 10 .^(2*log10λ.fstar)'
-m = TransD_GP.init_ns(opt, log10λ)
+λ² = log10λ.fstar
+m = TransD_GP.init(opt, log10λ)
+idxs = TransD_GP.gettrainidx(opt.kdtree, m.xtrain, m.n)
+ftest, = GP.GPfit(K, m.ftrain[:,1:m.n], m.xtrain[:,1:m.n],
+    opt.xall, λ², λ²[:,idxs], δ, p=2, demean=demean, nogetvars=true)
+@test norm(mean(ftest - m.fstar)) < 1e-12

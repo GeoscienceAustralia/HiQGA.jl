@@ -132,23 +132,27 @@ function init(opt::TransD_GP.Options)
                  zeros(Float64, size(opt.xbounds, 1)))
 end
 
-function init_ns(opt::TransD_GP.Options, m::Model)
-    λ² = 10 .^(2*m.fstar)'
+function gettrainidx(kdtree::KDTree, xtrain::Array{Float64, 2}, n::Int)
+    idxs,  = knn(kdtree, xtrain[:,1:n], 1)
+    reduce(vcat, idxs)
+end
+
+function init(opt::TransD_GP.Options, m::Model)
+    λ² = m.fstar
     n = opt.nmin
     xtrain = zeros(Float64, size(opt.xbounds,1), opt.nmax)
     xtrain[:,1:n] = opt.xbounds[:,1] .+ diff(opt.xbounds, dims=2).*rand(size(opt.xbounds, 1), n)
     ftrain = zeros(Float64, size(opt.fbounds,1), opt.nmax)
     ftrain[:,1:n] = opt.fbounds[:,1] .+ diff(opt.fbounds, dims=2).*rand(size(opt.fbounds, 1), n)
     K_y = zeros(opt.nmax, opt.nmax)
-    idxs,  = knn(opt.kdtree, xtrain[:,1:n], 1)
-    ridxs = reduce(vcat, idxs)
+    idxs = gettrainidx(opt.kdtree, xtrain, n)
     ky = view(K_y, 1:n, 1:n)
-    map!(x->x, ky, GP.pairwise(opt.K, xtrain[:,1:n], xtrain[:,1:n], λ²[:,ridxs], λ²[:,ridxs]))
+    map!(x->x, ky, GP.pairwise(opt.K, xtrain[:,1:n], xtrain[:,1:n], λ²[:,idxs], λ²[:,idxs]))
     K_y[diagind(K_y)] .+= opt.δ^2
     Kstar = zeros(Float64, size(opt.xall,2), opt.nmax)
     xtest = opt.xall
     ks = view(Kstar, :, 1:n)
-    map!(x->x, Kstar, GP.pairwise(opt.K, xtrain[:,1:n], xtest, λ²[:,ridxs], λ²))
+    map!(x->x, Kstar, GP.pairwise(opt.K, xtrain[:,1:n], xtest, λ²[:,idxs], λ²))
     mf = zeros(size(opt.fbounds, 1))
     if opt.demean && n>1
         mf = mean(ftrain[:,1:n], dims=2)
