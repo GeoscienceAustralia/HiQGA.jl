@@ -92,6 +92,21 @@ mutable struct Model
     xtrain_focus  :: Array{Float64} # for quasimultid to keep track of
 end
 
+mutable struct ModelNonstat
+    fstar         :: Array{Float64}
+    xtrain        :: Array{Float64}
+    ftrain        :: Array{Float64}
+    K_y           :: Array{Float64, 2}
+    Kstar         :: Array{Float64, 2}
+    n             :: Int
+    ftrain_old    :: Array{Float64}
+    xtrain_old    :: Array{Float64}
+    iremember     :: Int # stores old changed point index to recover state
+    xtrain_focus  :: Array{Float64} # for quasimultid to keep track of
+    K_y_old       :: Array{Float64, 2}
+    Kstar_old     :: Array{Float64, 2}
+end
+
 mutable struct Stats
     move_tries::Array{Int, 1}
     accepted_moves::Array{Int, 1}
@@ -108,6 +123,7 @@ mutable struct Writepointers
     fp_x_ftrain   :: IOStream
 end
 
+## Stationary GP functions
 function init(opt::TransD_GP.Options)
     n = opt.nmin
     xtrain = zeros(Float64, size(opt.xbounds,1), opt.nmax)
@@ -135,33 +151,6 @@ end
 function gettrainidx(kdtree::KDTree, xtrain::Array{Float64, 2}, n::Int)
     idxs,  = knn(kdtree, xtrain[:,1:n], 1)
     reduce(vcat, idxs)
-end
-
-function init(opt::TransD_GP.Options, m::Model)
-    λ² = m.fstar
-    n = opt.nmin
-    xtrain = zeros(Float64, size(opt.xbounds,1), opt.nmax)
-    xtrain[:,1:n] = opt.xbounds[:,1] .+ diff(opt.xbounds, dims=2).*rand(size(opt.xbounds, 1), n)
-    ftrain = zeros(Float64, size(opt.fbounds,1), opt.nmax)
-    ftrain[:,1:n] = opt.fbounds[:,1] .+ diff(opt.fbounds, dims=2).*rand(size(opt.fbounds, 1), n)
-    K_y = zeros(opt.nmax, opt.nmax)
-    idxs = gettrainidx(opt.kdtree, xtrain, n)
-    ky = view(K_y, 1:n, 1:n)
-    map!(x->x, ky, GP.pairwise(opt.K, xtrain[:,1:n], xtrain[:,1:n], λ²[:,idxs], λ²[:,idxs]))
-    K_y[diagind(K_y)] .+= opt.δ^2
-    Kstar = zeros(Float64, size(opt.xall,2), opt.nmax)
-    xtest = opt.xall
-    ks = view(Kstar, :, 1:n)
-    map!(x->x, Kstar, GP.pairwise(opt.K, xtrain[:,1:n], xtest, λ²[:,idxs], λ²))
-    mf = zeros(size(opt.fbounds, 1))
-    if opt.demean && n>1
-        mf = mean(ftrain[:,1:n], dims=2)
-    end
-    rhs = ftrain[:,1:n] .- mf
-    U = cholesky(K_y[1:n,1:n]).U
-    fstar = mf' .+ Kstar[:,1:n]*(U\(U'\rhs'))
-    return Model(fstar, xtrain, ftrain, K_y, Kstar, n,
-                 [0.0], zeros(Float64, size(opt.xbounds, 1)), 0, zeros(Float64, size(opt.xbounds, 1)))
 end
 
 function birth!(m::Model, opt::TransD_GP.Options)
@@ -293,7 +282,47 @@ function undo_position_change!(m::Model, opt::TransD_GP.Options)
     K_y[ipoint,ipoint] = K_y[ipoint,ipoint] + opt.δ^2
 end
 
+## Non stationary GP functions
+function init(opt::TransD_GP.Options, m::Model)
+    λ² = m.fstar
+    n = opt.nmin
+    xtrain = zeros(Float64, size(opt.xbounds,1), opt.nmax)
+    xtrain[:,1:n] = opt.xbounds[:,1] .+ diff(opt.xbounds, dims=2).*rand(size(opt.xbounds, 1), n)
+    ftrain = zeros(Float64, size(opt.fbounds,1), opt.nmax)
+    ftrain[:,1:n] = opt.fbounds[:,1] .+ diff(opt.fbounds, dims=2).*rand(size(opt.fbounds, 1), n)
+    K_y = zeros(opt.nmax, opt.nmax)
+    idxs = gettrainidx(opt.kdtree, xtrain, n)
+    ky = view(K_y, 1:n, 1:n)
+    map!(x->x, ky, GP.pairwise(opt.K, xtrain[:,1:n], xtrain[:,1:n], λ²[:,idxs], λ²[:,idxs]))
+    K_y[diagind(K_y)] .+= opt.δ^2
+    Kstar = zeros(Float64, size(opt.xall,2), opt.nmax)
+    xtest = opt.xall
+    ks = view(Kstar, :, 1:n)
+    map!(x->x, Kstar, GP.pairwise(opt.K, xtrain[:,1:n], xtest, λ²[:,idxs], λ²))
+    mf = zeros(size(opt.fbounds, 1))
+    if opt.demean && n>1
+        mf = mean(ftrain[:,1:n], dims=2)
+    end
+    rhs = ftrain[:,1:n] .- mf
+    U = cholesky(K_y[1:n,1:n]).U
+    fstar = mf' .+ Kstar[:,1:n]*(U\(U'\rhs'))
+    return Model(fstar, xtrain, ftrain, K_y, Kstar, n,
+                 [0.0], zeros(Float64, size(opt.xbounds, 1)), 0, zeros(Float64, size(opt.xbounds, 1)))
+end
+
 function sync_model!(m::Model, opt::Options)
+    ftrain, K_y, Kstar, n = m.ftrain, m.K_y, m.Kstar, m.n
+    mf = zeros(size(opt.fbounds, 1))
+    if opt.demean
+        mf = mean(ftrain[:,1:n], dims=2)
+    end
+    rhs = ftrain[:,1:n] .- mf
+    # could potentially store chol if very time consuming
+    U = cholesky(K_y[1:n, 1:n]).U
+    copy!(m.fstar, 10 .^(2(mf' .+ Kstar[:,1:n]*(U\(U'\rhs'))))')
+end
+
+function sync_model!(m::ModelNonstat, optₘ::Options, l::Model, optₗ::Options)
     ftrain, K_y, Kstar, n = m.ftrain, m.K_y, m.Kstar, m.n
     mf = zeros(size(opt.fbounds, 1))
     if opt.demean

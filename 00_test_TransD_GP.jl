@@ -267,7 +267,7 @@ opt = TransD_GP.Options(nmin = nmin,
     end
     # undo position change works if here
 end
-## timing for birthh
+## timing for birth
     @time for i = 1:300
               TransD_GP.birth!(m, opt)
     end
@@ -287,3 +287,4 @@ end
     ax[2].scatter(m.xtrain[1,1:m.n], m.xtrain[2,1:m.n],marker="+",c="r")
     ax[2].scatter(m.xtrain[1,1:m.n], m.xtrain[2,1:m.n],c=m.ftrain[2,1:m.n], alpha=0.8,
         vmin=vmin, vmax=vmax)
+## but we also need to check if the μ model is restored

@@ -65,7 +65,7 @@ opt = TransD_GP.Options(nmin = nmin,
                         )
 ##
 λ² = log10λ.fstar
-m = TransD_GP.init(opt, log10λ)
+@time m = TransD_GP.init(opt, log10λ)
 idxs = TransD_GP.gettrainidx(opt.kdtree, m.xtrain, m.n)
 ftest, = GP.GPfit(K, m.ftrain[:,1:m.n], m.xtrain[:,1:m.n],
     opt.xall, λ², λ²[:,idxs], δ, p=2, demean=demean, nogetvars=true)
