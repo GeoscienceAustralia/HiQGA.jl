@@ -9,7 +9,7 @@ Klog10λ = GP.Mat32()
 λx,λy = 0.6,0.6
 x = 0:(0.01λx):λx
 y = 0:(0.01λy):2λy
-λlog10λ = [0.1maximum(y), 0.1maximum(x)]
+λlog10λ = [0.1maximum(y), 0.1maximum(y)]
 demean = true
 sdev_poslog10λ = [0.01maximum(y), 0.01maximum(x)]
 log10bounds = [-2 -0.69; -2 -0.69]
@@ -186,7 +186,7 @@ end
 end
 ## plot
 fig,ax = plt.subplots(1,3, sharex=true, sharey=true)
-log10λ.fstar = sqrt.(log10λ.fstar)
+log10λ.fstar = log10.(log10λ.fstar.^0.5)
 vmin, vmax = minimum(log10λ.fstar[1,:]), maximum(log10λ.fstar[1,:])
 im1 = ax[1].imshow(reshape(log10λ.fstar[1,:],length(y), length(x)), extent=[x[1],x[end],y[end],y[1]],
     vmin=vmin, vmax=vmax)
