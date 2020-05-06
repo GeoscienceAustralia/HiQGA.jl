@@ -79,3 +79,19 @@ ftest, = GP.GPfit(K, m.ftrain[:,1:m.n], m.xtrain[:,1:m.n],
     opt.xall, λ², λ²[:,idxs], δ, p=2, demean=demean, nogetvars=true)
 @test norm(mean(ftest - m.fstar)) < 1e-12
 end
+@testset "death tests" begin
+for i = 1:100
+    TransD_GP.death!(m, opt)
+end
+idxs = TransD_GP.gettrainidx(opt.kdtree, m.xtrain, m.n)
+ftest, = GP.GPfit(K, m.ftrain[:,1:m.n], m.xtrain[:,1:m.n],
+    opt.xall, λ², λ²[:,idxs], δ, p=2, demean=demean, nogetvars=true)
+@test norm(mean(ftest - m.fstar)) < 1e-12
+mold = deepcopy(m)
+TransD_GP.birth!(m, opt, log10λ)
+TransD_GP.undo_birth!(m, opt)
+TransD_GP.sync_model!(m, opt)
+idxs = TransD_GP.gettrainidx(opt.kdtree, m.xtrain, m.n)
+ftest, = GP.GPfit(K, m.ftrain[:,1:m.n], m.xtrain[:,1:m.n],
+    opt.xall, λ², λ²[:,idxs], δ, p=2, demean=demean, nogetvars=true)
+@test norm(mean(ftest - m.fstar)) < 1e-12        

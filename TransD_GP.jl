@@ -306,11 +306,12 @@ function init(opt::TransD_GP.Options, m::Model)
     rhs = ftrain[:,1:n] .- mf
     U = cholesky(K_y[1:n,1:n]).U
     fstar = mf' .+ Kstar[:,1:n]*(U\(U'\rhs'))
-    return Model(fstar, xtrain, ftrain, K_y, Kstar, n,
-                 [0.0], zeros(Float64, size(opt.xbounds, 1)), 0, zeros(Float64, size(opt.xbounds, 1)))
+    return ModelNonstat(fstar, xtrain, ftrain, K_y, Kstar, n,
+                 [0.0], zeros(Float64, size(opt.xbounds, 1)), 0, zeros(Float64, size(opt.xbounds, 1)),
+                 copy(K_y), copy(Kstar))
 end
 
-function birth!(m::Model, opt::TransD_GP.Options, l::Model)
+function birth!(m::ModelNonstat, opt::TransD_GP.Options, l::Model)
     λ² = l.fstar
     xtrain, ftrain, K_y,  Kstar, n = m.xtrain, m.ftrain, m.K_y,  m.Kstar, m.n
     xtrain[:,n+1] = opt.xbounds[:,1] + diff(opt.xbounds, dims=2).*rand(size(opt.xbounds, 1))
@@ -334,9 +335,42 @@ function birth!(m::Model, opt::TransD_GP.Options, l::Model)
     m.n = n+1
 end
 
-# function undo_birth!(m::Model, opt::TransD_GP.Options)
-#     m.n = m.n - 1
-# end
+function undo_birth!(m::ModelNonstat, opt::TransD_GP.Options)
+    m.n = m.n - 1
+end
+
+function death!(m::ModelNonstat, opt::TransD_GP.Options)
+    xtrain, ftrain, K_y,  Kstar, n = m.xtrain, m.ftrain, m.K_y,  m.Kstar, m.n
+    ipoint = rand(1:n)
+    m.iremember = ipoint
+    copy!(m.xtrain_focus, xtrain[:,ipoint])
+    xtrain[:,ipoint], xtrain[:,n] = xtrain[:,n], xtrain[:,ipoint]
+    ftrain[:,ipoint], ftrain[:,n] = ftrain[:,n], ftrain[:,ipoint]
+    Kstar[:,ipoint], Kstar[:,n] = Kstar[:,n], Kstar[:,ipoint]
+    K_y[ipoint,1:n], K_y[n,1:n] = K_y[n,1:n], K_y[ipoint,1:n]
+    K_y[1:n-1,ipoint] = K_y[ipoint,1:n-1]
+    K_y[ipoint,ipoint] = 1.0 + opt.δ^2
+    mf = zeros(size(opt.fbounds, 1))
+    if opt.demean && n>2
+        mf = mean(ftrain[:,1:n-1], dims=2)
+    end
+    rhs = ftrain[:,1:n-1] .- mf
+    U = cholesky(K_y[1:n-1, 1:n-1]).U
+    copy!(m.fstar, mf' .+ Kstar[:,1:n-1]*(U\(U'\rhs')))
+    m.n = n-1
+end
+
+function undo_death!(m::ModelNonstat, opt::TransD_GP.Options)
+    m.n = m.n + 1
+    ftrain, xtrain, Kstar, K_y, n, ipoint = m.ftrain, m.xtrain, m.Kstar, m.K_y, m.n, m.iremember
+    xtrain[:,ipoint], xtrain[:,n] = xtrain[:,n], xtrain[:,ipoint]
+    ftrain[:,ipoint], ftrain[:,n] = ftrain[:,n], ftrain[:,ipoint]
+    Kstar[:,ipoint], Kstar[:,n] = Kstar[:,n], Kstar[:,ipoint]
+    K_y[ipoint,1:n], K_y[n,1:n] = K_y[n,1:n], K_y[ipoint,1:n]
+    K_y[1:n,ipoint] = K_y[ipoint,1:n]
+    K_y[ipoint,ipoint] = 1.0 + opt.δ^2
+    K_y[n,n] = 1.0 + opt.δ^2
+end
 
 function sync_model!(m::Model, opt::Options)
     ftrain, K_y, Kstar, n = m.ftrain, m.K_y, m.Kstar, m.n
@@ -350,7 +384,7 @@ function sync_model!(m::Model, opt::Options)
     copy!(m.fstar, 10 .^(2(mf' .+ Kstar[:,1:n]*(U\(U'\rhs'))))')
 end
 
-function sync_model!(m::ModelNonstat, optₘ::Options, l::Model, optₗ::Options)
+function sync_model!(m::ModelNonstat, opt::Options)
     ftrain, K_y, Kstar, n = m.ftrain, m.K_y, m.Kstar, m.n
     mf = zeros(size(opt.fbounds, 1))
     if opt.demean
@@ -359,7 +393,7 @@ function sync_model!(m::ModelNonstat, optₘ::Options, l::Model, optₗ::Options
     rhs = ftrain[:,1:n] .- mf
     # could potentially store chol if very time consuming
     U = cholesky(K_y[1:n, 1:n]).U
-    copy!(m.fstar, 10 .^(2(mf' .+ Kstar[:,1:n]*(U\(U'\rhs'))))')
+    copy!(m.fstar, mf' .+ Kstar[:,1:n]*(U\(U'\rhs')))
 end
 
 function do_move!(m::Model, opt::Options, stat::Stats)
