@@ -123,7 +123,7 @@ mutable struct Writepointers
     fp_x_ftrain   :: IOStream
 end
 
-## Stationary GP functions
+# Stationary GP functions
 function init(opt::TransD_GP.Options)
     n = opt.nmin
     xtrain = zeros(Float64, size(opt.xbounds,1), opt.nmax)
@@ -146,11 +146,6 @@ function init(opt::TransD_GP.Options)
     return Model(fstar, xtrain, ftrain, K_y, Kstar, n,
                  [0.0], zeros(Float64, size(opt.xbounds, 1)), 0,
                  zeros(Float64, size(opt.xbounds, 1)))
-end
-
-function gettrainidx(kdtree::KDTree, xtrain::Array{Float64, 2}, n::Int)
-    idxs,  = knn(kdtree, xtrain[:,1:n], 1)
-    reduce(vcat, idxs)
 end
 
 function birth!(m::Model, opt::TransD_GP.Options)
@@ -282,7 +277,12 @@ function undo_position_change!(m::Model, opt::TransD_GP.Options)
     K_y[ipoint,ipoint] = K_y[ipoint,ipoint] + opt.δ^2
 end
 
-## Non stationary GP functions
+# Non stationary GP functions
+function gettrainidx(kdtree::KDTree, xtrain::Array{Float64, 2}, n::Int)
+    idxs,  = knn(kdtree, xtrain[:,1:n], 1)
+    reduce(vcat, idxs)
+end
+
 function init(opt::TransD_GP.Options, m::Model)
     λ² = m.fstar
     n = opt.nmin
@@ -309,6 +309,34 @@ function init(opt::TransD_GP.Options, m::Model)
     return Model(fstar, xtrain, ftrain, K_y, Kstar, n,
                  [0.0], zeros(Float64, size(opt.xbounds, 1)), 0, zeros(Float64, size(opt.xbounds, 1)))
 end
+
+function birth!(m::Model, opt::TransD_GP.Options, l::Model)
+    λ² = l.fstar
+    xtrain, ftrain, K_y,  Kstar, n = m.xtrain, m.ftrain, m.K_y,  m.Kstar, m.n
+    xtrain[:,n+1] = opt.xbounds[:,1] + diff(opt.xbounds, dims=2).*rand(size(opt.xbounds, 1))
+    copy!(m.xtrain_focus, xtrain[:,n+1])
+    ftrain[:,n+1] = opt.fbounds[:,1] + diff(opt.fbounds, dims=2).*rand(size(opt.fbounds, 1))
+    xtest = opt.xall
+    Kstarv = @view Kstar[:,n+1]
+    idxs = gettrainidx(opt.kdtree, xtrain, n+1)
+    map!(x²->x²,Kstarv,GP.colwise(opt.K, xtrain[:,n+1], xtest, λ²[:,idxs[end]], λ²))
+    K_yv = @view K_y[n+1,1:n+1]
+    map!(x²->x²,K_yv,GP.colwise(opt.K, xtrain[:,n+1], xtrain[:,1:n+1], λ²[:,idxs[end]], λ²[:,idxs]))
+    K_y[1:n+1,n+1] = K_y[n+1,1:n+1]
+    K_y[n+1,n+1] = K_y[n+1,n+1] + opt.δ^2
+    mf = zeros(size(opt.fbounds, 1))
+    if opt.demean
+        mf = mean(ftrain[:,1:n+1], dims=2)
+    end
+    rhs = ftrain[:,1:n+1] .- mf
+    U = cholesky(K_y[1:n+1, 1:n+1]).U
+    copy!(m.fstar, mf' .+ Kstar[:,1:n+1]*(U\(U'\rhs')))
+    m.n = n+1
+end
+
+# function undo_birth!(m::Model, opt::TransD_GP.Options)
+#     m.n = m.n - 1
+# end
 
 function sync_model!(m::Model, opt::Options)
     ftrain, K_y, Kstar, n = m.ftrain, m.K_y, m.Kstar, m.n
