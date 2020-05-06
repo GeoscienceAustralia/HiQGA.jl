@@ -41,6 +41,9 @@ optlog10λ = TransD_GP.Options(nmin = nminlog10λ,
                         K = Klog10λ
                         )
 @time  log10λ = TransD_GP.init(optlog10λ)
+for i = 1:49
+    TransD_GP.birth!(log10λ, optlog10λ)
+end
 ## make options for the nonstationary GP
 nmin, nmax = 2, 400
 fbounds = [-2. 2]
@@ -177,3 +180,30 @@ opt = TransD_GP.Options(nmin = nmin,
     @test norm(mean(mold.fstar - m.fstar)) < 1e-12
     end
 end
+## timing for birth
+@time for i = 1:300
+    TransD_GP.birth!(m, opt, log10λ)
+end
+## plot
+fig,ax = plt.subplots(1,3, sharex=true, sharey=true)
+log10λ.fstar = sqrt.(log10λ.fstar)
+vmin, vmax = minimum(log10λ.fstar[1,:]), maximum(log10λ.fstar[1,:])
+im1 = ax[1].imshow(reshape(log10λ.fstar[1,:],length(y), length(x)), extent=[x[1],x[end],y[end],y[1]],
+    vmin=vmin, vmax=vmax)
+colorbar(im1, ax=ax[1])
+ax[1].scatter(log10λ.xtrain[1,1:log10λ.n], log10λ.xtrain[2,1:log10λ.n],marker="+",c="r")
+ax[1].scatter(log10λ.xtrain[1,1:log10λ.n], log10λ.xtrain[2,1:log10λ.n],c=log10λ.ftrain[1,1:log10λ.n], alpha=0.8)
+vmin, vmax = minimum(log10λ.fstar[2,:]), maximum(log10λ.fstar[2,:])
+im2 = ax[2].imshow(reshape(log10λ.fstar[2,:],length(y), length(x)), extent=[x[1],x[end],y[end],y[1]],
+    vmin=vmin, vmax=vmax)
+colorbar(im2, ax=ax[2])
+ax[2].scatter(log10λ.xtrain[1,1:log10λ.n], log10λ.xtrain[2,1:log10λ.n],marker="+",c="r")
+ax[2].scatter(log10λ.xtrain[1,1:log10λ.n], log10λ.xtrain[2,1:log10λ.n],c=log10λ.ftrain[2,1:log10λ.n], alpha=0.8,
+    vmin=vmin, vmax=vmax)
+vmin, vmax = minimum(m.fstar), maximum(m.fstar)
+im3 = ax[3].imshow(reshape(m.fstar,length(y), length(x)), extent=[x[1],x[end],y[end],y[1]],
+    vmin=vmin, vmax=vmax)
+colorbar(im3, ax=ax[3])
+ax[3].scatter(m.xtrain[1,1:m.n], m.xtrain[2,1:m.n],marker="+",c="r")
+ax[3].scatter(m.xtrain[1,1:m.n], m.xtrain[2,1:m.n],c=m.ftrain[1:m.n], alpha=0.8,
+        vmin=vmin, vmax=vmax)
