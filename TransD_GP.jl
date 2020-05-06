@@ -372,6 +372,85 @@ function undo_death!(m::ModelNonstat, opt::TransD_GP.Options)
     K_y[n,n] = 1.0 + opt.δ^2
 end
 
+function property_change!(m::ModelNonstat, opt::TransD_GP.Options)
+    ftrain, K_y, Kstar, n = m.ftrain, m.K_y, m. Kstar, m.n
+    ipoint = 1 + floor(Int, rand()*n)
+    m.iremember = ipoint
+    copy!(m.ftrain_old, ftrain[:,ipoint])
+    ftrain[:,ipoint] = ftrain[:,ipoint] + opt.sdev_prop.*randn(size(opt.fbounds, 1))
+    for i in eachindex(ftrain[:,ipoint])
+        while (ftrain[i,ipoint]<opt.fbounds[i,1]) || (ftrain[i,ipoint]>opt.fbounds[i,2])
+                (ftrain[i,ipoint]<opt.fbounds[i,1]) && (ftrain[i,ipoint] = 2*opt.fbounds[i,1] - ftrain[i,ipoint])
+                (ftrain[i,ipoint]>opt.fbounds[i,2]) && (ftrain[i,ipoint] = 2*opt.fbounds[i,2] - ftrain[i,ipoint])
+        end
+    end
+    mf = zeros(size(opt.fbounds, 1))
+    if opt.demean
+        mf = mean(ftrain[:,1:n], dims=2)
+    end
+    rhs = ftrain[:,1:n] .- mf
+    # could potentially store chol if very time consuming
+    U = cholesky(K_y[1:n, 1:n]).U
+    copy!(m.fstar, mf' .+ Kstar[:,1:n]*(U\(U'\rhs')))
+end
+
+function undo_property_change!(m::ModelNonstat, opt::TransD_GP.Options)
+    ipoint, ftrain = m.iremember, m.ftrain
+    ftrain[:,ipoint] = m.ftrain_old
+end
+
+function position_change!(m::ModelNonstat, opt::TransD_GP.Options, l::Model)
+    λ² = l.fstar
+    xtrain, ftrain, K_y, Kstar, n = m.xtrain, m.ftrain, m.K_y, m.Kstar, m.n
+    ipoint = 1 + floor(Int, rand()*n)
+    m.iremember = ipoint
+    m.xtrain_old[:] = xtrain[:,ipoint]
+    xtrain[:,ipoint] = xtrain[:,ipoint] + opt.sdev_pos.*randn(size(opt.xbounds, 1))
+    copy!(m.xtrain_focus, xtrain[:,ipoint])
+    for i in eachindex(xtrain[:,ipoint])
+        while (xtrain[i,ipoint]<opt.xbounds[i,1]) || (xtrain[i,ipoint]>opt.xbounds[i,2])
+                (xtrain[i,ipoint]<opt.xbounds[i,1]) && (xtrain[i,ipoint] = 2*opt.xbounds[i,1] - xtrain[i,ipoint])
+                (xtrain[i,ipoint]>opt.xbounds[i,2]) && (xtrain[i,ipoint] = 2*opt.xbounds[i,2] - xtrain[i,ipoint])
+        end
+    end
+    xtest = opt.xall
+    Kstarv = @view Kstar[:,ipoint]
+    idxs = gettrainidx(opt.kdtree, xtrain, n)
+    map!(x²->x²,Kstarv,GP.colwise(opt.K, xtrain[:,ipoint], xtest, λ²[:,idxs[ipoint]], λ²))
+    #
+    # map!(x->GP.κ(opt.K, x),Kstarv,colwise(WeightedEuclidean(1 ./opt.λ² ), xtrain[:,ipoint], xtest))
+    K_yv = @view K_y[ipoint,1:n]
+    map!(x²->x²,K_yv,GP.colwise(opt.K, xtrain[:,ipoint], xtrain[:,1:n], λ²[:,idxs[ipoint]], λ²[:,idxs]))
+    # map!(x->GP.κ(opt.K, x),K_yv,colwise(WeightedEuclidean(1 ./opt.λ² ), xtrain[:,ipoint], xtrain[:,1:n]))
+    K_y[1:n,ipoint] = K_y[ipoint,1:n]
+    K_y[ipoint,ipoint] = K_y[ipoint,ipoint] + opt.δ^2
+    mf = zeros(size(opt.fbounds, 1))
+    if opt.demean
+        mf = mean(ftrain[:,1:n], dims=2)
+    end
+    rhs = ftrain[:,1:n] .- mf
+    # could potentially store chol if very time consuming
+    U = cholesky(K_y[1:n, 1:n]).U
+    copy!(m.fstar, mf' .+ Kstar[:,1:n]*(U\(U'\rhs')))
+end
+
+function undo_position_change!(m::ModelNonstat, opt::TransD_GP.Options, l::Model)
+    λ² = l.fstar
+    xtrain, K_y, Kstar, n = m.xtrain, m.K_y, m.Kstar, m.n
+    ipoint = m.iremember
+    xtrain[:,ipoint] = m.xtrain_old
+    xtest = opt.xall
+    Kstarv = @view Kstar[:,ipoint]
+    idxs = gettrainidx(opt.kdtree, xtrain, n)
+    map!(x²->x²,Kstarv,GP.colwise(opt.K, xtrain[:,ipoint], xtest, λ²[:,idxs[ipoint]], λ²))
+    #map!(x->GP.κ(opt.K, x),Kstarv,colwise(WeightedEuclidean(1 ./opt.λ² ), xtrain[:,ipoint], xtest))
+    K_yv = @view K_y[ipoint,1:n]
+    map!(x²->x²,K_yv,GP.colwise(opt.K, xtrain[:,ipoint], xtrain[:,1:n], λ²[:,idxs[ipoint]], λ²[:,idxs]))
+    #map!(x->GP.κ(opt.K, x),K_yv,colwise(WeightedEuclidean(1 ./opt.λ² ), xtrain[:,ipoint], xtrain[:,1:n]))
+    K_y[1:n,ipoint] = K_y[ipoint,1:n]
+    K_y[ipoint,ipoint] = K_y[ipoint,ipoint] + opt.δ^2
+end
+
 function sync_model!(m::Model, opt::Options)
     ftrain, K_y, Kstar, n = m.ftrain, m.K_y, m.Kstar, m.n
     mf = zeros(size(opt.fbounds, 1))

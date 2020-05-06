@@ -63,35 +63,117 @@ opt = TransD_GP.Options(nmin = nmin,
                         quasimultid = false,
                         K = K
                         )
-##
+## Nonstationary GP model changes
 λ² = log10λ.fstar
 @time m = TransD_GP.init(opt, log10λ)
-idxs = TransD_GP.gettrainidx(opt.kdtree, m.xtrain, m.n)
-ftest, = GP.GPfit(K, m.ftrain[:,1:m.n], m.xtrain[:,1:m.n],
-    opt.xall, λ², λ²[:,idxs], δ, p=2, demean=demean, nogetvars=true)
-@test norm(mean(ftest - m.fstar)) < 1e-12
-@testset "birth tests" begin
-for i = 1:100
+@testset "Nonstationary GP model changes" begin
+    @testset "init test" begin
+    idxs = TransD_GP.gettrainidx(opt.kdtree, m.xtrain, m.n)
+    ftest, = GP.GPfit(K, m.ftrain[:,1:m.n], m.xtrain[:,1:m.n],
+        opt.xall, λ², λ²[:,idxs], δ, p=2, demean=demean, nogetvars=true)
+    @test norm(mean(ftest - m.fstar)) < 1e-12
+    end
+    @testset "birth tests" begin
+    for i = 1:100
+        TransD_GP.birth!(m, opt, log10λ)
+    end
+    idxs = TransD_GP.gettrainidx(opt.kdtree, m.xtrain, m.n)
+    ftest, = GP.GPfit(K, m.ftrain[:,1:m.n], m.xtrain[:,1:m.n],
+        opt.xall, λ², λ²[:,idxs], δ, p=2, demean=demean, nogetvars=true)
+    @test norm(mean(ftest - m.fstar)) < 1e-12
+    end
+    @testset "death tests" begin
+    for i = 1:100
+        TransD_GP.death!(m, opt)
+    end
+    idxs = TransD_GP.gettrainidx(opt.kdtree, m.xtrain, m.n)
+    ftest, = GP.GPfit(K, m.ftrain[:,1:m.n], m.xtrain[:,1:m.n],
+        opt.xall, λ², λ²[:,idxs], δ, p=2, demean=demean, nogetvars=true)
+    @test norm(mean(ftest - m.fstar)) < 1e-12
+    end
+    @testset "undo birth" begin
+    mold = deepcopy(m)
     TransD_GP.birth!(m, opt, log10λ)
-end
-idxs = TransD_GP.gettrainidx(opt.kdtree, m.xtrain, m.n)
-ftest, = GP.GPfit(K, m.ftrain[:,1:m.n], m.xtrain[:,1:m.n],
-    opt.xall, λ², λ²[:,idxs], δ, p=2, demean=demean, nogetvars=true)
-@test norm(mean(ftest - m.fstar)) < 1e-12
-end
-@testset "death tests" begin
-for i = 1:100
+    TransD_GP.undo_birth!(m, opt)
+    TransD_GP.sync_model!(m, opt)
+    idxs = TransD_GP.gettrainidx(opt.kdtree, m.xtrain, m.n)
+    ftest, = GP.GPfit(K, m.ftrain[:,1:m.n], m.xtrain[:,1:m.n],
+        opt.xall, λ², λ²[:,idxs], δ, p=2, demean=demean, nogetvars=true)
+    @test norm(mean(ftest - m.fstar)) < 1e-12
+    @test norm(mean(mold.fstar - m.fstar)) < 1e-12
+    end
+    @testset "undo multiple birth" begin
+    TransD_GP.birth!(m, opt, log10λ )
+    TransD_GP.birth!(m, opt, log10λ)
+    mold = deepcopy(m)
+    TransD_GP.birth!(m, opt, log10λ)
+    TransD_GP.undo_birth!(m, opt)
+    TransD_GP.sync_model!(m, opt)
+    idxs = TransD_GP.gettrainidx(opt.kdtree, m.xtrain, m.n)
+    ftest, = GP.GPfit(K, m.ftrain[:,1:m.n], m.xtrain[:,1:m.n],
+        opt.xall, λ², λ²[:,idxs], δ, p=2, demean=demean, nogetvars=true)
+    @test norm(mean(ftest - m.fstar)) < 1e-12
+    @test norm(mean(mold.fstar - m.fstar)) < 1e-12
+    end
+    @testset "undo death" begin
+    mold = deepcopy(m)
     TransD_GP.death!(m, opt)
+    TransD_GP.undo_death!(m, opt)
+    TransD_GP.sync_model!(m, opt)
+    idxs = TransD_GP.gettrainidx(opt.kdtree, m.xtrain, m.n)
+    ftest, = GP.GPfit(K, m.ftrain[:,1:m.n], m.xtrain[:,1:m.n],
+        opt.xall, λ², λ²[:,idxs], δ, p=2, demean=demean, nogetvars=true)
+    @test norm(mean(ftest - m.fstar)) < 1e-12
+    @test norm(mean(mold.fstar - m.fstar)) < 1e-12
+    end
+    @testset "undo multiple death" begin
+    TransD_GP.birth!(m, opt, log10λ)
+    TransD_GP.birth!(m, opt, log10λ)
+    TransD_GP.birth!(m, opt, log10λ)
+    mold = deepcopy(m)
+    TransD_GP.death!(m, opt)
+    TransD_GP.undo_death!(m, opt)
+    TransD_GP.sync_model!(m, opt)
+    idxs = TransD_GP.gettrainidx(opt.kdtree, m.xtrain, m.n)
+    ftest, = GP.GPfit(K, m.ftrain[:,1:m.n], m.xtrain[:,1:m.n],
+        opt.xall, λ², λ²[:,idxs], δ, p=2, demean=demean, nogetvars=true)
+    @test norm(mean(ftest - m.fstar)) < 1e-12
+    @test norm(mean(mold.fstar - m.fstar)) < 1e-12
+    end
+    @testset "property change" begin
+    TransD_GP.property_change!(m, opt)
+    idxs = TransD_GP.gettrainidx(opt.kdtree, m.xtrain, m.n)
+    ftest, = GP.GPfit(K, m.ftrain[:,1:m.n], m.xtrain[:,1:m.n],
+        opt.xall, λ², λ²[:,idxs], δ, p=2, demean=demean, nogetvars=true)
+    @test norm(mean(ftest - m.fstar)) < 1e-12
+    end
+    @testset "undo property change" begin
+    mold = deepcopy(m)
+    TransD_GP.property_change!(m, opt)
+    TransD_GP.undo_property_change!(m, opt)
+    TransD_GP.sync_model!(m, opt)
+    idxs = TransD_GP.gettrainidx(opt.kdtree, m.xtrain, m.n)
+    ftest, = GP.GPfit(K, m.ftrain[:,1:m.n], m.xtrain[:,1:m.n],
+        opt.xall, λ², λ²[:,idxs], δ, p=2, demean=demean, nogetvars=true)
+    @test norm(mean(ftest - m.fstar)) < 1e-12
+    @test norm(mean(mold.fstar - m.fstar)) < 1e-12
+    end
+    @testset "position change" begin
+    TransD_GP.position_change!(m, opt, log10λ)
+    idxs = TransD_GP.gettrainidx(opt.kdtree, m.xtrain, m.n)
+    ftest, = GP.GPfit(K, m.ftrain[:,1:m.n], m.xtrain[:,1:m.n],
+        opt.xall, λ², λ²[:,idxs], δ, p=2, demean=demean, nogetvars=true)
+    @test norm(mean(ftest - m.fstar)) < 1e-12
+    end
+    @testset "undo position change" begin
+    mold = deepcopy(m)
+    TransD_GP.position_change!(m, opt, log10λ)
+    TransD_GP.undo_position_change!(m, opt, log10λ)
+    TransD_GP.sync_model!(m, opt)
+    idxs = TransD_GP.gettrainidx(opt.kdtree, m.xtrain, m.n)
+    ftest, = GP.GPfit(K, m.ftrain[:,1:m.n], m.xtrain[:,1:m.n],
+        opt.xall, λ², λ²[:,idxs], δ, p=2, demean=demean, nogetvars=true)
+    @test norm(mean(ftest - m.fstar)) < 1e-12
+    @test norm(mean(mold.fstar - m.fstar)) < 1e-12
+    end
 end
-idxs = TransD_GP.gettrainidx(opt.kdtree, m.xtrain, m.n)
-ftest, = GP.GPfit(K, m.ftrain[:,1:m.n], m.xtrain[:,1:m.n],
-    opt.xall, λ², λ²[:,idxs], δ, p=2, demean=demean, nogetvars=true)
-@test norm(mean(ftest - m.fstar)) < 1e-12
-mold = deepcopy(m)
-TransD_GP.birth!(m, opt, log10λ)
-TransD_GP.undo_birth!(m, opt)
-TransD_GP.sync_model!(m, opt)
-idxs = TransD_GP.gettrainidx(opt.kdtree, m.xtrain, m.n)
-ftest, = GP.GPfit(K, m.ftrain[:,1:m.n], m.xtrain[:,1:m.n],
-    opt.xall, λ², λ²[:,idxs], δ, p=2, demean=demean, nogetvars=true)
-@test norm(mean(ftest - m.fstar)) < 1e-12        
