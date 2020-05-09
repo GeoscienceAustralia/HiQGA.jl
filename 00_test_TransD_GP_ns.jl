@@ -38,8 +38,7 @@ optlog10λ = TransD_GP.Options(nmin = nminlog10λ,
                         sdev_pos = sdev_poslog10λ,
                         pnorm = pnorm,
                         quasimultid = false,
-                        K = Klog10λ,
-                        timesλ = 2.0
+                        K = Klog10λ
                         )
 @time  log10λ = TransD_GP.init(optlog10λ)
 ##
