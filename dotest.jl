@@ -5,8 +5,8 @@ log10λold = deepcopy(log10λ)
 TransD_GP.birth!(log10λ, optlog10λ, mns, opt.δ)
 TransD_GP.sync_model!(mns, opt)
 λ² = log10λ.fstar
-idxs = TransD_GP.gettrainidx(opt.kdtree, mold.xtrain, mold.n)
-ftest, = GP.GPfit(K, mold.ftrain[:,1:mold.n], mold.xtrain[:,1:mold.n],
+idxs = TransD_GP.gettrainidx(opt.kdtree, mnsold.xtrain, mnsold.n)
+ftest, = GP.GPfit(K, mnsold.ftrain[:,1:mnsold.n], mnsold.xtrain[:,1:mnsold.n],
         opt.xall, λ², λ²[:,idxs], opt.δ, p=2, demean=demean, nogetvars=true)
 ##
 m = deepcopy(log10λold)
