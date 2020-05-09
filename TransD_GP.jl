@@ -30,6 +30,7 @@ mutable struct Options
     K                   :: GP.Kernel
     kdtree              :: KDTree
     balltree            :: BallTree
+    timesλ              :: Float64
 end
 
 function Options(;
@@ -53,7 +54,8 @@ function Options(;
         debug              = false,
         quasimultid        = "",
         influenceradius    = [-9.9],
-        K                  = GP.SqEuclidean()
+        K                  = GP.SqEuclidean(),
+        timesλ             = 1.0
         )
 
         @assert xall != nothing
@@ -64,7 +66,7 @@ function Options(;
         @assert ndims(sdev_pos) == 1
         @assert length(sdev_pos) == size(xbounds, 1)
         @assert length(λ) == size(xbounds, 1)
-        @assert(ndims(λ)) == 1
+        @assert ndims(λ) == 1
         @assert quasimultid != "" "specify true or false explicitly"
         if quasimultid
             @assert influenceradius[1] > 0.0
@@ -75,11 +77,11 @@ function Options(;
         fstar_filename = "models_"*fdataname*".bin"
         x_ftrain_filename = "points_"*fdataname*".bin"
         kdtree = KDTree(xall)
-        balltree = BallTree()
+        balltree = BallTree(xall./λ)
         Options(nmin, nmax, xbounds, fbounds, xall, λ.^2 , δ, demean, sdev_prop, sdev_pos, pnorm,
                 stat_window, dispstatstoscreen, report_freq, save_freq,
                 fdataname, history_mode, costs_filename, fstar_filename, x_ftrain_filename,
-                debug, quasimultid, influenceradius, K, kdtree)
+                debug, quasimultid, influenceradius, K, kdtree, balltree, timesλ)
 end
 
 mutable struct Model
@@ -151,7 +153,7 @@ function init(opt::TransD_GP.Options)
                  zeros(Float64, size(opt.xbounds, 1)))
 end
 
-function birth!(m::Model, opt::TransD_GP.Options, l::ModelNonstat)
+function birth!(m::Model, opt::TransD_GP.Options, mns::ModelNonstat, δns::Float64)
     xtrain, ftrain, K_y,  Kstar, n = m.xtrain, m.ftrain, m.K_y,  m.Kstar, m.n
     xtrain[:,n+1] = opt.xbounds[:,1] + diff(opt.xbounds, dims=2).*rand(size(opt.xbounds, 1))
     copy!(m.xtrain_focus, xtrain[:,n+1])
@@ -171,9 +173,25 @@ function birth!(m::Model, opt::TransD_GP.Options, l::ModelNonstat)
     U = cholesky(K_y[1:n+1, 1:n+1]).U
     copy!(m.fstar, 10 .^(2(mf' .+ Kstar[:,1:n+1]*(U\(U'\rhs'))))')
     m.n = n+1
-    # updating the nonstationarky kernels now
+    # updating the nonstationary kernels now
+    updatenskernels!(opt, m, n+1, mns, δns)
+end
 
-    xtchaingeidx = reduce(vcat, inrange(balltree, points, r)
+function updatenskernels!(opt::Options, m::Model, n::Int, mns::ModelNonstat, δns:: Float64)
+    xtrain, ftrain, fstar, xtest = m.xtrain, m.ftrain, m.fstar, opt.xall
+    kstarchangeidx = inrange(opt.balltree, xtrain[:,n]./sqrt.(opt.λ²), opt.timesλ)
+    balltree = BallTree(mns.xtrain[:,1:mns.n]./sqrt.(opt.λ²))
+    kychangeidx = inrange(balltree, xtrain[:,n]./sqrt.(opt.λ²), opt.timesλ)
+    idxs = gettrainidx(opt.kdtree, mns.xtrain, mns.n)
+    ks = view(mns.Kstar, kstarchangeidx, 1:mns.n)
+    map!(x->x, ks, GP.pairwise(opt.K, mns.xtrain[:,1:mns.n],
+                xtest[:,kstarchangeidx], fstar[:,idxs], fstar[:,kstarchangeidx]))
+    if length(kychangeidx) > 0
+        ky = view(mns.K_y, kychangeidx, kychangeidx)
+        map!(x->x, ky, GP.pairwise(opt.K, mns.xtrain[:,kychangeidx], mns.xtrain[:,kychangeidx],
+                                    fstar[:,idxs][:,kychangeidx], fstar[:,idxs][:,kychangeidx]))
+        mns.K_y[diagind(mns.K_y)] .= 1 + δns^2
+    end
 end
 
 function undo_birth!(m::Model, opt::TransD_GP.Options)

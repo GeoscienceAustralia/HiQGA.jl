@@ -33,14 +33,16 @@ optlog10λ = TransD_GP.Options(nmin = nminlog10λ,
                         xall = xall,
                         λ = λlog10λ,
                         δ = δlog10λ,
-                        demean = demean,
+                        demean = false,
                         sdev_prop = sdev_proplog10λ,
                         sdev_pos = sdev_poslog10λ,
                         pnorm = pnorm,
                         quasimultid = false,
-                        K = Klog10λ
+                        K = Klog10λ,
+                        timesλ = 2.0
                         )
 @time  log10λ = TransD_GP.init(optlog10λ)
+##
 for i = 1:49
     TransD_GP.birth!(log10λ, optlog10λ)
 end
@@ -52,6 +54,7 @@ sdev_prop = [0.1]
 sdev_pos = [0.05, 0.05]
 K = GP.Mat32()
 ## Initialize model for the nonstationary GP
+Random.seed!(13)
 opt = TransD_GP.Options(nmin = nmin,
                         nmax = nmax,
                         xbounds = optlog10λ.xbounds,
