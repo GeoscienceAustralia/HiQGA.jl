@@ -191,7 +191,8 @@ function updatenskernels!(opt::Options, m::Model, n::Int,
     else
         kstarchangeidx = inrange(opt.balltree, xtrain[:,n]./sqrt.(opt.λ²), opt.timesλ)
         balltree = BallTree(mns.xtrain[:,1:mns.n]./sqrt.(opt.λ²))
-        kychangeidx = inrange(balltree, xtrain[:,n]./sqrt.(opt.λ²), opt.timesλ)
+        #kychangeidx = inrange(balltree, xtrain[:,n]./sqrt.(opt.λ²), opt.timesλ)
+        kychangeidx = 1:mns.n
     end
     idxs = gettrainidx(opt.kdtree, mns.xtrain, mns.n)
     ks = view(mns.Kstar, kstarchangeidx, 1:mns.n)
@@ -199,9 +200,10 @@ function updatenskernels!(opt::Options, m::Model, n::Int,
                 xtest[:,kstarchangeidx], λ²[:,idxs], λ²[:,kstarchangeidx]))
     if length(kychangeidx) > 0
     @info "here"
-        ky = view(mns.K_y, kychangeidx, kychangeidx)
-        map!(x->x, ky, GP.pairwise(opt.K, mns.xtrain[:,1:mns.n][:,kychangeidx], mns.xtrain[:,1:mns.n][:,kychangeidx],
-                                    λ²[:,idxs][:,kychangeidx], λ²[:,idxs][:,kychangeidx]))
+        ky = view(mns.K_y, 1:mns.n , kychangeidx)
+        map!(x->x, ky, GP.pairwise(opt.K, mns.xtrain[:,1:mns.n], mns.xtrain[:,1:mns.n][:,kychangeidx],
+                                    λ²[:,idxs], λ²[:,idxs][:,kychangeidx]))
+        mns.K_y[kychangeidx,1:mns.n] = mns.K_y[1:mns.n,kychangeidx]'
         mns.K_y[diagind(mns.K_y)] .= 1 + optns.δ^2
         ks = view(mns.Kstar, :, kychangeidx)
         map!(x->x, ks, GP.pairwise(opt.K, mns.xtrain[:,1:mns.n][:,kychangeidx],
