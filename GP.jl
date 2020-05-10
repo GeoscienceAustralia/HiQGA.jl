@@ -33,9 +33,8 @@ function makekernel(K::Kernel, xtrain::AbstractArray, xtest::AbstractArray,
 end
 
 function GPfit(K::Kernel, ytrain, xtrain, xtest, λ²::Array{Float64,1}, δ::Real ;nogetvars=false,
-            demean=true, p=2)
+            demean=true, p=2, my = zeros(size(ytrain, 1)))
     @assert length(λ²) == size(xtrain,1)
-    my = zeros(size(ytrain, 1))
     if demean
         my = mean(ytrain, dims=2)
     end
@@ -75,10 +74,9 @@ function makekernel(K::Kernel, xtrain::AbstractArray, xtest::AbstractArray,
 end
 
 function GPfit(K::Kernel, ytrain, xtrain, xtest, λ²test::Array{Float64,2}, λ²train::Array{Float64,2},
-            δ ;nogetvars=false, demean=true, p=2)
+            δ ;nogetvars=false, demean=true, p=2, my = zeros(size(ytrain, 1)))
     @assert size(λ²test) == size(xtest)
     @assert size(λ²train) == size(xtrain)
-    my = zeros(size(ytrain, 1))
     if demean
         my = mean(ytrain, dims=2)
     end

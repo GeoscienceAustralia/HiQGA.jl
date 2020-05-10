@@ -10,7 +10,7 @@ Klog10λ = GP.Mat32()
 x = 0:(0.01λx):λx
 y = 0:(0.01λy):2λy
 λlog10λ = [0.1maximum(y), 0.1maximum(y)]
-demean = true
+demean = false
 sdev_poslog10λ = [0.01maximum(y), 0.01maximum(x)]
 log10bounds = [-2 -0.69; -2 -0.69]
 δlog10λ = 0.1
@@ -38,7 +38,8 @@ optlog10λ = TransD_GP.Options(nmin = nminlog10λ,
                         sdev_pos = sdev_poslog10λ,
                         pnorm = pnorm,
                         quasimultid = false,
-                        K = Klog10λ
+                        K = Klog10λ,
+                        timesλ = 2
                         )
 @time  log10λ = TransD_GP.init(optlog10λ)
 ##

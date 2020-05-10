@@ -144,6 +144,8 @@ function init(opt::TransD_GP.Options)
     mf = zeros(size(opt.fbounds, 1))
     if opt.demean && n>1
         mf = mean(ftrain[:,1:n], dims=2)
+    else
+        mf = mean(opt.fbounds, dims=2)
     end
     rhs = ftrain[:,1:n] .- mf
     U = cholesky(K_y[1:n,1:n]).U
@@ -153,7 +155,8 @@ function init(opt::TransD_GP.Options)
                  zeros(Float64, size(opt.xbounds, 1)))
 end
 
-function birth!(m::Model, opt::TransD_GP.Options, mns::ModelNonstat, δns::Float64)
+function birth!(m::Model, opt::TransD_GP.Options,
+                optns::Options, mns::ModelNonstat; doall=false)
     xtrain, ftrain, K_y,  Kstar, n = m.xtrain, m.ftrain, m.K_y,  m.Kstar, m.n
     xtrain[:,n+1] = opt.xbounds[:,1] + diff(opt.xbounds, dims=2).*rand(size(opt.xbounds, 1))
     copy!(m.xtrain_focus, xtrain[:,n+1])
@@ -168,30 +171,67 @@ function birth!(m::Model, opt::TransD_GP.Options, mns::ModelNonstat, δns::Float
     mf = zeros(size(opt.fbounds, 1))
     if opt.demean
         mf = mean(ftrain[:,1:n+1], dims=2)
+    else
+        mf = mean(opt.fbounds, dims=2)
     end
     rhs = ftrain[:,1:n+1] .- mf
     U = cholesky(K_y[1:n+1, 1:n+1]).U
     copy!(m.fstar, 10 .^(2(mf' .+ Kstar[:,1:n+1]*(U\(U'\rhs'))))')
     m.n = n+1
     # updating the nonstationary kernels now
-    updatenskernels!(opt, m, n+1, mns, δns)
+    updatenskernels!(opt, m, n+1, optns, mns, doall=doall)
 end
 
-function updatenskernels!(opt::Options, m::Model, n::Int, mns::ModelNonstat, δns:: Float64)
-    xtrain, ftrain, fstar, xtest = m.xtrain, m.ftrain, m.fstar, opt.xall
-    kstarchangeidx = inrange(opt.balltree, xtrain[:,n]./sqrt.(opt.λ²), opt.timesλ)
-    balltree = BallTree(mns.xtrain[:,1:mns.n]./sqrt.(opt.λ²))
-    kychangeidx = inrange(balltree, xtrain[:,n]./sqrt.(opt.λ²), opt.timesλ)
+function updatenskernels!(opt::Options, m::Model, n::Int,
+                          optns::Options, mns::ModelNonstat; doall=false)
+    xtrain, λ², xtest = m.xtrain, m.fstar, opt.xall
+    if doall
+        kstarchangeidx = 1:size(mns.Kstar, 1)
+        kychangeidx = 1:mns.n
+    else
+        kstarchangeidx = inrange(opt.balltree, xtrain[:,n]./sqrt.(opt.λ²), opt.timesλ)
+        balltree = BallTree(mns.xtrain[:,1:mns.n]./sqrt.(opt.λ²))
+        kychangeidx = inrange(balltree, xtrain[:,n]./sqrt.(opt.λ²), opt.timesλ)
+    end
     idxs = gettrainidx(opt.kdtree, mns.xtrain, mns.n)
     ks = view(mns.Kstar, kstarchangeidx, 1:mns.n)
     map!(x->x, ks, GP.pairwise(opt.K, mns.xtrain[:,1:mns.n],
-                xtest[:,kstarchangeidx], fstar[:,idxs], fstar[:,kstarchangeidx]))
+                xtest[:,kstarchangeidx], λ²[:,idxs], λ²[:,kstarchangeidx]))
     if length(kychangeidx) > 0
+    @info "here"
         ky = view(mns.K_y, kychangeidx, kychangeidx)
-        map!(x->x, ky, GP.pairwise(opt.K, mns.xtrain[:,kychangeidx], mns.xtrain[:,kychangeidx],
-                                    fstar[:,idxs][:,kychangeidx], fstar[:,idxs][:,kychangeidx]))
-        mns.K_y[diagind(mns.K_y)] .= 1 + δns^2
+        map!(x->x, ky, GP.pairwise(opt.K, mns.xtrain[:,1:mns.n][:,kychangeidx], mns.xtrain[:,1:mns.n][:,kychangeidx],
+                                    λ²[:,idxs][:,kychangeidx], λ²[:,idxs][:,kychangeidx]))
+        mns.K_y[diagind(mns.K_y)] .= 1 + optns.δ^2
+        ks = view(mns.Kstar, :, kychangeidx)
+        map!(x->x, ks, GP.pairwise(opt.K, mns.xtrain[:,1:mns.n][:,kychangeidx],
+                    xtest, λ²[:,idxs][:,kychangeidx], λ²))
     end
+    sync_model!(mns, optns)
+    # λ² = m.fstar
+    # idxs = gettrainidx(opt.kdtree, mns.xtrain, mns.n)
+    # ky = view(mns.K_y, 1:mns.n, 1:mns.n)
+    # map!(x->x, ky, GP.pairwise(opt.K, mns.xtrain[:,1:mns.n], mns.xtrain[:,1:mns.n], λ²[:,idxs], λ²[:,idxs]))
+    # mns.K_y[diagind(mns.K_y)] .+= δns^2
+    # xtest = opt.xall
+    # ks = view(mns.Kstar, :, 1:mns.n)
+    # map!(x->x, ks, GP.pairwise(opt.K, mns.xtrain[:,1:mns.n], xtest, λ²[:,idxs], λ²))
+end
+
+function testupdate(optns::Options, log10λ::Model, mns::ModelNonstat, demean::Bool)
+    λ² = log10λ.fstar
+    idxs = gettrainidx(optns.kdtree, mns.xtrain, mns.n)
+    ftest, = GP.GPfit(optns.K, mns.ftrain[:,1:mns.n], mns.xtrain[:,1:mns.n],
+            optns.xall, λ², λ²[:,idxs], optns.δ, p=2, demean=demean, nogetvars=true,
+            my=mean(optns.fbounds, dims=2))
+    return ftest
+end
+
+function testupdate(opt::Options, m::Model, demean::Bool)
+    ftest, = GP.GPfit(opt.K, m.ftrain[:,1:m.n], m.xtrain[:,1:m.n],
+            opt.xall, opt.λ², opt.δ, nogetvars=true, demean=demean, p=2,
+            my=mean(opt.fbounds, dims=2))
+    return ftest
 end
 
 function undo_birth!(m::Model, opt::TransD_GP.Options)
@@ -212,6 +252,8 @@ function death!(m::Model, opt::TransD_GP.Options)
     mf = zeros(size(opt.fbounds, 1))
     if opt.demean && n>2
         mf = mean(ftrain[:,1:n-1], dims=2)
+    else
+        mf = mean(opt.fbounds, dims=2)
     end
     rhs = ftrain[:,1:n-1] .- mf
     U = cholesky(K_y[1:n-1, 1:n-1]).U
@@ -246,6 +288,8 @@ function property_change!(m::Model, opt::TransD_GP.Options)
     mf = zeros(size(opt.fbounds, 1))
     if opt.demean
         mf = mean(ftrain[:,1:n], dims=2)
+    else
+        mf = mean(opt.fbounds, dims=2)
     end
     rhs = ftrain[:,1:n] .- mf
     # could potentially store chol if very time consuming
@@ -281,6 +325,8 @@ function position_change!(m::Model, opt::TransD_GP.Options)
     mf = zeros(size(opt.fbounds, 1))
     if opt.demean
         mf = mean(ftrain[:,1:n], dims=2)
+    else
+        mf = mean(opt.fbounds, dims=2)
     end
     rhs = ftrain[:,1:n] .- mf
     # could potentially store chol if very time consuming
@@ -322,10 +368,12 @@ function init(opt::TransD_GP.Options, m::Model)
     Kstar = zeros(Float64, size(opt.xall,2), opt.nmax)
     xtest = opt.xall
     ks = view(Kstar, :, 1:n)
-    map!(x->x, Kstar, GP.pairwise(opt.K, xtrain[:,1:n], xtest, λ²[:,idxs], λ²))
+    map!(x->x, ks, GP.pairwise(opt.K, xtrain[:,1:n], xtest, λ²[:,idxs], λ²))
     mf = zeros(size(opt.fbounds, 1))
     if opt.demean && n>1
         mf = mean(ftrain[:,1:n], dims=2)
+    else
+        mf = mean(opt.fbounds, dims=2)
     end
     rhs = ftrain[:,1:n] .- mf
     U = cholesky(K_y[1:n,1:n]).U
@@ -352,6 +400,8 @@ function birth!(m::ModelNonstat, opt::TransD_GP.Options, l::Model)
     mf = zeros(size(opt.fbounds, 1))
     if opt.demean
         mf = mean(ftrain[:,1:n+1], dims=2)
+    else
+        mf = mean(opt.fbounds, dims=2)
     end
     rhs = ftrain[:,1:n+1] .- mf
     U = cholesky(K_y[1:n+1, 1:n+1]).U
@@ -377,6 +427,8 @@ function death!(m::ModelNonstat, opt::TransD_GP.Options)
     mf = zeros(size(opt.fbounds, 1))
     if opt.demean && n>2
         mf = mean(ftrain[:,1:n-1], dims=2)
+    else
+        mf = mean(opt.fbounds, dims=2)
     end
     rhs = ftrain[:,1:n-1] .- mf
     U = cholesky(K_y[1:n-1, 1:n-1]).U
@@ -411,6 +463,8 @@ function property_change!(m::ModelNonstat, opt::TransD_GP.Options)
     mf = zeros(size(opt.fbounds, 1))
     if opt.demean
         mf = mean(ftrain[:,1:n], dims=2)
+    else
+        mf = mean(opt.fbounds, dims=2)
     end
     rhs = ftrain[:,1:n] .- mf
     # could potentially store chol if very time consuming
@@ -451,6 +505,8 @@ function position_change!(m::ModelNonstat, opt::TransD_GP.Options, l::Model)
     mf = zeros(size(opt.fbounds, 1))
     if opt.demean
         mf = mean(ftrain[:,1:n], dims=2)
+    else
+        mf = mean(opt.fbounds, dims=2)
     end
     rhs = ftrain[:,1:n] .- mf
     # could potentially store chol if very time consuming
@@ -480,6 +536,8 @@ function sync_model!(m::Model, opt::Options)
     mf = zeros(size(opt.fbounds, 1))
     if opt.demean
         mf = mean(ftrain[:,1:n], dims=2)
+    else
+        mf = mean(opt.fbounds, dims=2)
     end
     rhs = ftrain[:,1:n] .- mf
     # could potentially store chol if very time consuming
@@ -492,6 +550,8 @@ function sync_model!(m::ModelNonstat, opt::Options)
     mf = zeros(size(opt.fbounds, 1))
     if opt.demean
         mf = mean(ftrain[:,1:n], dims=2)
+    else
+        mf = mean(opt.fbounds, dims=2)
     end
     rhs = ftrain[:,1:n] .- mf
     # could potentially store chol if very time consuming
