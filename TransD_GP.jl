@@ -1,6 +1,6 @@
 module TransD_GP
 using Printf, LinearAlgebra, Statistics, Distributed,
-      Distances, NearestNeighbors,
+      Distances, NearestNeighbors, PyPlot,
       GP
 
 mutable struct Options
@@ -196,19 +196,53 @@ function updatenskernels!(opt::Options, m::Model, n::Int,
     end
     idxs = gettrainidx(opt.kdtree, mns.xtrain, mns.n)
     ks = view(mns.Kstar, kstarchangeidx, 1:mns.n)
-    map!(x->x, ks, GP.pairwise(opt.K, mns.xtrain[:,1:mns.n],
+    map!(x->x, ks, GP.pairwise(optns.K, mns.xtrain[:,1:mns.n],
                 xtest[:,kstarchangeidx], λ²[:,idxs], λ²[:,kstarchangeidx]))
     if length(kychangeidx) > 0
-    @info "here"
-        ks = view(mns.Kstar, :, (1:mns.n)[kychangeidx])
-        map!(x->x, ks, GP.pairwise(opt.K, mns.xtrain[:,1:mns.n][:,kychangeidx],
+    @info kychangeidx
+        ks = view(mns.Kstar, :, kychangeidx)
+        map!(x->x, ks, GP.pairwise(optns.K, mns.xtrain[:,kychangeidx],
                     xtest, λ²[:,idxs][:,kychangeidx], λ²))
-        kychangeidx = 1:mns.n
+
+        # before = copy(mns.K_y)
+        # part = copy(mns.K_y)
+        # ky = view(part, 1:mns.n , kychangeidx)
+        # map!(x->x, ky, GP.pairwise(opt.K, mns.xtrain[:,kychangeidx], mns.xtrain[:,1:mns.n],
+        #                             λ²[:,idxs][:,kychangeidx], λ²[:,idxs]))
+        # part[kychangeidx,1:mns.n] = part[1:mns.n,kychangeidx]'
+        # part[diagind(part)] .= 1 + optns.δ^2
+        #
+        # kychangeidx = (1:mns.n)
         ky = view(mns.K_y, 1:mns.n , kychangeidx)
-        map!(x->x, ky, GP.pairwise(opt.K, mns.xtrain[:,1:mns.n], mns.xtrain[:,1:mns.n][:,kychangeidx],
-                                    λ²[:,idxs], λ²[:,idxs][:,kychangeidx]))
+        # map!(x->x, ky, GP.pairwise(opt.K, mns.xtrain[:,1:mns.n], mns.xtrain[:,kychangeidx],
+        #                             λ²[:,idxs], λ²[:,idxs][:,kychangeidx]))
+        map!(x->x, ky, GP.pairwise(optns.K, mns.xtrain[:,kychangeidx], mns.xtrain[:,1:mns.n],
+                                    λ²[:,idxs][:,kychangeidx], λ²[:,idxs]))
         mns.K_y[kychangeidx,1:mns.n] = mns.K_y[1:mns.n,kychangeidx]'
-        mns.K_y[diagind(mns.K_y)] .= 1 + optns.δ^2
+        ky = view(mns.K_y, 1:mns.n , 1:mns.n)
+        ky[diagind(ky)] .= 1 + optns.δ^2
+        # figure()
+        # subplot(151)
+        # imshow(before)
+        # title("before")
+        # colorbar()
+        # subplot(152)
+        # imshow(mns.K_y)
+        # title("all")
+        # colorbar()
+        # subplot(153)
+        # imshow(log10.(abs.(before-mns.K_y)))
+        # title("actual diff")
+        # colorbar()
+        # subplot(154)
+        # imshow(part)
+        # title("part")
+        # colorbar()
+        # subplot(155)
+        # imshow(log10.(abs.(part-mns.K_y)))
+        # title("part-all")
+        # colorbar()
+
     end
     sync_model!(mns, optns)
     # λ² = m.fstar

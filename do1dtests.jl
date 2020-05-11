@@ -2,7 +2,7 @@ using PyPlot, Test, Random, Revise, Statistics, LinearAlgebra
 any(pwd() .== LOAD_PATH) || push!(LOAD_PATH, pwd())
 import GP, TransD_GP
 ## make options for the multichannel lengthscale GP
-nminlog10λ, nmaxlog10λ = 2, 100
+nminlog10λ, nmaxlog10λ = 2, 20
 pnorm = 2.
 Klog10λ = GP.Mat32()
 λx = 1
@@ -30,11 +30,11 @@ optlog10λ = TransD_GP.Options(nmin = nminlog10λ,
                         pnorm = pnorm,
                         quasimultid = false,
                         K = Klog10λ,
-                        timesλ = 20.
+                        timesλ = 10.
                         )
 @time  log10λ = TransD_GP.init(optlog10λ)
 ## make options for the nonstationary GP
-nmin, nmax = 2, 400
+nmin, nmax = 2, 20
 fbounds = [-2. 2]
 δ = 0.1
 sdev_prop = [0.1]
