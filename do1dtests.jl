@@ -62,8 +62,8 @@ mns = TransD_GP.init(opt, log10λ)
 doall = false
 lold = copy(log10λ.fstar)
 TransD_GP.birth!(log10λ, optlog10λ, opt, mns, doall=doall)
-lsc = TransD_GP.testupdate(optlog10λ, log10λ, optlog10λ.demean)
-ftest = TransD_GP.testupdate(opt, log10λ, mns, demean_ns)
+lsc = TransD_GP.testupdate(optlog10λ, log10λ)
+ftest = TransD_GP.testupdate(opt, log10λ, mns)
 
 f, ax = plt.subplots(2, 1, sharex=true)
 ax[1].plot(xall', sqrt.(log10λ.fstar)')
@@ -84,8 +84,8 @@ ax[1].grid()
 ax[2].grid()
 ##
 TransD_GP.birth!(mns, opt, log10λ)
-lsc = TransD_GP.testupdate(optlog10λ, log10λ, optlog10λ.demean)
-ftest = TransD_GP.testupdate(opt, log10λ, mns, demean_ns)
+lsc = TransD_GP.testupdate(optlog10λ, log10λ)
+ftest = TransD_GP.testupdate(opt, log10λ, mns)
 
 f, ax = plt.subplots(2, 1, sharex=true)
 ax[1].plot(xall', sqrt.(log10λ.fstar)')

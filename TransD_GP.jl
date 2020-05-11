@@ -1,6 +1,6 @@
 module TransD_GP
 using Printf, LinearAlgebra, Statistics, Distributed,
-      Distances, NearestNeighbors, 
+      Distances, NearestNeighbors,
       GP
 
 mutable struct Options
@@ -214,22 +214,6 @@ function updatenskernels!(opt::Options, m::Model, n::Int,
         ky[diagind(ky)] .= 1 + optns.δ^2
     end
     sync_model!(mns, optns)
-end
-
-function testupdate(optns::Options, log10λ::Model, mns::ModelNonstat, demean::Bool)
-    λ² = log10λ.fstar
-    idxs = gettrainidx(optns.kdtree, mns.xtrain, mns.n)
-    ftest, = GP.GPfit(optns.K, mns.ftrain[:,1:mns.n], mns.xtrain[:,1:mns.n],
-            optns.xall, λ², λ²[:,idxs], optns.δ, p=2, demean=demean, nogetvars=true,
-            my=mean(optns.fbounds, dims=2))
-    return ftest
-end
-
-function testupdate(opt::Options, m::Model, demean::Bool)
-    ftest, = GP.GPfit(opt.K, m.ftrain[:,1:m.n], m.xtrain[:,1:m.n],
-            opt.xall, opt.λ², opt.δ, nogetvars=true, demean=demean, p=2,
-            my=mean(opt.fbounds, dims=2))
-    return ftest
 end
 
 function undo_birth!(m::Model, opt::TransD_GP.Options)
@@ -555,6 +539,22 @@ function sync_model!(m::ModelNonstat, opt::Options)
     # could potentially store chol if very time consuming
     U = cholesky(K_y[1:n, 1:n]).U
     copy!(m.fstar, mf' .+ Kstar[:,1:n]*(U\(U'\rhs')))
+end
+
+function testupdate(optns::Options, log10λ::Model, mns::ModelNonstat)
+    λ² = log10λ.fstar
+    idxs = gettrainidx(optns.kdtree, mns.xtrain, mns.n)
+    ftest, = GP.GPfit(optns.K, mns.ftrain[:,1:mns.n], mns.xtrain[:,1:mns.n],
+            optns.xall, λ², λ²[:,idxs], optns.δ, p=2, demean=optns.demean, nogetvars=true,
+            my=mean(optns.fbounds, dims=2))
+    return ftest
+end
+
+function testupdate(opt::Options, m::Model)
+    ftest, = GP.GPfit(opt.K, m.ftrain[:,1:m.n], m.xtrain[:,1:m.n],
+            opt.xall, opt.λ², opt.δ, nogetvars=true, demean=opt.demean, p=2,
+            my=mean(opt.fbounds, dims=2))
+    return ftest
 end
 
 function do_move!(m::Model, opt::Options, stat::Stats)
