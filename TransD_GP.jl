@@ -192,67 +192,28 @@ function updatenskernels!(opt::Options, m::Model, n::Int,
         kstarchangeidx = inrange(opt.balltree, xtrain[:,n]./sqrt.(opt.λ²), opt.timesλ)
         balltree = BallTree(mns.xtrain[:,1:mns.n]./sqrt.(opt.λ²))
         kychangeidx = inrange(balltree, xtrain[:,n]./sqrt.(opt.λ²), opt.timesλ)
-        # kychangeidx = 1:mns.n
     end
     idxs = gettrainidx(opt.kdtree, mns.xtrain, mns.n)
+    # changes where test points are in influence radius of lscale change
     ks = view(mns.Kstar, kstarchangeidx, 1:mns.n)
     map!(x->x, ks, GP.pairwise(optns.K, mns.xtrain[:,1:mns.n],
                 xtest[:,kstarchangeidx], λ²[:,idxs], λ²[:,kstarchangeidx]))
     if length(kychangeidx) > 0
     @info kychangeidx
+        # set 1 of changes where training points are in influence radius of lscale change
         ks = view(mns.Kstar, :, kychangeidx)
         map!(x->x, ks, GP.pairwise(optns.K, mns.xtrain[:,kychangeidx],
                     xtest, λ²[:,idxs][:,kychangeidx], λ²))
-
-        # before = copy(mns.K_y)
-        # part = copy(mns.K_y)
-        # ky = view(part, 1:mns.n , kychangeidx)
-        # map!(x->x, ky, GP.pairwise(opt.K, mns.xtrain[:,kychangeidx], mns.xtrain[:,1:mns.n],
-        #                             λ²[:,idxs][:,kychangeidx], λ²[:,idxs]))
-        # part[kychangeidx,1:mns.n] = part[1:mns.n,kychangeidx]'
-        # part[diagind(part)] .= 1 + optns.δ^2
-        #
-        # kychangeidx = (1:mns.n)
+        # set 2 of changes where training points are in influence radius of lscale change
         ky = view(mns.K_y, 1:mns.n , kychangeidx)
-        # map!(x->x, ky, GP.pairwise(opt.K, mns.xtrain[:,1:mns.n], mns.xtrain[:,kychangeidx],
-        #                             λ²[:,idxs], λ²[:,idxs][:,kychangeidx]))
         map!(x->x, ky, GP.pairwise(optns.K, mns.xtrain[:,kychangeidx], mns.xtrain[:,1:mns.n],
                                     λ²[:,idxs][:,kychangeidx], λ²[:,idxs]))
         mns.K_y[kychangeidx,1:mns.n] = mns.K_y[1:mns.n,kychangeidx]'
+        # nugget add
         ky = view(mns.K_y, 1:mns.n , 1:mns.n)
         ky[diagind(ky)] .= 1 + optns.δ^2
-        # figure()
-        # subplot(151)
-        # imshow(before)
-        # title("before")
-        # colorbar()
-        # subplot(152)
-        # imshow(mns.K_y)
-        # title("all")
-        # colorbar()
-        # subplot(153)
-        # imshow(log10.(abs.(before-mns.K_y)))
-        # title("actual diff")
-        # colorbar()
-        # subplot(154)
-        # imshow(part)
-        # title("part")
-        # colorbar()
-        # subplot(155)
-        # imshow(log10.(abs.(part-mns.K_y)))
-        # title("part-all")
-        # colorbar()
-
     end
     sync_model!(mns, optns)
-    # λ² = m.fstar
-    # idxs = gettrainidx(opt.kdtree, mns.xtrain, mns.n)
-    # ky = view(mns.K_y, 1:mns.n, 1:mns.n)
-    # map!(x->x, ky, GP.pairwise(opt.K, mns.xtrain[:,1:mns.n], mns.xtrain[:,1:mns.n], λ²[:,idxs], λ²[:,idxs]))
-    # mns.K_y[diagind(mns.K_y)] .+= δns^2
-    # xtest = opt.xall
-    # ks = view(mns.Kstar, :, 1:mns.n)
-    # map!(x->x, ks, GP.pairwise(opt.K, mns.xtrain[:,1:mns.n], xtest, λ²[:,idxs], λ²))
 end
 
 function testupdate(optns::Options, log10λ::Model, mns::ModelNonstat, demean::Bool)
