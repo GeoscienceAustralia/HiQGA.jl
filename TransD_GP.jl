@@ -1,6 +1,6 @@
 module TransD_GP
 using Printf, LinearAlgebra, Statistics, Distributed,
-      Distances, NearestNeighbors, PyPlot,
+      Distances, NearestNeighbors, 
       GP
 
 mutable struct Options
