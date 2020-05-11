@@ -128,7 +128,7 @@ mutable struct Writepointers
     fp_x_ftrain   :: IOStream
 end
 
-# Stationary GP functions
+# Stationary GP functions, i.e., for λ
 function init(opt::TransD_GP.Options)
     n = opt.nmin
     xtrain = zeros(Float64, size(opt.xbounds,1), opt.nmax)
@@ -155,8 +155,48 @@ function init(opt::TransD_GP.Options)
                  zeros(Float64, size(opt.xbounds, 1)))
 end
 
+function updatenskernels!(opt::Options, m::Model, ipoint::Union{Int, Array{Int, 1}},
+                          optns::Options, mns::ModelNonstat; doall=false, isposchange=false)
+    xtrain, λ², xtest = m.xtrain, m.fstar, opt.xall
+    copyto!(mns.K_y_old, CartesianIndices((mns.n, mns.n)), mns.K_y, CartesianIndices((mns.n, mns.n)))
+    copyto!(mns.Kstar_old, CartesianIndices((size(mns.Kstar_old, 1), mns.n)),
+            mns.Kstar, CartesianIndices((size(mns.Kstar_old, 1), mns.n)))
+    xt = xtrain[:,ipoint]
+    isposchange && (xt = hcat(xt, m.xtrain_old))
+
+    if doall
+        kstarchangeidx = 1:size(mns.Kstar, 1)
+        kychangeidx = 1:mns.n
+    else
+        kstarchangeidx = reduce(vcat, inrange(opt.balltree, xt./sqrt.(opt.λ²), opt.timesλ))
+        balltree = BallTree(mns.xtrain[:,1:mns.n]./sqrt.(opt.λ²))
+        kychangeidx = inrange(balltree, xt./sqrt.(opt.λ²), opt.timesλ)
+    end
+    idxs = gettrainidx(opt.kdtree, mns.xtrain, mns.n)
+    # changes where test points are in influence radius of lscale change
+    ks = view(mns.Kstar, kstarchangeidx, 1:mns.n)
+    map!(x->x, ks, GP.pairwise(optns.K, mns.xtrain[:,1:mns.n],
+                xtest[:,kstarchangeidx], λ²[:,idxs], λ²[:,kstarchangeidx]))
+    if length(kychangeidx) > 0
+        isposchange && (kychangeidx = reduce(vcat, kychangeidx))
+        # set 1 of changes where training points are in influence radius of lscale change
+        ks = view(mns.Kstar, :, kychangeidx)
+        map!(x->x, ks, GP.pairwise(optns.K, mns.xtrain[:,kychangeidx],
+                    xtest, λ²[:,idxs][:,kychangeidx], λ²))
+        # set 2 of changes where training points are in influence radius of lscale change
+        ky = view(mns.K_y, 1:mns.n , kychangeidx)
+        map!(x->x, ky, GP.pairwise(optns.K, mns.xtrain[:,kychangeidx], mns.xtrain[:,1:mns.n],
+                                    λ²[:,idxs][:,kychangeidx], λ²[:,idxs]))
+        mns.K_y[kychangeidx,1:mns.n] = mns.K_y[1:mns.n,kychangeidx]'
+        # nugget add
+        ky = view(mns.K_y, 1:mns.n , 1:mns.n)
+        ky[diagind(ky)] .= 1. + optns.δ^2
+    end
+    sync_model!(mns, optns)
+end
+
 function birth!(m::Model, opt::TransD_GP.Options,
-                optns::Options, mns::ModelNonstat; doall=false)
+                mns::ModelNonstat, optns::Options; doall=false)
     xtrain, ftrain, K_y,  Kstar, n = m.xtrain, m.ftrain, m.K_y,  m.Kstar, m.n
     xtrain[:,n+1] = opt.xbounds[:,1] + diff(opt.xbounds, dims=2).*rand(size(opt.xbounds, 1))
     copy!(m.xtrain_focus, xtrain[:,n+1])
@@ -182,45 +222,12 @@ function birth!(m::Model, opt::TransD_GP.Options,
     updatenskernels!(opt, m, n+1, optns, mns, doall=doall)
 end
 
-function updatenskernels!(opt::Options, m::Model, n::Int,
-                          optns::Options, mns::ModelNonstat; doall=false)
-    xtrain, λ², xtest = m.xtrain, m.fstar, opt.xall
-    if doall
-        kstarchangeidx = 1:size(mns.Kstar, 1)
-        kychangeidx = 1:mns.n
-    else
-        kstarchangeidx = inrange(opt.balltree, xtrain[:,n]./sqrt.(opt.λ²), opt.timesλ)
-        balltree = BallTree(mns.xtrain[:,1:mns.n]./sqrt.(opt.λ²))
-        kychangeidx = inrange(balltree, xtrain[:,n]./sqrt.(opt.λ²), opt.timesλ)
-    end
-    idxs = gettrainidx(opt.kdtree, mns.xtrain, mns.n)
-    # changes where test points are in influence radius of lscale change
-    ks = view(mns.Kstar, kstarchangeidx, 1:mns.n)
-    map!(x->x, ks, GP.pairwise(optns.K, mns.xtrain[:,1:mns.n],
-                xtest[:,kstarchangeidx], λ²[:,idxs], λ²[:,kstarchangeidx]))
-    if length(kychangeidx) > 0
-    @info kychangeidx
-        # set 1 of changes where training points are in influence radius of lscale change
-        ks = view(mns.Kstar, :, kychangeidx)
-        map!(x->x, ks, GP.pairwise(optns.K, mns.xtrain[:,kychangeidx],
-                    xtest, λ²[:,idxs][:,kychangeidx], λ²))
-        # set 2 of changes where training points are in influence radius of lscale change
-        ky = view(mns.K_y, 1:mns.n , kychangeidx)
-        map!(x->x, ky, GP.pairwise(optns.K, mns.xtrain[:,kychangeidx], mns.xtrain[:,1:mns.n],
-                                    λ²[:,idxs][:,kychangeidx], λ²[:,idxs]))
-        mns.K_y[kychangeidx,1:mns.n] = mns.K_y[1:mns.n,kychangeidx]'
-        # nugget add
-        ky = view(mns.K_y, 1:mns.n , 1:mns.n)
-        ky[diagind(ky)] .= 1 + optns.δ^2
-    end
-    sync_model!(mns, optns)
-end
-
 function undo_birth!(m::Model, opt::TransD_GP.Options)
     m.n = m.n - 1
 end
 
-function death!(m::Model, opt::TransD_GP.Options)
+function death!(m::Model, opt::TransD_GP.Options,
+                mns::ModelNonstat, optns::Options; doall=false)
     xtrain, ftrain, K_y,  Kstar, n = m.xtrain, m.ftrain, m.K_y,  m.Kstar, m.n
     ipoint = rand(1:n)
     m.iremember = ipoint
@@ -241,6 +248,8 @@ function death!(m::Model, opt::TransD_GP.Options)
     U = cholesky(K_y[1:n-1, 1:n-1]).U
     copy!(m.fstar, 10 .^(2(mf' .+ Kstar[:,1:n-1]*(U\(U'\rhs'))))')
     m.n = n-1
+    # updating the nonstationary kernels now
+    updatenskernels!(opt, m, ipoint, optns, mns, doall=doall)
 end
 
 function undo_death!(m::Model, opt::TransD_GP.Options)
@@ -255,7 +264,8 @@ function undo_death!(m::Model, opt::TransD_GP.Options)
     K_y[n,n] = 1.0 + opt.δ^2
 end
 
-function property_change!(m::Model, opt::TransD_GP.Options)
+function property_change!(m::Model, opt::TransD_GP.Options,
+                          mns::ModelNonstat, optns::Options; doall=false)
     ftrain, K_y, Kstar, n = m.ftrain, m.K_y, m. Kstar, m.n
     ipoint = 1 + floor(Int, rand()*n)
     m.iremember = ipoint
@@ -277,6 +287,8 @@ function property_change!(m::Model, opt::TransD_GP.Options)
     # could potentially store chol if very time consuming
     U = cholesky(K_y[1:n, 1:n]).U
     copy!(m.fstar, 10 .^(2(mf' .+ Kstar[:,1:n]*(U\(U'\rhs'))))')
+    # updating the nonstationary kernels now
+    updatenskernels!(opt, m, ipoint, optns, mns, doall=doall)
 end
 
 function undo_property_change!(m::Model, opt::TransD_GP.Options)
@@ -284,7 +296,8 @@ function undo_property_change!(m::Model, opt::TransD_GP.Options)
     ftrain[:,ipoint] = m.ftrain_old
 end
 
-function position_change!(m::Model, opt::TransD_GP.Options)
+function position_change!(m::Model, opt::TransD_GP.Options,
+                          mns::ModelNonstat, optns::Options; doall=false)
     xtrain, ftrain, K_y, Kstar, n = m.xtrain, m.ftrain, m.K_y, m.Kstar, m.n
     ipoint = 1 + floor(Int, rand()*n)
     m.iremember = ipoint
@@ -314,6 +327,8 @@ function position_change!(m::Model, opt::TransD_GP.Options)
     # could potentially store chol if very time consuming
     U = cholesky(K_y[1:n, 1:n]).U
     copy!(m.fstar, 10 .^(2(mf' .+ Kstar[:,1:n]*(U\(U'\rhs'))))')
+    # updating the nonstationary kernels now
+    updatenskernels!(opt, m, ipoint, optns, mns, doall=doall, isposchange=true)
 end
 
 function undo_position_change!(m::Model, opt::TransD_GP.Options)
@@ -329,7 +344,7 @@ function undo_position_change!(m::Model, opt::TransD_GP.Options)
     K_y[ipoint,ipoint] = K_y[ipoint,ipoint] + opt.δ^2
 end
 
-# Non stationary GP functions
+# Non stationary GP functions, i.e., for mns.fstar
 function gettrainidx(kdtree::KDTree, xtrain::Array{Float64, 2}, n::Int)
     idxs,  = knn(kdtree, xtrain[:,1:n], 1)
     reduce(vcat, idxs)
