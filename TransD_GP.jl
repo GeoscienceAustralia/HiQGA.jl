@@ -222,8 +222,12 @@ function birth!(m::Model, opt::TransD_GP.Options,
     updatenskernels!(opt, m, n+1, optns, mns, doall=doall)
 end
 
-function undo_birth!(m::Model, opt::TransD_GP.Options)
+function undo_birth!(m::Model, opt::TransD_GP.Options, mns::ModelNonstat)
     m.n = m.n - 1
+    # updating the nonstationary kernels now
+    copyto!(mns.K_y, CartesianIndices((mns.n, mns.n)), mns.K_y_old, CartesianIndices((mns.n, mns.n)))
+    copyto!(mns.Kstar, CartesianIndices((size(mns.Kstar_old, 1), mns.n)),
+            mns.Kstar_old, CartesianIndices((size(mns.Kstar_old, 1), mns.n)))
 end
 
 function death!(m::Model, opt::TransD_GP.Options,
@@ -249,7 +253,7 @@ function death!(m::Model, opt::TransD_GP.Options,
     copy!(m.fstar, 10 .^(2(mf' .+ Kstar[:,1:n-1]*(U\(U'\rhs'))))')
     m.n = n-1
     # updating the nonstationary kernels now
-    updatenskernels!(opt, m, ipoint, optns, mns, doall=doall)
+    updatenskernels!(opt, m, n, optns, mns, doall=doall)
 end
 
 function undo_death!(m::Model, opt::TransD_GP.Options)
@@ -262,6 +266,10 @@ function undo_death!(m::Model, opt::TransD_GP.Options)
     K_y[1:n,ipoint] = K_y[ipoint,1:n]
     K_y[ipoint,ipoint] = 1.0 + opt.δ^2
     K_y[n,n] = 1.0 + opt.δ^2
+    # updating the nonstationary kernels now
+    copyto!(mns.K_y, CartesianIndices((mns.n, mns.n)), mns.K_y_old, CartesianIndices((mns.n, mns.n)))
+    copyto!(mns.Kstar, CartesianIndices((size(mns.Kstar_old, 1), mns.n)),
+            mns.Kstar_old, CartesianIndices((size(mns.Kstar_old, 1), mns.n)))
 end
 
 function property_change!(m::Model, opt::TransD_GP.Options,
@@ -294,6 +302,10 @@ end
 function undo_property_change!(m::Model, opt::TransD_GP.Options)
     ipoint, ftrain = m.iremember, m.ftrain
     ftrain[:,ipoint] = m.ftrain_old
+    # updating the nonstationary kernels now
+    copyto!(mns.K_y, CartesianIndices((mns.n, mns.n)), mns.K_y_old, CartesianIndices((mns.n, mns.n)))
+    copyto!(mns.Kstar, CartesianIndices((size(mns.Kstar_old, 1), mns.n)),
+            mns.Kstar_old, CartesianIndices((size(mns.Kstar_old, 1), mns.n)))
 end
 
 function position_change!(m::Model, opt::TransD_GP.Options,
@@ -342,6 +354,10 @@ function undo_position_change!(m::Model, opt::TransD_GP.Options)
     map!(x->GP.κ(opt.K, x),K_yv,colwise(WeightedEuclidean(1 ./opt.λ² ), xtrain[:,ipoint], xtrain[:,1:n]))
     K_y[1:n,ipoint] = K_y[ipoint,1:n]
     K_y[ipoint,ipoint] = K_y[ipoint,ipoint] + opt.δ^2
+    # updating the nonstationary kernels now
+    copyto!(mns.K_y, CartesianIndices((mns.n, mns.n)), mns.K_y_old, CartesianIndices((mns.n, mns.n)))
+    copyto!(mns.Kstar, CartesianIndices((size(mns.Kstar_old, 1), mns.n)),
+            mns.Kstar_old, CartesianIndices((size(mns.Kstar_old, 1), mns.n)))
 end
 
 # Non stationary GP functions, i.e., for mns.fstar
