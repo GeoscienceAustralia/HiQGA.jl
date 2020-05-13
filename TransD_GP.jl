@@ -256,7 +256,7 @@ function death!(m::Model, opt::TransD_GP.Options,
     updatenskernels!(opt, m, n, optns, mns, doall=doall)
 end
 
-function undo_death!(m::Model, opt::TransD_GP.Options)
+function undo_death!(m::Model, opt::TransD_GP.Options, mns::ModelNonstat)
     m.n = m.n + 1
     ftrain, xtrain, Kstar, K_y, n, ipoint = m.ftrain, m.xtrain, m.Kstar, m.K_y, m.n, m.iremember
     xtrain[:,ipoint], xtrain[:,n] = xtrain[:,n], xtrain[:,ipoint]
@@ -299,7 +299,7 @@ function property_change!(m::Model, opt::TransD_GP.Options,
     updatenskernels!(opt, m, ipoint, optns, mns, doall=doall)
 end
 
-function undo_property_change!(m::Model, opt::TransD_GP.Options)
+function undo_property_change!(m::Model, opt::TransD_GP.Options, mns::ModelNonstat)
     ipoint, ftrain = m.iremember, m.ftrain
     ftrain[:,ipoint] = m.ftrain_old
     # updating the nonstationary kernels now
@@ -343,7 +343,7 @@ function position_change!(m::Model, opt::TransD_GP.Options,
     updatenskernels!(opt, m, ipoint, optns, mns, doall=doall, isposchange=true)
 end
 
-function undo_position_change!(m::Model, opt::TransD_GP.Options)
+function undo_position_change!(m::Model, opt::TransD_GP.Options, mns::ModelNonstat)
     xtrain, K_y, Kstar, n = m.xtrain, m.K_y, m.Kstar, m.n
     ipoint = m.iremember
     xtrain[:,ipoint] = m.xtrain_old
