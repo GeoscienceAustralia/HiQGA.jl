@@ -588,35 +588,35 @@ function testupdate(opt::Options, m::Model)
     return ftest
 end
 
-function do_move!(m::Model, opt::Options, stat::Stats)
+function do_move!(mns::ModelNonstat, m::Model, optns::Options, statns::Stats)
     unifrand = rand()
     movetype, priorviolate = 0, false
     if unifrand<0.25
         if m.n<opt.nmax
-            birth!(m, opt)
+            birth!(mns, optns, m)
         else
             priorviolate = true
         end
         movetype = 1
     elseif unifrand<0.5
         if m.n>opt.nmin
-            death!(m, opt)
+            death!(mns, optns)
         else
             priorviolate = true
         end
         movetype = 2
     elseif unifrand<0.75
-        position_change!(m, opt)
+        position_change!(mns, optns, m)
         movetype = 3
     else
-        property_change!(m, opt)
+        property_change!(mns, optns, m)
         movetype = 4
     end
-    stat.move_tries[movetype] += 1
+    statns.move_tries[movetype] += 1
     return movetype, priorviolate
 end
 
-function undo_move!(movetype::Int, m::Model, opt::Options)
+function undo_move!(movetype::Int, m::ModelNonstat, opt::Options)
     if movetype == 1
         undo_birth!(m, opt)
     elseif movetype == 2
@@ -627,6 +627,51 @@ function undo_move!(movetype::Int, m::Model, opt::Options)
         undo_property_change!(m, opt)
     end
     sync_model!(m, opt)
+    nothing
+end
+
+function do_move!(m::Model, opt::Options, stat::Stats,
+                  mns::ModelNonstat, optns::Options)
+    unifrand = rand()
+    movetype, priorviolate = 0, false
+    if unifrand<0.25
+        if m.n<opt.nmax
+            birth!(m, opt, mns, optns)
+        else
+            priorviolate = true
+        end
+        movetype = 1
+    elseif unifrand<0.5
+        if m.n>opt.nmin
+            death!(m, opt, mns, optns)
+        else
+            priorviolate = true
+        end
+        movetype = 2
+    elseif unifrand<0.75
+        position_change!(m, opt, mns, optns)
+        movetype = 3
+    else
+        property_change!(m, opt, mns, optns)
+        movetype = 4
+    end
+    stat.move_tries[movetype] += 1
+    return movetype, priorviolate
+end
+
+function undo_move!(movetype::Int, m::Model, opt::Options,
+                    mns::ModelNonstat, optns::Options)
+    if movetype == 1
+        undo_birth!(m, opt, mns)
+    elseif movetype == 2
+        undo_death!(m, opt, mns)
+    elseif movetype == 3
+        undo_position_change!(m, opt, mns)
+    else
+        undo_property_change!(m, opt, mns)
+    end
+    sync_model!(m, opt)
+    sync_model!(mns, optns)
     nothing
 end
 
@@ -703,6 +748,12 @@ function write_history(isample::Int, opt::Options, m::Model, misfit::Float64,
                        isample, wp.fp_costs, wp.fp_fstar, wp.fp_x_ftrain, T, writemodel)
 end
 
+function write_history(isample::Int, opt::Options, m::ModelNonstat, misfit::Float64,
+                        stat::Stats, wp::Writepointers, T::Float64, writemodel::Bool)
+    write_history(opt, m.fstar, [m.xtrain; m.ftrain], misfit, stat.accept_rate[1],
+                        stat.accept_rate[2], stat.accept_rate[3], stat.accept_rate[4], m.n,
+                       isample, wp.fp_costs, wp.fp_fstar, wp.fp_x_ftrain, T, writemodel)
+end
 
 function write_history(opt::Options, fstar::AbstractArray, x_ftrain::AbstractArray, U::Float64, acceptanceRateBirth::Float64,
                     acceptanceRateDeath::Float64, acceptanceRatePosition::Float64, acceptanceRateProperty::Float64, nodes::Int,
