@@ -698,7 +698,7 @@ end
 
 function write_history(isample::Int, opt::Options, m::Model, misfit::Float64,
                         stat::Stats, wp::Writepointers, T::Float64, writemodel::Bool)
-    write_history(opt, m.fstar, [m.xtrain' m.ftrain], misfit, stat.accept_rate[1],
+    write_history(opt, m.fstar, [m.xtrain; m.ftrain], misfit, stat.accept_rate[1],
                         stat.accept_rate[2], stat.accept_rate[3], stat.accept_rate[4], m.n,
                        isample, wp.fp_costs, wp.fp_fstar, wp.fp_x_ftrain, T, writemodel)
 end
@@ -760,12 +760,12 @@ function history(opt::Options; stat=:U)
             @warn("history, requested fstar, but you haven't stored this information.")
             return []
         end
-        iters, rem = divrem(filesize(opt.fstar_filename), size(opt.xall,2) * sizeof(Float64))
+        iters, rem = divrem(filesize(opt.fstar_filename), size(opt.xall,2) * size(opt.fbounds, 1) * sizeof(Float64))
         @assert rem == 0
         fp_models = open(opt.fstar_filename)
         fstar = Array{Array{Float64, 1}}(undef, iters)
         for i = 1:iters
-            fstar[i] = zeros(Float64, size(opt.xall,2))
+            fstar[i] = zeros(Float64, (size(opt.xall,2), size(opt.fbounds, 1)))
             read!(fp_models, fstar[i])
         end
         return fstar
@@ -775,27 +775,19 @@ function history(opt::Options; stat=:U)
             @warn("history, requested x_ftrain, but you haven't stored this information.")
             return []
         end
-        iters, rem = divrem(filesize(opt.x_ftrain_filename), opt.nmax * sizeof(Float64)*(1+size(opt.xbounds, 1)))
+        iters, rem = divrem(filesize(opt.x_ftrain_filename), opt.nmax * sizeof(Float64) * (size(opt.fbounds, 1) +
+                                                                                        size(opt.xbounds, 1)))
         @assert rem == 0
         fp_models = open(opt.x_ftrain_filename)
         x_ftrain = Array{Array{Float64,2},1}(undef, iters)
         for i = 1:iters
-            x_ftrain[i] = zeros(Float64, opt.nmax, 1+size(opt.xbounds, 1))
+            x_ftrain[i] = zeros(Float64, opt.nmax, size(opt.fbounds, 1) + size(opt.xbounds, 1))
             read!(fp_models, x_ftrain[i])
         end
         return x_ftrain
     end
     @warn("history, requested stat: $(stat) is not recognized.")
     return []
-end
-
-function closestmultbelow(num::Real, mult::Real)
-   r = rem(num, mult)
-   if r < 1e-12
-       return num
-   else
-       return num - r
-   end
 end
 
 end
