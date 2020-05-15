@@ -7,7 +7,7 @@ mutable struct Img<:Operator
     y                 :: StepRangeLen
     fractrain         :: Float64
     dec               :: Int
-    gausskernelwidth  :: Int 
+    gausskernelwidth  :: Int
     f                 :: Array{Float64, 2}
     d                 :: Array{Float64, 2}
 end
@@ -16,7 +16,7 @@ function Img(;
              filename         = "",
              dx               = 0.01,
              fractrain        = 0.02,
-             dec::Int         = 2,  
+             dec::Int         = 2,
              gausskernelwidth = 7)
 
     @assert fractrain > 0 && fractrain < 1
@@ -26,20 +26,20 @@ function Img(;
     x = 0:dx:dx*size(f,2)-1
     y = 0:dx:dx*size(f,1)-1
     Img(filename, x, y, fractrain, dec, gausskernelwidth, f, f)
-end    
+end
 
 function get_image(filename::String, gausskernelwidth::Int, dec)
     f = Gray.(load(filename))
     f = convert(Array{Float64, 2}, f)[1:dec:end,:1:dec:end]
     # convert image into something that looks like log resistivity
-    f = -1 .+ 3*f 
+    f = -1 .+ 3*f
     # smooth image
     imfilter(f,Kernel.gaussian(gausskernelwidth))
-end    
+end
 
-function get_training_data(img::Img; 
-                           sdmaxfrac = 0.05, 
-                           rseed     = 12, 
+function get_training_data(img::Img;
+                           sdmaxfrac = 0.05,
+                           rseed     = 12,
                            ybreak    = 12321.0,
                            takeevery = 4
                           )
@@ -81,7 +81,7 @@ function get_all_prediction_points(img::Img)
     Xall
 end
 
-function plot_data(ftrain::Array{Float64, 1}, Xtrain::Array{Float64, 2}, 
+function plot_data(ftrain::Array{Float64, 1}, Xtrain::Array{Float64, 2},
                    img::Img;  s=10, fsize=14)
     f, x, y = img.f, img.x, img.y
     f1, ax1 = plt.subplots(1,2,figsize=(10,5), sharex=true, sharey=true)
@@ -104,7 +104,7 @@ function calc_simple_RMS(img::Img, sd::Float64)
 end
 
 function plot_last_target_model(img::Img, opt_in::TransD_GP.Options;
-                               nchains          = 1, 
+                               nchains          = 1,
                                fsize            = 14
                                )
     if nchains == 1 # then actually find out how many chains there are saved
@@ -132,30 +132,17 @@ function plot_last_target_model(img::Img, opt_in::TransD_GP.Options;
         imshow(reshape(m_last,length(y), length(x)), extent=[x[1],x[end],y[end],y[1]])
     end
 
-end    
-
-function nicenup(g::PyPlot.Figure;fsize=14)
-    for ax in gcf().axes
-        ax.tick_params("both",labelsize=fsize)
-        ax.xaxis.label.set_fontsize(fsize)
-        ax.yaxis.label.set_fontsize(fsize)
-        ax.title.set_fontsize(fsize)
-        if typeof(ax.get_legend_handles_labels()[1]) != Array{Any,1}
-            ax.legend(loc="best", fontsize=fsize)
-        end
-    end
-    g.tight_layout()
 end
 
 function get_misfit(m::TransD_GP.Model, opt::TransD_GP.Options, F::Img)
-    chi2by2 = 0.0 
+    chi2by2 = 0.0
     if !opt.debug
         d = F.d
         select = .!isnan.(d[:])
         r = m.fstar[select] - d[select]
         N = sum(select)
         chi2by2 = 0.5*N*log(norm(r)^2)
-    end 
+    end
     return chi2by2
 end
 

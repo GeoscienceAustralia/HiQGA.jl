@@ -41,7 +41,7 @@ function Chain(nchains::Int;
 end
 
 function mh_step!(m::TransD_GP.ModelNonstat, F::Operator,
-    optns::TransD_GP.Options, stat::TransD_GP.Stats,
+    opt::TransD_GP.Options, stat::TransD_GP.Stats,
     Temp::Float64, movetype::Int, current_misfit::Array{Float64, 1})
 
     if opt.quasimultid
@@ -180,7 +180,7 @@ end
 function init_chain_darrays(opt_in::TransD_GP.Options,
                             optns_in::TransD_GP.Options,
                             F_in::Operator, chains::Array{Chain, 1})
-    m_, mns_, opt_, optns_, F_in_, stat_, statsns_, d_in_,
+    m_, mns_, opt_, optns_, F_in_, stat_, statns_, d_in_,
     current_misfit_, wp_, wpns_  = map(x -> Array{Future, 1}(undef, length(chains)), 1:11)
 
     costs_filename = "misfits_"*opt_in.fdataname

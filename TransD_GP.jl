@@ -592,14 +592,14 @@ function do_move!(mns::ModelNonstat, m::Model, optns::Options, statns::Stats)
     unifrand = rand()
     movetype, priorviolate = 0, false
     if unifrand<0.25
-        if m.n<opt.nmax
+        if mns.n<optns.nmax
             birth!(mns, optns, m)
         else
             priorviolate = true
         end
         movetype = 1
     elseif unifrand<0.5
-        if m.n>opt.nmin
+        if mns.n>optns.nmin
             death!(mns, optns)
         else
             priorviolate = true
@@ -609,7 +609,7 @@ function do_move!(mns::ModelNonstat, m::Model, optns::Options, statns::Stats)
         position_change!(mns, optns, m)
         movetype = 3
     else
-        property_change!(mns, optns, m)
+        property_change!(mns, optns)
         movetype = 4
     end
     statns.move_tries[movetype] += 1
@@ -814,7 +814,7 @@ function history(opt::Options; stat=:U)
         iters, rem = divrem(filesize(opt.fstar_filename), size(opt.xall,2) * size(opt.fbounds, 1) * sizeof(Float64))
         @assert rem == 0
         fp_models = open(opt.fstar_filename)
-        fstar = Array{Array{Float64, 1}}(undef, iters)
+        fstar = Array{Array{Float64}}(undef, iters)
         for i = 1:iters
             fstar[i] = zeros(Float64, (size(opt.xall,2), size(opt.fbounds, 1)))
             read!(fp_models, fstar[i])
