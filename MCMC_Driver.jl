@@ -281,7 +281,7 @@ function getchi2forall(opt_in::TransD_GP.Options;
                         fsize            = 14,
                       )
     if nchains == 1 # then actually find out how many chains there are saved
-        nchains = length(filter( x -> occursin(r"misfits.*bin", x), readdir(pwd()) )) # my terrible regex
+        nchains = length(filter( x -> occursin(r"misfits_ns.*bin", x), readdir(pwd()) )) # my terrible regex
     end
     # now look at any chain to get how many iterations
     costs_filename = "misfits_"*opt_in.fdataname

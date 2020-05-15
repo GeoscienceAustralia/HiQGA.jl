@@ -160,7 +160,7 @@ function slicemodel(fstar::Array{Float64, 1}, npoints::Int,
     using3D()
     ax = Array{Any,1}(undef, nplots)
     iplot = 0
-    if slicesz!=[] 
+    if slicesz!=[]
         xx,yy = meshgrid(x,y)
         l = slicesz
         iplot+=1
@@ -169,7 +169,7 @@ function slicemodel(fstar::Array{Float64, 1}, npoints::Int,
             c=(v[:,:,i].-minimum(v))./(maximum(v)-minimum(v))
             ax[iplot].plot_surface(xx, yy, z[i]*ones(size(yy)), facecolors=plt.cm.jet_r(c), shade=false)
         end
-    end    
+    end
     if slicesx!=[]
         yy,zz = meshgrid(y,z)
         l = slicesx
@@ -318,7 +318,7 @@ function plot_last_target_model(opt_in::TransD_GP.Options, d::Array{Float64, 1},
         slicemodel(m_last, 0,[0. 0.],[0.], opt_in, slicesx=slicesx, slicesy=slicesy, slicesz=slicesz, dz=dz, extendfrac=extendfrac)
         sd > 0.0 && calc_simple_RMS(d, m_last, sd)
     end
-    
+
 end
 
 function gettargtemps(opt_in::TransD_GP.Options)
@@ -338,7 +338,7 @@ function gettargtemps(opt_in::TransD_GP.Options)
         Tacrosschains[:,ichain] = TransD_GP.history(opt_in, stat=:T)
     end
     Tacrosschains
-end    
+end
 
 function assembleTat1(opt::TransD_GP.Options, irange::StepRange{Int})
     Tacrosschains = gettargtemps(opt)
@@ -350,17 +350,17 @@ function assembleTat1(opt::TransD_GP.Options, irange::StepRange{Int})
     @info "No. of chains at 1 is $nat1"
     niters = length(irange)
     mat1 = zeros(Float64, size(opt.xall,2), niters, nat1)
-    cumT = cumsum(Tacrosschains .== 1,dims=1) 
+    cumT = cumsum(Tacrosschains .== 1,dims=1)
     @info size(mat1)
     for (istep, stp) in enumerate(irange)
         @info "$(istep/niters*100)% done"
         for (itemp, idx) in enumerate(findall(abs.(Tacrosschains[stp,:] .-1.0) .< 1e-12))
             opt.fstar_filename = "models_"*opt.fdataname*"_$idx.bin"
             mat1[:,istep,itemp] = TransD_GP.history(opt, stat=:fstar)[cumT[stp,idx]]
-        end    
+        end
     end
     mat1
-end    
+end
 
 function assembleTat1(opt::TransD_GP.Options; burninfrac=0.5)
     @assert 0.0<1.0burninfrac<1.0
@@ -382,9 +382,9 @@ function assembleTat1(opt::TransD_GP.Options; burninfrac=0.5)
         imodel += ninchain
     end
     mat1
-end    
+end
 
-function savepngs(opt::TransD_GP.Options, irange::StepRange{Int}; 
+function savepngs(opt::TransD_GP.Options, irange::StepRange{Int};
                   slicesx    = [],
                   slicesy    = [],
                   slicesz    = [],
@@ -403,8 +403,8 @@ function savepngs(opt::TransD_GP.Options, irange::StepRange{Int};
     @info "obtaining models $(iters[irange.start]) to $(iters[irange.stop])"
     M = assembleTat1(opt,irange)
     for (iridx, ir) in enumerate(irange), ic in 1:nat1
-        Tools3D.slicemodel(M[:,iridx,ic],0,[0. 0.],[0.], opt, 
-                            slicesx=slicesx, slicesy=slicesy, slicesz=slicesz, 
+        Tools3D.slicemodel(M[:,iridx,ic],0,[0. 0.],[0.], opt,
+                            slicesx=slicesx, slicesy=slicesy, slicesz=slicesz,
                             dz=dz, extendfrac=extendfrac)
         @info "saving target model $(iters[ir]) chain $ic"
         gcf().suptitle("model_"*lpad(iters[ir],7,'0')*"_chain_"*lpad(ic,3,'0'))

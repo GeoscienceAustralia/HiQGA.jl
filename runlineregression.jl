@@ -57,7 +57,7 @@ opt = TransD_GP.Options(nmin = nmin,
                         K = K
                         )
 ##
-nsamples, nchains, nchainsatone = 20001, 4, 1
+nsamples, nchains, nchainsatone = 50001, 4, 1
 Tmax = 2.5
 line = Line(nothing)
 addprocs(nchains)
