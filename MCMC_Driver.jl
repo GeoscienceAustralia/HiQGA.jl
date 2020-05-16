@@ -41,7 +41,7 @@ function Chain(nchains::Int;
 end
 
 function mh_step!(m::TransD_GP.ModelNonstat, F::Operator,
-    opt::TransD_GP.Options, stat::TransD_GP.Stats,
+    opt::TransD_GP.OptionsNonstat, stat::TransD_GP.Stats,
     Temp::Float64, movetype::Int, current_misfit::Array{Float64, 1})
 
     if opt.quasimultid
@@ -58,8 +58,8 @@ function mh_step!(m::TransD_GP.ModelNonstat, F::Operator,
     end
 end
 
-function mh_step!(m::TransD_GP.Model, mns::TransD_GP.ModelNonstat, F::Operator,
-    opt::TransD_GP.Options, optns::TransD_GP.Options,
+function mh_step!(m::TransD_GP.ModelStat, mns::TransD_GP.ModelNonstat, F::Operator,
+    opt::TransD_GP.OptionsStat, optns::TransD_GP.OptionsNonstat,
     stat::TransD_GP.Stats, Temp::Float64, movetype::Int, current_misfit::Array{Float64, 1})
 
     if opt.quasimultid
@@ -76,8 +76,8 @@ function mh_step!(m::TransD_GP.Model, mns::TransD_GP.ModelNonstat, F::Operator,
     end
 end
 
-function do_mcmc_step(m::TransD_GP.Model, mns::TransD_GP.ModelNonstat,
-    opt::TransD_GP.Options, optns::TransD_GP.Options,
+function do_mcmc_step(m::TransD_GP.ModelStat, mns::TransD_GP.ModelNonstat,
+    opt::TransD_GP.OptionsStat, optns::TransD_GP.OptionsNonstat,
     stat::TransD_GP.Stats,
     current_misfit::Array{Float64, 1}, F::Operator,
     Temp::Float64, isample::Int, wp::TransD_GP.Writepointers)
@@ -100,8 +100,8 @@ function do_mcmc_step(m::TransD_GP.Model, mns::TransD_GP.ModelNonstat,
     return current_misfit[1]
 end
 
-function do_mcmc_step(m::DArray{TransD_GP.Model}, mns::DArray{TransD_GP.ModelNonstat},
-    opt::DArray{TransD_GP.Options}, optns::DArray{TransD_GP.Options},
+function do_mcmc_step(m::DArray{TransD_GP.ModelStat}, mns::DArray{TransD_GP.ModelNonstat},
+    opt::DArray{TransD_GP.OptionsStat}, optns::DArray{TransD_GP.OptionsNonstat},
     stat::DArray{TransD_GP.Stats}, current_misfit::DArray{Array{Float64, 1}},
     F::DArray{x}, Temp::Float64, isample::Int,
     wp::DArray{TransD_GP.Writepointers}) where x<:Operator
@@ -113,8 +113,8 @@ function do_mcmc_step(m::DArray{TransD_GP.Model}, mns::DArray{TransD_GP.ModelNon
 
 end
 
-function do_mcmc_step(mns::TransD_GP.ModelNonstat, m::TransD_GP.Model,
-    optns::TransD_GP.Options, statns::TransD_GP.Stats,
+function do_mcmc_step(mns::TransD_GP.ModelNonstat, m::TransD_GP.ModelStat,
+    optns::TransD_GP.OptionsNonstat, statns::TransD_GP.Stats,
     current_misfit::Array{Float64, 1}, F::Operator,
     Temp::Float64, isample::Int, wp::TransD_GP.Writepointers)
 
@@ -136,8 +136,8 @@ function do_mcmc_step(mns::TransD_GP.ModelNonstat, m::TransD_GP.Model,
     return current_misfit[1]
 end
 
-function do_mcmc_step(mns::DArray{TransD_GP.ModelNonstat}, m::DArray{TransD_GP.Model},
-    optns::DArray{TransD_GP.Options}, statns::DArray{TransD_GP.Stats},
+function do_mcmc_step(mns::DArray{TransD_GP.ModelNonstat}, m::DArray{TransD_GP.ModelStat},
+    optns::DArray{TransD_GP.OptionsNonstat}, statns::DArray{TransD_GP.Stats},
     current_misfit::DArray{Array{Float64, 1}},
     F::DArray{x}, Temp::Float64, isample::Int,
     wpns::DArray{TransD_GP.Writepointers}) where x<:Operator
@@ -177,8 +177,8 @@ function close_temperature_file(fp::IOStream)
     close(fp)
 end
 
-function init_chain_darrays(opt_in::TransD_GP.Options,
-                            optns_in::TransD_GP.Options,
+function init_chain_darrays(opt_in::TransD_GP.OptionsStat,
+                            optns_in::TransD_GP.OptionsNonstat,
                             F_in::Operator, chains::Array{Chain, 1})
     m_, mns_, opt_, optns_, F_in_, stat_, statns_, d_in_,
     current_misfit_, wp_, wpns_  = map(x -> Array{Future, 1}(undef, length(chains)), 1:11)
@@ -232,8 +232,8 @@ function swap_temps(chains::Array{Chain, 1})
 
 end
 
-function main(opt_in       ::TransD_GP.Options,
-              optns_in     ::TransD_GP.Options,
+function main(opt_in       ::TransD_GP.OptionsStat,
+              optns_in     ::TransD_GP.OptionsNonstat,
               F_in         ::Operator;
               nsamples     = 4001,
               nchains      = 1,

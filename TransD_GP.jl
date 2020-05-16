@@ -825,13 +825,6 @@ function write_history(isample::Int, opt::Options, m::Model, misfit::Float64,
                        isample, wp.fp_costs, wp.fp_fstar, wp.fp_x_ftrain, T, writemodel)
 end
 
-function write_history(isample::Int, opt::Options, m::ModelNonstat, misfit::Float64,
-                        stat::Stats, wp::Writepointers, T::Float64, writemodel::Bool)
-    write_history(opt, m.fstar, [m.xtrain; m.ftrain], misfit, stat.accept_rate[1],
-                        stat.accept_rate[2], stat.accept_rate[3], stat.accept_rate[4], m.n,
-                       isample, wp.fp_costs, wp.fp_fstar, wp.fp_x_ftrain, T, writemodel)
-end
-
 function write_history(opt::Options, fstar::AbstractArray, x_ftrain::AbstractArray, U::Float64, acceptanceRateBirth::Float64,
                     acceptanceRateDeath::Float64, acceptanceRatePosition::Float64, acceptanceRateProperty::Float64, nodes::Int,
                     iter::Int, fp_costs::Union{IOStream, Nothing}, fp_fstar::Union{IOStream, Nothing},

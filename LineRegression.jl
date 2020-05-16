@@ -14,7 +14,7 @@ function plot_posterior(L::Line, opt_in::TransD_GP.Options;
     cmappdf = "inferno_r",
     figsize=(10,5),
     pdfnormalize=false)
-    M = assembleTat1(opt_in, burninfrac=burninfrac, isns=isns)
+    M = assembleTat1(opt_in, burninfrac=burninfrac)
     xall = opt_in.xall
     f,ax = plt.subplots(1,2, sharex=true, sharey=true, figsize=figsize)
     rhomin, rhomax = Inf, -Inf
@@ -58,7 +58,8 @@ function get_posterior(opt_in::TransD_GP.Options, stat::Symbol; decimate=1)
     TransD_GP.history(opt_in, stat=:fstar)[1:decimate:end]
 end
 
-function assembleTat1(optin::TransD_GP.Options; burninfrac=0.5, isns=true)
+function assembleTat1(optin::TransD_GP.Options; burninfrac=0.5)
+    isns = typeof(optin) == TransD_GP.OptionsNonstat
     @info "ns is $isns"
     ns = "ns"
     isns || (ns="")
