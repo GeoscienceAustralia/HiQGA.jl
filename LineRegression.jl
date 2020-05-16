@@ -4,54 +4,80 @@ mutable struct Line<:Operator
     n::Nothing
 end
 
-function plot_posterior(L::Line, opt_in::TransD_GP.Options;
+function plot_posterior(L::Line,
+                        optns::TransD_GP.OptionsNonstat,
+                        opt::TransD_GP.OptionsStat;
     nbins = 50,
     burninfrac=0.5,
     isns=true,
     qp1=0.05,
     qp2=0.95,
-    cmapcdf = "RdYlBu_r",
-    cmappdf = "inferno_r",
+    cmappdf = "RdYlBu_r",
     figsize=(10,5),
     pdfnormalize=false)
-    M = assembleTat1(opt_in, burninfrac=burninfrac)
-    xall = opt_in.xall
-    f,ax = plt.subplots(1,2, sharex=true, sharey=true, figsize=figsize)
-    rhomin, rhomax = Inf, -Inf
-    for (i,mm) in enumerate(M)
-        rhomin_mm = minimum(mm)
-        rhomax_mm = maximum(mm)
-        rhomin_mm < rhomin && (rhomin = rhomin_mm)
-        rhomax_mm > rhomax && (rhomax = rhomax_mm)
-    end
-    edges = LinRange(rhomin, rhomax, nbins+1)
-    himage = zeros(Float64, length(M[1]), nbins)
-    cumhimage = zeros(Float64, length(M[1]), nbins)
-    CI = zeros(Float64, length(M[1]), 2)
-    for ilayer=1:size(xall,2)
-        himage[ilayer,:] = fit(Histogram, [m[ilayer] for m in M], edges).weights
-        himage[ilayer,:] = himage[ilayer,:]/sum(himage[ilayer,:])/(diff(edges)[1])
-        cumhimage[ilayer,:] = cumsum(himage[ilayer,:])/sum(himage[ilayer,:])
-        pdfnormalize && (himage[ilayer,:] = himage[ilayer,:]/maximum(himage[ilayer,:]))
-        CI[ilayer,:] = [quantile([m[ilayer] for m in M],(qp1, qp2))...]
-    end
-    im1 = ax[1].imshow(himage, extent=[edges[1],edges[end],xall[end],xall[1]], aspect="auto",
-            cmap=cmappdf)
+    himage_ns, edges_ns, CI_ns = make1Dhist(optns, burninfrac=burninfrac, nbins = nbins, qp1=qp1, qp2=qp2, pdfnormalize=pdfnormalize)
+    himage, edges, CI = make1Dhist(opt, burninfrac=burninfrac, nbins = nbins, qp1=qp1, qp2=qp2, pdfnormalize=pdfnormalize)
+    f,ax = plt.subplots(1,2, sharey=true, figsize=figsize)
+    xall = opt.xall
+    im1 = ax[1].imshow(himage_ns, extent=[edges_ns[1],edges_ns[end],xall[end],xall[1]], aspect="auto", cmap=cmappdf)
     cb1 = colorbar(im1, ax=ax[1])
-    cb1.ax.set_xlabel("pdf")
+    cb1.ax.set_xlabel("pdf ns")
     ax[1].grid()
-    im2 = ax[2].imshow(cumhimage, extent=[edges[1],edges[end],xall[end],xall[1]], aspect="auto",
-            cmap=cmapcdf)
+    im2 = ax[2].imshow(himage, extent=[edges[1],edges[end],xall[end],xall[1]], aspect="auto", cmap=cmappdf)
     ax[2].grid()
     cb2 = colorbar(im2, ax=ax[2])
-    cb2.ax.set_xlabel("cdf")
-    ax[1].plot(CI, xall[:], linewidth=2, color="g")
-    ax[1].plot(CI, xall[:], linewidth=2, color="k", linestyle="--")
+    cb2.ax.set_xlabel("pdf stationary")
+    ax[1].plot(CI_ns, xall[:], linewidth=2, color="g")
+    ax[1].plot(CI_ns, xall[:], linewidth=2, color="k", linestyle="--")
     ax[2].plot(CI, xall[:], linewidth=2, color="g")
     ax[2].plot(CI, xall[:], linewidth=2, color="k", linestyle="--")
     ax[1].set_xlabel(L"\log_{10} \rho")
     ax[1].set_ylabel("depth (m)")
-    ax[2].set_xlabel(L"\log_{10} \rho")
+    ax[2].set_xlabel(L"\log_{10} λ")
+end
+
+function make1Dhist(opt::TransD_GP.Options;
+                burninfrac = 0.5,
+                nbins = 50,
+                rhomin=Inf,
+                rhomax=-Inf,
+                qp1=0.05,
+                qp2=0.95,
+                pdfnormalize=false)
+    M = assembleTat1(opt, burninfrac=burninfrac)
+    if (rhomin == Inf) && (rhomax == -Inf)
+        for (i,mm) in enumerate(M)
+            rhomin_mm = minimum(mm)
+            rhomax_mm = maximum(mm)
+            rhomin_mm < rhomin && (rhomin = rhomin_mm)
+            rhomax_mm > rhomax && (rhomax = rhomax_mm)
+
+        end
+        if typeof(opt) == TransD_GP.OptionsStat
+            rhomin = 0.5*log10(rhomin)
+            rhomax = 0.5*log10(rhomax)
+        end
+    else
+        @assert rhomin < rhomin
+    end
+    edges = LinRange(rhomin, rhomax, nbins+1)
+    himage = zeros(Float64, length(M[1]), nbins)
+    CI = zeros(Float64, length(M[1]), 2)
+    for ilayer=1:size(opt.xall,2)
+        if typeof(opt) == TransD_GP.OptionsStat
+            himage[ilayer,:] = fit(Histogram, [0.5log10.(m[ilayer]) for m in M], edges).weights
+        else
+            himage[ilayer,:] = fit(Histogram, [m[ilayer] for m in M], edges).weights
+        end
+        himage[ilayer,:] = himage[ilayer,:]/sum(himage[ilayer,:])/(diff(edges)[1])
+        pdfnormalize && (himage[ilayer,:] = himage[ilayer,:]/maximum(himage[ilayer,:]))
+        if typeof(opt) == TransD_GP.OptionsStat
+            CI[ilayer,:] = [quantile([0.5log10.(m[ilayer]) for m in M],(qp1, qp2))...]
+        else
+            CI[ilayer,:] = [quantile([m[ilayer] for m in M],(qp1, qp2))...]
+        end    
+    end
+    return himage, edges, CI
 end
 
 function get_posterior(opt_in::TransD_GP.Options, stat::Symbol; decimate=1)
