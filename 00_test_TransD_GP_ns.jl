@@ -26,7 +26,7 @@ for dim in 1:size(xall, 1)
 end
 ## Initialize a model using these options
 Random.seed!(12)
-optlog10λ = TransD_GP.Options(nmin = nminlog10λ,
+optlog10λ = TransD_GP.OptionsStat(nmin = nminlog10λ,
                         nmax = nmaxlog10λ,
                         xbounds = xbounds,
                         fbounds = log10bounds,
@@ -52,18 +52,15 @@ K = GP.Mat32()
 demean_ns = true
 ## Initialize model for the nonstationary GP
 Random.seed!(13)
-opt = TransD_GP.Options(nmin = nmin,
+opt = TransD_GP.OptionsNonstat(optlog10λ,
+                        nmin = nmin,
                         nmax = nmax,
-                        xbounds = optlog10λ.xbounds,
                         fbounds = fbounds,
-                        xall = optlog10λ.xall,
-                        λ = λlog10λ,
                         δ = δ,
                         demean = demean_ns,
                         sdev_prop = sdev_prop,
                         sdev_pos = sdev_pos,
                         pnorm = pnorm,
-                        quasimultid = false,
                         K = K
                         )
 @time m = TransD_GP.init(opt, log10λ)
@@ -101,7 +98,7 @@ ftest = TransD_GP.testupdate(opt, log10λ, m)
     @testset "undo birth" begin
         mold = deepcopy(m)
         TransD_GP.birth!(m, opt, log10λ)
-        TransD_GP.undo_birth!(m, opt)
+        TransD_GP.undo_birth!(m)
         TransD_GP.sync_model!(m, opt)
         ftest = TransD_GP.testupdate(opt, log10λ, m)
         @test norm(mean(lsc' - 0.5log10.(log10λ.fstar))) < 1e-12
@@ -113,7 +110,7 @@ ftest = TransD_GP.testupdate(opt, log10λ, m)
         TransD_GP.birth!(m, opt, log10λ)
         mold = deepcopy(m)
         TransD_GP.birth!(m, opt, log10λ)
-        TransD_GP.undo_birth!(m, opt)
+        TransD_GP.undo_birth!(m)
         TransD_GP.sync_model!(m, opt)
         ftest = TransD_GP.testupdate(opt, log10λ, m)
         @test norm(mean(lsc' - 0.5log10.(log10λ.fstar))) < 1e-12
@@ -152,7 +149,7 @@ ftest = TransD_GP.testupdate(opt, log10λ, m)
     @testset "undo property change" begin
         mold = deepcopy(m)
         TransD_GP.property_change!(m, opt)
-        TransD_GP.undo_property_change!(m, opt)
+        TransD_GP.undo_property_change!(m)
         TransD_GP.sync_model!(m, opt)
         ftest = TransD_GP.testupdate(opt, log10λ, m)
         @test norm(mean(lsc' - 0.5log10.(log10λ.fstar))) < 1e-12

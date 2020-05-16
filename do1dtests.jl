@@ -17,7 +17,7 @@ xall = permutedims(collect(x))
 xbounds = permutedims([extrema(x)...])
 ## Initialize a model using these options
 Random.seed!(12)
-optlog10λ = TransD_GP.Options(nmin = nminlog10λ,
+optlog10λ = TransD_GP.OptionsStat(nmin = nminlog10λ,
                         nmax = nmaxlog10λ,
                         xbounds = xbounds,
                         fbounds = log10bounds,
@@ -43,18 +43,15 @@ demean_ns = true
 K = GP.Mat32()
 ## Initialize model for the nonstationary GP
 Random.seed!(13)
-opt = TransD_GP.Options(nmin = nmin,
+opt = TransD_GP.OptionsNonstat(optlog10λ;
+                        nmin = nmin,
                         nmax = nmax,
-                        xbounds = optlog10λ.xbounds,
                         fbounds = fbounds,
-                        xall = optlog10λ.xall,
-                        λ = λlog10λ,
                         δ = δ,
                         demean = demean_ns,
                         sdev_prop = sdev_prop,
                         sdev_pos = sdev_pos,
                         pnorm = pnorm,
-                        quasimultid = false,
                         K = K
                         )
 mns = TransD_GP.init(opt, log10λ)

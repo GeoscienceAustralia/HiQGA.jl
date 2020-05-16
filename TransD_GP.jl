@@ -3,7 +3,9 @@ using Printf, LinearAlgebra, Statistics, Distributed,
       Distances, NearestNeighbors,
       GP
 
-mutable struct Options
+abstract type Options end
+
+mutable struct OptionsStat <: Options
     nmin                :: Int
     nmax                :: Int
     xbounds             :: Array{Float64, 2}
@@ -33,7 +35,7 @@ mutable struct Options
     timesλ              :: Float64
 end
 
-function Options(;
+function OptionsStat(;
         nmin               = 1,
         nmax               = 50,
         xbounds            = [0 1.794; 0 1.2],
@@ -78,13 +80,70 @@ function Options(;
         x_ftrain_filename = "points_"*fdataname*".bin"
         kdtree = KDTree(xall)
         balltree = BallTree(xall./λ)
-        Options(nmin, nmax, xbounds, fbounds, xall, λ.^2 , δ, demean, sdev_prop, sdev_pos, pnorm,
+        OptionsStat(nmin, nmax, xbounds, fbounds, xall, λ.^2 , δ, demean, sdev_prop, sdev_pos, pnorm,
                 stat_window, dispstatstoscreen, report_freq, save_freq,
                 fdataname, history_mode, costs_filename, fstar_filename, x_ftrain_filename,
                 debug, quasimultid, influenceradius, K, kdtree, balltree, timesλ)
 end
 
-mutable struct Model
+mutable struct OptionsNonstat <: Options
+    nmin                :: Int
+    nmax                :: Int
+    xbounds             :: Array{Float64, 2}
+    fbounds             :: Array{Float64, 2}
+    xall                :: Array{Float64, 2}
+    δ                   :: Float64
+    demean              :: Bool
+    sdev_prop           :: Array{Float64, 1}
+    sdev_pos            :: Array{Float64, 1}
+    pnorm               :: Float64
+    stat_window         :: Int
+    dispstatstoscreen   :: Bool
+    report_freq         :: Int
+    save_freq           :: Int
+    fdataname           :: String
+    history_mode        :: String
+    costs_filename      :: String
+    fstar_filename      :: String
+    x_ftrain_filename   :: String
+    debug               :: Bool
+    quasimultid         :: Bool
+    influenceradius     :: Array{Float64, 1}
+    K                   :: GP.Kernel
+    kdtree              :: KDTree
+end
+
+function OptionsNonstat(opt::OptionsStat;
+        nmin               = 1,
+        nmax               = 50,
+        fbounds            = [-1 1],
+        δ                  = 0.1,
+        demean             = true,
+        sdev_prop          = [0.01],
+        sdev_pos           = [0.05;0.05],
+        pnorm              = 2,
+        influenceradius    = [-9.9],
+        K                  = GP.SqEuclidean()
+        )
+
+        @assert all(diff(fbounds, dims=2) .> 0)
+        @assert ndims(sdev_prop) == 1
+        @assert length(sdev_prop) == size(fbounds, 1)
+        @assert ndims(sdev_pos) == 1
+        @assert length(sdev_pos) == size(opt.xbounds, 1)
+        @assert typeof(K) <: GP.Kernel
+        costs_filename = "misfits_ns_"*opt.fdataname*".bin"
+        fstar_filename = "models_ns_"*opt.fdataname*".bin"
+        x_ftrain_filename = "points_ns_"*opt.fdataname*".bin"
+        OptionsNonstat(nmin, nmax, opt.xbounds, fbounds, opt.xall, δ, demean, sdev_prop, sdev_pos, pnorm,
+                opt.stat_window, opt.dispstatstoscreen, opt.report_freq, opt.save_freq,
+                opt.fdataname, opt.history_mode, opt.costs_filename, opt.fstar_filename, opt.x_ftrain_filename,
+                opt.debug, opt.quasimultid, influenceradius, K, opt.kdtree)
+end
+
+abstract type Model end
+
+mutable struct ModelStat <:Model
     fstar         :: Array{Float64}
     xtrain        :: Array{Float64}
     ftrain        :: Array{Float64}
@@ -97,7 +156,7 @@ mutable struct Model
     xtrain_focus  :: Array{Float64} # for quasimultid to keep track of
 end
 
-mutable struct ModelNonstat
+mutable struct ModelNonstat <:Model
     fstar         :: Array{Float64}
     xtrain        :: Array{Float64}
     ftrain        :: Array{Float64}
@@ -129,7 +188,7 @@ mutable struct Writepointers
 end
 
 # Stationary GP functions, i.e., for λ
-function init(opt::TransD_GP.Options)
+function init(opt::TransD_GP.OptionsStat)
     n = opt.nmin
     xtrain = zeros(Float64, size(opt.xbounds,1), opt.nmax)
     xtrain[:,1:n] = opt.xbounds[:,1] .+ diff(opt.xbounds, dims=2).*rand(size(opt.xbounds, 1), n)
@@ -150,13 +209,13 @@ function init(opt::TransD_GP.Options)
     rhs = ftrain[:,1:n] .- mf
     U = cholesky(K_y[1:n,1:n]).U
     fstar = 10 .^(2(mf' .+ Kstar[:,1:n]*(U\(U'\rhs'))))'
-    return Model(fstar, xtrain, ftrain, K_y, Kstar, n,
+    return ModelStat(fstar, xtrain, ftrain, K_y, Kstar, n,
                  [0.0], zeros(Float64, size(opt.xbounds, 1)), 0,
                  zeros(Float64, size(opt.xbounds, 1)))
 end
 
-function updatenskernels!(opt::Options, m::Model, ipoint::Union{Int, Array{Int, 1}},
-                          optns::Options, mns::ModelNonstat; doall=false, isposchange=false)
+function updatenskernels!(opt::OptionsStat, m::ModelStat, ipoint::Union{Int, Array{Int, 1}},
+                          optns::OptionsNonstat, mns::ModelNonstat; doall=false, isposchange=false)
     xtrain, λ², xtest = m.xtrain, m.fstar, opt.xall
     copyto!(mns.K_y_old, CartesianIndices((mns.n, mns.n)), mns.K_y, CartesianIndices((mns.n, mns.n)))
     copyto!(mns.Kstar_old, CartesianIndices((size(mns.Kstar_old, 1), mns.n)),
@@ -193,10 +252,11 @@ function updatenskernels!(opt::Options, m::Model, ipoint::Union{Int, Array{Int, 
         ky[diagind(ky)] .= 1. + optns.δ^2
     end
     sync_model!(mns, optns)
+    nothing
 end
 
-function birth!(m::Model, opt::TransD_GP.Options,
-                mns::ModelNonstat, optns::Options; doall=false)
+function birth!(m::ModelStat, opt::TransD_GP.OptionsStat,
+                mns::ModelNonstat, optns::OptionsNonstat; doall=false)
     xtrain, ftrain, K_y,  Kstar, n = m.xtrain, m.ftrain, m.K_y,  m.Kstar, m.n
     xtrain[:,n+1] = opt.xbounds[:,1] + diff(opt.xbounds, dims=2).*rand(size(opt.xbounds, 1))
     copy!(m.xtrain_focus, xtrain[:,n+1])
@@ -220,18 +280,20 @@ function birth!(m::Model, opt::TransD_GP.Options,
     m.n = n+1
     # updating the nonstationary kernels now
     updatenskernels!(opt, m, n+1, optns, mns, doall=doall)
+    nothing
 end
 
-function undo_birth!(m::Model, opt::TransD_GP.Options, mns::ModelNonstat)
+function undo_birth!(m::ModelStat, mns::ModelNonstat)
     m.n = m.n - 1
     # updating the nonstationary kernels now
     copyto!(mns.K_y, CartesianIndices((mns.n, mns.n)), mns.K_y_old, CartesianIndices((mns.n, mns.n)))
     copyto!(mns.Kstar, CartesianIndices((size(mns.Kstar_old, 1), mns.n)),
             mns.Kstar_old, CartesianIndices((size(mns.Kstar_old, 1), mns.n)))
+    nothing
 end
 
-function death!(m::Model, opt::TransD_GP.Options,
-                mns::ModelNonstat, optns::Options; doall=false)
+function death!(m::ModelStat, opt::TransD_GP.OptionsStat,
+                mns::ModelNonstat, optns::OptionsNonstat; doall=false)
     xtrain, ftrain, K_y,  Kstar, n = m.xtrain, m.ftrain, m.K_y,  m.Kstar, m.n
     ipoint = rand(1:n)
     m.iremember = ipoint
@@ -254,9 +316,10 @@ function death!(m::Model, opt::TransD_GP.Options,
     m.n = n-1
     # updating the nonstationary kernels now
     updatenskernels!(opt, m, n, optns, mns, doall=doall)
+    nothing
 end
 
-function undo_death!(m::Model, opt::TransD_GP.Options, mns::ModelNonstat)
+function undo_death!(m::ModelStat, opt::TransD_GP.OptionsStat, mns::ModelNonstat)
     m.n = m.n + 1
     ftrain, xtrain, Kstar, K_y, n, ipoint = m.ftrain, m.xtrain, m.Kstar, m.K_y, m.n, m.iremember
     xtrain[:,ipoint], xtrain[:,n] = xtrain[:,n], xtrain[:,ipoint]
@@ -270,10 +333,11 @@ function undo_death!(m::Model, opt::TransD_GP.Options, mns::ModelNonstat)
     copyto!(mns.K_y, CartesianIndices((mns.n, mns.n)), mns.K_y_old, CartesianIndices((mns.n, mns.n)))
     copyto!(mns.Kstar, CartesianIndices((size(mns.Kstar_old, 1), mns.n)),
             mns.Kstar_old, CartesianIndices((size(mns.Kstar_old, 1), mns.n)))
+    nothing
 end
 
-function property_change!(m::Model, opt::TransD_GP.Options,
-                          mns::ModelNonstat, optns::Options; doall=false)
+function property_change!(m::ModelStat, opt::TransD_GP.OptionsStat,
+                          mns::ModelNonstat, optns::OptionsNonstat; doall=false)
     ftrain, K_y, Kstar, n = m.ftrain, m.K_y, m. Kstar, m.n
     ipoint = 1 + floor(Int, rand()*n)
     m.iremember = ipoint
@@ -297,19 +361,21 @@ function property_change!(m::Model, opt::TransD_GP.Options,
     copy!(m.fstar, 10 .^(2(mf' .+ Kstar[:,1:n]*(U\(U'\rhs'))))')
     # updating the nonstationary kernels now
     updatenskernels!(opt, m, ipoint, optns, mns, doall=doall)
+    nothing
 end
 
-function undo_property_change!(m::Model, opt::TransD_GP.Options, mns::ModelNonstat)
+function undo_property_change!(m::ModelStat, mns::ModelNonstat)
     ipoint, ftrain = m.iremember, m.ftrain
     ftrain[:,ipoint] = m.ftrain_old
     # updating the nonstationary kernels now
     copyto!(mns.K_y, CartesianIndices((mns.n, mns.n)), mns.K_y_old, CartesianIndices((mns.n, mns.n)))
     copyto!(mns.Kstar, CartesianIndices((size(mns.Kstar_old, 1), mns.n)),
             mns.Kstar_old, CartesianIndices((size(mns.Kstar_old, 1), mns.n)))
+    nothing
 end
 
-function position_change!(m::Model, opt::TransD_GP.Options,
-                          mns::ModelNonstat, optns::Options; doall=false)
+function position_change!(m::ModelStat, opt::TransD_GP.OptionsStat,
+                          mns::ModelNonstat, optns::OptionsNonstat; doall=false)
     xtrain, ftrain, K_y, Kstar, n = m.xtrain, m.ftrain, m.K_y, m.Kstar, m.n
     ipoint = 1 + floor(Int, rand()*n)
     m.iremember = ipoint
@@ -341,9 +407,10 @@ function position_change!(m::Model, opt::TransD_GP.Options,
     copy!(m.fstar, 10 .^(2(mf' .+ Kstar[:,1:n]*(U\(U'\rhs'))))')
     # updating the nonstationary kernels now
     updatenskernels!(opt, m, ipoint, optns, mns, doall=doall, isposchange=true)
+    nothing
 end
 
-function undo_position_change!(m::Model, opt::TransD_GP.Options, mns::ModelNonstat)
+function undo_position_change!(m::ModelStat, opt::TransD_GP.OptionsStat, mns::ModelNonstat)
     xtrain, K_y, Kstar, n = m.xtrain, m.K_y, m.Kstar, m.n
     ipoint = m.iremember
     xtrain[:,ipoint] = m.xtrain_old
@@ -358,6 +425,7 @@ function undo_position_change!(m::Model, opt::TransD_GP.Options, mns::ModelNonst
     copyto!(mns.K_y, CartesianIndices((mns.n, mns.n)), mns.K_y_old, CartesianIndices((mns.n, mns.n)))
     copyto!(mns.Kstar, CartesianIndices((size(mns.Kstar_old, 1), mns.n)),
             mns.Kstar_old, CartesianIndices((size(mns.Kstar_old, 1), mns.n)))
+    nothing
 end
 
 # Non stationary GP functions, i.e., for mns.fstar
@@ -366,7 +434,7 @@ function gettrainidx(kdtree::KDTree, xtrain::Array{Float64, 2}, n::Int)
     reduce(vcat, idxs)
 end
 
-function init(opt::TransD_GP.Options, m::Model)
+function init(opt::TransD_GP.OptionsNonstat, m::ModelStat)
     λ² = m.fstar
     n = opt.nmin
     xtrain = zeros(Float64, size(opt.xbounds,1), opt.nmax)
@@ -396,7 +464,7 @@ function init(opt::TransD_GP.Options, m::Model)
                  copy(K_y), copy(Kstar))
 end
 
-function birth!(m::ModelNonstat, opt::TransD_GP.Options, l::Model)
+function birth!(m::ModelNonstat, opt::TransD_GP.OptionsNonstat, l::ModelStat)
     λ² = l.fstar
     xtrain, ftrain, K_y,  Kstar, n = m.xtrain, m.ftrain, m.K_y,  m.Kstar, m.n
     xtrain[:,n+1] = opt.xbounds[:,1] + diff(opt.xbounds, dims=2).*rand(size(opt.xbounds, 1))
@@ -420,13 +488,15 @@ function birth!(m::ModelNonstat, opt::TransD_GP.Options, l::Model)
     U = cholesky(K_y[1:n+1, 1:n+1]).U
     copy!(m.fstar, mf' .+ Kstar[:,1:n+1]*(U\(U'\rhs')))
     m.n = n+1
+    nothing
 end
 
-function undo_birth!(m::ModelNonstat, opt::TransD_GP.Options)
+function undo_birth!(m::ModelNonstat)
     m.n = m.n - 1
+    nothing
 end
 
-function death!(m::ModelNonstat, opt::TransD_GP.Options)
+function death!(m::ModelNonstat, opt::TransD_GP.OptionsNonstat)
     xtrain, ftrain, K_y,  Kstar, n = m.xtrain, m.ftrain, m.K_y,  m.Kstar, m.n
     ipoint = rand(1:n)
     m.iremember = ipoint
@@ -447,9 +517,10 @@ function death!(m::ModelNonstat, opt::TransD_GP.Options)
     U = cholesky(K_y[1:n-1, 1:n-1]).U
     copy!(m.fstar, mf' .+ Kstar[:,1:n-1]*(U\(U'\rhs')))
     m.n = n-1
+    nothing
 end
 
-function undo_death!(m::ModelNonstat, opt::TransD_GP.Options)
+function undo_death!(m::ModelNonstat, opt::TransD_GP.OptionsNonstat)
     m.n = m.n + 1
     ftrain, xtrain, Kstar, K_y, n, ipoint = m.ftrain, m.xtrain, m.Kstar, m.K_y, m.n, m.iremember
     xtrain[:,ipoint], xtrain[:,n] = xtrain[:,n], xtrain[:,ipoint]
@@ -461,7 +532,7 @@ function undo_death!(m::ModelNonstat, opt::TransD_GP.Options)
     K_y[n,n] = 1.0 + opt.δ^2
 end
 
-function property_change!(m::ModelNonstat, opt::TransD_GP.Options)
+function property_change!(m::ModelNonstat, opt::TransD_GP.OptionsNonstat)
     ftrain, K_y, Kstar, n = m.ftrain, m.K_y, m. Kstar, m.n
     ipoint = 1 + floor(Int, rand()*n)
     m.iremember = ipoint
@@ -483,14 +554,16 @@ function property_change!(m::ModelNonstat, opt::TransD_GP.Options)
     # could potentially store chol if very time consuming
     U = cholesky(K_y[1:n, 1:n]).U
     copy!(m.fstar, mf' .+ Kstar[:,1:n]*(U\(U'\rhs')))
+    nothing
 end
 
-function undo_property_change!(m::ModelNonstat, opt::TransD_GP.Options)
+function undo_property_change!(m::ModelNonstat)
     ipoint, ftrain = m.iremember, m.ftrain
     ftrain[:,ipoint] = m.ftrain_old
+    nothing
 end
 
-function position_change!(m::ModelNonstat, opt::TransD_GP.Options, l::Model)
+function position_change!(m::ModelNonstat, opt::TransD_GP.OptionsNonstat, l::ModelStat)
     λ² = l.fstar
     xtrain, ftrain, K_y, Kstar, n = m.xtrain, m.ftrain, m.K_y, m.Kstar, m.n
     ipoint = 1 + floor(Int, rand()*n)
@@ -525,9 +598,10 @@ function position_change!(m::ModelNonstat, opt::TransD_GP.Options, l::Model)
     # could potentially store chol if very time consuming
     U = cholesky(K_y[1:n, 1:n]).U
     copy!(m.fstar, mf' .+ Kstar[:,1:n]*(U\(U'\rhs')))
+    nothing
 end
 
-function undo_position_change!(m::ModelNonstat, opt::TransD_GP.Options, l::Model)
+function undo_position_change!(m::ModelNonstat, opt::TransD_GP.OptionsNonstat, l::Model)
     λ² = l.fstar
     xtrain, K_y, Kstar, n = m.xtrain, m.K_y, m.Kstar, m.n
     ipoint = m.iremember
@@ -542,9 +616,10 @@ function undo_position_change!(m::ModelNonstat, opt::TransD_GP.Options, l::Model
     #map!(x->GP.κ(opt.K, x),K_yv,colwise(WeightedEuclidean(1 ./opt.λ² ), xtrain[:,ipoint], xtrain[:,1:n]))
     K_y[1:n,ipoint] = K_y[ipoint,1:n]
     K_y[ipoint,ipoint] = K_y[ipoint,ipoint] + opt.δ^2
+    nothing
 end
 
-function sync_model!(m::Model, opt::Options)
+function sync_model!(m::ModelStat, opt::OptionsStat)
     ftrain, K_y, Kstar, n = m.ftrain, m.K_y, m.Kstar, m.n
     mf = zeros(size(opt.fbounds, 1))
     if opt.demean
@@ -556,9 +631,10 @@ function sync_model!(m::Model, opt::Options)
     # could potentially store chol if very time consuming
     U = cholesky(K_y[1:n, 1:n]).U
     copy!(m.fstar, 10 .^(2(mf' .+ Kstar[:,1:n]*(U\(U'\rhs'))))')
+    nothing
 end
 
-function sync_model!(m::ModelNonstat, opt::Options)
+function sync_model!(m::ModelNonstat, opt::OptionsNonstat)
     ftrain, K_y, Kstar, n = m.ftrain, m.K_y, m.Kstar, m.n
     mf = zeros(size(opt.fbounds, 1))
     if opt.demean
@@ -570,10 +646,11 @@ function sync_model!(m::ModelNonstat, opt::Options)
     # could potentially store chol if very time consuming
     U = cholesky(K_y[1:n, 1:n]).U
     copy!(m.fstar, mf' .+ Kstar[:,1:n]*(U\(U'\rhs')))
+    nothing
 end
 
-function testupdate(optns::Options, log10λ::Model, mns::ModelNonstat)
-    λ² = log10λ.fstar
+function testupdate(optns::OptionsNonstat, l::ModelStat, mns::ModelNonstat)
+    λ² = l.fstar
     idxs = gettrainidx(optns.kdtree, mns.xtrain, mns.n)
     ftest, = GP.GPfit(optns.K, mns.ftrain[:,1:mns.n], mns.xtrain[:,1:mns.n],
             optns.xall, λ², λ²[:,idxs], optns.δ, p=2, demean=optns.demean, nogetvars=true,
@@ -581,14 +658,14 @@ function testupdate(optns::Options, log10λ::Model, mns::ModelNonstat)
     return ftest
 end
 
-function testupdate(opt::Options, m::Model)
+function testupdate(opt::OptionsStat, m::ModelStat)
     ftest, = GP.GPfit(opt.K, m.ftrain[:,1:m.n], m.xtrain[:,1:m.n],
             opt.xall, opt.λ², opt.δ, nogetvars=true, demean=opt.demean, p=2,
             my=mean(opt.fbounds, dims=2))
     return ftest
 end
 
-function do_move!(mns::ModelNonstat, m::Model, optns::Options, statns::Stats)
+function do_move!(mns::ModelNonstat, m::ModelStat, optns::OptionsNonstat, statns::Stats)
     unifrand = rand()
     movetype, priorviolate = 0, false
     if unifrand<0.25
@@ -616,22 +693,22 @@ function do_move!(mns::ModelNonstat, m::Model, optns::Options, statns::Stats)
     return movetype, priorviolate
 end
 
-function undo_move!(movetype::Int, m::ModelNonstat, opt::Options)
+function undo_move!(movetype::Int, m::ModelNonstat, opt::OptionsNonstat)
     if movetype == 1
-        undo_birth!(m, opt)
+        undo_birth!(m)
     elseif movetype == 2
         undo_death!(m, opt)
     elseif movetype == 3
         undo_position_change!(m, opt)
     else
-        undo_property_change!(m, opt)
+        undo_property_change!(m)
     end
     sync_model!(m, opt)
     nothing
 end
 
-function do_move!(m::Model, opt::Options, stat::Stats,
-                  mns::ModelNonstat, optns::Options)
+function do_move!(m::ModelStat, opt::OptionsStat, stat::Stats,
+                  mns::ModelNonstat, optns::OptionsNonstat)
     unifrand = rand()
     movetype, priorviolate = 0, false
     if unifrand<0.25
@@ -659,16 +736,16 @@ function do_move!(m::Model, opt::Options, stat::Stats,
     return movetype, priorviolate
 end
 
-function undo_move!(movetype::Int, m::Model, opt::Options,
-                    mns::ModelNonstat, optns::Options)
+function undo_move!(movetype::Int, m::ModelStat, opt::OptionsStat,
+                    mns::ModelNonstat, optns::OptionsNonstat)
     if movetype == 1
-        undo_birth!(m, opt, mns)
+        undo_birth!(m, mns)
     elseif movetype == 2
         undo_death!(m, opt, mns)
     elseif movetype == 3
         undo_position_change!(m, opt, mns)
     else
-        undo_property_change!(m, opt, mns)
+        undo_property_change!(m, mns)
     end
     sync_model!(m, opt)
     sync_model!(mns, optns)
