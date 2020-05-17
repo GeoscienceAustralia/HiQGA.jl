@@ -54,7 +54,7 @@ opt = TransD_GP.OptionsNonstat(optlog10λ,
                         K = K
                         )
 ##
-nsamples, nchains, nchainsatone = 50001, 4, 1
+nsamples, nchains, nchainsatone = 500001, 4, 1
 Tmax = 2.50
 line = Line([1])
 addprocs(nchains)
