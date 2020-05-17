@@ -86,7 +86,7 @@ function make1Dhists(opt_in::TransD_GP.Options, burninfrac::Real;
                         kfigsize=(8,8),
                         nxbins=50,
                         nftbins=50)
-    f2, ax2 = plt[:subplots](2,2, figsize=kfigsize)
+    f2, ax2 = plt.subplots(2,2, figsize=kfigsize)
     x, ft = trimxft(opt_in, burninfrac)
     n = assembleTat1(opt_in, :nodes, burninfrac=burninfrac)
     edgesx = LinRange(opt_in.xbounds[1], opt_in.xbounds[2], nxbins+1)
