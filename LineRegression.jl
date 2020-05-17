@@ -12,21 +12,22 @@ function plot_posterior(L::Line,
     isns=true,
     qp1=0.05,
     qp2=0.95,
-    cmappdf = "RdYlBu_r",
+    cmappdf = "viridis",
     figsize=(10,5),
-    pdfnormalize=false)
+    pdfnormalize=false,
+    fsize=14)
     himage_ns, edges_ns, CI_ns = make1Dhist(optns, burninfrac=burninfrac, nbins = nbins, qp1=qp1, qp2=qp2, pdfnormalize=pdfnormalize)
     himage, edges, CI = make1Dhist(opt, burninfrac=burninfrac, nbins = nbins, qp1=qp1, qp2=qp2, pdfnormalize=pdfnormalize)
     f,ax = plt.subplots(1,2, sharey=true, figsize=figsize)
     xall = opt.xall
     im1 = ax[1].imshow(himage_ns, extent=[edges_ns[1],edges_ns[end],xall[end],xall[1]], aspect="auto", cmap=cmappdf)
     cb1 = colorbar(im1, ax=ax[1])
-    cb1.ax.set_xlabel("pdf ns")
+    cb1.ax.set_xlabel("pdf \nns")
     ax[1].grid()
     im2 = ax[2].imshow(himage, extent=[edges[1],edges[end],xall[end],xall[1]], aspect="auto", cmap=cmappdf)
     ax[2].grid()
     cb2 = colorbar(im2, ax=ax[2])
-    cb2.ax.set_xlabel("pdf stationary")
+    cb2.ax.set_xlabel("pdf \nstationary")
     ax[1].plot(CI_ns, xall[:], linewidth=2, color="g")
     ax[1].plot(CI_ns, xall[:], linewidth=2, color="k", linestyle="--")
     ax[2].plot(CI, xall[:], linewidth=2, color="g")
@@ -34,6 +35,7 @@ function plot_posterior(L::Line,
     ax[1].set_xlabel(L"\log_{10} \rho")
     ax[1].set_ylabel("depth (m)")
     ax[2].set_xlabel(L"\log_{10} λ")
+    nicenup(f, fsize=fsize)
 end
 
 function make1Dhist(opt::TransD_GP.Options;
@@ -44,7 +46,7 @@ function make1Dhist(opt::TransD_GP.Options;
                 qp1=0.05,
                 qp2=0.95,
                 pdfnormalize=false)
-    M = assembleTat1(opt, burninfrac=burninfrac)
+    M = assembleTat1(opt, :fstar, burninfrac=burninfrac)
     if (rhomin == Inf) && (rhomax == -Inf)
         for (i,mm) in enumerate(M)
             rhomin_mm = minimum(mm)
@@ -85,7 +87,6 @@ function get_posterior(opt_in::TransD_GP.Options, stat::Symbol; decimate=1)
 end
 
 function assembleTat1(optin::TransD_GP.Options, stat::Symbol; burninfrac=0.5)
-    @assert (stat == :fstar || stat == :x_ftrain)
     isns = checkns(optin)
     @assert 0.0<=burninfrac<=1.0
     Tacrosschains = gettargtemps(optin)
@@ -94,16 +95,26 @@ function assembleTat1(optin::TransD_GP.Options, stat::Symbol; burninfrac=0.5)
     start == 0 && (start = 1)
     @info "obtaining models $(iters[start]) to $(iters[end])"
     nmodels = sum((Tacrosschains[start:end,:] .== 1))
-    mat1 = Array{Array{Float64}, 1}(undef, nmodels)
+    if stat == :fstar || stat == :x_ftrain
+        mat1 = Array{Array{Float64}, 1}(undef, nmodels)
+    else
+        mat1 = Array{Real, 1}(undef, nmodels)
+    end
     opt = deepcopy(optin)
     imodel = 0
     for ichain in 1:size(Tacrosschains, 2)
-        at1idx = findall(Tacrosschains[:,ichain].==1).>= start
+        opt.fstar_filename = "models_"*isns*opt.fdataname*"_$ichain.bin"
+        opt.x_ftrain_filename = "points_"*isns*opt.fdataname*"_$ichain.bin"
+        opt.costs_filename = "misfits_"*isns*opt.fdataname*"_$ichain.bin"
+        if stat == :fstar || stat == :x_ftrain
+            at1idx = findall(Tacrosschains[:,ichain].==1) .>= start
+        else
+            at1idx = Tacrosschains[:,ichain].==1
+            at1idx[1:start-1] .= false
+        end
         ninchain = sum(at1idx)
         @info "chain $ichain has $ninchain models"
         ninchain == 0 && continue
-        opt.fstar_filename = "models_"*isns*opt.fdataname*"_$ichain.bin"
-        opt.x_ftrain_filename = "points_"*isns*opt.fdataname*"_$ichain.bin"
         mat1[imodel+1:imodel+ninchain] .= TransD_GP.history(opt, stat=stat)[at1idx]
         imodel += ninchain
     end
@@ -218,6 +229,16 @@ function nicenup(g::PyPlot.Figure;fsize=16)
     g.tight_layout()
 end
 
-get_misfit(m::TransD_GP.ModelNonstat, opt::TransD_GP.Options, L::Line) = 0.0
+function get_misfit(m::TransD_GP.ModelNonstat, opt::TransD_GP.Options, L::Line)
+    chi2by2 = 0.0
+    if !opt.debug
+        d = L.d
+        select = .!isnan.(d[:])
+        r = m.fstar[select] - d[select]
+        N = sum(select)
+        chi2by2 = 0.5*N*log(norm(r)^2)
+    end
+    return chi2by2
+end
 
 export Line
