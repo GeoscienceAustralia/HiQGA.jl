@@ -56,7 +56,7 @@ opt = TransD_GP.OptionsNonstat(optlog10λ,
 ##
 nsamples, nchains, nchainsatone = 50001, 4, 1
 Tmax = 2.50
-line = Line(nothing)
+line = Line([1])
 addprocs(nchains)
 @info "workers are $(workers())"
 @everywhere any(pwd() .== LOAD_PATH) || push!(LOAD_PATH, pwd())

@@ -886,7 +886,11 @@ function history(opt::Options; stat=:U)
         fp_models = open(opt.fstar_filename)
         fstar = Array{Array{Float64}}(undef, iters)
         for i = 1:iters
-            fstar[i] = zeros(Float64, (size(opt.xall,2), size(opt.fbounds, 1)))
+            if typeof(opt) == OptionsStat
+                fstar[i] = zeros(Float64, (size(opt.fbounds, 1), size(opt.xall,2)))
+            else
+                fstar[i] = zeros(Float64, (size(opt.xall,2), size(opt.fbounds, 1)))
+            end
             read!(fp_models, fstar[i])
         end
         return fstar
@@ -902,7 +906,7 @@ function history(opt::Options; stat=:U)
         fp_models = open(opt.x_ftrain_filename)
         x_ftrain = Array{Array{Float64,2},1}(undef, iters)
         for i = 1:iters
-            x_ftrain[i] = zeros(Float64, opt.nmax, size(opt.fbounds, 1) + size(opt.xbounds, 1))
+            x_ftrain[i] = zeros(Float64, size(opt.fbounds, 1) + size(opt.xbounds, 1), opt.nmax)
             read!(fp_models, x_ftrain[i])
         end
         return x_ftrain
