@@ -82,8 +82,55 @@ function make1Dhist(opt::TransD_GP.Options;
     return himage, edges, CI
 end
 
-function get_posterior(opt_in::TransD_GP.Options, stat::Symbol; decimate=1)
-    TransD_GP.history(opt_in, stat=stat)[1:decimate:end]
+function make1Dhists()
+    f2, ax2 = plt[:subplots](2,2, figsize=kfigsize)
+    edgesx = LinRange(opt_in.xbounds[1], opt_in.xbounds[2], nxbins+1)
+    edgesrho = LinRange(opt_in.fbounds[1], opt_in.fbounds[2], nftbins+1)
+    h = fit(Histogram, (x, ft), (edgesx, edgesrho)).weights
+    im3 = ax2[1][:imshow](h, extent=[edgesrho[1],edgesrho[end],edgesx[end],edgesx[1]], aspect="auto", vmin=0.0, vmax=2*max(h...))
+    ax2[1][:set_ylabel]("depth m")
+    ax2[1][:set_xlabel](L"\log_{10}\rho")
+    rhist = sum(h,dims=1)[:]
+    rhist = rhist/sum(rhist)/diff(edgesrho)[1]
+    ax2[2][:bar](0.5*(edgesrho[2:end]+edgesrho[1:end-1]), rhist, width=diff(edgesrho)[1])
+    ax2[2][:plot]([edgesrho[1], edgesrho[end]], 1/(opt_in.fbounds[end]-opt_in.fbounds[1])*[1,1],"--k")
+    ax2[2][:set_ylim](0, 3*maximum(rhist))
+    ax2[2][:set_xlabel](L"\log_{10}\rho")
+    ax2[2][:set_ylabel]("pdf")
+    xhist = sum(h,dims=2)[:]
+    xhist = xhist/sum(xhist)/diff(edgesx)[1]
+    ax2[3][:barh](0.5*(edgesx[2:end]+edgesx[1:end-1]), xhist, height=diff(edgesx)[1])
+    ax2[3][:plot](1/(opt_in.xbounds[end]-opt_in.xbounds[1])*[1,1], [edgesx[1], edgesx[end]],"--k")
+    ax2[3][:set_xlim](0, 3*maximum(xhist))
+    ax2[3][:set_ylim](ax2[1][:get_ylim]())
+    ax2[3][:set_ylabel]("depth m")
+    ax2[3][:set_xlabel]("pdf")
+    # ax2[3][:xaxis][:set_label_position]("top")
+    ax2[2][:get_shared_y_axes]()[:join](ax2[1], ax2[3])
+    ax2[2][:get_shared_x_axes]()[:join](ax2[1], ax2[2])
+    ax2[2][:set_xlim](ax2[1][:get_xlim]())
+    k = fit(Histogram, n[from:end], (opt_in.nmin-0.5:opt_in.nmax+0.5)).weights
+    k = k/sum(k)
+    @show mean(k)
+    ax2[4][:bar](opt_in.nmin:opt_in.nmax, k, width=1)
+    ax2[4][:plot]([opt_in.nmin, opt_in.nmax],1/(opt_in.nmax-opt_in.nmin+1)*[1,1],"--k")
+    ax2[4][:set_xlabel]("# training points")
+    ax2[4][:set_ylim](0, 3*max(k...))
+    ax2[4][:set_ylabel]("pdf")
+    ax2[4][:set_xlim](opt_in.nmin, opt_in.nmax)
+end
+
+function trimxft(opt::TransD_GP.Options, burninfrac::Float64)
+    x_ft = assembleTat1(opt, :x_ftrain, burninfrac=burninfrac)
+    n = assembleTat1(opt, :nodes, burninfrac=burninfrac)
+    x, ft = zeros(sum(n), size(opt.xall, 1)), zeros(sum(n), size(opt.fbounds, 1))
+    nlast = 0
+    for (i, xft) in enumerate(x_ft)
+        x[nlast+1:nlast+n[i],:]  = xft[1:n[i],1:size(opt.xall, 1)]
+        ft[nlast+1:nlast+n[i],:] = xft[1:n[i],size(opt.xall, 1)+1:end]
+        nlast += n[i]
+    end
+    x, ft
 end
 
 function assembleTat1(optin::TransD_GP.Options, stat::Symbol; burninfrac=0.5)
