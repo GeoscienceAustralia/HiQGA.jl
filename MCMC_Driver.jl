@@ -192,11 +192,11 @@ function init_chain_darrays(opt_in::TransD_GP.OptionsStat,
         mns_[idx]              = @spawnat chain.pid [TransD_GP.init(optns_in,
                                                             fetch(m_[idx])[1])]
 
-        opt_in.costs_filename      = costs_filename*"_$idx.bin"
+        opt_in.costs_filename      = costs_filename*"s_$idx.bin"
         optns_in.costs_filename    = costs_filename*"ns_$idx.bin"
-        opt_in.fstar_filename      = fstar_filename*"_$idx.bin"
+        opt_in.fstar_filename      = fstar_filename*"s_$idx.bin"
         optns_in.fstar_filename    = fstar_filename*"ns_$idx.bin"
-        opt_in.x_ftrain_filename   = x_ftrain_filename*"_$idx.bin"
+        opt_in.x_ftrain_filename   = x_ftrain_filename*"s_$idx.bin"
         optns_in.x_ftrain_filename = x_ftrain_filename*"ns_$idx.bin"
 
         opt_[idx]            = @spawnat chain.pid [opt_in]
@@ -273,68 +273,6 @@ function main(opt_in       ::TransD_GP.OptionsStat,
     close_history(wp)
     close_history(wpns)
     nothing
-end
-
-function getchi2forall(opt_in::TransD_GP.Options;
-                        nchains          = 1,
-                        figsize          = (17,8),
-                        fsize            = 14,
-                      )
-    if nchains == 1 # then actually find out how many chains there are saved
-        nchains = length(filter( x -> occursin(r"misfits_ns.*bin", x), readdir(pwd()) )) # my terrible regex
-    end
-    # now look at any chain to get how many iterations
-    costs_filename = "misfits_"*opt_in.fdataname
-    opt_in.costs_filename    = costs_filename*"_1.bin"
-    iters          = TransD_GP.history(opt_in, stat=:iter)
-    niters         = length(iters)
-    # then create arrays of unsorted by temperature T, k, and chi2
-    Tacrosschains  = zeros(Float64, niters, nchains)
-    kacrosschains  = zeros(Int, niters, nchains)
-    X2by2inchains  = zeros(Float64, niters, nchains)
-    # get the values into the arrays
-    for ichain in 1:nchains
-        opt_in.costs_filename = costs_filename*"_$ichain.bin"
-        Tacrosschains[:,ichain] = TransD_GP.history(opt_in, stat=:T)
-        kacrosschains[:,ichain] = TransD_GP.history(opt_in, stat=:nodes)
-        X2by2inchains[:,ichain] = TransD_GP.history(opt_in, stat=:U)
-    end
-
-    f, ax = plt.subplots(3,2, sharex=true, figsize=figsize)
-    ax[1].plot(iters, kacrosschains)
-    ax[1].set_title("unsorted by temperature")
-    ax[1].grid()
-    ax[1].set_ylabel("# nodes")
-    ax[2].plot(iters, X2by2inchains)
-    ax[2].grid()
-    ax[2].set_ylabel("-Log L")
-    ax[3].grid()
-    ax[3].plot(iters, Tacrosschains)
-    ax[3].set_ylabel("Temperature")
-    ax[3].set_xlabel("iterations")
-
-    for jstep = 1:niters
-        sortidx = sortperm(vec(Tacrosschains[jstep,:]))
-        X2by2inchains[jstep,:] = X2by2inchains[jstep,sortidx]
-        kacrosschains[jstep,:] = kacrosschains[jstep,sortidx]
-        Tacrosschains[jstep,:] = Tacrosschains[jstep,sortidx]
-    end
-
-    nchainsatone = sum(Tacrosschains[1,:] .== 1)
-    ax[4].plot(iters, kacrosschains)
-    ax[4].set_title("sorted by temperature")
-    ax[4].plot(iters, kacrosschains[:,1:nchainsatone], "k")
-    ax[4].grid()
-    ax[5].plot(iters, X2by2inchains)
-    ax[5].plot(iters, X2by2inchains[:,1:nchainsatone], "k")
-    ax[5].grid()
-    ax[6].plot(iters, Tacrosschains)
-    ax[6].plot(iters, Tacrosschains[:,1:nchainsatone], "k")
-    ax[6].grid()
-    ax[6].set_xlabel("iterations")
-
-    nicenup(f, fsize=fsize)
-
 end
 
 function nicenup(g::PyPlot.Figure;fsize=14)
