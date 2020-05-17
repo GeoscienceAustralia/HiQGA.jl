@@ -82,11 +82,16 @@ function make1Dhist(opt::TransD_GP.Options;
     return himage, edges, CI
 end
 
-function make1Dhists()
+function make1Dhists(opt_in::TransD_GP.Options, burninfrac::Real;
+                        kfigsize=(8,8),
+                        nxbins=50,
+                        nftbins=50)
     f2, ax2 = plt[:subplots](2,2, figsize=kfigsize)
+    x, ft = trimxft(opt_in, burninfrac)
+    n = assembleTat1(opt_in, :nodes, burninfrac=burninfrac)
     edgesx = LinRange(opt_in.xbounds[1], opt_in.xbounds[2], nxbins+1)
     edgesrho = LinRange(opt_in.fbounds[1], opt_in.fbounds[2], nftbins+1)
-    h = fit(Histogram, (x, ft), (edgesx, edgesrho)).weights
+    h = fit(Histogram, (x[:], ft[:]), (edgesx, edgesrho)).weights
     im3 = ax2[1][:imshow](h, extent=[edgesrho[1],edgesrho[end],edgesx[end],edgesx[1]], aspect="auto", vmin=0.0, vmax=2*max(h...))
     ax2[1][:set_ylabel]("depth m")
     ax2[1][:set_xlabel](L"\log_{10}\rho")
@@ -109,7 +114,7 @@ function make1Dhists()
     ax2[2][:get_shared_y_axes]()[:join](ax2[1], ax2[3])
     ax2[2][:get_shared_x_axes]()[:join](ax2[1], ax2[2])
     ax2[2][:set_xlim](ax2[1][:get_xlim]())
-    k = fit(Histogram, n[from:end], (opt_in.nmin-0.5:opt_in.nmax+0.5)).weights
+    k = fit(Histogram, n, (opt_in.nmin-0.5:opt_in.nmax+0.5)).weights
     k = k/sum(k)
     @show mean(k)
     ax2[4][:bar](opt_in.nmin:opt_in.nmax, k, width=1)
@@ -278,13 +283,13 @@ end
 
 function get_misfit(m::TransD_GP.ModelNonstat, opt::TransD_GP.Options, L::Line)
     chi2by2 = 0.0
-    if !opt.debug
-        d = L.d
-        select = .!isnan.(d[:])
-        r = m.fstar[select] - d[select]
-        N = sum(select)
-        chi2by2 = 0.5*N*log(norm(r)^2)
-    end
+    # if !opt.debug
+    #     d = L.d
+    #     select = .!isnan.(d[:])
+    #     r = m.fstar[select] - d[select]
+    #     N = sum(select)
+    #     chi2by2 = 0.5*N*log(norm(r)^2)
+    # end
     return chi2by2
 end
 

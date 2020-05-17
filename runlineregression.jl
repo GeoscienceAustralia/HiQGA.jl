@@ -6,8 +6,8 @@ nminlog10λ, nmaxlog10λ = 2, 20
 pnorm = 2.
 Klog10λ = GP.Mat32()
 λx = 1
-x = 0:(0.01λx):λx
-λlog10λ = [0.05maximum(x)]
+x = 1:(0.01λx):2λx
+λlog10λ = [0.05abs(diff([extrema(x)...])[1])]
 demean = false
 sdev_poslog10λ = [0.01maximum(x)]
 log10bounds = [-1 -0.69]
@@ -55,7 +55,7 @@ opt = TransD_GP.OptionsNonstat(optlog10λ,
                         )
 ##
 nsamples, nchains, nchainsatone = 50001, 4, 1
-Tmax = 2.5
+Tmax = 2.50
 line = Line(nothing)
 addprocs(nchains)
 @info "workers are $(workers())"
