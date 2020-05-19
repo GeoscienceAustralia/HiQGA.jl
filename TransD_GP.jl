@@ -601,7 +601,7 @@ function position_change!(m::ModelNonstat, opt::TransD_GP.OptionsNonstat, l::Mod
     nothing
 end
 
-function undo_position_change!(m::ModelNonstat, opt::TransD_GP.OptionsNonstat, l::Model)
+function undo_position_change!(m::ModelNonstat, opt::TransD_GP.OptionsNonstat, l::ModelStat)
     λ² = l.fstar
     xtrain, K_y, Kstar, n = m.xtrain, m.K_y, m.Kstar, m.n
     ipoint = m.iremember
@@ -693,17 +693,17 @@ function do_move!(mns::ModelNonstat, m::ModelStat, optns::OptionsNonstat, statns
     return movetype, priorviolate
 end
 
-function undo_move!(movetype::Int, m::ModelNonstat, opt::OptionsNonstat)
+function undo_move!(movetype::Int, mns::ModelNonstat, optns::OptionsNonstat, m::ModelStat)
     if movetype == 1
-        undo_birth!(m)
+        undo_birth!(mns)
     elseif movetype == 2
-        undo_death!(m, opt)
+        undo_death!(mns, optns)
     elseif movetype == 3
-        undo_position_change!(m, opt)
+        undo_position_change!(mns, optns, m)
     else
-        undo_property_change!(m)
+        undo_property_change!(mns)
     end
-    sync_model!(m, opt)
+    sync_model!(mns, optns)
     nothing
 end
 

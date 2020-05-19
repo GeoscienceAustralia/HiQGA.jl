@@ -40,21 +40,21 @@ function Chain(nchains::Int;
     chains
 end
 
-function mh_step!(m::TransD_GP.ModelNonstat, F::Operator,
-    opt::TransD_GP.OptionsNonstat, stat::TransD_GP.Stats,
+function mh_step!(mns::TransD_GP.ModelNonstat, m::TransD_GP.ModelStat,
+    F::Operator, optns::TransD_GP.OptionsNonstat, stat::TransD_GP.Stats,
     Temp::Float64, movetype::Int, current_misfit::Array{Float64, 1})
 
-    if opt.quasimultid
-        new_misfit = get_misfit(m, opt, movetype, F)
+    if optns.quasimultid
+        new_misfit = get_misfit(mns, optns, movetype, F)
     else
-        new_misfit = get_misfit(m, opt, F)
+        new_misfit = get_misfit(mns, optns, F)
     end
     logalpha = (current_misfit[1] - new_misfit)/Temp
     if log(rand()) < logalpha
         current_misfit[1] = new_misfit
         stat.accepted_moves[movetype] += 1
     else
-        TransD_GP.undo_move!(movetype, m, opt)
+        TransD_GP.undo_move!(movetype, mns, optns, m)
     end
 end
 
@@ -122,7 +122,7 @@ function do_mcmc_step(mns::TransD_GP.ModelNonstat, m::TransD_GP.ModelStat,
     movetype, priorviolate = TransD_GP.do_move!(mns, m, optns, statns)
 
     if !priorviolate
-        mh_step!(mns, F, optns, statns, Temp, movetype, current_misfit)
+        mh_step!(mns, m, F, optns, statns, Temp, movetype, current_misfit)
     end
 
     # acceptance stats

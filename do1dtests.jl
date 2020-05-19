@@ -30,7 +30,7 @@ optlog10λ = TransD_GP.OptionsStat(nmin = nminlog10λ,
                         pnorm = pnorm,
                         quasimultid = false,
                         K = Klog10λ,
-                        timesλ = 2.
+                        timesλ = 3.
                         )
 @time  log10λ = TransD_GP.init(optlog10λ)
 ## make options for the nonstationary GP

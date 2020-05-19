@@ -1,7 +1,13 @@
 using TransD_GP, PyPlot, StatsBase, Statistics, LinearAlgebra
 
 mutable struct Line<:Operator
-    d :: Array{Float64}
+    d     :: Array{Float64}
+    useML :: Bool
+    σ     :: Float64
+end
+
+function Line(d::Array{Float64, 1} ;useML=false, σ=1.0)
+    Line(d, useML, σ)
 end
 
 function plot_posterior(L::Line,
@@ -281,15 +287,19 @@ function nicenup(g::PyPlot.Figure;fsize=16)
     g.tight_layout()
 end
 
-function get_misfit(m::TransD_GP.ModelNonstat, opt::TransD_GP.Options, L::Line)
+function get_misfit(m::TransD_GP.ModelNonstat, opt::TransD_GP.Options, line::Line)
     chi2by2 = 0.0
-    # if !opt.debug
-    #     d = L.d
-    #     select = .!isnan.(d[:])
-    #     r = m.fstar[select] - d[select]
-    #     N = sum(select)
-    #     chi2by2 = 0.5*N*log(norm(r)^2)
-    # end
+    if !opt.debug
+        d = line.d
+        select = .!isnan.(d[:])
+        r = m.fstar[select] - d[select]
+        if line.useML
+            N = sum(select)
+            chi2by2 = 0.5*N*log(norm(r)^2)
+        else
+            chi2by2 = r'*r/(2line.σ^2)
+        end
+    end
     return chi2by2
 end
 
