@@ -2,7 +2,7 @@ using PyPlot, Test, Random, Revise, Statistics, LinearAlgebra, Distributed
 any(pwd() .== LOAD_PATH) || push!(LOAD_PATH, pwd())
 using GP, TransD_GP, GeophysOperator, MCMC_Driver, DelimitedFiles
 ##1D functions
-easy = true
+easy = false
 if easy
     Random.seed!(10)
     x = LinRange(-2,2,101)
@@ -21,7 +21,7 @@ else
     δ = 0.25
 end
 ynoisy = σ*randn(size(y)) + y
-line = Line(ynoisy;useML=false, σ=σ)
+line = GeophysOperator.Line(ynoisy;useML=false, σ=σ)
 figure()
 plot(x[:], y)
 plot(x[:], ynoisy, ".m")
