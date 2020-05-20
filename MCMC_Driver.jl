@@ -187,10 +187,8 @@ function init_chain_darrays(opt_in::TransD_GP.OptionsStat,
     fstar_filename = "models_"*opt_in.fdataname
     x_ftrain_filename = "points_"*opt_in.fdataname
 
+    iterlast = 0
     @sync for(idx, chain) in enumerate(chains)
-        m_[idx]                = @spawnat chain.pid [TransD_GP.init(opt_in)]
-        mns_[idx]              = @spawnat chain.pid [TransD_GP.init(optns_in,
-                                                            fetch(m_[idx])[1])]
 
         opt_in.costs_filename      = costs_filename*"s_$idx.bin"
         optns_in.costs_filename    = costs_filename*"ns_$idx.bin"
@@ -201,21 +199,36 @@ function init_chain_darrays(opt_in::TransD_GP.OptionsStat,
 
         opt_[idx]            = @spawnat chain.pid [opt_in]
         optns_[idx]          = @spawnat chain.pid [optns_in]
-        stat_[idx]           = @spawnat chain.pid [TransD_GP.Stats()]
-        statns_[idx]         = @spawnat chain.pid [TransD_GP.Stats()]
-        F_in_[idx]           = @spawnat chain.pid [F_in]
-        current_misfit_[idx] = @spawnat chain.pid [[ get_misfit(fetch(mns_[idx])[1],
-                                               fetch(optns_[idx])[1],
-                                               fetch(F_in_[idx])[1]) ]]
+
+        m_[idx]                = @spawnat chain.pid [TransD_GP.init(opt_in)]
+        mns_[idx]              = @spawnat chain.pid [TransD_GP.init(optns_in,
+                                                            fetch(m_[idx])[1])]
 
         wp_[idx]             = @spawnat chain.pid [TransD_GP.open_history(opt_in)]
         wpns_[idx]           = @spawnat chain.pid [TransD_GP.open_history(optns_in)]
 
+        stat_[idx]           = @spawnat chain.pid [TransD_GP.Stats()]
+        statns_[idx]         = @spawnat chain.pid [TransD_GP.Stats()]
+
+        F_in_[idx]           = @spawnat chain.pid [F_in]
+        current_misfit_[idx] = @spawnat chain.pid [[ get_misfit(fetch(mns_[idx])[1],
+                                               fetch(optns_[idx])[1],
+                                               fetch(F_in_[idx])[1]) ]]
+        if opt_in.history_mode=="a"
+            if idx == length(chains)
+                iterlast = TransD_GP.history(opt_in, stat=:iter)[end]
+            end
+            chains[idx].T = TransD_GP.history(opt_in, stat=:T)[end]
+        end
     end
 
     m, mns, opt, optns, stat, statns, F,
-    current_misfit, wp, wpns = map(x -> DArray(x), (m_, mns_, opt_, optns_, stat_, statns_,
-                                    F_in_, current_misfit_, wp_, wpns_))
+    current_misfit, wp, wpns = map(x -> DArray(x), (m_, mns_, opt_, optns_,
+                                    stat_, statns_, F_in_, current_misfit_,
+                                    wp_, wpns_))
+
+    return m, mns, opt, optns, stat, statns, F, current_misfit,
+            wp, wpns, iterlast
 end
 
 function swap_temps(chains::Array{Chain, 1})
@@ -242,11 +255,12 @@ function main(opt_in       ::TransD_GP.OptionsStat,
 
 
     chains = Chain(nchains, Tmax=Tmax, nchainsatone=nchainsatone)
-    m, mns, opt, optns, stat, statns, F, current_misfit, wp, wpns = init_chain_darrays(opt_in,
-                                                        optns_in, F_in, chains)
+    m, mns, opt, optns, stat, statns,
+    F, current_misfit, wp, wpns, iterlast = init_chain_darrays(opt_in,
+                                                optns_in, F_in, chains)
 
     t2 = time()
-    for isample = 1:nsamples
+    for isample = iterlast+1:iterlast+nsamples
 
         swap_temps(chains)
 

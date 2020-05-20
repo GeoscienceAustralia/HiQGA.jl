@@ -189,11 +189,7 @@ end
 
 # Stationary GP functions, i.e., for λ
 function init(opt::TransD_GP.OptionsStat)
-    n = opt.nmin
-    xtrain = zeros(Float64, size(opt.xbounds,1), opt.nmax)
-    xtrain[:,1:n] = opt.xbounds[:,1] .+ diff(opt.xbounds, dims=2).*rand(size(opt.xbounds, 1), n)
-    ftrain = zeros(Float64, size(opt.fbounds,1), opt.nmax)
-    ftrain[:,1:n] = opt.fbounds[:,1] .+ diff(opt.fbounds, dims=2).*rand(size(opt.fbounds, 1), n)
+    n, xtrain, ftrain = initvalues(opt)
     K_y = zeros(opt.nmax, opt.nmax)
     map!(x->GP.κ(opt.K, x),K_y,pairwise(WeightedEuclidean(1 ./opt.λ² ), xtrain, dims=2))
     K_y[diagind(K_y)] .+= opt.δ^2
@@ -212,6 +208,23 @@ function init(opt::TransD_GP.OptionsStat)
     return ModelStat(fstar, xtrain, ftrain, K_y, Kstar, n,
                  [0.0], zeros(Float64, size(opt.xbounds, 1)), 0,
                  zeros(Float64, size(opt.xbounds, 1)))
+end
+
+function initvalues(opt::TransD_GP.Options)
+    xtrain = zeros(Float64, size(opt.xbounds,1), opt.nmax)
+    ftrain = zeros(Float64, size(opt.fbounds,1), opt.nmax)
+    if opt.history_mode == "w" # new start
+        n = opt.nmin
+        xtrain[:,1:n] = opt.xbounds[:,1] .+ diff(opt.xbounds, dims=2).*rand(size(opt.xbounds, 1), n)
+        ftrain[:,1:n] = opt.fbounds[:,1] .+ diff(opt.fbounds, dims=2).*rand(size(opt.fbounds, 1), n)
+    else # restart
+        @info "opening $(opt.x_ftrain_filename)"
+        n = TransD_GP.history(opt, stat=:nodes)[end]
+        xft = TransD_GP.history(opt, stat=:x_ftrain)[end]
+        xtrain[:,1:n] = xft[1:size(opt.xall, 1), 1:n]
+        ftrain[:,1:n] = xft[size(opt.xall, 1)+1:end, 1:n]
+    end
+    n, xtrain, ftrain
 end
 
 function updatenskernels!(opt::OptionsStat, m::ModelStat, ipoint::Union{Int, Array{Int, 1}},
@@ -436,11 +449,7 @@ end
 
 function init(opt::TransD_GP.OptionsNonstat, m::ModelStat)
     λ² = m.fstar
-    n = opt.nmin
-    xtrain = zeros(Float64, size(opt.xbounds,1), opt.nmax)
-    xtrain[:,1:n] = opt.xbounds[:,1] .+ diff(opt.xbounds, dims=2).*rand(size(opt.xbounds, 1), n)
-    ftrain = zeros(Float64, size(opt.fbounds,1), opt.nmax)
-    ftrain[:,1:n] = opt.fbounds[:,1] .+ diff(opt.fbounds, dims=2).*rand(size(opt.fbounds, 1), n)
+    n, xtrain, ftrain = initvalues(opt)
     K_y = zeros(opt.nmax, opt.nmax)
     idxs = gettrainidx(opt.kdtree, xtrain, n)
     ky = view(K_y, 1:n, 1:n)
@@ -770,7 +779,9 @@ end
 
 # history methods
 function open_history(opt::Options)
-    @assert isfile(opt.costs_filename) && (opt.history_mode=="a")
+    if isfile(opt.costs_filename)
+        @assert (opt.history_mode=="a")
+    end
     if opt.report_freq > 0
         @info("running transD_sampler...")
     end
