@@ -91,14 +91,17 @@ end
 function make1Dhists(opt_in::TransD_GP.Options, burninfrac::Real;
                         kfigsize=(8,8),
                         nxbins=50,
-                        nftbins=50)
+                        nftbins=50,
+                        qp1=0.01,
+                        qp2=0.99)
     f2, ax2 = plt.subplots(2,2, figsize=kfigsize)
     x, ft = trimxft(opt_in, burninfrac)
     n = assembleTat1(opt_in, :nodes, burninfrac=burninfrac)
     edgesx = LinRange(opt_in.xbounds[1], opt_in.xbounds[2], nxbins+1)
     edgesrho = LinRange(opt_in.fbounds[1], opt_in.fbounds[2], nftbins+1)
     h = fit(Histogram, (x[:], ft[:]), (edgesx, edgesrho)).weights
-    im3 = ax2[1].imshow(h, extent=[edgesrho[1],edgesrho[end],edgesx[end],edgesx[1]], aspect="auto", vmin=0.0, vmax=2*max(h...))
+    vmin, vmax = quantile(h[:], (qp1, qp2))
+    im3 = ax2[1].imshow(h, extent=[edgesrho[1],edgesrho[end],edgesx[end],edgesx[1]], aspect="auto", vmin=vmin, vmax=vmax)
     ax2[1].set_ylabel("depth m")
     ax2[1].set_xlabel(L"\log_{10}\rho")
     rhist = sum(h,dims=1)[:]
@@ -164,7 +167,7 @@ function assembleTat1(optin::TransD_GP.Options, stat::Symbol; burninfrac=0.5)
         opt.fstar_filename = "models_"*isns*opt.fdataname*"_$ichain.bin"
         opt.x_ftrain_filename = "points_"*isns*opt.fdataname*"_$ichain.bin"
         opt.costs_filename = "misfits_"*isns*opt.fdataname*"_$ichain.bin"
-        if stat == :fstar || stat == :x_ftrain
+        if stat == :fstar 
             at1idx = findall(Tacrosschains[:,ichain].==1) .>= start
         else
             at1idx = Tacrosschains[:,ichain].==1

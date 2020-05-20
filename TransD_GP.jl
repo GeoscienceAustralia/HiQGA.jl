@@ -770,6 +770,7 @@ end
 
 # history methods
 function open_history(opt::Options)
+    @assert isfile(opt.costs_filename) && (opt.history_mode=="a")
     if opt.report_freq > 0
         @info("running transD_sampler...")
     end
@@ -836,14 +837,14 @@ function write_history(opt::Options, fstar::AbstractArray, x_ftrain::AbstractArr
             write(fp_costs, msg)
             flush(fp_costs)
         end
+        if fp_x_ftrain != nothing
+            write(fp_x_ftrain, convert(Array{eltype(Float64)},x_ftrain))
+            flush(fp_x_ftrain)
+        end
         if writemodel
             if fp_fstar != nothing
                 write(fp_fstar, convert(Array{eltype(Float64)},fstar))
                 flush(fp_fstar)
-            end
-            if fp_x_ftrain != nothing
-                write(fp_x_ftrain, convert(Array{eltype(Float64)},x_ftrain))
-                flush(fp_x_ftrain)
             end
         end
     end
