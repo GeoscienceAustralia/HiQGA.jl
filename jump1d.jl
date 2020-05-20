@@ -1,5 +1,5 @@
 
-using PyCall, PyPlot, Interpolations, DelimitedFiles
+using PyPlot, Interpolations, DelimitedFiles
 
 function boxcarn(A::AbstractArray, ntosmooth::Int)
            out = zeros(Float64, size(A))
@@ -53,16 +53,9 @@ xy = [-0.0018781493357764578 -1.695087036188732
        1.0030920751259733 1.5111085661933128
        ];
 
-sp = pyimport("scipy.interpolate")
-t = collect(xy[2:2:end-1,1])
-s1 = sp.LSQUnivariateSpline(xy[:,1], xy[:,2], t)
 x2 = LinRange(0, 1, 201) # new x-grid
-y2 = s1(x2) # evaluate spline on that new grid
 figure()
 plot(xy[:,1],xy[:,2])
-# plot(x2,y2,label="interp", color="k")
-knots = s1.get_knots()
-c = s1.get_coeffs()
 
 itp = interpolate((xy[:,1],), xy[:,2], Gridded(Linear()))
 yf = boxcarn(itp(x2), 1)

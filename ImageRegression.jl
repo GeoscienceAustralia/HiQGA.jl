@@ -10,6 +10,8 @@ mutable struct Img<:Operator
     gausskernelwidth  :: Int
     f                 :: Array{Float64, 2}
     d                 :: Array{Float64, 2}
+    useML             :: Bool
+    σ                 :: Float64
 end
 
 function Img(;
@@ -17,15 +19,18 @@ function Img(;
              dx               = 0.01,
              fractrain        = 0.02,
              dec::Int         = 2,
-             gausskernelwidth = 7)
+             gausskernelwidth = 7,
+             useML            = false,
+             σ                = 1.0)
 
     @assert fractrain > 0 && fractrain < 1
     @assert !(filename == "")
     @assert dec > 1
+    @assert σ > 0.0
     f = get_image(filename, gausskernelwidth, dec)
     x = 0:dx:dx*size(f,2)-1
     y = 0:dx:dx*size(f,1)-1
-    Img(filename, x, y, fractrain, dec, gausskernelwidth, f, f)
+    Img(filename, x, y, fractrain, dec, gausskernelwidth, f, f, useML, σ)
 end
 
 function get_image(filename::String, gausskernelwidth::Int, dec)
@@ -95,55 +100,28 @@ function plot_data(ftrain::Array{Float64, 1}, Xtrain::Array{Float64, 2},
 
 end
 
-function calc_simple_RMS(img::Img, sd::Float64)
+function calc_simple_RMS(img::Img)
     select = .!isnan.(img.d)
-    r = (img.d[select] - img.f[select])/sd
+    r = (img.d[select] - img.f[select])/img.σ
     n = sum(select)
     @info "χ^2 error is $(r'*r) for $n points RMS: $(sqrt(r'*r/n))"
     nothing
 end
 
-function plot_last_target_model(img::Img, opt_in::TransD_GP.Options;
-                               nchains          = 1,
-                               fsize            = 14
-                               )
-    if nchains == 1 # then actually find out how many chains there are saved
-        nchains = length(filter( x -> occursin(r"misfits.*bin", x), readdir(pwd()) )) # my terrible regex
-    end
-    # now look at any chain to get how many iterations
-    costs_filename = "misfits_"*opt_in.fdataname
-    opt_in.costs_filename    = costs_filename*"_1.bin"
-    iters          = TransD_GP.history(opt_in, stat=:iter)
-    niters         = length(iters)
-    # then create arrays of unsorted by temperature T
-    Tacrosschains  = zeros(Float64, niters, nchains)
-    # get the values into the arrays
-    for ichain in 1:nchains
-        opt_in.costs_filename = costs_filename*"_$ichain.bin"
-        Tacrosschains[:,ichain] = TransD_GP.history(opt_in, stat=:T)
-    end
-
-    last_target_model_idx = findall(abs.(Tacrosschains[end,:] .-1.0) .< 1e-12)
-    for idx in last_target_model_idx
-        opt_in.fstar_filename = "models_"*opt_in.fdataname*"_$idx.bin"
-        m_last = TransD_GP.history(opt_in, stat=:fstar)[end]
-        figure()
-        x, y = img.x, img.y
-        imshow(reshape(m_last,length(y), length(x)), extent=[x[1],x[end],y[end],y[1]])
-    end
-
-end
-
-function get_misfit(m::TransD_GP.Model, opt::TransD_GP.Options, F::Img)
+function get_misfit(m::TransD_GP.Model, opt::TransD_GP.Options, img::Img)
     chi2by2 = 0.0
     if !opt.debug
-        d = F.d
+        d = img.d
         select = .!isnan.(d[:])
         r = m.fstar[select] - d[select]
-        N = sum(select)
-        chi2by2 = 0.5*N*log(norm(r)^2)
+        if img.useML
+            N = sum(select)
+            chi2by2 = 0.5*N*log(norm(r)^2)
+        else
+            chi2by2 = r'*r/(2img.σ^2)
+        end
     end
     return chi2by2
 end
 
-export get_misfit, get_training_data, plot_data, get_all_prediction_points, calc_simple_RMS, plot_last_target_model, Img
+export get_misfit, get_training_data, plot_data, get_all_prediction_points, calc_simple_RMS,  Img
