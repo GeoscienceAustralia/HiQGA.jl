@@ -33,6 +33,8 @@ mutable struct OptionsStat <: Options
     kdtree              :: KDTree
     balltree            :: BallTree
     timesλ              :: Float64
+    needλ²fromlog       :: Bool
+    updatenonstat       :: Bool
 end
 
 function OptionsStat(;
@@ -57,7 +59,9 @@ function OptionsStat(;
         quasimultid        = "",
         influenceradius    = [-9.9],
         K                  = GP.SqEuclidean(),
-        timesλ             = 1.0
+        timesλ             = 1.0,
+        needλ²fromlog      = true,
+        updatenonstat      = true
         )
 
         @assert xall != nothing
@@ -83,7 +87,7 @@ function OptionsStat(;
         OptionsStat(nmin, nmax, xbounds, fbounds, xall, λ.^2 , δ, demean, sdev_prop, sdev_pos, pnorm,
                 stat_window, dispstatstoscreen, report_freq, save_freq,
                 fdataname, history_mode, costs_filename, fstar_filename, x_ftrain_filename,
-                debug, quasimultid, influenceradius, K, kdtree, balltree, timesλ)
+                debug, quasimultid, influenceradius, K, kdtree, balltree, timesλ, needλ²fromlog, updatenonstat)
 end
 
 mutable struct OptionsNonstat <: Options
@@ -196,6 +200,16 @@ function init(opt::TransD_GP.OptionsStat)
     Kstar = zeros(Float64, size(opt.xall,2), opt.nmax)
     xtest = opt.xall
     map!(x->GP.κ(opt.K, x),Kstar,pairwise(WeightedEuclidean(1 ./opt.λ² ), xtest, xtrain, dims=2))
+    fstar = zeros(size(opt.fbounds, 1), size(opt.xall, 2))
+    calcfstar!(fstar, ftrain, opt, K_y, Kstar, n)
+    return ModelStat(fstar, xtrain, ftrain, K_y, Kstar, n,
+                 [0.0], zeros(Float64, size(opt.xbounds, 1)), 0,
+                 zeros(Float64, size(opt.xbounds, 1)))
+end
+
+function calcfstar!(fstar::Array{Float64,2}, ftrain::Array{Float64,2},
+                    opt::OptionsStat, K_y::Array{Float64,2},
+                    Kstar::Array{Float64, 2}, n::Int)
     mf = zeros(size(opt.fbounds, 1))
     if opt.demean && n>1
         mf = mean(ftrain[:,1:n], dims=2)
@@ -204,10 +218,12 @@ function init(opt::TransD_GP.OptionsStat)
     end
     rhs = ftrain[:,1:n] .- mf
     U = cholesky(K_y[1:n,1:n]).U
-    fstar = 10 .^(2(mf' .+ Kstar[:,1:n]*(U\(U'\rhs'))))'
-    return ModelStat(fstar, xtrain, ftrain, K_y, Kstar, n,
-                 [0.0], zeros(Float64, size(opt.xbounds, 1)), 0,
-                 zeros(Float64, size(opt.xbounds, 1)))
+    if opt.needλ²fromlog
+        copy!(fstar, 10 .^(2(mf' .+ Kstar[:,1:n]*(U\(U'\rhs'))))' )
+    else
+        copy!(fstar, (mf' .+ Kstar[:,1:n]*(U\(U'\rhs')))' )
+    end
+    nothing
 end
 
 function initvalues(opt::TransD_GP.Options)
@@ -281,27 +297,21 @@ function birth!(m::ModelStat, opt::TransD_GP.OptionsStat,
     map!(x->GP.κ(opt.K, x),K_yv,colwise(WeightedEuclidean(1 ./opt.λ² ), xtrain[:,n+1], xtrain[:,1:n+1]))
     K_y[1:n+1,n+1] = K_y[n+1,1:n+1]
     K_y[n+1,n+1] = K_y[n+1,n+1] + opt.δ^2
-    mf = zeros(size(opt.fbounds, 1))
-    if opt.demean
-        mf = mean(ftrain[:,1:n+1], dims=2)
-    else
-        mf = mean(opt.fbounds, dims=2)
-    end
-    rhs = ftrain[:,1:n+1] .- mf
-    U = cholesky(K_y[1:n+1, 1:n+1]).U
-    copy!(m.fstar, 10 .^(2(mf' .+ Kstar[:,1:n+1]*(U\(U'\rhs'))))')
+    calcfstar!(m.fstar, m.ftrain, opt, K_y, Kstar, n+1)
     m.n = n+1
     # updating the nonstationary kernels now
-    updatenskernels!(opt, m, n+1, optns, mns, doall=doall)
+    opt.updatenonstat && updatenskernels!(opt, m, n+1, optns, mns, doall=doall)
     nothing
 end
 
-function undo_birth!(m::ModelStat, mns::ModelNonstat)
+function undo_birth!(m::ModelStat, opt::OptionsStat, mns::ModelNonstat)
     m.n = m.n - 1
     # updating the nonstationary kernels now
-    copyto!(mns.K_y, CartesianIndices((mns.n, mns.n)), mns.K_y_old, CartesianIndices((mns.n, mns.n)))
-    copyto!(mns.Kstar, CartesianIndices((size(mns.Kstar_old, 1), mns.n)),
-            mns.Kstar_old, CartesianIndices((size(mns.Kstar_old, 1), mns.n)))
+    if opt.updatenonstat
+        copyto!(mns.K_y, CartesianIndices((mns.n, mns.n)), mns.K_y_old, CartesianIndices((mns.n, mns.n)))
+        copyto!(mns.Kstar, CartesianIndices((size(mns.Kstar_old, 1), mns.n)),
+                mns.Kstar_old, CartesianIndices((size(mns.Kstar_old, 1), mns.n)))
+    end
     nothing
 end
 
@@ -317,18 +327,10 @@ function death!(m::ModelStat, opt::TransD_GP.OptionsStat,
     K_y[ipoint,1:n], K_y[n,1:n] = K_y[n,1:n], K_y[ipoint,1:n]
     K_y[1:n-1,ipoint] = K_y[ipoint,1:n-1]
     K_y[ipoint,ipoint] = 1.0 + opt.δ^2
-    mf = zeros(size(opt.fbounds, 1))
-    if opt.demean && n>2
-        mf = mean(ftrain[:,1:n-1], dims=2)
-    else
-        mf = mean(opt.fbounds, dims=2)
-    end
-    rhs = ftrain[:,1:n-1] .- mf
-    U = cholesky(K_y[1:n-1, 1:n-1]).U
-    copy!(m.fstar, 10 .^(2(mf' .+ Kstar[:,1:n-1]*(U\(U'\rhs'))))')
+    calcfstar!(m.fstar, m.ftrain, opt, K_y, Kstar, n-1)
     m.n = n-1
     # updating the nonstationary kernels now
-    updatenskernels!(opt, m, n, optns, mns, doall=doall)
+    opt.updatenonstat && updatenskernels!(opt, m, n, optns, mns, doall=doall)
     nothing
 end
 
@@ -343,9 +345,11 @@ function undo_death!(m::ModelStat, opt::TransD_GP.OptionsStat, mns::ModelNonstat
     K_y[ipoint,ipoint] = 1.0 + opt.δ^2
     K_y[n,n] = 1.0 + opt.δ^2
     # updating the nonstationary kernels now
-    copyto!(mns.K_y, CartesianIndices((mns.n, mns.n)), mns.K_y_old, CartesianIndices((mns.n, mns.n)))
-    copyto!(mns.Kstar, CartesianIndices((size(mns.Kstar_old, 1), mns.n)),
-            mns.Kstar_old, CartesianIndices((size(mns.Kstar_old, 1), mns.n)))
+    if opt.updatenonstat
+        copyto!(mns.K_y, CartesianIndices((mns.n, mns.n)), mns.K_y_old, CartesianIndices((mns.n, mns.n)))
+        copyto!(mns.Kstar, CartesianIndices((size(mns.Kstar_old, 1), mns.n)),
+                mns.Kstar_old, CartesianIndices((size(mns.Kstar_old, 1), mns.n)))
+    end
     nothing
 end
 
@@ -362,28 +366,21 @@ function property_change!(m::ModelStat, opt::TransD_GP.OptionsStat,
                 (ftrain[i,ipoint]>opt.fbounds[i,2]) && (ftrain[i,ipoint] = 2*opt.fbounds[i,2] - ftrain[i,ipoint])
         end
     end
-    mf = zeros(size(opt.fbounds, 1))
-    if opt.demean
-        mf = mean(ftrain[:,1:n], dims=2)
-    else
-        mf = mean(opt.fbounds, dims=2)
-    end
-    rhs = ftrain[:,1:n] .- mf
-    # could potentially store chol if very time consuming
-    U = cholesky(K_y[1:n, 1:n]).U
-    copy!(m.fstar, 10 .^(2(mf' .+ Kstar[:,1:n]*(U\(U'\rhs'))))')
+    calcfstar!(m.fstar, m.ftrain, opt, K_y, Kstar, n)
     # updating the nonstationary kernels now
-    updatenskernels!(opt, m, ipoint, optns, mns, doall=doall)
+    opt.updatenonstat && updatenskernels!(opt, m, ipoint, optns, mns, doall=doall)
     nothing
 end
 
-function undo_property_change!(m::ModelStat, mns::ModelNonstat)
+function undo_property_change!(m::ModelStat, opt::OptionsStat, mns::ModelNonstat)
     ipoint, ftrain = m.iremember, m.ftrain
     ftrain[:,ipoint] = m.ftrain_old
     # updating the nonstationary kernels now
-    copyto!(mns.K_y, CartesianIndices((mns.n, mns.n)), mns.K_y_old, CartesianIndices((mns.n, mns.n)))
-    copyto!(mns.Kstar, CartesianIndices((size(mns.Kstar_old, 1), mns.n)),
-            mns.Kstar_old, CartesianIndices((size(mns.Kstar_old, 1), mns.n)))
+    if opt.updatenonstat
+        copyto!(mns.K_y, CartesianIndices((mns.n, mns.n)), mns.K_y_old, CartesianIndices((mns.n, mns.n)))
+        copyto!(mns.Kstar, CartesianIndices((size(mns.Kstar_old, 1), mns.n)),
+                mns.Kstar_old, CartesianIndices((size(mns.Kstar_old, 1), mns.n)))
+    end
     nothing
 end
 
@@ -408,18 +405,9 @@ function position_change!(m::ModelStat, opt::TransD_GP.OptionsStat,
     map!(x->GP.κ(opt.K, x),K_yv,colwise(WeightedEuclidean(1 ./opt.λ² ), xtrain[:,ipoint], xtrain[:,1:n]))
     K_y[1:n,ipoint] = K_y[ipoint,1:n]
     K_y[ipoint,ipoint] = K_y[ipoint,ipoint] + opt.δ^2
-    mf = zeros(size(opt.fbounds, 1))
-    if opt.demean
-        mf = mean(ftrain[:,1:n], dims=2)
-    else
-        mf = mean(opt.fbounds, dims=2)
-    end
-    rhs = ftrain[:,1:n] .- mf
-    # could potentially store chol if very time consuming
-    U = cholesky(K_y[1:n, 1:n]).U
-    copy!(m.fstar, 10 .^(2(mf' .+ Kstar[:,1:n]*(U\(U'\rhs'))))')
+    calcfstar!(m.fstar, m.ftrain, opt, K_y, Kstar, n)
     # updating the nonstationary kernels now
-    updatenskernels!(opt, m, ipoint, optns, mns, doall=doall, isposchange=true)
+    opt.updatenonstat && updatenskernels!(opt, m, ipoint, optns, mns, doall=doall, isposchange=true)
     nothing
 end
 
@@ -435,9 +423,11 @@ function undo_position_change!(m::ModelStat, opt::TransD_GP.OptionsStat, mns::Mo
     K_y[1:n,ipoint] = K_y[ipoint,1:n]
     K_y[ipoint,ipoint] = K_y[ipoint,ipoint] + opt.δ^2
     # updating the nonstationary kernels now
-    copyto!(mns.K_y, CartesianIndices((mns.n, mns.n)), mns.K_y_old, CartesianIndices((mns.n, mns.n)))
-    copyto!(mns.Kstar, CartesianIndices((size(mns.Kstar_old, 1), mns.n)),
-            mns.Kstar_old, CartesianIndices((size(mns.Kstar_old, 1), mns.n)))
+    if opt.updatenonstat
+        copyto!(mns.K_y, CartesianIndices((mns.n, mns.n)), mns.K_y_old, CartesianIndices((mns.n, mns.n)))
+        copyto!(mns.Kstar, CartesianIndices((size(mns.Kstar_old, 1), mns.n)),
+                mns.Kstar_old, CartesianIndices((size(mns.Kstar_old, 1), mns.n)))
+    end
     nothing
 end
 
@@ -459,6 +449,16 @@ function init(opt::TransD_GP.OptionsNonstat, m::ModelStat)
     xtest = opt.xall
     ks = view(Kstar, :, 1:n)
     map!(x->x, ks, GP.pairwise(opt.K, xtrain[:,1:n], xtest, λ²[:,idxs], λ²))
+    fstar = zeros(size(opt.xall, 2), size(opt.fbounds, 1))
+    calcfstar!(fstar, ftrain, opt, K_y, Kstar, n)
+    return ModelNonstat(fstar, xtrain, ftrain, K_y, Kstar, n,
+                 [0.0], zeros(Float64, size(opt.xbounds, 1)), 0, zeros(Float64, size(opt.xbounds, 1)),
+                 copy(K_y), copy(Kstar))
+end
+
+function calcfstar!(fstar::Array{Float64,2}, ftrain::Array{Float64,2},
+                    opt::OptionsNonstat, K_y::Array{Float64,2},
+                    Kstar::Array{Float64, 2}, n::Int)
     mf = zeros(size(opt.fbounds, 1))
     if opt.demean && n>1
         mf = mean(ftrain[:,1:n], dims=2)
@@ -467,10 +467,8 @@ function init(opt::TransD_GP.OptionsNonstat, m::ModelStat)
     end
     rhs = ftrain[:,1:n] .- mf
     U = cholesky(K_y[1:n,1:n]).U
-    fstar = mf' .+ Kstar[:,1:n]*(U\(U'\rhs'))
-    return ModelNonstat(fstar, xtrain, ftrain, K_y, Kstar, n,
-                 [0.0], zeros(Float64, size(opt.xbounds, 1)), 0, zeros(Float64, size(opt.xbounds, 1)),
-                 copy(K_y), copy(Kstar))
+    copy!(fstar, mf' .+ Kstar[:,1:n]*(U\(U'\rhs')) )
+    nothing
 end
 
 function birth!(m::ModelNonstat, opt::TransD_GP.OptionsNonstat, l::ModelStat)
@@ -487,15 +485,7 @@ function birth!(m::ModelNonstat, opt::TransD_GP.OptionsNonstat, l::ModelStat)
     map!(x²->x²,K_yv,GP.colwise(opt.K, xtrain[:,n+1], xtrain[:,1:n+1], λ²[:,idxs[end]], λ²[:,idxs]))
     K_y[1:n+1,n+1] = K_y[n+1,1:n+1]
     K_y[n+1,n+1] = K_y[n+1,n+1] + opt.δ^2
-    mf = zeros(size(opt.fbounds, 1))
-    if opt.demean
-        mf = mean(ftrain[:,1:n+1], dims=2)
-    else
-        mf = mean(opt.fbounds, dims=2)
-    end
-    rhs = ftrain[:,1:n+1] .- mf
-    U = cholesky(K_y[1:n+1, 1:n+1]).U
-    copy!(m.fstar, mf' .+ Kstar[:,1:n+1]*(U\(U'\rhs')))
+    calcfstar!(m.fstar, m.ftrain, opt, K_y, Kstar, n+1)
     m.n = n+1
     nothing
 end
@@ -516,15 +506,7 @@ function death!(m::ModelNonstat, opt::TransD_GP.OptionsNonstat)
     K_y[ipoint,1:n], K_y[n,1:n] = K_y[n,1:n], K_y[ipoint,1:n]
     K_y[1:n-1,ipoint] = K_y[ipoint,1:n-1]
     K_y[ipoint,ipoint] = 1.0 + opt.δ^2
-    mf = zeros(size(opt.fbounds, 1))
-    if opt.demean && n>2
-        mf = mean(ftrain[:,1:n-1], dims=2)
-    else
-        mf = mean(opt.fbounds, dims=2)
-    end
-    rhs = ftrain[:,1:n-1] .- mf
-    U = cholesky(K_y[1:n-1, 1:n-1]).U
-    copy!(m.fstar, mf' .+ Kstar[:,1:n-1]*(U\(U'\rhs')))
+    calcfstar!(m.fstar, m.ftrain, opt, K_y, Kstar, n-1)
     m.n = n-1
     nothing
 end
@@ -553,16 +535,7 @@ function property_change!(m::ModelNonstat, opt::TransD_GP.OptionsNonstat)
                 (ftrain[i,ipoint]>opt.fbounds[i,2]) && (ftrain[i,ipoint] = 2*opt.fbounds[i,2] - ftrain[i,ipoint])
         end
     end
-    mf = zeros(size(opt.fbounds, 1))
-    if opt.demean
-        mf = mean(ftrain[:,1:n], dims=2)
-    else
-        mf = mean(opt.fbounds, dims=2)
-    end
-    rhs = ftrain[:,1:n] .- mf
-    # could potentially store chol if very time consuming
-    U = cholesky(K_y[1:n, 1:n]).U
-    copy!(m.fstar, mf' .+ Kstar[:,1:n]*(U\(U'\rhs')))
+    calcfstar!(m.fstar, m.ftrain, opt, K_y, Kstar, n)
     nothing
 end
 
@@ -590,23 +563,11 @@ function position_change!(m::ModelNonstat, opt::TransD_GP.OptionsNonstat, l::Mod
     Kstarv = @view Kstar[:,ipoint]
     idxs = gettrainidx(opt.kdtree, xtrain, n)
     map!(x²->x²,Kstarv,GP.colwise(opt.K, xtrain[:,ipoint], xtest, λ²[:,idxs[ipoint]], λ²))
-    #
-    # map!(x->GP.κ(opt.K, x),Kstarv,colwise(WeightedEuclidean(1 ./opt.λ² ), xtrain[:,ipoint], xtest))
     K_yv = @view K_y[ipoint,1:n]
     map!(x²->x²,K_yv,GP.colwise(opt.K, xtrain[:,ipoint], xtrain[:,1:n], λ²[:,idxs[ipoint]], λ²[:,idxs]))
-    # map!(x->GP.κ(opt.K, x),K_yv,colwise(WeightedEuclidean(1 ./opt.λ² ), xtrain[:,ipoint], xtrain[:,1:n]))
     K_y[1:n,ipoint] = K_y[ipoint,1:n]
     K_y[ipoint,ipoint] = K_y[ipoint,ipoint] + opt.δ^2
-    mf = zeros(size(opt.fbounds, 1))
-    if opt.demean
-        mf = mean(ftrain[:,1:n], dims=2)
-    else
-        mf = mean(opt.fbounds, dims=2)
-    end
-    rhs = ftrain[:,1:n] .- mf
-    # could potentially store chol if very time consuming
-    U = cholesky(K_y[1:n, 1:n]).U
-    copy!(m.fstar, mf' .+ Kstar[:,1:n]*(U\(U'\rhs')))
+    calcfstar!(m.fstar, m.ftrain, opt, K_y, Kstar, n)
     nothing
 end
 
@@ -619,10 +580,8 @@ function undo_position_change!(m::ModelNonstat, opt::TransD_GP.OptionsNonstat, l
     Kstarv = @view Kstar[:,ipoint]
     idxs = gettrainidx(opt.kdtree, xtrain, n)
     map!(x²->x²,Kstarv,GP.colwise(opt.K, xtrain[:,ipoint], xtest, λ²[:,idxs[ipoint]], λ²))
-    #map!(x->GP.κ(opt.K, x),Kstarv,colwise(WeightedEuclidean(1 ./opt.λ² ), xtrain[:,ipoint], xtest))
     K_yv = @view K_y[ipoint,1:n]
     map!(x²->x²,K_yv,GP.colwise(opt.K, xtrain[:,ipoint], xtrain[:,1:n], λ²[:,idxs[ipoint]], λ²[:,idxs]))
-    #map!(x->GP.κ(opt.K, x),K_yv,colwise(WeightedEuclidean(1 ./opt.λ² ), xtrain[:,ipoint], xtrain[:,1:n]))
     K_y[1:n,ipoint] = K_y[ipoint,1:n]
     K_y[ipoint,ipoint] = K_y[ipoint,ipoint] + opt.δ^2
     nothing
@@ -748,13 +707,13 @@ end
 function undo_move!(movetype::Int, m::ModelStat, opt::OptionsStat,
                     mns::ModelNonstat, optns::OptionsNonstat)
     if movetype == 1
-        undo_birth!(m, mns)
+        undo_birth!(m, opt, mns)
     elseif movetype == 2
         undo_death!(m, opt, mns)
     elseif movetype == 3
         undo_position_change!(m, opt, mns)
     else
-        undo_property_change!(m, mns)
+        undo_property_change!(m, opt, mns)
     end
     sync_model!(m, opt)
     sync_model!(mns, optns)
