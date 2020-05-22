@@ -115,6 +115,8 @@ mutable struct OptionsNonstat <: Options
     influenceradius     :: Array{Float64, 1}
     K                   :: GP.Kernel
     kdtree              :: KDTree
+    needλ²fromlog       :: Bool
+    updatenonstat       :: Bool
 end
 
 function OptionsNonstat(opt::OptionsStat;
@@ -142,7 +144,7 @@ function OptionsNonstat(opt::OptionsStat;
         OptionsNonstat(nmin, nmax, opt.xbounds, fbounds, opt.xall, δ, demean, sdev_prop, sdev_pos, pnorm,
                 opt.stat_window, opt.dispstatstoscreen, opt.report_freq, opt.save_freq,
                 opt.fdataname, opt.history_mode, opt.costs_filename, opt.fstar_filename, opt.x_ftrain_filename,
-                opt.debug, opt.quasimultid, influenceradius, K, opt.kdtree)
+                opt.debug, opt.quasimultid, influenceradius, K, opt.kdtree, opt.needλ²fromlog, opt.updatenonstat)
 end
 
 abstract type Model end
@@ -438,22 +440,30 @@ function gettrainidx(kdtree::KDTree, xtrain::Array{Float64, 2}, n::Int)
 end
 
 function init(opt::TransD_GP.OptionsNonstat, m::ModelStat)
-    λ² = m.fstar
-    n, xtrain, ftrain = initvalues(opt)
-    K_y = zeros(opt.nmax, opt.nmax)
-    idxs = gettrainidx(opt.kdtree, xtrain, n)
-    ky = view(K_y, 1:n, 1:n)
-    map!(x->x, ky, GP.pairwise(opt.K, xtrain[:,1:n], xtrain[:,1:n], λ²[:,idxs], λ²[:,idxs]))
-    K_y[diagind(K_y)] .+= opt.δ^2
-    Kstar = zeros(Float64, size(opt.xall,2), opt.nmax)
-    xtest = opt.xall
-    ks = view(Kstar, :, 1:n)
-    map!(x->x, ks, GP.pairwise(opt.K, xtrain[:,1:n], xtest, λ²[:,idxs], λ²))
-    fstar = zeros(size(opt.xall, 2), size(opt.fbounds, 1))
-    calcfstar!(fstar, ftrain, opt, K_y, Kstar, n)
-    return ModelNonstat(fstar, xtrain, ftrain, K_y, Kstar, n,
+    donotinit = !opt.needλ²fromlog && !opt.updatenonstat
+    if !donotinit
+        λ² = m.fstar
+        n, xtrain, ftrain = initvalues(opt)
+        K_y = zeros(opt.nmax, opt.nmax)
+        idxs = gettrainidx(opt.kdtree, xtrain, n)
+        ky = view(K_y, 1:n, 1:n)
+        map!(x->x, ky, GP.pairwise(opt.K, xtrain[:,1:n], xtrain[:,1:n], λ²[:,idxs], λ²[:,idxs]))
+        K_y[diagind(K_y)] .+= opt.δ^2
+        Kstar = zeros(Float64, size(opt.xall,2), opt.nmax)
+        xtest = opt.xall
+        ks = view(Kstar, :, 1:n)
+        map!(x->x, ks, GP.pairwise(opt.K, xtrain[:,1:n], xtest, λ²[:,idxs], λ²))
+        fstar = zeros(size(opt.xall, 2), size(opt.fbounds, 1))
+        calcfstar!(fstar, ftrain, opt, K_y, Kstar, n)
+        return ModelNonstat(fstar, xtrain, ftrain, K_y, Kstar, n,
                  [0.0], zeros(Float64, size(opt.xbounds, 1)), 0, zeros(Float64, size(opt.xbounds, 1)),
                  copy(K_y), copy(Kstar))
+    else
+        dummy2d = [0.0 0.0]
+        return ModelNonstat(dummy2d, dummy2d, dummy2d, dummy2d, dummy2d, 0,
+                 dummy2d, dummy2d, 0, dummy2d,
+                 dummy2d, dummy2d)
+    end
 end
 
 function calcfstar!(fstar::Array{Float64,2}, ftrain::Array{Float64,2},
@@ -587,33 +597,9 @@ function undo_position_change!(m::ModelNonstat, opt::TransD_GP.OptionsNonstat, l
     nothing
 end
 
-function sync_model!(m::ModelStat, opt::OptionsStat)
+function sync_model!(m::Model, opt::Options)
     ftrain, K_y, Kstar, n = m.ftrain, m.K_y, m.Kstar, m.n
-    mf = zeros(size(opt.fbounds, 1))
-    if opt.demean
-        mf = mean(ftrain[:,1:n], dims=2)
-    else
-        mf = mean(opt.fbounds, dims=2)
-    end
-    rhs = ftrain[:,1:n] .- mf
-    # could potentially store chol if very time consuming
-    U = cholesky(K_y[1:n, 1:n]).U
-    copy!(m.fstar, 10 .^(2(mf' .+ Kstar[:,1:n]*(U\(U'\rhs'))))')
-    nothing
-end
-
-function sync_model!(m::ModelNonstat, opt::OptionsNonstat)
-    ftrain, K_y, Kstar, n = m.ftrain, m.K_y, m.Kstar, m.n
-    mf = zeros(size(opt.fbounds, 1))
-    if opt.demean
-        mf = mean(ftrain[:,1:n], dims=2)
-    else
-        mf = mean(opt.fbounds, dims=2)
-    end
-    rhs = ftrain[:,1:n] .- mf
-    # could potentially store chol if very time consuming
-    U = cholesky(K_y[1:n, 1:n]).U
-    copy!(m.fstar, mf' .+ Kstar[:,1:n]*(U\(U'\rhs')))
+    calcfstar!(m.fstar, m.ftrain, opt, K_y, Kstar, n)
     nothing
 end
 

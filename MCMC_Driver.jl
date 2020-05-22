@@ -63,9 +63,17 @@ function mh_step!(m::TransD_GP.ModelStat, mns::TransD_GP.ModelNonstat, F::Operat
     stat::TransD_GP.Stats, Temp::Float64, movetype::Int, current_misfit::Array{Float64, 1})
 
     if opt.quasimultid
-        new_misfit = get_misfit(mns, opt, movetype, F)
+        if opt.updatenonstat
+            new_misfit = get_misfit(mns, opt, movetype, F)
+        else
+            new_misfit = get_misfit(m, opt, movetype, F)
+        end
     else
-        new_misfit = get_misfit(mns, opt, F)
+        if opt.updatenonstat
+            new_misfit = get_misfit(mns, opt, F)
+        else
+            new_misfit = get_misfit(m, opt, F)
+        end
     end
     logalpha = (current_misfit[1] - new_misfit)/Temp
     if log(rand()) < logalpha
@@ -263,12 +271,13 @@ function main(opt_in       ::TransD_GP.OptionsStat,
     for isample = iterlast+1:iterlast+nsamples
 
         swap_temps(chains)
-
-        @sync for(ichain, chain) in enumerate(chains)
-            @async chain.misfit = remotecall_fetch(do_mcmc_step, chain.pid,
-                                            mns, m, optns, statns,
-                                            current_misfit, F,
-                                            chain.T, isample, wpns)
+        if opt_in.updatenonstat
+            @sync for(ichain, chain) in enumerate(chains)
+                @async chain.misfit = remotecall_fetch(do_mcmc_step, chain.pid,
+                                                mns, m, optns, statns,
+                                                current_misfit, F,
+                                                chain.T, isample, wpns)
+            end
         end
         @sync for(ichain, chain) in enumerate(chains)
             @async chain.misfit = remotecall_fetch(do_mcmc_step, chain.pid,

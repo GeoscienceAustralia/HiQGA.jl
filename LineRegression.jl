@@ -72,14 +72,14 @@ function make1Dhist(opt::TransD_GP.Options;
     himage = zeros(Float64, length(M[1]), nbins)
     CI = zeros(Float64, length(M[1]), 2)
     for ilayer=1:size(opt.xall,2)
-        if typeof(opt) == TransD_GP.OptionsStat
+        if typeof(opt) == TransD_GP.OptionsStat && opt.needλ²fromlog
             himage[ilayer,:] = fit(Histogram, [0.5log10.(m[ilayer]) for m in M], edges).weights
         else
             himage[ilayer,:] = fit(Histogram, [m[ilayer] for m in M], edges).weights
         end
         himage[ilayer,:] = himage[ilayer,:]/sum(himage[ilayer,:])/(diff(edges)[1])
         pdfnormalize && (himage[ilayer,:] = himage[ilayer,:]/maximum(himage[ilayer,:]))
-        if typeof(opt) == TransD_GP.OptionsStat
+        if typeof(opt) == TransD_GP.OptionsStat && opt.needλ²fromlog
             CI[ilayer,:] = [quantile([0.5log10.(m[ilayer]) for m in M],(qp1, qp2))...]
         else
             CI[ilayer,:] = [quantile([m[ilayer] for m in M],(qp1, qp2))...]
@@ -167,7 +167,7 @@ function assembleTat1(optin::TransD_GP.Options, stat::Symbol; burninfrac=0.5)
         opt.fstar_filename = "models_"*isns*opt.fdataname*"_$ichain.bin"
         opt.x_ftrain_filename = "points_"*isns*opt.fdataname*"_$ichain.bin"
         opt.costs_filename = "misfits_"*isns*opt.fdataname*"_$ichain.bin"
-        if stat == :fstar 
+        if stat == :fstar
             at1idx = findall(Tacrosschains[:,ichain].==1) .>= start
         else
             at1idx = Tacrosschains[:,ichain].==1
