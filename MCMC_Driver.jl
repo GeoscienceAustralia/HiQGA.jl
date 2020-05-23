@@ -89,23 +89,24 @@ function do_mcmc_step(m::TransD_GP.ModelStat, mns::TransD_GP.ModelNonstat,
     stat::TransD_GP.Stats,
     current_misfit::Array{Float64, 1}, F::Operator,
     Temp::Float64, isample::Int, wp::TransD_GP.Writepointers)
-
-    # select move and do it
-    movetype, priorviolate = TransD_GP.do_move!(m, opt, stat, mns, optns)
-
-    if !priorviolate
-        mh_step!(m, mns, F, opt, optns, stat, Temp, movetype, current_misfit)
-    end
-
-    # acceptance stats
-    TransD_GP.get_acceptance_stats!(isample, opt, stat)
-
-    # write models
-    writemodel = false
-    abs(Temp-1.0) < 1e-12 && (writemodel = true)
-    TransD_GP.write_history(isample, opt, m, current_misfit[1], stat, wp, Temp, writemodel)
-
-    return current_misfit[1]
+    #
+    # # select move and do it
+    # movetype, priorviolate = TransD_GP.do_move!(m, opt, stat, mns, optns)
+    #
+    # if !priorviolate
+    #     mh_step!(m, mns, F, opt, optns, stat, Temp, movetype, current_misfit)
+    # end
+    #
+    # # acceptance stats
+    # TransD_GP.get_acceptance_stats!(isample, opt, stat)
+    #
+    # # write models
+    # writemodel = false
+    # abs(Temp-1.0) < 1e-12 && (writemodel = true)
+    # TransD_GP.write_history(isample, opt, m, current_misfit[1], stat, wp, Temp, writemodel)
+    #
+    # return current_misfit[1]
+    return 0.1
 end
 
 function do_mcmc_step(m::DArray{TransD_GP.ModelStat}, mns::DArray{TransD_GP.ModelNonstat},
@@ -126,22 +127,23 @@ function do_mcmc_step(mns::TransD_GP.ModelNonstat, m::TransD_GP.ModelStat,
     current_misfit::Array{Float64, 1}, F::Operator,
     Temp::Float64, isample::Int, wp::TransD_GP.Writepointers)
 
-    # select move and do it
-    movetype, priorviolate = TransD_GP.do_move!(mns, m, optns, statns)
-
-    if !priorviolate
-        mh_step!(mns, m, F, optns, statns, Temp, movetype, current_misfit)
-    end
-
-    # acceptance stats
-    TransD_GP.get_acceptance_stats!(isample, optns, statns)
-
-    # write models
-    writemodel = false
-    abs(Temp-1.0) < 1e-12 && (writemodel = true)
-    TransD_GP.write_history(isample, optns, mns, current_misfit[1], statns, wp, Temp, writemodel)
-
-    return current_misfit[1]
+    # # select move and do it
+    # movetype, priorviolate = TransD_GP.do_move!(mns, m, optns, statns)
+    #
+    # if !priorviolate
+    #     mh_step!(mns, m, F, optns, statns, Temp, movetype, current_misfit)
+    # end
+    #
+    # # acceptance stats
+    # TransD_GP.get_acceptance_stats!(isample, optns, statns)
+    #
+    # # write models
+    # writemodel = false
+    # abs(Temp-1.0) < 1e-12 && (writemodel = true)
+    # TransD_GP.write_history(isample, optns, mns, current_misfit[1], statns, wp, Temp, writemodel)
+    #
+    # return current_misfit[1]
+    return 0.1
 end
 
 function do_mcmc_step(mns::DArray{TransD_GP.ModelNonstat}, m::DArray{TransD_GP.ModelStat},
@@ -219,9 +221,15 @@ function init_chain_darrays(opt_in::TransD_GP.OptionsStat,
         statns_[idx]         = @spawnat chain.pid [TransD_GP.Stats()]
 
         F_in_[idx]           = @spawnat chain.pid [F_in]
-        current_misfit_[idx] = @spawnat chain.pid [[ get_misfit(fetch(mns_[idx])[1],
+        if opt_in.updatenonstat
+            current_misfit_[idx] = @spawnat chain.pid [[ get_misfit(fetch(mns_[idx])[1],
                                                fetch(optns_[idx])[1],
                                                fetch(F_in_[idx])[1]) ]]
+        else
+            current_misfit_[idx] = @spawnat chain.pid [[ get_misfit(fetch(m_[idx])[1],
+                                               fetch(opt_[idx])[1],
+                                               fetch(F_in_[idx])[1]) ]]
+        end
         if opt_in.history_mode=="a"
             if idx == length(chains)
                 iterlast = TransD_GP.history(opt_in, stat=:iter)[end]

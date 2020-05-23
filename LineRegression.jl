@@ -44,6 +44,31 @@ function plot_posterior(L::Line,
     nicenup(f, fsize=fsize)
 end
 
+function plot_posterior(L::Line,
+                        opt::TransD_GP.OptionsStat;
+    nbins = 50,
+    burninfrac=0.5,
+    isns=true,
+    qp1=0.05,
+    qp2=0.95,
+    cmappdf = "viridis",
+    figsize=(5,5),
+    pdfnormalize=false,
+    fsize=14)
+    himage, edges, CI = make1Dhist(opt, burninfrac=burninfrac, nbins = nbins, qp1=qp1, qp2=qp2, pdfnormalize=pdfnormalize)
+    f,ax = plt.subplots(1,1, sharey=true, figsize=figsize)
+    xall = opt.xall
+    im1 = ax.imshow(himage, extent=[edges[1],edges[end],xall[end],xall[1]], aspect="auto", cmap=cmappdf)
+    ax.grid()
+    cb1 = colorbar(im1, ax=ax)
+    cb1.ax.set_xlabel("pdf \nstationary")
+    ax.plot(CI, xall[:], linewidth=2, color="g")
+    ax.plot(CI, xall[:], linewidth=2, color="k", linestyle="--")
+    ax.set_xlabel(L"\log_{10} \rho")
+    ax.set_ylabel("depth (m)")
+    nicenup(f, fsize=fsize)
+end
+
 function make1Dhist(opt::TransD_GP.Options;
                 burninfrac = 0.5,
                 nbins = 50,
@@ -61,7 +86,7 @@ function make1Dhist(opt::TransD_GP.Options;
             rhomax_mm > rhomax && (rhomax = rhomax_mm)
 
         end
-        if typeof(opt) == TransD_GP.OptionsStat
+        if typeof(opt) == TransD_GP.OptionsStat && opt.needλ²fromlog
             rhomin = 0.5*log10(rhomin)
             rhomax = 0.5*log10(rhomax)
         end
@@ -290,12 +315,12 @@ function nicenup(g::PyPlot.Figure;fsize=16)
     g.tight_layout()
 end
 
-function get_misfit(m::TransD_GP.ModelNonstat, opt::TransD_GP.Options, line::Line)
+function get_misfit(m::TransD_GP.Model, opt::TransD_GP.Options, line::Line)
     chi2by2 = 0.0
     if !opt.debug
         d = line.d
         select = .!isnan.(d[:])
-        r = m.fstar[select] - d[select]
+        r = m.fstar[:][select] - d[select]
         if line.useML
             N = sum(select)
             chi2by2 = 0.5*N*log(norm(r)^2)

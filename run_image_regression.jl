@@ -11,7 +11,7 @@ img =     Img(
 img.σ, ftrain, Xtrain =  get_training_data(img,
                    sdmaxfrac = 0.05,
                    ybreak = 1000,
-                   takeevery = 4)
+                   takeevery = 8)
 
 plot_data(ftrain, Xtrain, img)
 
@@ -67,7 +67,7 @@ opt = TransD_GP.OptionsNonstat(optlog10λ,
 calc_simple_RMS(img)
 
 ## set up McMC
-nsamples, nchains, nchainsatone = 20001, 8, 1
+nsamples, nchains, nchainsatone = 10001, 8, 1
 Tmax = 2.50
 addprocs(nchains)
 @info "workers are $(workers())"
@@ -76,7 +76,7 @@ addprocs(nchains)
 @everywhere import MCMC_Driver
 ## run McMC
 @time MCMC_Driver.main(optlog10λ, opt, img, Tmax=Tmax, nsamples=nsamples, nchains=nchains, nchainsatone=nchainsatone)
-rmprocs(workers())
+#rmprocs(workers())
 ## plot
-MCMC_Driver.getchi2forall(opt_in)
-plot_last_target_model(img, opt_in)
+# MCMC_Driver.getchi2forall(opt_in)
+# plot_last_target_model(img, opt_in)

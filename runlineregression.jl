@@ -3,8 +3,9 @@ any(pwd() .== LOAD_PATH) || push!(LOAD_PATH, pwd())
 using GP, TransD_GP, GeophysOperator, MCMC_Driver, DelimitedFiles
 ##1D functions
 easy = false
+Random.seed!(10)
+fractrain = 1
 if easy
-    Random.seed!(10)
     x = LinRange(-2,2,101)
     y = sin.(x) +2exp.(-30x.^2)
     σ = 0.3
@@ -12,7 +13,6 @@ if easy
     δlog10λ = 0.3
     δ = 0.25
 else
-    Random.seed!(10)
     x = LinRange(0, 1, 201)
     y = readdlm("func.txt")[:]
     σ = 0.55
@@ -20,7 +20,10 @@ else
     δlog10λ = 0.2
     δ = 0.25
 end
+ntrain = round(Int, (1-fractrain)*length(y))
+linidx = randperm(length(y))[1:ntrain]
 ynoisy = σ*randn(size(y)) + y
+ynoisy[linidx] .= NaN
 line = GeophysOperator.Line(ynoisy;useML=false, σ=σ)
 figure()
 plot(x[:], y)
@@ -54,7 +57,7 @@ optlog10λ = TransD_GP.OptionsStat(nmin = nminlog10λ,
                         )
 ## make options for the nonstationary actual properties GP
 nmin, nmax = 2, 20
-fbounds = permutedims([extrema(ynoisy)...])
+fbounds = permutedims([extrema(ynoisy[.!isnan.(ynoisy)])...])
 sdev_prop = 0.05*diff(fbounds, dims=2)[:]
 sdev_pos = [0.05abs(diff([extrema(x)...])[1])]
 demean_ns = true
@@ -86,7 +89,7 @@ rmprocs(workers())
 ## plot
 GeophysOperator.getchi2forall(opt)
 GeophysOperator.getchi2forall(optlog10λ)
-GeophysOperator.plot_posterior(line, opt, optlog10λ, burninfrac=0.2)
+GeophysOperator.plot_posterior(line, opt, optlog10λ, burninfrac=0.2, figsize=(10,10))
 ax = gcf().axes
 ax[1].plot(ynoisy, x, ".m")
 ax[1].plot(y, x, color="orange")

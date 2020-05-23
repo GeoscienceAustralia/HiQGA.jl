@@ -702,7 +702,7 @@ function undo_move!(movetype::Int, m::ModelStat, opt::OptionsStat,
         undo_property_change!(m, opt, mns)
     end
     sync_model!(m, opt)
-    sync_model!(mns, optns)
+    opt.updatenonstat && sync_model!(mns, optns)
     nothing
 end
 
