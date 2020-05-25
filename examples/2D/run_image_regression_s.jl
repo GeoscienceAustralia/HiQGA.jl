@@ -1,4 +1,5 @@
-any(pwd() .== LOAD_PATH) || push!(LOAD_PATH, pwd())
+srcdir = dirname(dirname(pwd()))*"/src"
+any(srcdir .== LOAD_PATH) || push!(LOAD_PATH, srcdir)
 using PyPlot, TransD_GP, Distributed, MCMC_Driver, GP, Random, Revise, GeophysOperator
 ##
 img =     Img(
