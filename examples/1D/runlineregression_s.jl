@@ -1,5 +1,6 @@
 using PyPlot, Test, Random, Revise, Statistics, LinearAlgebra, Distributed
-any(pwd() .== LOAD_PATH) || push!(LOAD_PATH, pwd())
+srcdir = dirname(dirname(pwd()))*"/src"
+any(srcdir .== LOAD_PATH) || push!(LOAD_PATH, srcdir)
 using GP, TransD_GP, GeophysOperator, MCMC_Driver, DelimitedFiles
 ##1D functions
 easy = false

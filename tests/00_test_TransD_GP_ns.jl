@@ -1,6 +1,7 @@
 Sys.iswindows() && (ENV["MPLBACKEND"]="qt4agg")
 using PyPlot, Test, Random, Revise, Statistics, LinearAlgebra
-any(pwd() .== LOAD_PATH) || push!(LOAD_PATH, pwd())
+srcdir = dirname(dirname(pwd()))*"/src"
+any(srcdir .== LOAD_PATH) || push!(LOAD_PATH, srcdir)
 import GP, TransD_GP
 ## make options for the multichannel lengthscale GP
 nminlog10λ, nmaxlog10λ = 2, 200
