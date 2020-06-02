@@ -17,7 +17,7 @@ TxDip=20.
 zfixed   = [-1e6,    0,      1000,   2000, 2100]
 rhofixed = [1e13,    0.3,    1,      100,  1]
 ##
-F = CSEM1DEr.RadialEr(zTx    = [zTx],
+F = CSEM1DEr.RadialErLagged(zTx    = [zTx],
                       rRx    = rRx,
                       freqs  = freqs,
                       zRx    = [zRx],
@@ -68,3 +68,11 @@ t = time() - t
 @info "timing is $(t/ntimes) s"
 subplot(122)
 semilogy(rRx, abs.(F.Er), label="julia")
+## Discrete Hankel Tx
+G = CSEM1DEr.RadialErDHT(rRx  = F.rRx,
+                          freqs  = F.freqs,
+                          zRx    = F.zRx[1]*ones(length(F.rRx)),
+                          RxAzim = RxAzim*ones(length(F.rRx)),
+                          zTx    = F.zTx[1]*ones(length(F.rRx)),
+                          TxDip  = TxDip*ones(length(F.rRx))
+                          )

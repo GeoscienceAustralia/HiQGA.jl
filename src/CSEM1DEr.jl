@@ -3,7 +3,9 @@ include("DigFilters.jl")
 using Dierckx, LinearAlgebra
 export stacks, getCurlyR, getCSEM1DKernelsAnisoHED, getCSEM1DanisoHED
 
-mutable struct RadialEr
+abstract type RadialEr end
+
+mutable struct RadialErLagged <: RadialEr
     thickness :: Array{Float64, 1}
     pz        :: Array{Complex{Float64}, 1}
     epsc      :: Array{ComplexF64, 1}
@@ -30,7 +32,7 @@ end
 const mu      = 4*pi*1e-7
 const eps0    = 8.854e-12
 
-function RadialEr(;
+function RadialErLagged(;
       nmax      = 200,
       zTx       = [975.],
       rRx       = collect(LinRange(500, 5000, 20)),
@@ -68,9 +70,62 @@ function RadialEr(;
     sit = sind(TxDip)  # needed for all VED terms
     csb = cosd(RxAzim) # needs to be multiplied into all HED/VED terms inside the loop
     sib = sind(RxAzim) # can be multiplied into all non-VED terms outside the loop
-    RadialEr(thickness, pz, epsc, zintfc, rTE, rTM, zRx, zTx, rRx, freqs, Er,
+    RadialErLagged(thickness, pz, epsc, zintfc, rTE, rTM, zRx, zTx, rRx, freqs, Er,
             ErhJ0, ErhJ1, ErvJ1, ErBase, lambdaR, rR,
             cst, sit, csb, sib)
+end
+
+mutable struct RadialErDHT <: RadialEr
+    thickness :: Array{Float64, 1}
+    pz        :: Array{Complex{Float64}, 1}
+    epsc      :: Array{ComplexF64, 1}
+    zintfc    :: Array{Float64, 1}
+    rTE       :: Array{ComplexF64, 1}
+    rTM       :: Array{ComplexF64, 1}
+    zRx       :: Array{Float64, 1}
+    zTx       :: Array{Float64, 1}
+    rRx       :: Array{Float64, 1}
+    freqs     :: Array{Float64, 1}
+    Er        :: Array{ComplexF64, 2}
+    ErhJ0     :: Array{ComplexF64, 2}
+    ErhJ1     :: Array{ComplexF64, 2}
+    ErvJ1     :: Array{ComplexF64, 2}
+    lambda    :: Array{Float64, 1}
+    cst       :: Array{Float64, 1}
+    sit       :: Array{Float64, 1}
+    csb       :: Array{Float64, 1}
+    sib       :: Array{Float64, 1}
+end
+
+function RadialErDHT(;
+      nmax      = 200,
+      rRx       = collect(LinRange(500, 5000, 20)),
+      freqs     = [0.1, 0.3, 0.7],
+      zTx       = 975*ones(length(rRx)),
+      zRx       = 1000*ones(length(rRx)),
+      TxDip     = zeros(length(zTx)),
+      RxAzim    = zeros(length(rRx))
+  )
+    @assert all(freqs .> 0.)
+    @assert length(zTx) == length(zRx)
+    thickness = zeros(nmax)
+    zintfc  = zeros(nmax)
+    pz  = zeros(Complex{Float64}, nmax)
+    epsc = similar(pz)
+    rTE = zeros(length(pz)-1)
+    rTM = similar(rTE)
+    Er  = zeros(ComplexF64, length(rRx),length(freqs)) # space domain fields
+    lambda = zeros(length(Filter_base))
+    # define kr domain fields here for lagged convolution
+    ErhJ0, ErhJ1, ErvJ1 = map(x->zeros(ComplexF64, length(lambda), length(freqs)), 1:3)
+    # Dip and azimuth
+    # Rx Azimuths and Tx Dips
+    cst = cosd.(TxDip)  # needed for all HED terms
+    sit = sind.(TxDip)  # needed for all VED terms
+    csb = cosd.(RxAzim) # needs to be multiplied into all HED/VED terms inside the loop
+    sib = sind.(RxAzim) # can be multiplied into all non-VED terms outside the loop
+    RadialErDHT(thickness, pz, epsc, zintfc, rTE, rTM, zRx, zTx, rRx, freqs, Er,
+            ErhJ0, ErhJ1, ErvJ1, lambda, cst, sit, csb, sib)
 end
 
 function stacks!(F::RadialEr, iTxLayer::Int, nlayers::Int, omega::Float64)
@@ -197,7 +252,7 @@ function getCSEM1DKernelsEr!(F::RadialEr, krho::Float64, f::Float64, zz::Array{F
     return ErhJ0, ErhJ1, ErvJ1
 end
 
-function getfield!(F::RadialEr, z::Array{Float64, 1}, ρ::Array{Float64, 1})
+function getfield!(F::RadialErLagged, z::Array{Float64, 1}, ρ::Array{Float64, 1})
     ErhJ0, ErhJ1, ErvJ1, ErBase = F.ErhJ0, F.ErhJ1, F.ErvJ1, F.ErBase
     for (ifreq, freq) in enumerate(F.freqs), (ikr, kr) in enumerate(F.lambdaR)
         ErhJ0[ikr,ifreq],
@@ -223,6 +278,23 @@ function getfield!(F::RadialEr, z::Array{Float64, 1}, ρ::Array{Float64, 1})
         F.Er[:,ifreq] = evaluate(splReal, log10.(F.rRx)) - 1im*evaluate(splImag, log10.(F.rRx))
     end # loop over frequencies
     # done with lagged convolution
+end
+
+function getfield!(F::RadialErDHT, z::Array{Float64, 1}, ρ::Array{Float64, 1})
+    ErhJ0, ErhJ1, ErvJ1 = F.ErhJ0, F.ErhJ1, F.ErvJ1
+    for (ifreq, freq) in enumerate(F.freqs)
+        for (ir, r) in enumerate(F.rRx)
+            copy!(F.lambda, Filter_base/r)
+            for (ikr, kr) in enumerate(F.lambda)
+                ErhJ0[ikr,ifreq],
+                ErhJ1[ikr,ifreq],
+                ErvJ1[ikr,ifreq] = getCSEM1DKernelsEr!(F, kr, freq, z, ρ, 1, ir)
+            end # kr loop
+            F.Er[ir,ifreq] = F.cst[ir]*F.csb[ir]*dot(ErhJ0[:,ifreq], Filter_J0)/r +
+                             F.cst[ir]*F.csb[ir]*dot(ErhJ1[:,ifreq], Filter_J1)/r^2 +
+                             F.sit[ir]*          dot(ErvJ1[:,ifreq], Filter_J1)/r
+        end # rRx loop
+    end # freq loop
 end
 
 end # module
