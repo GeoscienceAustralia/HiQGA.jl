@@ -1,6 +1,6 @@
 srcdir = dirname(pwd())*"/src"
 any(srcdir .== LOAD_PATH) || push!(LOAD_PATH, srcdir)
-using PyPlot, Revise, CSEM1DEr, DelimitedFiles
+using PyPlot, Revise, CSEM1DEr, DelimitedFiles, Random
 ##
 rMin = 100 #m
 rMax = 20000  #m
@@ -17,26 +17,54 @@ TxDip=20.
 zfixed   = [-1e6,    0,      1000,   2000, 2100]
 rhofixed = [1e13,    0.3,    1,      100,  1]
 ##
-F = CSEM1DEr.RadialEr(zTx=[zTx],
-                      rRx=rRx,
-                      freqs=freqs,
-                      zRx=[zRx])
+F = CSEM1DEr.RadialEr(zTx    = [zTx],
+                      rRx    = rRx,
+                      freqs  = freqs,
+                      zRx    = [zRx],
+                      RxAzim = RxAzim,
+                      TxDip  = TxDip)
 
 ##
 figure()
+subplot(121)
 step(log10.(rhofixed[2:end]), zfixed[2:end])
 xlim(-1, 2)
 ylim(1000, 3700)
 grid()
+gca().invert_yaxis()
 ##
 krho = 2.0593e-10
 rxno = 1
 txno = 1
-Ek = CSEM1DEr.getCSEM1DKernelsEr(F, krho, freqs[1], zfixed, rhofixed, rxno, txno)
-##
-@time Er = CSEM1Dkernels.getCSEM1DanisoHED(freqs, rRx, zRx, zTx, zfixed, [rhofixed rhofixed], 0,
-                                            RxAzim = RxAzim, TxDip=TxDip)
-figure()
-semilogy(rRx, abs.(Er), label="julia")
+Ek = CSEM1DEr.getCSEM1DKernelsEr!(F, krho, freqs[1], zfixed, rhofixed, rxno, txno)
+## timing
+ntimes = 1000
+t = time()
+for i = 1:ntimes
+    CSEM1DEr.getfield!(F, zfixed, rhofixed)
+end
+t = time() - t
+@info "timing is $(t/ntimes) s"
+subplot(122)
+semilogy(rRx, abs.(F.Er), label="julia")
 Erm = readdlm("can_test_mat.txt",',',Complex{Float64})
 semilogy(rRx, abs.(Erm), "--", label="mat")
+grid()
+## random, many layers
+Random.seed!(435)
+nlayers = 100
+z = [-1e6, 0, 1000, 1000 .+ cumsum(50*rand(nlayers-3))...]
+ρ = [1e13, 0.3, 1, 10 .^(1 .+ 1.5*rand(nlayers-3))...]
+figure()
+subplot(121)
+step(log10.(ρ[2:end]), z[2:end])
+xlim(1,2.5 )
+grid(); gca().invert_yaxis()
+t = time()
+for i = 1:ntimes
+    CSEM1DEr.getfield!(F, z, ρ)
+end
+t = time() - t
+@info "timing is $(t/ntimes) s"
+subplot(122)
+semilogy(rRx, abs.(F.Er), label="julia")

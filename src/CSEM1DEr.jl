@@ -14,6 +14,17 @@ mutable struct RadialEr
     zTx       :: Array{Float64, 1}
     rRx       :: Array{Float64, 1}
     freqs     :: Array{Float64, 1}
+    Er        :: Array{ComplexF64, 2}
+    ErhJ0     :: Array{ComplexF64, 2}
+    ErhJ1     :: Array{ComplexF64, 2}
+    ErvJ1     :: Array{ComplexF64, 2}
+    ErBase    :: Array{ComplexF64, 2}
+    lambdaR   :: Array{Float64, 1}
+    rR        :: Array{Float64, 1}
+    cst       :: Float64
+    sit       :: Float64
+    csb       :: Float64
+    sib       :: Float64
 end
 
 const mu      = 4*pi*1e-7
@@ -25,6 +36,8 @@ function RadialEr(;
       rRx       = collect(LinRange(500, 5000, 20)),
       freqs     = [0.1, 0.3, 0.7],
       zRx       = [1000.],
+      TxDip     = 0.0,
+      RxAzim    = 0.0
   )
     @assert all(freqs .> 0.)
     thickness = zeros(nmax)
@@ -33,10 +46,34 @@ function RadialEr(;
     epsc = similar(pz)
     rTE = zeros(length(pz)-1)
     rTM = similar(rTE)
-    RadialEr(thickness, pz, epsc, zintfc, rTE, rTM, zRx, zTx, rRx, freqs)
+    Er  = zeros(ComplexF64, length(rRx),length(freqs)) # space domain fields
+    #lagged convolution, good for all Rx-Tx depths same
+    rMin, rMax          = extrema(rRx)
+    lamMin              = Filter_base[1]/rMax
+    lamMax              = Filter_base[end]/rMin
+    # the filters are spaced by a multiplicative factor
+    filterSpacing       = Filter_base[2] / Filter_base[1]
+    nLambda             = ceil(log(lamMax/lamMin)/log(filterSpacing))+1
+    lambdaR             = collect(exp.(log(lamMin):log(filterSpacing):log(lamMin)+log(filterSpacing)*(nLambda-1)))
+    nExtra              = nLambda - length(Filter_base)
+    # ranges corresponding to lambdaR plus nExtra 1 lags in convolution:
+    rR                  = rMax*exp.(-(0:nExtra)*log(filterSpacing))
+    # define kr domain fields here for lagged convolution
+    ErhJ0, ErhJ1, ErvJ1 = map(x->zeros(ComplexF64, length(lambdaR), length(freqs)), 1:3)
+    # needed for spline computations in space domain
+    ErBase              = zeros(ComplexF64, length(rR), length(freqs))
+    # Dip and azimuth
+    # Rx Azimuths and Tx Dips
+    cst = cosd(TxDip)  # needed for all HED terms
+    sit = sind(TxDip)  # needed for all VED terms
+    csb = cosd(RxAzim) # needs to be multiplied into all HED/VED terms inside the loop
+    sib = sind(RxAzim) # can be multiplied into all non-VED terms outside the loop
+    RadialEr(thickness, pz, epsc, zintfc, rTE, rTM, zRx, zTx, rRx, freqs, Er,
+            ErhJ0, ErhJ1, ErvJ1, ErBase, lambdaR, rR,
+            cst, sit, csb, sib)
 end
 
-function stacks(F::RadialEr, iTxLayer::Int, nlayers::Int, omega::Float64)
+function stacks!(F::RadialEr, iTxLayer::Int, nlayers::Int, omega::Float64)
 
     rTE              = F.rTE
     rTM              = F.rTM
@@ -107,7 +144,7 @@ checkz(z, zcheck)        = round(Int, z<zcheck)
 ztxorignify(z, zTx)      = z - zTx
 makesane(pz::Complex)    = imag(pz)  < 0.0 ? ( pz*=-1.) : pz
 
-function getCSEM1DKernelsEr(F::RadialEr, krho::Float64, f::Float64, zz::Array{Float64, 1}, rho::Array{Float64, 1},
+function getCSEM1DKernelsEr!(F::RadialEr, krho::Float64, f::Float64, zz::Array{Float64, 1}, rho::Array{Float64, 1},
                             rxno::Int, txno::Int)
     nlayers = length(rho)
     z       = view(F.zintfc, 1:nlayers)
@@ -143,7 +180,7 @@ function getCSEM1DKernelsEr(F::RadialEr, krho::Float64, f::Float64, zz::Array{Fl
         iRxLayer = length(z) # in the last layer
     end
     # TE and TM modes
-    Rs_uTE, Rs_dTE, Rs_uTM, Rs_dTM  = stacks(F, iTxLayer, nlayers, omega)
+    Rs_uTE, Rs_dTE, Rs_uTM, Rs_dTM  = stacks!(F, iTxLayer, nlayers, omega)
     curlyRA,         = getCurlyR(Rs_uTE, Rs_dTE, pz[iTxLayer], zRx, z, iTxLayer, omega)
     gA_TE            = mu/pz[iTxLayer]*curlyRA
 
@@ -153,12 +190,39 @@ function getCSEM1DKernelsEr(F::RadialEr, krho::Float64, f::Float64, zz::Array{Fl
 
     # Kernels according to Loseth, without the bessel functions multiplied
     # Er from HED and VED
-    J0              = -krho*gA_TM/4/pi
-    J1              = -(gA_TE - gA_TM)/4/pi
-    J1V             = krho^2*gB_TM*1im/(4*pi*omega*epsc[iTxLayer]);
-    ErKernels       = [J0; J1; J1V]
+    ErhJ0              = -krho*gA_TM/4/pi
+    ErhJ1              = -(gA_TE - gA_TM)/4/pi
+    ErvJ1              = krho^2*gB_TM*1im/(4*pi*omega*epsc[iTxLayer])
 
-    return ErKernels
+    return ErhJ0, ErhJ1, ErvJ1
 end
 
-end #module
+function getfield!(F::RadialEr, z::Array{Float64, 1}, ρ::Array{Float64, 1})
+    ErhJ0, ErhJ1, ErvJ1, ErBase = F.ErhJ0, F.ErhJ1, F.ErvJ1, F.ErBase
+    for (ifreq, freq) in enumerate(F.freqs), (ikr, kr) in enumerate(F.lambdaR)
+        ErhJ0[ikr,ifreq],
+        ErhJ1[ikr,ifreq],
+        ErvJ1[ikr,ifreq] = getCSEM1DKernelsEr!(F, kr, freq, z, ρ, 1, 1)
+    end # first loop over freq for evaluations at digital filter specified kr
+
+    for (ifreq, freq) in enumerate(F.freqs)
+        for (ir, r) in enumerate(F.rR)
+        # Extract results for all rR ranges:
+            iShift = (1:length(Filter_base)) .+ ir .-1
+            ErBase[ir,ifreq] = F.cst*F.csb*dot(ErhJ0[iShift,ifreq], Filter_J0)/r +
+                               F.cst*F.csb*dot(ErhJ1[iShift,ifreq], Filter_J1)/r^2 +
+                               F.sit*      dot(ErvJ1[iShift,ifreq], Filter_J1)/r
+        end
+
+        # fit spline at computed receiver locations
+        # Dierckx needs x to be increasing so end:-1:1
+        # Er
+        splReal = Spline1D(log10.(F.rR[end:-1:1]), real(ErBase[end:-1:1,ifreq]))
+        splImag = Spline1D(log10.(F.rR[end:-1:1]), imag(ErBase[end:-1:1,ifreq]))
+        # evaluate spline at required rRx
+        F.Er[:,ifreq] = evaluate(splReal, log10.(F.rRx)) - 1im*evaluate(splImag, log10.(F.rRx))
+    end # loop over frequencies
+    # done with lagged convolution
+end
+
+end # module
