@@ -1,4 +1,9 @@
-using TransD_GP, PyPlot, StatsBase, Statistics, LinearAlgebra
+module LineRegression
+import AbstractOperator.get_misfit
+import AbstractOperator.Operator
+using TransD_GP, PyPlot, StatsBase, Statistics, LinearAlgebra, CommonToAll
+
+export Line, plot_posterior, make1Dhist, make1Dhists
 
 mutable struct Line<:Operator
     d     :: Array{Float64}
@@ -159,162 +164,6 @@ function make1Dhists(opt_in::TransD_GP.Options, burninfrac::Real;
     ax2[4].set_xlim(opt_in.nmin, opt_in.nmax)
 end
 
-function trimxft(opt::TransD_GP.Options, burninfrac::Float64)
-    x_ft = assembleTat1(opt, :x_ftrain, burninfrac=burninfrac)
-    n = assembleTat1(opt, :nodes, burninfrac=burninfrac)
-    x, ft = zeros(size(opt.xall, 1), sum(n)), zeros(size(opt.fbounds, 1), sum(n))
-    nlast = 0
-    for (i, xft) in enumerate(x_ft)
-        x[:,nlast+1:nlast+n[i]]  = xft[1:size(opt.xall, 1), 1:n[i]]
-        ft[:,nlast+1:nlast+n[i]] = xft[size(opt.xall, 1)+1:end, 1:n[i]]
-        nlast += n[i]
-    end
-    x, ft
-end
-
-function assembleTat1(optin::TransD_GP.Options, stat::Symbol; burninfrac=0.5)
-    isns = checkns(optin)
-    @assert 0.0<=burninfrac<=1.0
-    Tacrosschains = gettargtemps(optin)
-    iters = TransD_GP.history(optin, stat=:iter)
-    start = round(Int, length(iters)*burninfrac)
-    start == 0 && (start = 1)
-    @info "obtaining models $(iters[start]) to $(iters[end])"
-    nmodels = sum((Tacrosschains[start:end,:] .== 1))
-    if stat == :fstar || stat == :x_ftrain
-        mat1 = Array{Array{Float64}, 1}(undef, nmodels)
-    else
-        mat1 = Array{Real, 1}(undef, nmodels)
-    end
-    opt = deepcopy(optin)
-    imodel = 0
-    for ichain in 1:size(Tacrosschains, 2)
-        opt.fstar_filename = "models_"*isns*opt.fdataname*"_$ichain.bin"
-        opt.x_ftrain_filename = "points_"*isns*opt.fdataname*"_$ichain.bin"
-        opt.costs_filename = "misfits_"*isns*opt.fdataname*"_$ichain.bin"
-        if stat == :fstar
-            at1idx = findall(Tacrosschains[:,ichain].==1) .>= start
-        else
-            at1idx = Tacrosschains[:,ichain].==1
-            at1idx[1:start-1] .= false
-        end
-        ninchain = sum(at1idx)
-        @info "chain $ichain has $ninchain models"
-        ninchain == 0 && continue
-        mat1[imodel+1:imodel+ninchain] .= TransD_GP.history(opt, stat=stat)[at1idx]
-        imodel += ninchain
-    end
-    mat1
-end
-
-function gettargtemps(opt_in::TransD_GP.Options)
-    isns = checkns(opt_in)
-    nchains = length(filter( x -> occursin(r"misfits_ns.*bin", x), readdir(pwd()) )) # my terrible regex
-    @info "Number of chains is $nchains"
-    # now look at any chain to get how many iterations
-    opt = deepcopy(opt_in)
-    costs_filename = "misfits_"*isns*opt.fdataname
-    opt.costs_filename    = costs_filename*"_1.bin"
-    iters          = TransD_GP.history(opt, stat=:iter)
-    niters         = length(iters)
-    @info "McMC has run for $(iters[end]) iterations"
-    # then create arrays of unsorted by temperature T
-    Tacrosschains  = zeros(Float64, niters, nchains)
-    # get the values into the arrays
-    for ichain in 1:nchains
-        opt_in.costs_filename = costs_filename*"_$ichain.bin"
-        Tacrosschains[:,ichain] = TransD_GP.history(opt_in, stat=:T)
-    end
-    Tacrosschains
-end
-
-function checkns(optin::TransD_GP.Options)
-    isns = typeof(optin) == TransD_GP.OptionsNonstat
-    @info "ns is $isns"
-    ns = "ns"
-    isns || (ns="s")
-    return ns
-end
-
-function getchi2forall(opt_in::TransD_GP.Options;
-                        nchains          = 1,
-                        figsize          = (17,8),
-                        fsize            = 14,
-                      )
-    if nchains == 1 # then actually find out how many chains there are saved
-        nchains = length(filter( x -> occursin(r"misfits_ns.*bin", x), readdir(pwd()) )) # my terrible regex
-    end
-    # now look at any chain to get how many iterations
-    isns = checkns(opt_in)
-    opt = deepcopy(opt_in)
-    costs_filename = "misfits_"*isns*opt.fdataname
-    opt_in.costs_filename    = costs_filename*"_1.bin"
-    iters          = TransD_GP.history(opt, stat=:iter)
-    niters         = length(iters)
-    # then create arrays of unsorted by temperature T, k, and chi2
-    Tacrosschains  = zeros(Float64, niters, nchains)
-    kacrosschains  = zeros(Int, niters, nchains)
-    X2by2inchains  = zeros(Float64, niters, nchains)
-    # get the values into the arrays
-    for ichain in 1:nchains
-        opt.costs_filename = costs_filename*"_$ichain.bin"
-        Tacrosschains[:,ichain] = TransD_GP.history(opt, stat=:T)
-        kacrosschains[:,ichain] = TransD_GP.history(opt, stat=:nodes)
-        X2by2inchains[:,ichain] = TransD_GP.history(opt, stat=:U)
-    end
-
-    f, ax = plt.subplots(3,2, sharex=true, figsize=figsize)
-    ax[1].plot(iters, kacrosschains)
-    ax[1].set_title("unsorted by temperature")
-    ax[1].grid()
-    ax[1].set_ylabel("# nodes")
-    ax[2].plot(iters, X2by2inchains)
-    ax[2].grid()
-    ax[2].set_ylabel("-Log L")
-    ax[3].grid()
-    ax[3].plot(iters, Tacrosschains)
-    ax[3].set_ylabel("Temperature")
-    ax[3].set_xlabel("iterations")
-
-    for jstep = 1:niters
-        sortidx = sortperm(vec(Tacrosschains[jstep,:]))
-        X2by2inchains[jstep,:] = X2by2inchains[jstep,sortidx]
-        kacrosschains[jstep,:] = kacrosschains[jstep,sortidx]
-        Tacrosschains[jstep,:] = Tacrosschains[jstep,sortidx]
-    end
-
-    nchainsatone = sum(Tacrosschains[1,:] .== 1)
-    ax[4].plot(iters, kacrosschains)
-    ax[4].set_title("sorted by temperature")
-    ax[4].plot(iters, kacrosschains[:,1:nchainsatone], "k")
-    ax[4].grid()
-    ax[5].plot(iters, X2by2inchains)
-    ax[5].plot(iters, X2by2inchains[:,1:nchainsatone], "k")
-    ax[5].grid()
-    ax[6].plot(iters, Tacrosschains)
-    ax[6].plot(iters, Tacrosschains[:,1:nchainsatone], "k")
-    ax[6].grid()
-    ax[6].set_xlabel("iterations")
-
-    nicenup(f, fsize=fsize)
-
-end
-
-function nicenup(g::PyPlot.Figure;fsize=16)
-    for ax in gcf().axes
-        ax.tick_params("both",labelsize=fsize)
-        ax.xaxis.label.set_fontsize(fsize)
-        ax.yaxis.label.set_fontsize(fsize)
-        any(keys(ax) .== :zaxis) && ax.zaxis.label.set_fontsize(fsize)
-        ax.title.set_fontsize(fsize)
-
-        if typeof(ax.get_legend_handles_labels()[1]) != Array{Any,1}
-            ax.legend(loc="best", fontsize=fsize)
-        end
-    end
-    g.tight_layout()
-end
-
 function get_misfit(m::TransD_GP.Model, opt::TransD_GP.Options, line::Line)
     chi2by2 = 0.0
     if !opt.debug
@@ -331,4 +180,4 @@ function get_misfit(m::TransD_GP.Model, opt::TransD_GP.Options, line::Line)
     return chi2by2
 end
 
-export Line
+end

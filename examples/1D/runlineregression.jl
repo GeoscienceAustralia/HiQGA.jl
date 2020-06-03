@@ -81,6 +81,7 @@ nsamples, nchains, nchainsatone = 15001, 4, 1
 Tmax = 2.50
 addprocs(nchains)
 @info "workers are $(workers())"
+@everywhere any($srcdir .== LOAD_PATH) || push!(LOAD_PATH, $srcdir)
 @everywhere any(pwd() .== LOAD_PATH) || push!(LOAD_PATH, pwd())
 @everywhere using Distributed
 @everywhere import MCMC_Driver
