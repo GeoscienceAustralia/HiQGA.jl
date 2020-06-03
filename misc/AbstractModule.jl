@@ -1,3 +1,3 @@
-module AbsractModule
+module AbstractModule
     function foo end
 end
