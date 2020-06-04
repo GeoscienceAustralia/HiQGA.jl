@@ -3,7 +3,7 @@ using TransD_GP, PyPlot, StatsBase, Statistics,
       AbstractOperator
 
 export trimxft, assembleTat1, gettargtemps, checkns, getchi2forall, nicenup,
-        plot_posterior, make1Dhist, make1Dhists
+        plot_posterior, make1Dhist, make1Dhists, setupz, plotdepthtransforms
 
 function trimxft(opt::TransD_GP.Options, burninfrac::Float64)
     x_ft = assembleTat1(opt, :x_ftrain, burninfrac=burninfrac)
@@ -144,6 +144,57 @@ function getchi2forall(opt_in::TransD_GP.Options;
 
     nicenup(f, fsize=fsize)
 
+end
+
+function geomprogdepth(n, dy, c)
+    dy*(1.0-c^n)/(1-c)
+end
+
+function getn(z, dy, c)
+    log(1 - z/dy*(1-c))/log(c)
+end
+
+function setupz(zstart;n=100, dz=10, extendfrac=1.01)
+    znrange            = 1.0:n
+    if extendfrac > 1
+        zboundaries    = [zstart, zstart .+ geomprogdepth.(znrange, dz, extendfrac)...]
+        thickness      = dz*(extendfrac).^(znrange .-1)
+        zall           = zboundaries[1:end-1] + thickness/2
+        znall          = getn.(zall .- zstart, dz, extendfrac)
+    else
+        zboundaries    = range(zstart, step=dz, length=n)
+        thickness      = diff(zboundaries)
+        zall           = zboundaries[1:end-1] .+ dz/2
+        znall          = 1.5:1:n-0.5
+    end
+    plotdepthtransforms(zall, znall, zboundaries, thickness)
+    return zall, znall, zboundaries
+end
+
+function plotdepthtransforms(zall, znall, zboundaries, thickness)
+    figure()
+    plot(znall, zall)
+    xlabel("depth index")
+    ylabel("depth associated m")
+    grid()
+    nicenup(gcf())
+
+    f, ax = plt.subplots(1, 1, figsize=(10,5))
+    ax.stem(zboundaries[1:end-1], zboundaries[1:end-1], markerfmt="")
+    ax.stem(zall, zall, "k--", markerfmt=" ")
+    ax.set_xlabel("depth m")
+    ax.set_ylabel("depth m")
+    nicenup(gcf())
+
+    f, ax = plt.subplots(1, 2, sharey=true, figsize=(11,5))
+    ax[1].stem(zall,thickness, "k--", markerfmt=" ")
+    ax[1].set_ylabel("thickness m")
+    ax[2].set_xlabel("depth m")
+    ax[1].yaxis.grid(which="major")
+    ax[2].stem(znall,thickness, "k--", markerfmt=" ")
+    ax[2].set_xlabel("depth index")
+    ax[2].yaxis.grid(which="major")
+    nicenup(f)
 end
 
 function nicenup(g::PyPlot.Figure;fsize=16)
