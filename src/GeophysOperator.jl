@@ -6,5 +6,5 @@ using .LineRegression
 include("CommonToAll.jl")
 using .CommonToAll
 #include("ImageRegression.jl")
-export Operator, get_misfit
+export Operator, Operator1D, Operator2D, get_misfit
 end

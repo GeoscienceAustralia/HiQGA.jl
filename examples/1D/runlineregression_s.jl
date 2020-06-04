@@ -1,7 +1,8 @@
-using PyPlot, Random, Revise, Statistics, LinearAlgebra, Distributed
+using PyPlot, Random, Revise, Statistics, LinearAlgebra,
+      Distributed, DelimitedFiles
 srcdir = dirname(dirname(pwd()))*"/src"
 any(srcdir .== LOAD_PATH) || push!(LOAD_PATH, srcdir)
-using GP, TransD_GP, GeophysOperator, MCMC_Driver, DelimitedFiles
+using GP, TransD_GP, GeophysOperator, MCMC_Driver
 ##1D functions
 easy = false
 Random.seed!(10)
@@ -40,7 +41,7 @@ xall = permutedims(collect(x))
 xbounds = permutedims([extrema(x)...])
 updatenonstat = false
 needλ²fromlog = false
-## Initialize a lengthscale model using these options
+## Initialize a stationary GP using these options
 Random.seed!(12)
 opt = TransD_GP.OptionsStat(nmin = nmin,
                         nmax = nmax,

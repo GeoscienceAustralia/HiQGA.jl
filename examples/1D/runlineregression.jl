@@ -1,7 +1,8 @@
-using PyPlot, Test, Random, Revise, Statistics, LinearAlgebra, Distributed
+using PyPlot, Random, Revise, Statistics, LinearAlgebra,
+      Distributed, DelimitedFiles
 srcdir = dirname(dirname(pwd()))*"/src"
 any(srcdir .== LOAD_PATH) || push!(LOAD_PATH, srcdir)
-using GP, TransD_GP, GeophysOperator, MCMC_Driver, DelimitedFiles
+using GP, TransD_GP, GeophysOperator, MCMC_Driver
 ##1D functions
 easy = false
 Random.seed!(10)
