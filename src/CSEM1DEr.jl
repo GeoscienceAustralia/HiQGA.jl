@@ -1,7 +1,6 @@
 module CSEM1DEr
 include("DigFilters.jl")
 using Dierckx, LinearAlgebra
-export stacks, getCurlyR, getCSEM1DKernelsAnisoHED, getCSEM1DanisoHED
 
 abstract type RadialEr end
 

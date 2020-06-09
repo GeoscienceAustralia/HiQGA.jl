@@ -3,7 +3,8 @@ using TransD_GP, PyPlot, StatsBase, Statistics,
       AbstractOperator
 
 export trimxft, assembleTat1, gettargtemps, checkns, getchi2forall, nicenup,
-        plot_posterior, make1Dhist, make1Dhists, setupz, plotdepthtransforms
+        plot_posterior, make1Dhist, make1Dhists, setupz, plotdepthtransforms,
+        unwrap, getn, geomprogdepth
 
 function trimxft(opt::TransD_GP.Options, burninfrac::Float64)
     x_ft = assembleTat1(opt, :x_ftrain, burninfrac=burninfrac)
@@ -154,21 +155,40 @@ function getn(z, dy, c)
     log(1 - z/dy*(1-c))/log(c)
 end
 
-function setupz(zstart;n=100, dz=10, extendfrac=1.01)
-    znrange            = 1.0:n
-    if extendfrac > 1
-        zboundaries    = [zstart, zstart .+ geomprogdepth.(znrange, dz, extendfrac)...]
-        thickness      = dz*(extendfrac).^(znrange .-1)
-        zall           = zboundaries[1:end-1] + thickness/2
-        znall          = getn.(zall .- zstart, dz, extendfrac)
-    else
-        zboundaries    = range(zstart, step=dz, length=n)
-        thickness      = diff(zboundaries)
-        zall           = zboundaries[1:end-1] .+ dz/2
-        znall          = 1.5:1:n-0.5
+function unwrap(v, inplace=false)
+  # currently assuming an array
+  unwrapped = inplace ? v : copy(v)
+  for i in 2:length(v)
+    while unwrapped[i] - unwrapped[i-1] >= pi
+      unwrapped[i] -= 2pi
     end
+    while unwrapped[i] - unwrapped[i-1] <= -pi
+      unwrapped[i] += 2pi
+    end
+  end
+  return unwrapped
+end
+
+function setupz(zstart, extendfrac;n=100, dz=10)
+    @assert extendfrac>1
+    znrange        = 1.0:n
+    zboundaries    = [zstart, zstart .+ geomprogdepth.(znrange, dz, extendfrac)...]
+    thickness      = dz*(extendfrac).^(znrange .-1)
+    @assert abs(diff(zboundaries)[end] - thickness[end]) < 1e-12
+    zall           = zboundaries[1:end-1] + thickness/2
+    znall          = getn.(zall .- zstart, dz, extendfrac)
     plotdepthtransforms(zall, znall, zboundaries, thickness)
-    return zall, znall, zboundaries
+    return zall, znall, zboundaries[1:end-1]
+end
+
+function setupz(zstart;n=100, dz=10)
+    znrange        = 1.0:n
+    zboundaries    = range(zstart, step=dz, length=n)
+    thickness      = diff(zboundaries)
+    zall           = zboundaries[1:end-1] .+ dz/2
+    znall          = 1.5:1:n-0.5
+    plotdepthtransforms(zall, znall, zboundaries, thickness)
+    return zall, znall, zboundaries[1:end-1]
 end
 
 function plotdepthtransforms(zall, znall, zboundaries, thickness)
@@ -260,8 +280,9 @@ function plot_posterior(operator::Operator1D,
     himage, edges, CI = make1Dhist(opt, burninfrac=burninfrac, nbins = nbins, qp1=qp1, qp2=qp2, pdfnormalize=pdfnormalize)
     f,ax = plt.subplots(1,1, sharey=true, figsize=figsize)
     xall = opt.xall
-    im1 = ax.imshow(himage, extent=[edges[1],edges[end],xall[end],xall[1]], aspect="auto", cmap=cmappdf)
-    ax.grid()
+    #im1 = ax.imshow(himage, extent=[edges[1],edges[end],xall[end],xall[1]], aspect="auto", cmap=cmappdf)
+    #ax.grid()
+    im1 = ax.pcolormesh(edges[:], xall[:], himage, cmap=cmappdf)
     cb1 = colorbar(im1, ax=ax)
     cb1.ax.set_xlabel("pdf \nstationary")
     ax.plot(CI, xall[:], linewidth=2, color="g")

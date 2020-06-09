@@ -5,6 +5,8 @@ include("LineRegression.jl")
 using .LineRegression
 include("CommonToAll.jl")
 using .CommonToAll
+include("CSEM1DInversion.jl")
+using .CSEM1DInversion
 #include("ImageRegression.jl")
 export Operator, Operator1D, Operator2D, get_misfit
 end
