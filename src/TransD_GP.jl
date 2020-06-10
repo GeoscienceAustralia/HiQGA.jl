@@ -715,7 +715,7 @@ function get_acceptance_stats!(isample::Int, opt::Options, stat::Stats)
                             stat.accept_rate[2],
                             stat.accept_rate[3],
                             stat.accept_rate[4])
-            @info(msg)
+            @info typeof(opt), msg
         end
         fill!(stat.move_tries, 0)
         fill!(stat.accepted_moves, 0)
