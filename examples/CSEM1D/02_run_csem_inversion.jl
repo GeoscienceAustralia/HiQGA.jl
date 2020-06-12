@@ -3,7 +3,7 @@ using GP, TransD_GP, GeophysOperator, MCMC_Driver, Distributed
 nminlog10λ, nmaxlog10λ = 2, 40
 pnorm = 2.
 Klog10λ = GP.Mat32()
-log10bounds = [-1 1.5]
+log10bounds = [0 1.5]
 λlog10λ = [0.05abs(diff([extrema(znall)...])[1])]
 δlog10λ = 0.1
 demean = false
@@ -29,11 +29,11 @@ optlog10λ = TransD_GP.OptionsStat(nmin = nminlog10λ,
                         timesλ = 3.
                         )
 ## make options for the nonstationary actual properties GP
-nmin, nmax = 2, 40
+nmin, nmax = 2, 20
 fbounds = [-0.5 2.3]
-δ = 0.1
-sdev_prop = 0.05*diff(fbounds, dims=2)[:]
-sdev_pos = [0.05abs(diff([extrema(znall)...])[1])]
+δ = 0.2
+sdev_prop = 0.02*diff(fbounds, dims=2)[:]
+sdev_pos = [0.008abs(diff([extrema(znall)...])[1])]
 demean_ns = true
 K = GP.Mat32()
 ## Initialize model for the nonstationary properties GP
@@ -50,7 +50,7 @@ opt = TransD_GP.OptionsNonstat(optlog10λ,
                         K = K
                         )
 ## set up McMC
-nsamples, nchains, nchainsatone = 400001, 8, 1
+nsamples, nchains, nchainsatone = 800001, 8, 1
 Tmax = 2.50
 addprocs(nchains)
 @info "workers are $(workers())"
