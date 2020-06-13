@@ -76,12 +76,42 @@ function assemblemodelsatT(opt::TransD_GP.OptionsStat; burninfrac=0.9, temperatu
         ky = view(K_y, 1:n[imodel], 1:n[imodel])
         map!(x->GP.κ(opt.K, x),ky,pairwise(WeightedEuclidean(1 ./opt.λ² ), xtrain, dims=2))
         K_y[diagind(K_y)] .+= opt.δ^2
+        ks = view(Kstar, :, 1:n[imodel])
         map!(x->GP.κ(opt.K, x),Kstar,pairwise(WeightedEuclidean(1 ./opt.λ² ), xtest, xtrain, dims=2))
         matT[imodel] = zeros(size(opt.fbounds, 1), size(opt.xall, 2))
         fstar = matT[imodel]
         TransD_GP.calcfstar!(fstar, ftrain, opt, K_y, Kstar, n[imodel])
     end
     matT
+end
+
+function assemblemodelsatT(optns::TransD_GP.OptionsNonstat, opts::TransD_GP.OptionsStat;
+    burninfrac=0.9, temperaturenum=-1)
+    @assert temperaturenum!=-1 "Please explicitly specify which temperature number"
+    msatT = assemblemodelsatT(opts, burninfrac=burninfrac, temperaturenum=temperaturenum)
+    x_ft = assembleTat1(optns, :x_ftrain, burninfrac=burninfrac, temperaturenum=temperaturenum)
+    n = assembleTat1(optns, :nodes, burninfrac=burninfrac, temperaturenum=temperaturenum)
+    nmodels = length(n)
+    mnsatT = Array{Array{Float64}, 1}(undef, nmodels)
+    K_y = zeros(optns.nmax, optns.nmax)
+    Kstar = zeros(Float64, size(optns.xall,2), optns.nmax)
+    xtest = optns.xall
+    for imodel = 1:nmodels
+        λ² = msatT[imodel]
+        xtrain = x_ft[imodel][1:size(optns.xall, 1), :]
+        ftrain = x_ft[imodel][size(optns.xall, 1)+1:end, :]
+        idxs = TransD_GP.gettrainidx(optns.kdtree, xtrain, n[imodel])
+        ky = view(K_y, 1:n[imodel], 1:n[imodel])
+        map!(x->x, ky, GP.pairwise(optns.K, xtrain[:,1:n[imodel]], xtrain[:,1:n[imodel]],
+                                    λ²[:,idxs], λ²[:,idxs]))
+        K_y[diagind(K_y)] .+= optns.δ^2
+        ks = view(Kstar, :, 1:n[imodel])
+        map!(x->x, ks, GP.pairwise(optns.K, xtrain[:,1:n[imodel]], xtest, λ²[:,idxs], λ²))
+        mnsatT[imodel] = zeros(size(optns.xall, 2), size(optns.fbounds, 1))
+        fstar = mnsatT[imodel]
+        TransD_GP.calcfstar!(fstar, ftrain, optns, K_y, Kstar, n[imodel])
+    end
+    msatT, mnsatT
 end
 
 function gettargtemps(opt_in::TransD_GP.Options)
@@ -307,7 +337,7 @@ end
 
 function plot_posterior(operator::Operator1D,
                         optns::TransD_GP.OptionsNonstat,
-                        opt::TransD_GP.OptionsStat;
+                        opts::TransD_GP.OptionsStat;
     temperaturenum = 1,
     nbins = 50,
     burninfrac=0.5,
@@ -318,12 +348,17 @@ function plot_posterior(operator::Operator1D,
     figsize=(10,5),
     pdfnormalize=false,
     fsize=14)
-    himage_ns, edges_ns, CI_ns = make1Dhist(optns, burninfrac=burninfrac, nbins = nbins, qp1=qp1, qp2=qp2,
+    if temperaturenum == 1
+        himage_ns, edges_ns, CI_ns = make1Dhist(optns, burninfrac=burninfrac, nbins = nbins, qp1=qp1, qp2=qp2,
                                 pdfnormalize=pdfnormalize, temperaturenum=temperaturenum)
-    himage, edges, CI = make1Dhist(opt, burninfrac=burninfrac, nbins = nbins, qp1=qp1, qp2=qp2,
+        himage, edges, CI = make1Dhist(opts, burninfrac=burninfrac, nbins = nbins, qp1=qp1, qp2=qp2,
                                 pdfnormalize=pdfnormalize, temperaturenum=temperaturenum)
+    else
+        himage, edges, CI, himage_ns, edges_ns, CI_ns = make1Dhist(optns, opts, burninfrac=burninfrac, nbins = nbins, qp1=qp1, qp2=qp2,
+                                pdfnormalize=pdfnormalize, temperaturenum=temperaturenum)
+    end
     f,ax = plt.subplots(1,2, sharey=true, figsize=figsize)
-    xall = opt.xall
+    xall = opts.xall
     # im1 = ax[1].imshow(himage_ns, extent=[edges_ns[1],edges_ns[end],xall[end],xall[1]], aspect="auto", cmap=cmappdf)
     im1 = ax[1].pcolormesh(edges_ns[:], xall[:], himage_ns, cmap=cmappdf)
     cb1 = colorbar(im1, ax=ax[1])
@@ -375,6 +410,28 @@ function plot_posterior(operator::Operator1D,
     nicenup(f, fsize=fsize)
 end
 
+function make1Dhist(optns::TransD_GP.OptionsNonstat,
+                    opts::TransD_GP.OptionsStat;
+                burninfrac = 0.5,
+                nbins = 50,
+                rhomin=Inf,
+                rhomax=-Inf,
+                qp1=0.05,
+                qp2=0.95,
+                pdfnormalize=false,
+                temperaturenum=-1)
+    @assert temperaturenum!=-1 "Please explicitly specify which temperature number"
+    msatT, mnsatT = assemblemodelsatT(optns, opts,
+                    burninfrac=burninfrac, temperaturenum=temperaturenum)
+    himage, edges, CI = gethimage(msatT, opts, burninfrac=burninfrac, temperaturenum=temperaturenum,
+                nbins=nbins, rhomin=rhomin, rhomax=rhomax, qp1=qp1, qp2=qp2,
+                pdfnormalize=pdfnormalize)
+    himage_ns, edges_ns, CI_ns = gethimage(mnsatT, optns, burninfrac=burninfrac, temperaturenum=temperaturenum,
+                nbins=nbins, rhomin=rhomin, rhomax=rhomax, qp1=qp1, qp2=qp2,
+                pdfnormalize=pdfnormalize)
+    return himage, edges, CI, himage_ns, edges_ns, CI_ns
+end
+
 function make1Dhist(opt::TransD_GP.Options;
                 burninfrac = 0.5,
                 nbins = 50,
@@ -385,6 +442,21 @@ function make1Dhist(opt::TransD_GP.Options;
                 pdfnormalize=false,
                 temperaturenum=1)
     M = assembleTat1(opt, :fstar, burninfrac=burninfrac, temperaturenum=temperaturenum)
+    himage, edges, CI = gethimage(M, opt, burninfrac=burninfrac, temperaturenum=temperaturenum,
+                nbins=nbins, rhomin=rhomin, rhomax=rhomax, qp1=qp1, qp2=qp2,
+                pdfnormalize=pdfnormalize)
+    return himage, edges, CI
+end
+
+function gethimage(M::AbstractArray, opt::TransD_GP.Options;
+                burninfrac = 0.5,
+                nbins = 50,
+                rhomin=Inf,
+                rhomax=-Inf,
+                qp1=0.05,
+                qp2=0.95,
+                pdfnormalize=false,
+                temperaturenum=1)
     if (rhomin == Inf) && (rhomax == -Inf)
         for (i,mm) in enumerate(M)
             rhomin_mm = minimum(mm)
@@ -417,7 +489,7 @@ function make1Dhist(opt::TransD_GP.Options;
             CI[ilayer,:] = [quantile([m[ilayer] for m in M],(qp1, qp2))...]
         end
     end
-    return himage, edges, CI
+    himage, edges, CI
 end
 
 function make1Dhists(opt_in::TransD_GP.Options, burninfrac::Real;
