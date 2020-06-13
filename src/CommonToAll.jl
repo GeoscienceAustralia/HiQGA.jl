@@ -4,7 +4,7 @@ using TransD_GP, PyPlot, StatsBase, Statistics, Distances, LinearAlgebra,
 
 export trimxft, assembleTat1, gettargtemps, checkns, getchi2forall, nicenup,
         plot_posterior, make1Dhist, make1Dhists, setupz, plotdepthtransforms,
-        unwrap, getn, geomprogdepth, assemblemodelsatT
+        unwrap, getn, geomprogdepth, assemblemodelsatT, getstats
 
 function trimxft(opt::TransD_GP.Options, burninfrac::Float64, temperaturenum::Int)
     x_ft = assembleTat1(opt, :x_ftrain, burninfrac=burninfrac, temperaturenum=temperaturenum)
@@ -103,6 +103,49 @@ function gettargtemps(opt_in::TransD_GP.Options)
         Tacrosschains[:,ichain] = TransD_GP.history(opt, stat=:T)
     end
     Tacrosschains
+end
+
+function getstats(optin::TransD_GP.Options;
+                  figsize=(5,6), fontsize=12,
+                  nxticks=5, nyticks=5, alpha=0.6, chains=[-1])
+    if chains[1] == -1
+        nchains = length(filter( x -> occursin(r"misfits_ns.*bin", x), readdir(pwd()) )) # my terrible regex
+        chains = 1:nchains
+    else
+        nchains = length(chains)
+    end
+    @info "Number of chains is $nchains"
+    isns = checkns(optin)
+    opt = deepcopy(optin)
+    costs_filename = "misfits_"*isns*opt.fdataname
+    opt.costs_filename    = costs_filename*"_1.bin"
+    iters          = TransD_GP.history(opt, stat=:iter)
+    statnames = [:acceptanceRateBirth, :acceptanceRateDeath,
+                 :acceptanceRatePosition, :acceptanceRateProperty]
+    f,ax = plt.subplots(length(statnames), 1,
+                        sharex=true, sharey=true, figsize=figsize)
+    maxar = 0
+    for (ichain, chain) in enumerate(chains)
+        opt.costs_filename = costs_filename*"_$chain.bin"
+        for (istat, statname) in enumerate(statnames)
+            ar = TransD_GP.history(opt, stat=statname)
+            mx = maximum(ar[.!isnan.(ar)])
+            mx > maxar && (maxar = mx)
+            ax[istat].plot(iters, ar, alpha=alpha)
+            if ichain == nchains
+                ax[istat].set_title("$statname "*isns)
+                ax[istat].set_ylabel("acc. %")
+                if istat == length(statnames)
+                    ax[istat].set_xlabel("mcmc step no.")
+                    ax[istat].set_xticks(LinRange(iters[1], iters[end], nxticks))
+                    ax[istat].set_xlim(extrema(iters))
+                    ax[istat].set_yticks(LinRange(0, maxar, nyticks))
+                    ax[istat].set_ylim(0, maxar)
+                end
+            end
+        end
+    end
+    nicenup(f, fsize=fontsize)
 end
 
 function checkns(optin::TransD_GP.Options)
