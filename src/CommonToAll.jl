@@ -190,6 +190,7 @@ function getchi2forall(opt_in::TransD_GP.Options;
                         nchains          = 1,
                         figsize          = (17,8),
                         fsize            = 14,
+                        alpha            = 0.6
                       )
     if nchains == 1 # then actually find out how many chains there are saved
         nchains = length(filter( x -> occursin(r"misfits_ns.*bin", x), readdir(pwd()) )) # my terrible regex
@@ -214,15 +215,15 @@ function getchi2forall(opt_in::TransD_GP.Options;
     end
 
     f, ax = plt.subplots(3,2, sharex=true, figsize=figsize)
-    ax[1].plot(iters, kacrosschains)
-    ax[1].set_title("unsorted by temperature")
+    ax[1].plot(iters, kacrosschains, alpha=alpha)
+    ax[1].set_title("unsorted by temperature", alpha=alpha)
     ax[1].grid()
-    ax[1].set_ylabel("# nodes")
-    ax[2].plot(iters, X2by2inchains)
+    ax[1].set_ylabel("# nodes", alpha=alpha)
+    ax[2].plot(iters, X2by2inchains, alpha=alpha)
     ax[2].grid()
     ax[2].set_ylabel("-Log L")
     ax[3].grid()
-    ax[3].plot(iters, Tacrosschains)
+    ax[3].plot(iters, Tacrosschains, alpha=alpha)
     ax[3].set_ylabel("Temperature")
     ax[3].set_xlabel("iterations")
 
@@ -234,15 +235,15 @@ function getchi2forall(opt_in::TransD_GP.Options;
     end
 
     nchainsatone = sum(Tacrosschains[1,:] .== 1)
-    ax[4].plot(iters, kacrosschains)
+    ax[4].plot(iters, kacrosschains, alpha=alpha)
     ax[4].set_title("sorted by temperature")
-    ax[4].plot(iters, kacrosschains[:,1:nchainsatone], "k")
+    ax[4].plot(iters, kacrosschains[:,1:nchainsatone], "k", alpha=alpha)
     ax[4].grid()
-    ax[5].plot(iters, X2by2inchains)
-    ax[5].plot(iters, X2by2inchains[:,1:nchainsatone], "k")
+    ax[5].plot(iters, X2by2inchains, alpha=alpha)
+    ax[5].plot(iters, X2by2inchains[:,1:nchainsatone], "k", alpha=alpha)
     ax[5].grid()
-    ax[6].plot(iters, Tacrosschains)
-    ax[6].plot(iters, Tacrosschains[:,1:nchainsatone], "k")
+    ax[6].plot(iters, Tacrosschains, alpha=alpha)
+    ax[6].plot(iters, Tacrosschains[:,1:nchainsatone], "k", alpha=alpha)
     ax[6].grid()
     ax[6].set_xlabel("iterations")
 
