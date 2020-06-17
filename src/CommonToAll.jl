@@ -216,7 +216,7 @@ function getchi2forall(opt_in::TransD_GP.Options;
 
     f, ax = plt.subplots(3,2, sharex=true, figsize=figsize)
     ax[1].plot(iters, kacrosschains, alpha=alpha)
-    ax[1].set_title("unsorted by temperature", alpha=alpha)
+    ax[1].set_title("unsorted by temperature")
     ax[1].grid()
     ax[1].set_ylabel("# nodes", alpha=alpha)
     ax[2].plot(iters, X2by2inchains, alpha=alpha)

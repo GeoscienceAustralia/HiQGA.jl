@@ -48,7 +48,7 @@ end
 getfield!(csem::CSEMRadialEr) = getfield!(csem.F, csem.z, csem.ρ)
 
 function getfield!(m::TransD_GP.Model, csem::CSEMRadialEr)
-    copyto!(csem.ρ, csem.nfixed+1:length(csem.ρ), 10 .^m.fstar, 1:length(m.fstar)) 
+    copyto!(csem.ρ, csem.nfixed+1:length(csem.ρ), 10 .^m.fstar, 1:length(m.fstar))
     getfield!(csem)
     nothing
 end
@@ -75,13 +75,15 @@ end
 
 function plotmodelfield!(F::CSEM1DEr.RadialEr, z::Array{Float64, 1}, ρ::Array{Float64, 1}
                         ;figsize=(10,5))
-    f, ax = plt.subplots(1, 2, figsize=figsize)
+    f, ax = plt.subplots(1, 3, figsize=figsize)
     ax[1].step(log10.(ρ[2:end]), z[2:end])
     CSEM1DEr.getfield!(F, z, ρ)
     ax[2].semilogy(F.rRx, abs.(F.Er))
+    ax[3].plot(F.rRx, unwrap(angle.(F.Er)))
     ax[1].grid()
     ax[1].invert_yaxis()
     ax[2].grid()
+    ax[3].grid()
     nicenup(f)
 end
 
@@ -91,10 +93,19 @@ function addnoise(F::CSEM1DEr.RadialEr, z::Array{Float64, 1}, ρ::Array{Float64,
                   dz = -1.,
                   extendfrac = -1.,
                   nfixed = -1,
-                  figsize=(12,4))
+                  )
+    @assert all((nfixed, dz, extendfrac) .> 0)
     CSEM1DEr.getfield!(F, z, ρ)
     d = F.Er + sqrt(2)*noisefrac*abs.(F.Er).*randn(ComplexF64, size(F.Er))
     d[abs.(d).<noisefloor] .= NaN
+    plotmodelfield!(F, z, ρ, d, figsize=figsize, nfixed=nfixed,
+                                dz=dz, extendfrac=extendfrac)
+    return d, sqrt(2)*noisefrac*abs.(d)
+end
+
+function plotmodelfield!(F::CSEM1DEr.RadialEr, z, ρ, d::Array{ComplexF64}, σ::Array{Float64};
+                        figsize=(12,4), nfixed=-1, dz=-1., extendfrac=-1.)
+    @assert all((nfixed, dz, extendfrac) .> 0)
     f, ax = plt.subplots(1, 3, figsize=figsize)
     ax[1].step(log10.(ρ[2:end]), z[2:end])
     if dz > 0
@@ -106,20 +117,20 @@ function addnoise(F::CSEM1DEr.RadialEr, z::Array{Float64, 1}, ρ::Array{Float64,
         axn.set_ylim(ax[1].get_ylim()[end:-1:1])
         axn.set_yticklabels(string.(Int.(round.(getn.(yt .- z[nfixed+1], dz, extendfrac)))))
     end
-
+    CSEM1DEr.getfield!(F, z, ρ)
     ax[2].semilogy(F.rRx, abs.(F.Er))
     ax[3].plot(F.rRx, unwrap(angle.(F.Er)))
     for lfreq in eachindex(F.freqs)
-        ax[2].errorbar(F.rRx, abs.(d[:,lfreq]), yerr = 2*noisefrac*sqrt(2)abs.(d[:,lfreq]),
+        ax[2].errorbar(F.rRx, abs.(d[:,lfreq]), yerr = 2*0.707abs.(σ[:,lfreq]),
                         linestyle="none", marker=".", elinewidth=0, capsize=3)
-        ax[3].errorbar(F.rRx, unwrap(angle.(d[:,lfreq])), yerr = 2*noisefrac*sqrt(2),
+        ax[3].errorbar(F.rRx, unwrap(angle.(d[:,lfreq])),
+                                yerr = 2*0.707abs.(σ[:,lfreq])./abs.(d[:,lfreq]),
                         linestyle="none", marker=".", elinewidth=0, capsize=3)
     end
     ax[1].grid()
     ax[2].grid()
     ax[3].grid()
     nicenup(f)
-    return d, sqrt(2)*noisefrac*abs.(d)
 end
 
 end
