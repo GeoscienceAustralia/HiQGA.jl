@@ -258,7 +258,7 @@ function updatenskernels!(opt::OptionsStat, m::ModelStat, ipoint::Union{Int, Arr
         kstarchangeidx = 1:size(mns.Kstar, 1)
         kychangeidx = 1:mns.n
     else
-        kstarchangeidx = reduce(vcat, inrange(opt.balltree, xt./sqrt.(opt.λ²), opt.timesλ))
+        kstarchangeidx = unique(reduce(vcat, inrange(opt.balltree, xt./sqrt.(opt.λ²), opt.timesλ)))
         balltree = BallTree(mns.xtrain[:,1:mns.n]./sqrt.(opt.λ²))
         kychangeidx = inrange(balltree, xt./sqrt.(opt.λ²), opt.timesλ)
     end
