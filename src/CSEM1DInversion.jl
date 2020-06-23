@@ -93,14 +93,16 @@ function addnoise(F::CSEM1DEr.RadialEr, z::Array{Float64, 1}, ρ::Array{Float64,
                   dz = -1.,
                   extendfrac = -1.,
                   nfixed = -1,
+                  figsize=(12,4)
                   )
     @assert all((nfixed, dz, extendfrac) .> 0)
     CSEM1DEr.getfield!(F, z, ρ)
     d = F.Er + sqrt(2)*noisefrac*abs.(F.Er).*randn(ComplexF64, size(F.Er))
     d[abs.(d).<noisefloor] .= NaN
-    plotmodelfield!(F, z, ρ, d, figsize=figsize, nfixed=nfixed,
+    σ = sqrt(2)*noisefrac*abs.(d)
+    plotmodelfield!(F, z, ρ, d, σ, figsize=figsize, nfixed=nfixed,
                                 dz=dz, extendfrac=extendfrac)
-    return d, sqrt(2)*noisefrac*abs.(d)
+    return d, σ
 end
 
 function plotmodelfield!(F::CSEM1DEr.RadialEr, z, ρ, d::Array{ComplexF64}, σ::Array{Float64};
