@@ -1,6 +1,6 @@
 srcdir = dirname(pwd())*"/src"
 any(srcdir .== LOAD_PATH) || push!(LOAD_PATH, srcdir)
-using PyPlot, Revise, AEM_VMD_HMD, DelimitedFiles, Random
+using PyPlot, Revise, AEM_VMD_HMD, Random
 ## frequencies
 nFreqsPerDecade     = 7
 freqLowLimit        = 1e-1
@@ -24,11 +24,11 @@ F = AEM_VMD_HMD.HFieldDHT(
                       zRx    = zRx)
 
 ##
-AEM_VMD_HMD.getfield!(F, zfixed, rho)
+AEM_VMD_HMD.getfieldFD!(F, zfixed, rho)
 ##
 figure()
-loglog(freqs,abs.(imag(F.H)), label="imaginary")
-loglog(freqs,abs.(real(F.H)), label="real")
+loglog(freqs,abs.(imag(F.HFD)), label="imaginary")
+loglog(freqs,abs.(real(F.HFD)), label="real")
 xlim(extrema(freqs))
 legend()
 grid()
@@ -36,7 +36,7 @@ grid()
 ntimes = 1000
 t = time()
 for i = 1:ntimes
-    AEM_VMD_HMD.getfield!(F, zfixed, rho)
+    AEM_VMD_HMD.getfieldFD!(F, zfixed, rho)
 end
 t = time() - t
 @info "timing is $(t/ntimes) s"

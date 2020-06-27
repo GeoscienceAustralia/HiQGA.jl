@@ -1,48 +1,86 @@
 module AEM_VMD_HMD
 include("DigFilters.jl")
-using Dierckx, LinearAlgebra
+include("TDcossin.jl")
+using Dierckx, LinearAlgebra, FastGaussQuadrature
 
 abstract type HField end
 
 mutable struct HFieldDHT <: HField
-    thickness   :: Array{Float64, 1}
-    pz          :: Array{Complex{Float64}, 1}
-    epsc        :: Array{ComplexF64, 1}
-    zintfc      :: Array{Float64, 1}
-    rTE         :: Array{ComplexF64, 1}
-    rTM         :: Array{ComplexF64, 1}
-    zRx         :: Float64
-    zTx         :: Float64
-    rTX         :: Float64
-    rRx         :: Float64
-    freqs       :: Array{Float64, 1}
-    H           :: Array{ComplexF64, 1}
-    J0_kernel_h :: Array{ComplexF64, 2}
-    J1_kernel_h :: Array{ComplexF64, 2}
-    J0_kernel_v :: Array{ComplexF64, 2}
-    J1_kernel_v :: Array{ComplexF64, 2}
+    thickness       :: Array{Float64, 1}
+    pz              :: Array{Complex{Float64}, 1}
+    epsc            :: Array{ComplexF64, 1}
+    zintfc          :: Array{Float64, 1}
+    rTE             :: Array{ComplexF64, 1}
+    rTM             :: Array{ComplexF64, 1}
+    zRx             :: Float64
+    zTx             :: Float64
+    rTX             :: Float64
+    rRx             :: Float64
+    freqs           :: Array{Float64, 1}
+    times           :: Array{Float64, 1}
+    ramp            :: Array{Float64, 2}
+    log10ω          :: Array{Float64, 1}
+    interptimes     :: Array{Float64, 1}
+    HFD             :: Array{ComplexF64, 1}
+    HFDinterp       :: Array{ComplexF64, 1}
+    HTD             :: Array{Float64, 1}
+    HTDinterp       :: Array{Float64, 1}
+    dBzdt           :: Array{Float64, 1}
+    J0_kernel_h     :: Array{ComplexF64, 2}
+    J1_kernel_h     :: Array{ComplexF64, 2}
+    J0_kernel_v     :: Array{ComplexF64, 2}
+    J1_kernel_v     :: Array{ComplexF64, 2}
+    lowpassfcs      :: Array{Float64, 1}
+    quadnodes       :: Array{Float64, 1}
+    quadweights     :: Array{Float64, 1}
 end
 
 function HFieldDHT(;
       nmax      = 200,
       rTx       = 12.0,
       rRx       = 17.0,
-      freqs     = [0.1, 0.3, 0.7],
+      freqs     = [],
       zTx       = -35.0,
-      zRx       = -37.5
+      zRx       = -37.5,
+      times     = 10 .^LinRange(-6, -1, 50),
+      ramp      = ones(10, 10),
+      nfreqsperdecade = 8,
+      ntimesperdecade = 8,
+      glegintegorder = 5,
+      lowpassfcs = []
   )
     @assert all(freqs .> 0.)
+    @assert all(diff(times) .> 0)
     thickness = zeros(nmax)
     zintfc    = zeros(nmax)
     pz        = zeros(Complex{Float64}, nmax)
     epsc      = similar(pz)
     rTE       = zeros(length(pz)-1)
     rTM       = similar(rTE)
-    H         = zeros(ComplexF64, length(freqs)) # space domain fields
-    # define kr domain fields here for lagged convolution
+    freqlow, freqhigh = 1e-3, 1e6
+    if freqhigh < 3/minimum(times)
+       freqhigh = 3/minimum(times)
+    end
+    if freqlow > 3/maximum(times)
+       freqlow = 3/maximum(times)
+    end
+    if isempty(freqs)
+        freqs = 10 .^(log10(freqlow):1/nfreqsperdecade:log10(freqhigh))
+    end
     J0_kernel_h, J1_kernel_h, J0_kernel_v, J1_kernel_v = map(x->zeros(ComplexF64, length(Filter_base), length(freqs)), 1:4)
-    HFieldDHT(thickness, pz, epsc, zintfc, rTE, rTM, zRx, zTx, rTx, rRx, freqs, H,
-            J0_kernel_h, J1_kernel_h, J0_kernel_v, J1_kernel_v)
+    log10freqs = log10.(freqs)
+    log10ω = log10.(2*pi*freqs)
+    interptimes = 10 .^(minimum(log10.(times))-1:1/ntimesperdecade:maximum(log10.(times))+1)
+    HFD       = zeros(ComplexF64, length(freqs)) # space domain fields in freq
+    HTD       = zeros(Float64, length(times)) # space domain fields in time
+    dBzdt     = zeros(Float64, length(times)) # time derivative of space domain fields
+    HFDinterp = zeros(ComplexF64, length(Filter_t_base))
+    HTDinterp = zeros(Float64, length(interptimes))
+    lowpassfcs = float.([lowpassfcs..., 1e7])
+    quadnodes, quadweights = gausslegendre(glegintegorder)
+    HFieldDHT(thickness, pz, epsc, zintfc, rTE, rTM, zRx, zTx, rTx, rRx, freqs, times, ramp, log10ω, interptimes,
+            HFD, HFDinterp, HTD, HTDinterp, dBzdt, J0_kernel_h, J1_kernel_h, J0_kernel_v, J1_kernel_v, lowpassfcs,
+            quadnodes, quadweights)
 end
 
 const mu       = 4*pi*1e-7
@@ -149,13 +187,65 @@ function getAEM1DKernelsH!(F::HField, krho::Float64, f::Float64, zz::Array{Float
     return J0v
 end
 
-function getfield!(F::HFieldDHT, z::Array{Float64, 1}, ρ::Array{Float64, 1})
+function getfieldFD!(F::HFieldDHT, z::Array{Float64, 1}, ρ::Array{Float64, 1})
     for (ifreq, freq) in enumerate(F.freqs)
         for (ikr, kr) in enumerate(Filter_base)
             F.J0_kernel_v[ikr,ifreq] = getAEM1DKernelsH!(F, kr/F.rRx, freq, z, ρ)
         end # kr loop
-        F.H[ifreq] = dot(F.J0_kernel_v[:,ifreq], Filter_J0)/F.rRx
+        F.HFD[ifreq] = dot(F.J0_kernel_v[:,ifreq], Filter_J0)/F.rRx
     end # freq loop
 end
+
+function getfieldTD!(F::HFieldDHT, z::Array{Float64, 1}, ρ::Array{Float64, 1})
+    getfieldFD!(F, z, ρ)
+    splreal = Spline1D(F.log10ω, real(F.HFD)) # TODO preallocate
+    splimag = Spline1D(F.log10ω, imag(F.HFD)) # TODO preallocate
+    for itime = 1:length(F.interptimes)
+        t = F.interptimes[itime]
+        ω = log10.(Filter_t_base/t) # TODO preallocate
+        F.HFDinterp[:]  .= evaluate(splreal, ω) .- 1im*evaluate(splimag, ω) # conjugate so -1im
+        Hsc = ones(ComplexF64, length(ω)) # TODO preallocate
+        s = 1im*10 .^ω # TODO preallocate
+        for fc in F.lowpassfcs
+             Hs = 1 ./( 1 .+s./(2*pi*fc))
+             Hsc[:] .= Hsc.*Hs
+        end
+        F.HFDinterp[:]  .= F.HFDinterp .* conj(Hsc)
+        F.HFDinterp[:]  .= -imag(F.HFDinterp)*2/pi # TODO do on previous line, scale for impulse response
+        F.HTDinterp[itime] = dot(F.HFDinterp, Filter_t_sin)/t
+    end
+    spl = Spline1D(log10.(F.interptimes), F.HTDinterp) # TODO preallocate
+    convramp!(F, spl)
+end
+
+function convramp!(F::HFieldDHT, spl::Spline1D)
+    fill!(F.dBzdt, 0.)
+    for itime = 1:length(F.times)
+        for iramp = 1:size(F.ramp,1)-1
+            rta, rtb  = F.ramp[iramp,1], F.ramp[iramp+1,1]
+            dt   = rtb - rta
+            dI   = F.ramp[iramp+1,2] - F.ramp[iramp,2]
+            dIdt = dI/dt
+
+            if rta > F.times[itime]
+                break
+            end
+            if rtb > F.times[itime] # end in this interval
+                rtb = F.times[itime]
+            end
+
+            ta = F.times[itime]-rta
+            tb = max(F.times[itime]-rtb, 1e-8) # rtb > rta, so make sure this is not zero...
+            a, b = log10(ta), log10(tb)
+            x, w = F.quadnodes, F.quadweights
+            F.dBzdt[itime] += (b-a)/2*sum(getrampresponse((b-a)/2*x .+ (a+b)/2, spl).*w)*dIdt
+        end
+    end
+end
+
+function getrampresponse(t::Array{Float64, 1}, spl::Spline1D)
+    evaluate(spl, t).*(10 .^t)*log(10)
+end
+
 
 end # module
