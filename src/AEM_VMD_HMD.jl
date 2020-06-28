@@ -1,7 +1,7 @@
 module AEM_VMD_HMD
 include("DigFilters.jl")
 include("TDcossin.jl")
-using Dierckx, LinearAlgebra, FastGaussQuadrature
+using LinearAlgebra, FastGaussQuadrature, DataInterpolations
 
 abstract type HField end
 
@@ -198,12 +198,12 @@ end
 
 function getfieldTD!(F::HFieldDHT, z::Array{Float64, 1}, ρ::Array{Float64, 1})
     getfieldFD!(F, z, ρ)
-    splreal = Spline1D(F.log10ω, real(F.HFD)) # TODO preallocate
-    splimag = Spline1D(F.log10ω, imag(F.HFD)) # TODO preallocate
+    splreal = CubicSpline(real(F.HFD), F.log10ω) # TODO preallocate
+    splimag = CubicSpline(imag(F.HFD), F.log10ω) # TODO preallocate
     for itime = 1:length(F.interptimes)
         t = F.interptimes[itime]
         ω = log10.(Filter_t_base/t) # TODO preallocate
-        F.HFDinterp[:]  .= evaluate(splreal, ω) .- 1im*evaluate(splimag, ω) # conjugate so -1im
+        F.HFDinterp[:]  .= splreal.(ω) .- 1im*splimag.(ω) # conjugate so -1im
         Hsc = ones(ComplexF64, length(ω)) # TODO preallocate
         s = 1im*10 .^ω # TODO preallocate
         for fc in F.lowpassfcs
@@ -214,11 +214,11 @@ function getfieldTD!(F::HFieldDHT, z::Array{Float64, 1}, ρ::Array{Float64, 1})
         F.HFDinterp[:]  .= -imag(F.HFDinterp)*2/pi # TODO do on previous line, scale for impulse response
         F.HTDinterp[itime] = dot(F.HFDinterp, Filter_t_sin)/t
     end
-    spl = Spline1D(log10.(F.interptimes), F.HTDinterp) # TODO preallocate
+    spl = CubicSpline(F.HTDinterp, log10.(F.interptimes)) # TODO preallocate
     convramp!(F, spl)
 end
 
-function convramp!(F::HFieldDHT, spl::Spline1D)
+function convramp!(F::HFieldDHT, spl::CubicSpline)
     fill!(F.dBzdt, 0.)
     for itime = 1:length(F.times)
         for iramp = 1:size(F.ramp,1)-1
@@ -243,9 +243,8 @@ function convramp!(F::HFieldDHT, spl::Spline1D)
     end
 end
 
-function getrampresponse(t::Array{Float64, 1}, spl::Spline1D)
-    evaluate(spl, t).*(10 .^t)*log(10)
+function getrampresponse(t::Array{Float64, 1}, spl::CubicSpline)
+    spl.(t).*(10 .^t)*log(10)
 end
-
 
 end # module
