@@ -33,6 +33,8 @@ mutable struct HFieldDHT <: HField
     lowpassfcs      :: Array{Float64, 1}
     quadnodes       :: Array{Float64, 1}
     quadweights     :: Array{Float64, 1}
+    ω               :: Array{Float64, 2}
+    Hsc             :: Array{ComplexF64, 2}
 end
 
 function HFieldDHT(;
@@ -78,9 +80,26 @@ function HFieldDHT(;
     HTDinterp = zeros(Float64, length(interptimes))
     lowpassfcs = float.([lowpassfcs..., 1e7])
     quadnodes, quadweights = gausslegendre(glegintegorder)
+    ω, Hsc = preallocate_ω_Hsc(interptimes, lowpassfcs)
     HFieldDHT(thickness, pz, epsc, zintfc, rTE, rTM, zRx, zTx, rTx, rRx, freqs, times, ramp, log10ω, interptimes,
             HFD, HFDinterp, HTD, HTDinterp, dBzdt, J0_kernel_h, J1_kernel_h, J0_kernel_v, J1_kernel_v, lowpassfcs,
-            quadnodes, quadweights)
+            quadnodes, quadweights,ω, Hsc)
+end
+
+function preallocate_ω_Hsc(interptimes, lowpassfcs)
+    ω   = zeros(length(Filter_t_base), length(interptimes))
+    Hsc = zeros(ComplexF64, length(Filter_t_base), length(interptimes))
+    for itime = 1:length(interptimes)
+        t = interptimes[itime]
+        ω[:,itime] = log10.(Filter_t_base/t)
+        Hsc[:,itime] = ones(ComplexF64, length(Filter_t_base))
+        s = 1im*10 .^ω[:,itime]
+        for fc in lowpassfcs
+             Hs = 1 ./( 1 .+s./(2*pi*fc))
+             Hsc[:,itime] .= Hsc[:,itime].*Hs
+        end
+    end
+    ω, Hsc
 end
 
 const mu       = 4*pi*1e-7
@@ -203,18 +222,14 @@ function getfieldTD!(F::HFieldDHT, z::Array{Float64, 1}, ρ::Array{Float64, 1})
     getfieldFD!(F, z, ρ)
     splreal = CubicSpline(real(F.HFD), F.log10ω) # TODO preallocate
     splimag = CubicSpline(imag(F.HFD), F.log10ω) # TODO preallocate
-    for itime = 1:length(F.interptimes)
-        t = F.interptimes[itime]
-        ω = log10.(Filter_t_base/t) # TODO preallocate
-        F.HFDinterp[:]  .= splreal.(ω) .- 1im*splimag.(ω) # conjugate so -1im
-        Hsc = ones(ComplexF64, length(ω)) # TODO preallocate
-        s = 1im*10 .^ω # TODO preallocate
-        for fc in F.lowpassfcs
-             Hs = 1 ./( 1 .+s./(2*pi*fc))
-             Hsc[:] .= Hsc.*Hs
+    @views begin
+        for itime = 1:length(F.interptimes)
+            w, H = F.ω[:,itime], F.Hsc[:,itime]
+            t = F.interptimes[itime]
+            F.HFDinterp[:]  .= splreal.(w) .- 1im*splimag.(w) # conjugate so -1im
+            F.HFDinterp[:]  .= -imag(F.HFDinterp .* conj(H))*2/pi # scale for impulse response
+            F.HTDinterp[itime] = dot(F.HFDinterp, Filter_t_sin)/t
         end
-        F.HFDinterp[:]  .= -imag(F.HFDinterp .* conj(Hsc))*2/pi # scale for impulse response
-        F.HTDinterp[itime] = dot(F.HFDinterp, Filter_t_sin)/t
     end
     spl = CubicSpline(F.HTDinterp, log10.(F.interptimes)) # TODO preallocate
     convramp!(F, spl)

@@ -40,8 +40,6 @@ F = AEM_VMD_HMD.HFieldDHT(
 ##
 figure()
 loglog(F.times,4*pi*1e-7*abs.(F.dBzdt))
-# xlim(extrema(F.freqs))
-# legend()
 grid()
 ## timing
 ntimes = 1000
