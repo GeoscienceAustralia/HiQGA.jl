@@ -9,6 +9,7 @@ nmax = 100
 rRx = 17.
 zRx = -37.0
 zTx = -35.0
+rTx = 12.607
 # Note that the receiver depth needs to be in same model layer as transmitter.
 ## times and ramp
 HM_times = [
@@ -19,8 +20,8 @@ HM_ramp = [
 -0.01    -0.008386     -0.00638    -0.003783            0     3.96e-07    7.782e-07    1.212e-06     3.44e-06    1.981e-05    3.619e-05    3.664e-05    3.719e-05    3.798e-05    3.997e-05         0.01
 0       0.4568       0.7526       0.9204            1       0.9984       0.9914       0.9799       0.9175       0.4587     0.007675     0.003072    0.0008319     0.000119            0            0]'
 lowpassfcs = [300000, 450000.0]
-ntimesperdecade = 10
-nfreqsperdecade = 10
+ntimesperdecade = 7
+nfreqsperdecade = 7
 ##
 F = AEM_VMD_HMD.HFieldDHT(
                       ntimesperdecade = ntimesperdecade,
@@ -31,6 +32,7 @@ F = AEM_VMD_HMD.HFieldDHT(
                       nmax   = nmax,
                       zTx    = zTx,
                       rRx    = rRx,
+                      rTx    = rTx,
                       zRx    = zRx)
 
 ##

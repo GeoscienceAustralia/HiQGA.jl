@@ -1,7 +1,7 @@
 module AEM_VMD_HMD
 include("DigFilters.jl")
 include("TDcossin.jl")
-using LinearAlgebra, FastGaussQuadrature, DataInterpolations
+using LinearAlgebra, SpecialFunctions, FastGaussQuadrature, DataInterpolations
 
 abstract type HField end
 
@@ -14,7 +14,7 @@ mutable struct HFieldDHT <: HField
     rTM             :: Array{ComplexF64, 1}
     zRx             :: Float64
     zTx             :: Float64
-    rTX             :: Float64
+    rTx             :: Union{Float64, Nothing}
     rRx             :: Float64
     freqs           :: Array{Float64, 1}
     times           :: Array{Float64, 1}
@@ -37,15 +37,15 @@ end
 
 function HFieldDHT(;
       nmax      = 200,
-      rTx       = 12.0,
+      rTx       = nothing,
       rRx       = 17.0,
       freqs     = [],
       zTx       = -35.0,
       zRx       = -37.5,
       times     = 10 .^LinRange(-6, -1, 50),
       ramp      = ones(10, 10),
-      nfreqsperdecade = 8,
-      ntimesperdecade = 8,
+      nfreqsperdecade = 7,
+      ntimesperdecade = 7,
       glegintegorder = 5,
       lowpassfcs = []
   )
@@ -179,13 +179,16 @@ function getAEM1DKernelsH!(F::HField, krho::Float64, f::Float64, zz::Array{Float
     # TE and TM modes
     Rs_dTE, Rs_dTM   = stacks!(F, iTxLayer, nlayers, omega)
     curlyRA,         = getCurlyR(Rs_dTE, pz[iTxLayer], zRx, z, iTxLayer, omega)
-    gA_TE            = mu/pz[iTxLayer]*curlyRA
+    gA_TE            = mu/pz[iTxLayer]*curlyRA*loopfactor(F.rTx, krho)
 
     # Kernels according to Loseth, without the bessel functions multiplied
-    J0v              = krho^3*gA_TE*1im/(omega*mu*4*pi)
+    J0v              = gA_TE*1im/(omega*mu)
 
     return J0v
 end
+
+loopfactor(rTx::Nothing, krho::Float64) = krho^3/(4*pi)
+loopfactor(rTx::Float64, krho::Float64) = krho^2*besselj1(krho*rTx)/(2*pi*rTx)
 
 function getfieldFD!(F::HFieldDHT, z::Array{Float64, 1}, ρ::Array{Float64, 1})
     for (ifreq, freq) in enumerate(F.freqs)
@@ -210,8 +213,7 @@ function getfieldTD!(F::HFieldDHT, z::Array{Float64, 1}, ρ::Array{Float64, 1})
              Hs = 1 ./( 1 .+s./(2*pi*fc))
              Hsc[:] .= Hsc.*Hs
         end
-        F.HFDinterp[:]  .= F.HFDinterp .* conj(Hsc)
-        F.HFDinterp[:]  .= -imag(F.HFDinterp)*2/pi # TODO do on previous line, scale for impulse response
+        F.HFDinterp[:]  .= -imag(F.HFDinterp .* conj(Hsc))*2/pi # scale for impulse response
         F.HTDinterp[itime] = dot(F.HFDinterp, Filter_t_sin)/t
     end
     spl = CubicSpline(F.HTDinterp, log10.(F.interptimes)) # TODO preallocate
