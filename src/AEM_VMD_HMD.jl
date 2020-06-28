@@ -83,7 +83,7 @@ function HFieldDHT(;
     ω, Hsc = preallocate_ω_Hsc(interptimes, lowpassfcs)
     HFieldDHT(thickness, pz, epsc, zintfc, rTE, rTM, zRx, zTx, rTx, rRx, freqs, times, ramp, log10ω, interptimes,
             HFD, HFDinterp, HTD, HTDinterp, dBzdt, J0_kernel_h, J1_kernel_h, J0_kernel_v, J1_kernel_v, lowpassfcs,
-            quadnodes, quadweights,ω, Hsc)
+            quadnodes, quadweights, ω, Hsc)
 end
 
 function preallocate_ω_Hsc(interptimes, lowpassfcs)
@@ -214,7 +214,8 @@ function getfieldFD!(F::HFieldDHT, z::Array{Float64, 1}, ρ::Array{Float64, 1})
         for (ikr, kr) in enumerate(Filter_base)
             F.J0_kernel_v[ikr,ifreq] = getAEM1DKernelsH!(F, kr/F.rRx, freq, z, ρ)
         end # kr loop
-        F.HFD[ifreq] = dot(F.J0_kernel_v[:,ifreq], Filter_J0)/F.rRx
+        J0_kernel_v = @view F.J0_kernel_v[:,ifreq]
+        F.HFD[ifreq] = dot(J0_kernel_v, Filter_J0)/F.rRx
     end # freq loop
 end
 
@@ -255,7 +256,7 @@ function convramp!(F::HFieldDHT, spl::CubicSpline)
             tb = max(F.times[itime]-rtb, 1e-8) # rtb > rta, so make sure this is not zero...
             a, b = log10(ta), log10(tb)
             x, w = F.quadnodes, F.quadweights
-            F.dBzdt[itime] += (b-a)/2*sum(getrampresponse((b-a)/2*x .+ (a+b)/2, spl).*w)*dIdt
+            F.dBzdt[itime] += (b-a)/2*dot(getrampresponse((b-a)/2*x .+ (a+b)/2, spl), w)*dIdt
         end
     end
 end
