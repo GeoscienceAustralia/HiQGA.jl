@@ -45,8 +45,8 @@ function HFieldDHT(;
       zRx       = -37.5,
       times     = 10 .^LinRange(-6, -1, 50),
       ramp      = ones(10, 10),
-      nfreqsperdecade = 5,
-      ntimesperdecade = 5,
+      nfreqsperdecade = 7,
+      ntimesperdecade = 7,
       glegintegorder = 5,
       lowpassfcs = []
   )
