@@ -140,26 +140,26 @@ function getCurlyR(Rs_d::ComplexF64, pz::ComplexF64,
         e_to_the_iwpz_2znext_minus_zr = exp( im*omega*pz*(2*z[iTxLayer+1] - zR))
 
         finRA = e_to_the_iwpzzr + e_to_the_iwpz_2znext_minus_zr*Rs_d
-
-        finRB = e_to_the_iwpzzr + e_to_the_iwpz_2znext_minus_zr*Rs_d
-
-        finRC = e_to_the_iwpzzr + e_to_the_iwpz_2znext_minus_zr*(-Rs_d)
-
-        finRD = e_to_the_iwpzzr + e_to_the_iwpz_2znext_minus_zr*(-Rs_d)
+        # Will need these for other components
+        # finRB = e_to_the_iwpzzr + e_to_the_iwpz_2znext_minus_zr*Rs_d
+        #
+        # finRC = e_to_the_iwpzzr + e_to_the_iwpz_2znext_minus_zr*(-Rs_d)
+        #
+        # finRD = e_to_the_iwpzzr + e_to_the_iwpz_2znext_minus_zr*(-Rs_d)
     else
         e_to_the_iwpz2znext              = exp(im*omega*pz*2*z[iTxLayer+1])
         e_to_the_minus_iwpzzr            = exp(-im*omega*pz*zR)
 
         finRA = (1. + e_to_the_iwpz2znext*Rs_d) * e_to_the_minus_iwpzzr
-
-        finRB = (-1. + e_to_the_iwpz2znext*Rs_d) * e_to_the_minus_iwpzzr
-
-        finRC = (1. + e_to_the_iwpz2znext*(-Rs_d)) * e_to_the_minus_iwpzzr
-
-        finRD = (-1. + e_to_the_iwpz2znext*(-Rs_d)) * e_to_the_minus_iwpzzr
+        # Will need these for other components
+        # finRB = (-1. + e_to_the_iwpz2znext*Rs_d) * e_to_the_minus_iwpzzr
+        #
+        # finRC = (1. + e_to_the_iwpz2znext*(-Rs_d)) * e_to_the_minus_iwpzzr
+        #
+        # finRD = (-1. + e_to_the_iwpz2znext*(-Rs_d)) * e_to_the_minus_iwpzzr
     end
 
-    return finRA, finRB, finRC, finRD
+    return finRA #, finRB, finRC, finRD
 end
 
 getepsc(rho, omega)      = eps0 + 1im/(rho*omega)
