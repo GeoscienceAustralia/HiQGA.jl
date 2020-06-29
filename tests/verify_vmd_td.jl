@@ -11,8 +11,8 @@ zRx = -37.0
 zTx = -35.0
 rTx = 12.607
 lowpassfcs = [300000, 450000.0]
-ntimesperdecade = 6
-nfreqsperdecade = 6
+ntimesperdecade = 7
+nfreqsperdecade = 7
 # Note that the receiver depth needs to be in same model layer as transmitter.
 ## LM times and ramp
 LM_times = [
