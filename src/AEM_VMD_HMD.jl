@@ -23,7 +23,6 @@ mutable struct HFieldDHT <: HField
     interptimes     :: Array{Float64, 1}
     HFD             :: Array{ComplexF64, 1}
     HFDinterp       :: Array{ComplexF64, 1}
-    HTD             :: Array{Float64, 1}
     HTDinterp       :: Array{Float64, 1}
     dBzdt           :: Array{Float64, 1}
     J0_kernel_h     :: Array{ComplexF64, 2}
@@ -46,8 +45,8 @@ function HFieldDHT(;
       zRx       = -37.5,
       times     = 10 .^LinRange(-6, -1, 50),
       ramp      = ones(10, 10),
-      nfreqsperdecade = 7,
-      ntimesperdecade = 7,
+      nfreqsperdecade = 5,
+      ntimesperdecade = 5,
       glegintegorder = 5,
       lowpassfcs = []
   )
@@ -74,16 +73,14 @@ function HFieldDHT(;
     log10ω = log10.(2*pi*freqs)
     interptimes = 10 .^(minimum(log10.(times))-1:1/ntimesperdecade:maximum(log10.(times))+1)
     HFD       = zeros(ComplexF64, length(freqs)) # space domain fields in freq
-    HTD       = zeros(Float64, length(times)) # space domain fields in time
-    dBzdt     = zeros(Float64, length(times)) # time derivative of space domain fields
+    dBzdt     = zeros(Float64, length(times)) # time derivative of space domain fields convolved with ramp
     HFDinterp = zeros(ComplexF64, length(Filter_t_base))
     HTDinterp = zeros(Float64, length(interptimes))
     lowpassfcs = float.([lowpassfcs..., 1e7])
     quadnodes, quadweights = gausslegendre(glegintegorder)
-    ω, Hsc = preallocate_ω_Hsc(interptimes, lowpassfcs)
     HFieldDHT(thickness, pz, epsc, zintfc, rTE, rTM, zRx, zTx, rTx, rRx, freqs, times, ramp, log10ω, interptimes,
-            HFD, HFDinterp, HTD, HTDinterp, dBzdt, J0_kernel_h, J1_kernel_h, J0_kernel_v, J1_kernel_v, lowpassfcs,
-            quadnodes, quadweights, ω, Hsc)
+            HFD, HFDinterp, HTDinterp, dBzdt, J0_kernel_h, J1_kernel_h, J0_kernel_v, J1_kernel_v, lowpassfcs,
+            quadnodes, quadweights, preallocate_ω_Hsc(interptimes, lowpassfcs)...)
 end
 
 function preallocate_ω_Hsc(interptimes, lowpassfcs)
@@ -122,7 +119,7 @@ function stacks!(F::HField, iTxLayer::Int, nlayers::Int, omega::Float64)
     Rlowerstack_TE, Rlowerstack_TM = 0. *im, 0. *im
     for k = (nlayers-1):-1:iTxLayer
       Rlowerstack_TE = lowerstack(Rlowerstack_TE, pz, rTE, d, k, omega)
-      Rlowerstack_TM = lowerstack(Rlowerstack_TM, pz, rTM, d, k, omega)
+      #Rlowerstack_TM = lowerstack(Rlowerstack_TM, pz, rTM, d, k, omega)
     end
 
 return Rlowerstack_TE, Rlowerstack_TM
@@ -190,8 +187,9 @@ function getAEM1DKernelsH!(F::HField, krho::Float64, f::Float64, zz::Array{Float
         epsc[l]    = getepsc(rho[l], omega)
         pz[l]      = makesane(getpz(epsc[l], krho, omega))
         rTE[intfc] = (pz[intfc] - pz[intfc+1])/(pz[intfc] + pz[intfc+1])
-        rTM[intfc] = (epsc[intfc]*pz[intfc+1] - epsc[intfc+1]*pz[intfc]) /
-                     (epsc[intfc]*pz[intfc+1] + epsc[intfc+1]*pz[intfc])
+        # commented out as we aren't yet using TM modes
+        # rTM[intfc] = (epsc[intfc]*pz[intfc+1] - epsc[intfc+1]*pz[intfc]) /
+        #              (epsc[intfc]*pz[intfc+1] + epsc[intfc+1]*pz[intfc])
         F.thickness[intfc] = z[intfc+1] - z[intfc]
     end
 
@@ -227,8 +225,9 @@ function getfieldTD!(F::HFieldDHT, z::Array{Float64, 1}, ρ::Array{Float64, 1})
         for itime = 1:length(F.interptimes)
             w, H = F.ω[:,itime], F.Hsc[:,itime]
             t = F.interptimes[itime]
-            F.HFDinterp[:]  .= splreal.(w) .- 1im*splimag.(w) # conjugate so -1im
-            F.HFDinterp[:]  .= -imag(F.HFDinterp .* conj(H))*2/pi # scale for impulse response
+            # F.HFDinterp[:]  .= splreal.(w) .- 1im*splimag.(w) # conjugate so -1im
+            # F.HFDinterp[:]  .= -imag(F.HFDinterp .* conj(H))*2/pi # scale for impulse response
+            F.HFDinterp[:] = -imag(conj((splreal.(w) .+ 1im*splimag.(w)).*H))*2/pi # same as last two lines as conj is distributive over * and +
             F.HTDinterp[itime] = dot(F.HFDinterp, Filter_t_sin)/t
         end
     end

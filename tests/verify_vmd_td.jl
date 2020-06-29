@@ -41,11 +41,19 @@ F = AEM_VMD_HMD.HFieldDHT(
 figure()
 loglog(F.times,4*pi*1e-7*abs.(F.dBzdt))
 grid()
-## timing
+## timing FD
 ntimes = 1000
 t = time()
 for i = 1:ntimes
     AEM_VMD_HMD.getfieldFD!(F, zfixed, rho)
 end
 t = time() - t
-@info "timing is $(t/ntimes) s"
+@info "FD timing is $(t/ntimes) s"
+## timing TD
+ntimes = 1000
+t = time()
+for i = 1:ntimes
+    AEM_VMD_HMD.getfieldTD!(F, zfixed, rho)
+end
+t = time() - t
+@info "TD timing is $(t/ntimes) s"
