@@ -8,8 +8,8 @@ nRx = 150
 freqs   = [0.1, 0.3, 0.7] #Hz
 #receiver geometry
 rRx   = collect(LinRange(rMin,rMax,nRx))  # Ranges to receivers   (m)
-zRx = 1000.     # Depth of Receivers, if this is an array it calls normal FHT without lagged convolution
-zTx = 975.
+zRx = 975.     # Depth of Receivers, if this is an array it calls normal FHT without lagged convolution
+zTx = 1000.
 RxAzim=40.
 TxDip=20.
 # Note that the receiver depth needs to be in same model layer as transmitter.

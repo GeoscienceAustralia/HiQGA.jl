@@ -1,6 +1,6 @@
 module CSEM1DEr
 include("DigFilters.jl")
-using Dierckx, LinearAlgebra
+using DataInterpolations, LinearAlgebra
 
 abstract type RadialEr end
 
@@ -171,22 +171,19 @@ end
 function getCurlyR(Rs_u::ComplexF64, Rs_d::ComplexF64, pz::ComplexF64,
                   zR::Float64, z::SubArray{Float64, 1}, iTxLayer::Int, omega::Float64)
     d=z[iTxLayer+1]-z[iTxLayer]
+    denom = (1. - Rs_u*Rs_d*exp(2im*omega*pz*(d)))
     if (zR>=0)
-      finRA = (1. + exp(-im*omega*pz*2*z[iTxLayer])*Rs_u) *
-              (exp(im*omega*pz*zR) + exp( im*omega*pz*(2*z[iTxLayer+1] - zR))*Rs_d) /
-              (1. - Rs_u*Rs_d*exp(2im*omega*pz*(d)))
-
-      finRB = (1. - exp(-im*omega*pz*2*z[iTxLayer])*Rs_u) *
-              (exp(im*omega*pz*zR) + exp( im*omega*pz*(2*z[iTxLayer+1] - zR))*Rs_d) /
-              (1. - Rs_u*Rs_d*exp(2im*omega*pz*(d)))
+      a = exp(-im*omega*pz*2*z[iTxLayer])
+      b = exp(im*omega*pz*zR)
+      c = exp(im*omega*pz*(2*z[iTxLayer+1] - zR))
+      finRA = (1. + a*Rs_u) * (b + c*Rs_d) / denom
+      finRB = (1. - a*Rs_u) * (b + c*Rs_d) / denom
     else
-      finRA = (1. + exp(im*omega*pz*2*z[iTxLayer+1])*Rs_d) *
-              (exp(-im*omega*pz*zR) + exp(-im*omega*pz*(2*z[iTxLayer] - zR))*Rs_u) /
-              (1. - Rs_u*Rs_d*exp(2im*omega*pz*(d)))
-
-      finRB = (-1. + exp(1im*omega*pz*2*z[iTxLayer+1])*Rs_d) *
-              (exp(-im*omega*pz*zR) + exp(-im*omega*pz*(2*z[iTxLayer] - zR))*Rs_u) /
-              (1. - Rs_u*Rs_d*exp(2im*omega*pz*(d)))
+      a = exp(im*omega*pz*2*z[iTxLayer+1])
+      b = exp(-im*omega*pz*zR)
+      c = exp(-im*omega*pz*(2*z[iTxLayer] - zR))
+      finRA = (1. + a*Rs_d) * (b + c*Rs_u) /  denom
+      finRB = (-1. + a*Rs_d) * (b + c*Rs_u) / denom
     end
 
     return finRA, finRB
@@ -271,10 +268,10 @@ function getfield!(F::RadialErLagged, z::Array{Float64, 1}, ρ::Array{Float64, 1
         # fit spline at computed receiver locations
         # Dierckx needs x to be increasing so end:-1:1
         # Er
-        splReal = Spline1D(log10.(F.rR[end:-1:1]), real(ErBase[end:-1:1,ifreq]))
-        splImag = Spline1D(log10.(F.rR[end:-1:1]), imag(ErBase[end:-1:1,ifreq]))
+        splReal = CubicSpline(real(ErBase[end:-1:1,ifreq]), log10.(F.rR[end:-1:1]))
+        splImag = CubicSpline(imag(ErBase[end:-1:1,ifreq]), log10.(F.rR[end:-1:1]))
         # evaluate spline at required rRx
-        F.Er[:,ifreq] = evaluate(splReal, log10.(F.rRx)) - 1im*evaluate(splImag, log10.(F.rRx))
+        F.Er[:,ifreq] = splReal.(log10.(F.rRx)) - 1im*splImag.(log10.(F.rRx))
     end # loop over frequencies
     # done with lagged convolution
 end
