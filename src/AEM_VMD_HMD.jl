@@ -78,6 +78,11 @@ function HFieldDHT(;
     HTDinterp = zeros(Float64, length(interptimes))
     lowpassfcs = float.([lowpassfcs..., 1e7])
     quadnodes, quadweights = gausslegendre(glegintegorder)
+    if rTx != nothing
+        if rTx>rRx
+            rTx, rRx = rRx, rTx # EM reciprocity trick for rx within loop
+        end
+    end
     HFieldDHT(thickness, pz, epsc, zintfc, rTE, rTM, zRx, zTx, rTx, rRx, freqs, times, ramp, log10ω, interptimes,
             HFD, HFDinterp, HTDinterp, dBzdt, J0_kernel_h, J1_kernel_h, J0_kernel_v, J1_kernel_v, lowpassfcs,
             quadnodes, quadweights, preallocate_ω_Hsc(interptimes, lowpassfcs)...)
