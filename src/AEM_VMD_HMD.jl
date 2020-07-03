@@ -34,6 +34,7 @@ mutable struct HFieldDHT <: HField
     quadweights     :: Array{Float64, 1}
     ω               :: Array{Float64, 2}
     Hsc             :: Array{ComplexF64, 2}
+    rxwithinloop    :: Bool
 end
 
 function HFieldDHT(;
@@ -78,14 +79,15 @@ function HFieldDHT(;
     HTDinterp = zeros(Float64, length(interptimes))
     lowpassfcs = float.([lowpassfcs..., 1e7])
     quadnodes, quadweights = gausslegendre(glegintegorder)
+    rxwithinloop = false
     if rTx != nothing
-        if rTx>rRx
-            rTx, rRx = rRx, rTx # EM reciprocity trick for rx within loop
+        if rTx>=rRx
+            rxwithinloop = true
         end
     end
     HFieldDHT(thickness, pz, epsc, zintfc, rTE, rTM, zRx, zTx, rTx, rRx, freqs, times, ramp, log10ω, interptimes,
             HFD, HFDinterp, HTDinterp, dBzdt, J0_kernel_h, J1_kernel_h, J0_kernel_v, J1_kernel_v, lowpassfcs,
-            quadnodes, quadweights, preallocate_ω_Hsc(interptimes, lowpassfcs)...)
+            quadnodes, quadweights, preallocate_ω_Hsc(interptimes, lowpassfcs)..., rxwithinloop)
 end
 
 function preallocate_ω_Hsc(interptimes, lowpassfcs)
@@ -201,7 +203,13 @@ function getAEM1DKernelsH!(F::HField, krho::Float64, f::Float64, zz::Array{Float
     # TE and TM modes
     Rs_dTE, Rs_dTM   = stacks!(F, iTxLayer, nlayers, omega)
     curlyRA,         = getCurlyR(Rs_dTE, pz[iTxLayer], zRx, z, iTxLayer, omega)
-    gA_TE            = mu/pz[iTxLayer]*curlyRA*loopfactor(F.rTx, krho)
+    lf = 1.0
+    if F.rxwithinloop
+        lf *= loopfactor(F.rTx, krho, F.rRx)
+    else
+        lf *= loopfactor(F.rTx, krho)
+    end
+    gA_TE            = mu/pz[iTxLayer]*curlyRA*lf
 
     # Kernels according to Loseth, without the bessel functions multiplied
     J0v              = gA_TE*1im/(omega*mu)
@@ -209,16 +217,26 @@ function getAEM1DKernelsH!(F::HField, krho::Float64, f::Float64, zz::Array{Float
     return J0v
 end
 
-loopfactor(rTx::Nothing, krho::Float64) = krho^3/(4*pi)
-loopfactor(rTx::Float64, krho::Float64) = krho^2*besselj1(krho*rTx)/(2*pi*rTx)
+loopfactor(rTx::Nothing, krho::Float64)               = krho^3/(4*pi)
+loopfactor(rTx::Float64, krho::Float64)               = krho^2*besselj1(krho*rTx)/(2*pi*rTx)
+loopfactor(rTx::Float64, krho::Float64, rRx::Float64) = krho^2*besselj0(krho*rRx)/(2*pi*rTx)
 
 function getfieldFD!(F::HFieldDHT, z::Array{Float64, 1}, ρ::Array{Float64, 1})
     for (ifreq, freq) in enumerate(F.freqs)
         for (ikr, kr) in enumerate(Filter_base)
-            F.J0_kernel_v[ikr,ifreq] = getAEM1DKernelsH!(F, kr/F.rRx, freq, z, ρ)
+            if F.rxwithinloop
+                F.J1_kernel_v[ikr,ifreq] = getAEM1DKernelsH!(F, kr/F.rTx, freq, z, ρ)
+            else
+                F.J0_kernel_v[ikr,ifreq] = getAEM1DKernelsH!(F, kr/F.rRx, freq, z, ρ)
+            end
         end # kr loop
-        J0_kernel_v = @view F.J0_kernel_v[:,ifreq]
-        F.HFD[ifreq] = dot(J0_kernel_v, Filter_J0)/F.rRx
+        if F.rxwithinloop
+            J1_kernel_v = @view F.J1_kernel_v[:,ifreq]
+            F.HFD[ifreq] = dot(J1_kernel_v, Filter_J1)/F.rTx
+        else
+            J0_kernel_v = @view F.J0_kernel_v[:,ifreq]
+            F.HFD[ifreq] = dot(J0_kernel_v, Filter_J0)/F.rRx
+        end
     end # freq loop
 end
 
