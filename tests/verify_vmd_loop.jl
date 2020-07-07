@@ -61,8 +61,8 @@ Floopin = AEM_VMD_HMD.HFieldDHT(
 AEM_VMD_HMD.getfieldFD!(Floopin, zfixed, rho)
 ##
 figure()
-loglog(freqs,pi*rTx^2*abs.(imag(Floopin.HFD)), label="imaginary, rx just in = $(Floopin.rxwithinloop)")
-loglog(freqs,pi*rTx^2*abs.(real(Floopin.HFD)), label="real, rx just in = $(Floopin.rxwithinloop)")
+loglog(freqs,pi*rTx^2*abs.(imag(Floopin.HFD)), label="imaginary, rx in = $(Floopin.rxwithinloop)")
+loglog(freqs,pi*rTx^2*abs.(real(Floopin.HFD)), label="real, rx in = $(Floopin.rxwithinloop)")
 xlim(extrema(freqs))
 legend()
 title("Compare with W&H Fig 4.7")

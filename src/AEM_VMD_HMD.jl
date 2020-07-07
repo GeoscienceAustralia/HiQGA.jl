@@ -168,11 +168,11 @@ function getCurlyR(Rs_d::ComplexF64, pz::ComplexF64,
 
     return finRA #, finRB, finRC, finRD
 end
-
-getepsc(rho, omega)      = eps0 + 1im/(rho*omega)
-getpz(epsc, krho, omega) = sqrt(mu*epsc - (krho/omega)^2)
+# FT convention in this function means will have to conjugate for compatibility with FT = exp(-iωt)
+getepsc(rho, omega)      = eps0 + 1im/(rho*omega) # corresponds to FT = exp(+iωt)
+getpz(epsc, krho, omega) = sqrt(mu*epsc - (krho/omega)^2) # corresponds k² = iωμσ
 ztxorignify(z, zTx)      = z - zTx
-makesane(pz::Complex)    = imag(pz)  < 0.0 ? ( pz*=-1.) : pz
+makesane(pz::Complex)    = imag(pz)  < 0.0 ? ( pz*=-1.) : pz # Sommerfeld radiation condition for fields 0 at ∞
 
 function getAEM1DKernelsH!(F::HField, krho::Float64, f::Float64, zz::Array{Float64, 1}, rho::Array{Float64, 1})
     nlayers = length(rho)
@@ -248,9 +248,8 @@ function getfieldTD!(F::HFieldDHT, z::Array{Float64, 1}, ρ::Array{Float64, 1})
         for itime = 1:length(F.interptimes)
             w, H = F.ω[:,itime], F.Hsc[:,itime]
             t = F.interptimes[itime]
-            # F.HFDinterp[:]  .= splreal.(w) .- 1im*splimag.(w) # conjugate so -1im
-            # F.HFDinterp[:]  .= -imag(F.HFDinterp .* conj(H))*2/pi # scale for impulse response
-            F.HFDinterp[:] = -imag(conj((splreal.(w) .+ 1im*splimag.(w)).*H))*2/pi # same as last two lines as conj is distributive over * and +
+            # Conjugate for my sign convention, apply Butterworth and inverse transform
+            F.HFDinterp[:] = imag(conj((splreal.(w) .+ 1im*splimag.(w)).*H))*2/pi
             F.HTDinterp[itime] = dot(F.HFDinterp, Filter_t_sin)/t
         end
     end
