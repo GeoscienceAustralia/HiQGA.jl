@@ -32,9 +32,11 @@ mutable struct HFieldDHT <: HField
     lowpassfcs      :: Array{Float64, 1}
     quadnodes       :: Array{Float64, 1}
     quadweights     :: Array{Float64, 1}
+    interplog10ω    :: Array{Float64, 2}
     ω               :: Array{Float64, 2}
     Hsc             :: Array{ComplexF64, 2}
     rxwithinloop    :: Bool
+    provideddt      :: Bool
 end
 
 function HFieldDHT(;
@@ -49,7 +51,8 @@ function HFieldDHT(;
       nfreqsperdecade = 7,
       ntimesperdecade = 7,
       glegintegorder = 5,
-      lowpassfcs = []
+      lowpassfcs = [],
+      provideddt = true
   )
     @assert all(freqs .> 0.)
     @assert all(diff(times) .> 0)
@@ -87,7 +90,7 @@ function HFieldDHT(;
     end
     HFieldDHT(thickness, pz, epsc, zintfc, rTE, rTM, zRx, zTx, rTx, rRx, freqs, times, ramp, log10ω, interptimes,
             HFD, HFDinterp, HTDinterp, dBzdt, J0_kernel_h, J1_kernel_h, J0_kernel_v, J1_kernel_v, lowpassfcs,
-            quadnodes, quadweights, preallocate_ω_Hsc(interptimes, lowpassfcs)..., rxwithinloop)
+            quadnodes, quadweights, preallocate_ω_Hsc(interptimes, lowpassfcs)..., rxwithinloop, provideddt)
 end
 
 function preallocate_ω_Hsc(interptimes, lowpassfcs)
@@ -103,7 +106,7 @@ function preallocate_ω_Hsc(interptimes, lowpassfcs)
              Hsc[:,itime] .= Hsc[:,itime].*Hs
         end
     end
-    ω, Hsc
+    ω, 10 .^ω, Hsc
 end
 
 const mu       = 4*pi*1e-7
@@ -246,11 +249,16 @@ function getfieldTD!(F::HFieldDHT, z::Array{Float64, 1}, ρ::Array{Float64, 1})
     splimag = CubicSpline(imag(F.HFD), F.log10ω) # TODO preallocate
     @views begin
         for itime = 1:length(F.interptimes)
-            w, H = F.ω[:,itime], F.Hsc[:,itime]
+            l10w, H = F.interplog10ω[:,itime], F.Hsc[:,itime]
             t = F.interptimes[itime]
             # Conjugate for my sign convention, apply Butterworth and inverse transform
-            F.HFDinterp[:] = imag(conj((splreal.(w) .+ 1im*splimag.(w)).*H))*2/pi
-            F.HTDinterp[itime] = dot(F.HFDinterp, Filter_t_sin)/t
+            if F.provideddt
+                F.HFDinterp[:] = imag(conj((splreal.(l10w) .+ 1im*splimag.(l10w)).*H))*2/pi
+                F.HTDinterp[itime] = dot(F.HFDinterp, Filter_t_sin)/t
+            else
+                w = F.ω[:,itime]
+                F.HFDinterp[:] = -imag(conj((splreal.(l10w) .+ 1im*splimag.(l10w)).*H)./w)*2/pi
+            end
         end
     end
     spl = CubicSpline(F.HTDinterp, log10.(F.interptimes)) # TODO preallocate
