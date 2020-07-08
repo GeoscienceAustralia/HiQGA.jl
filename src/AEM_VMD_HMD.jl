@@ -193,7 +193,7 @@ function getAEM1DKernelsH!(F::HField, kᵣ::Float64, f::Float64, zz::Array{Float
     z[l]       = ztxorignify(zz[l], F.zTx)
     ϵᵢ[l]    = getepsc(ρ[l], ω)
     pz[l]      = makesane(getpz(ϵᵢ[l], kᵣ, ω))
-    for intfc in 1:nlayers-1
+    @inbounds for intfc in 1:nlayers-1
         l = intfc+1
         z[l]       = ztxorignify(zz[l], F.zTx)
         ϵᵢ[l]    = getepsc(ρ[l], ω)
