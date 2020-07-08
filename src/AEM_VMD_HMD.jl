@@ -8,7 +8,7 @@ abstract type HField end
 mutable struct HFieldDHT <: HField
     thickness       :: Array{Float64, 1}
     pz              :: Array{Complex{Float64}, 1}
-    epsc            :: Array{ComplexF64, 1}
+    ϵᵢ            :: Array{ComplexF64, 1}
     zintfc          :: Array{Float64, 1}
     rTE             :: Array{ComplexF64, 1}
     rTM             :: Array{ComplexF64, 1}
@@ -37,6 +37,7 @@ mutable struct HFieldDHT <: HField
     Hsc             :: Array{ComplexF64, 2}
     rxwithinloop    :: Bool
     provideddt      :: Bool
+    doconvramp      :: Bool
 end
 
 function HFieldDHT(;
@@ -48,18 +49,19 @@ function HFieldDHT(;
       zRx       = -37.5,
       times     = 10 .^LinRange(-6, -1, 50),
       ramp      = ones(10, 10),
-      nfreqsperdecade = 7,
-      ntimesperdecade = 7,
+      nfreqsperdecade = 5,
+      ntimesperdecade = 10,
       glegintegorder = 5,
       lowpassfcs = [],
-      provideddt = true
+      provideddt = true,
+      doconvramp = true
   )
     @assert all(freqs .> 0.)
     @assert all(diff(times) .> 0)
     thickness = zeros(nmax)
     zintfc    = zeros(nmax)
     pz        = zeros(Complex{Float64}, nmax)
-    epsc      = similar(pz)
+    ϵᵢ      = similar(pz)
     rTE       = zeros(length(pz)-1)
     rTM       = similar(rTE)
     freqlow, freqhigh = 1e-3, 1e6
@@ -88,9 +90,9 @@ function HFieldDHT(;
             rxwithinloop = true
         end
     end
-    HFieldDHT(thickness, pz, epsc, zintfc, rTE, rTM, zRx, zTx, rTx, rRx, freqs, times, ramp, log10ω, interptimes,
+    HFieldDHT(thickness, pz, ϵᵢ, zintfc, rTE, rTM, zRx, zTx, rTx, rRx, freqs, times, ramp, log10ω, interptimes,
             HFD, HFDinterp, HTDinterp, dBzdt, J0_kernel_h, J1_kernel_h, J0_kernel_v, J1_kernel_v, lowpassfcs,
-            quadnodes, quadweights, preallocate_ω_Hsc(interptimes, lowpassfcs)..., rxwithinloop, provideddt)
+            quadnodes, quadweights, preallocate_ω_Hsc(interptimes, lowpassfcs)..., rxwithinloop, provideddt, doconvramp)
 end
 
 function preallocate_ω_Hsc(interptimes, lowpassfcs)
@@ -109,12 +111,12 @@ function preallocate_ω_Hsc(interptimes, lowpassfcs)
     ω, 10 .^ω, Hsc
 end
 
-const mu       = 4*pi*1e-7
-const eps0     = 8.854e-12
+const μ       = 4*pi*1e-7
+const ϵ₀     = 8.854e-12
 const iTxLayer = 1
 const iRxLayer = 1
 
-function stacks!(F::HField, iTxLayer::Int, nlayers::Int, omega::Float64)
+function stacks!(F::HField, iTxLayer::Int, nlayers::Int, ω::Float64)
 
     rTE              = F.rTE
     rTM              = F.rTM
@@ -126,28 +128,28 @@ function stacks!(F::HField, iTxLayer::Int, nlayers::Int, omega::Float64)
 
     # Capital R is for a stack
     # Starting from the bottom up, for Rs_down
-    Rlowerstack_TE, Rlowerstack_TM = 0. *im, 0. *im
+    Rlowerstack_TE, Rlowerstack_TM = zero(ComplexF64), zero(ComplexF64)
     for k = (nlayers-1):-1:iTxLayer
-      Rlowerstack_TE = lowerstack(Rlowerstack_TE, pz, rTE, d, k, omega)
-      #Rlowerstack_TM = lowerstack(Rlowerstack_TM, pz, rTM, d, k, omega)
+      Rlowerstack_TE = lowerstack(Rlowerstack_TE, pz, rTE, d, k, ω)
+      #Rlowerstack_TM = lowerstack(Rlowerstack_TM, pz, rTM, d, k, ω)
     end
 
 return Rlowerstack_TE, Rlowerstack_TM
 end
 
 function lowerstack(Rlowerstack::ComplexF64, pz::SubArray{ComplexF64, 1},
-                    r::Array{ComplexF64, 1}, d::SubArray{Float64, 1}, k::Int, omega::Float64)
-    e_to_the_2iwpznext_dnext = exp(2im*omega*pz[k+1]*d[k+1])
+                    r::Array{ComplexF64, 1}, d::SubArray{Float64, 1}, k::Int, ω::Float64)
+    e_to_the_2iwpznext_dnext = exp(2im*ω*pz[k+1]*d[k+1])
     Rs_d = (r[k] + Rlowerstack * e_to_the_2iwpznext_dnext) /
         (1. + r[k]*Rlowerstack * e_to_the_2iwpznext_dnext)
 end
 
 function getCurlyR(Rs_d::ComplexF64, pz::ComplexF64,
-                  zR::Float64, z::SubArray{Float64, 1}, iTxLayer::Int, omega::Float64)
+                  zR::Float64, z::SubArray{Float64, 1}, iTxLayer::Int, ω::Float64)
 
     if (zR>=0)
-        e_to_the_iwpzzr               = exp( im*omega*pz*zR)
-        e_to_the_iwpz_2znext_minus_zr = exp( im*omega*pz*(2*z[iTxLayer+1] - zR))
+        e_to_the_iwpzzr               = exp( im*ω*pz*zR)
+        e_to_the_iwpz_2znext_minus_zr = exp( im*ω*pz*(2*z[iTxLayer+1] - zR))
 
         finRA = e_to_the_iwpzzr + e_to_the_iwpz_2znext_minus_zr*Rs_d
         # Will need these for other components
@@ -157,8 +159,8 @@ function getCurlyR(Rs_d::ComplexF64, pz::ComplexF64,
         #
         # finRD = e_to_the_iwpzzr + e_to_the_iwpz_2znext_minus_zr*(-Rs_d)
     else
-        e_to_the_iwpz2znext              = exp(im*omega*pz*2*z[iTxLayer+1])
-        e_to_the_minus_iwpzzr            = exp(-im*omega*pz*zR)
+        e_to_the_iwpz2znext              = exp(im*ω*pz*2*z[iTxLayer+1])
+        e_to_the_minus_iwpzzr            = exp(-im*ω*pz*zR)
 
         finRA = (1. + e_to_the_iwpz2znext*Rs_d) * e_to_the_minus_iwpzzr
         # Will need these for other components
@@ -172,67 +174,67 @@ function getCurlyR(Rs_d::ComplexF64, pz::ComplexF64,
     return finRA #, finRB, finRC, finRD
 end
 # FT convention in this function means will have to conjugate for compatibility with FT = exp(-iωt)
-getepsc(rho, omega)      = eps0 + 1im/(rho*omega) # corresponds to FT = exp(+iωt)
-getpz(epsc, krho, omega) = sqrt(mu*epsc - (krho/omega)^2) # corresponds k² = iωμσ
+getepsc(ρ::Float64, ω::Float64)      = Complex(ϵ₀, 1/(ρ*ω)) # corresponds to FT = exp(+iωt)
+getpz(ϵᵢ::ComplexF64, kᵣ::Float64, ω::Float64) = sqrt(μ*ϵᵢ - (kᵣ/ω)^2) # corresponds k² = iωμσ
 ztxorignify(z, zTx)      = z - zTx
 makesane(pz::Complex)    = imag(pz)  < 0.0 ? ( pz*=-1.) : pz # Sommerfeld radiation condition for fields 0 at ∞
 
-function getAEM1DKernelsH!(F::HField, krho::Float64, f::Float64, zz::Array{Float64, 1}, rho::Array{Float64, 1})
-    nlayers = length(rho)
+function getAEM1DKernelsH!(F::HField, kᵣ::Float64, f::Float64, zz::Array{Float64, 1}, ρ::Array{Float64, 1})
+    nlayers = length(ρ)
     z       = view(F.zintfc, 1:nlayers)
     zRx     = ztxorignify(F.zRx, F.zTx)
-    omega   = 2. *pi*f
-    epsc    = F.epsc
+    ω   = 2. *pi*f
+    ϵᵢ    = F.ϵᵢ
     pz      = F.pz
     # reflection coefficients (downward) for an intfc: pz vertical slowness
     rTE, rTM = F.rTE, F.rTM
 
     l = 1
     z[l]       = ztxorignify(zz[l], F.zTx)
-    epsc[l]    = getepsc(rho[l], omega)
-    pz[l]      = makesane(getpz(epsc[l], krho, omega))
+    ϵᵢ[l]    = getepsc(ρ[l], ω)
+    pz[l]      = makesane(getpz(ϵᵢ[l], kᵣ, ω))
     for intfc in 1:nlayers-1
         l = intfc+1
         z[l]       = ztxorignify(zz[l], F.zTx)
-        epsc[l]    = getepsc(rho[l], omega)
-        pz[l]      = makesane(getpz(epsc[l], krho, omega))
+        ϵᵢ[l]    = getepsc(ρ[l], ω)
+        pz[l]      = getpz(ϵᵢ[l], kᵣ, ω)
         rTE[intfc] = (pz[intfc] - pz[intfc+1])/(pz[intfc] + pz[intfc+1])
         # commented out as we aren't yet using TM modes
-        # rTM[intfc] = (epsc[intfc]*pz[intfc+1] - epsc[intfc+1]*pz[intfc]) /
-        #              (epsc[intfc]*pz[intfc+1] + epsc[intfc+1]*pz[intfc])
+        # rTM[intfc] = (ϵᵢ[intfc]*pz[intfc+1] - ϵᵢ[intfc+1]*pz[intfc]) /
+        #              (ϵᵢ[intfc]*pz[intfc+1] + ϵᵢ[intfc+1]*pz[intfc])
         F.thickness[intfc] = z[intfc+1] - z[intfc]
     end
 
     # TE and TM modes
-    Rs_dTE, Rs_dTM   = stacks!(F, iTxLayer, nlayers, omega)
-    curlyRA,         = getCurlyR(Rs_dTE, pz[iTxLayer], zRx, z, iTxLayer, omega)
+    Rs_dTE, Rs_dTM   = stacks!(F, iTxLayer, nlayers, ω)
+    curlyRA,         = getCurlyR(Rs_dTE, pz[iTxLayer], zRx, z, iTxLayer, ω)
     lf = 1.0
     if F.rxwithinloop
-        lf *= loopfactor(F.rTx, krho, F.rRx)
+        lf *= loopfactor(F.rTx, kᵣ, F.rRx)
     else
-        lf *= loopfactor(F.rTx, krho)
+        lf *= loopfactor(F.rTx, kᵣ)
     end
-    gA_TE            = mu/pz[iTxLayer]*curlyRA*lf
+    gA_TE            = μ/pz[iTxLayer]*curlyRA*lf
 
     # Kernels according to Loseth, without the bessel functions multiplied
-    J0v              = gA_TE*1im/(omega*mu)
+    J0v              = gA_TE*1im/(ω*μ)
 
     return J0v
 end
 
-loopfactor(rTx::Nothing, krho::Float64)               = krho^3/(4*pi)
-loopfactor(rTx::Float64, krho::Float64)               = krho^2*besselj1(krho*rTx)/(2*pi*rTx)
-loopfactor(rTx::Float64, krho::Float64, rRx::Float64) = krho^2*besselj0(krho*rRx)/(2*pi*rTx)
+loopfactor(rTx::Nothing, kᵣ::Float64)               = kᵣ^3/(4*pi)
+loopfactor(rTx::Float64, kᵣ::Float64)               = kᵣ^2*besselj1(kᵣ*rTx)/(2*pi*rTx)
+loopfactor(rTx::Float64, kᵣ::Float64, rRx::Float64) = kᵣ^2*besselj0(kᵣ*rRx)/(2*pi*rTx)
 
 function getfieldFD!(F::HFieldDHT, z::Array{Float64, 1}, ρ::Array{Float64, 1})
     for (ifreq, freq) in enumerate(F.freqs)
-        for (ikr, kr) in enumerate(Filter_base)
+        for (ikr, kᵣ) in enumerate(Filter_base)
             if F.rxwithinloop
-                F.J1_kernel_v[ikr,ifreq] = getAEM1DKernelsH!(F, kr/F.rTx, freq, z, ρ)
+                F.J1_kernel_v[ikr,ifreq] = getAEM1DKernelsH!(F, kᵣ/F.rTx, freq, z, ρ)
             else
-                F.J0_kernel_v[ikr,ifreq] = getAEM1DKernelsH!(F, kr/F.rRx, freq, z, ρ)
+                F.J0_kernel_v[ikr,ifreq] = getAEM1DKernelsH!(F, kᵣ/F.rRx, freq, z, ρ)
             end
-        end # kr loop
+        end # kᵣ loop
         if F.rxwithinloop
             J1_kernel_v = @view F.J1_kernel_v[:,ifreq]
             F.HFD[ifreq] = dot(J1_kernel_v, Filter_J1)/F.rTx
@@ -253,16 +255,19 @@ function getfieldTD!(F::HFieldDHT, z::Array{Float64, 1}, ρ::Array{Float64, 1})
             t = F.interptimes[itime]
             # Conjugate for my sign convention, apply Butterworth and inverse transform
             if F.provideddt
-                F.HFDinterp[:] = imag(conj((splreal.(l10w) .+ 1im*splimag.(l10w)).*H))*2/pi
+                F.HFDinterp[:] .= imag(conj((splreal.(l10w) .+ 1im*splimag.(l10w)).*H))*2/pi
                 F.HTDinterp[itime] = dot(F.HFDinterp, Filter_t_sin)/t
             else
                 w = F.ω[:,itime]
-                F.HFDinterp[:] = -imag(conj((splreal.(l10w) .+ 1im*splimag.(l10w)).*H)./w)*2/pi
+                F.HFDinterp[:] .= -imag(conj((splreal.(l10w) .+ 1im*splimag.(l10w)).*H)./w)*2/pi
+                F.HTDinterp[itime] = dot(F.HFDinterp, Filter_t_cos)/t
             end
         end
     end
-    spl = CubicSpline(F.HTDinterp, log10.(F.interptimes)) # TODO preallocate
-    convramp!(F, spl)
+    if F.doconvramp
+        spl = CubicSpline(F.HTDinterp, log10.(F.interptimes)) # TODO preallocate
+        convramp!(F, spl)
+    end
 end
 
 function convramp!(F::HFieldDHT, spl::CubicSpline)
