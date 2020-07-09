@@ -89,11 +89,20 @@ figure()
 step(log10.(ρ[2:end]), z[2:end])
 xlim(-0.5,1)
 grid(); gca().invert_yaxis()
-t = time()
 ntimes = 100
+## solely timing
+t = time()
 for i = 1:ntimes
     AEM_VMD_HMD.getfieldTD!(Flm, z, ρ)
     AEM_VMD_HMD.getfieldTD!(Fhm, z, ρ)
 end
 t = time() - t
 @info "timing is $(t/ntimes) s a $(length(z)) layer model"
+## using Profile
+using Profile
+function doprofile(ntimes::Int)
+    for i = 1:ntimes
+        AEM_VMD_HMD.getfieldTD!(Flm, z, ρ)
+    end
+end
+@profiler doprofile(ntimes) combine=true

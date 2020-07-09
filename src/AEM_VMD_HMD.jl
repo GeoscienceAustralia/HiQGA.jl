@@ -228,11 +228,11 @@ loopfactor(rTx::Float64, kᵣ::Float64, rRx::Float64) = kᵣ^2*besselj0(kᵣ*rRx
 
 function getfieldFD!(F::HFieldDHT, z::Array{Float64, 1}, ρ::Array{Float64, 1})
     for (ifreq, freq) in enumerate(F.freqs)
-        for (ikr, kᵣ) in enumerate(Filter_base)
+        for (ikᵣ, kᵣ) in enumerate(Filter_base)
             if F.rxwithinloop
-                F.J1_kernel_v[ikr,ifreq] = getAEM1DKernelsH!(F, kᵣ/F.rTx, freq, z, ρ)
+                F.J1_kernel_v[ikᵣ,ifreq] = getAEM1DKernelsH!(F, kᵣ/F.rTx, freq, z, ρ)
             else
-                F.J0_kernel_v[ikr,ifreq] = getAEM1DKernelsH!(F, kᵣ/F.rRx, freq, z, ρ)
+                F.J0_kernel_v[ikᵣ,ifreq] = getAEM1DKernelsH!(F, kᵣ/F.rRx, freq, z, ρ)
             end
         end # kᵣ loop
         if F.rxwithinloop
