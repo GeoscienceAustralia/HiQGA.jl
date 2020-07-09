@@ -100,7 +100,7 @@ end
 t = time() - t
 @info "timing is $(t/ntimes) s a $(length(z)) layer model"
 ## using Profile
-if profile_wthin_juno
+if profile_within_juno
     using Profile
     function doprofile(ntimes::Int)
         for i = 1:ntimes
