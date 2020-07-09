@@ -1,6 +1,7 @@
 srcdir = dirname(pwd())*"/src"
 any(srcdir .== LOAD_PATH) || push!(LOAD_PATH, srcdir)
 using PyPlot, Revise, AEM_VMD_HMD, Random, Statistics
+profile_within_juno  = false
 ## model
 zfixed   = [-1e5,   0,    20,   50]
 rho      = [1e12,   10,   1,   100]
@@ -99,10 +100,12 @@ end
 t = time() - t
 @info "timing is $(t/ntimes) s a $(length(z)) layer model"
 ## using Profile
-using Profile
-function doprofile(ntimes::Int)
-    for i = 1:ntimes
-        AEM_VMD_HMD.getfieldTD!(Flm, z, ρ)
+if profile_wthin_juno
+    using Profile
+    function doprofile(ntimes::Int)
+        for i = 1:ntimes
+            AEM_VMD_HMD.getfieldTD!(Flm, z, ρ)
+        end
     end
+    @profiler doprofile(ntimes) combine=true
 end
-@profiler doprofile(ntimes) combine=true
