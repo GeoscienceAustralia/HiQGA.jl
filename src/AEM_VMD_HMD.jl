@@ -175,9 +175,15 @@ function getCurlyR(Rs_d::ComplexF64, pz::ComplexF64,
 end
 # FT convention in this function means will have to conjugate for compatibility with FT = exp(-iωt)
 getepsc(ρ::Float64, ω::Float64)      = Complex(ϵ₀, 1/(ρ*ω)) # corresponds to FT = exp(+iωt)
-getpz(ϵᵢ::ComplexF64, kᵣ::Float64, ω::Float64) = sqrt(μ*ϵᵢ - (kᵣ/ω)^2) # corresponds k² = iωμσ
+getpz(ϵᵢ::ComplexF64, kᵣ::Float64, ω::Float64) = unsafesqrt(μ*ϵᵢ - (kᵣ/ω)^2) # corresponds k² = iωμσ
 ztxorignify(z, zTx)      = z - zTx
 makesane(pz::Complex)    = imag(pz)  < 0.0 ? ( pz*=-1.) : pz # Sommerfeld radiation condition for fields 0 at ∞
+
+function unsafesqrt(z::ComplexF64)
+    x = real(z)
+    d = sqrt(x^2+imag(z)^2)
+    ComplexF64(sqrt(0.5(d+x)), sqrt(0.5(d-x)))
+end
 
 function getAEM1DKernelsH!(F::HField, kᵣ::Float64, f::Float64, zz::Array{Float64, 1}, ρ::Array{Float64, 1})
     nlayers = length(ρ)
@@ -193,7 +199,7 @@ function getAEM1DKernelsH!(F::HField, kᵣ::Float64, f::Float64, zz::Array{Float
     z[l]       = ztxorignify(zz[l], F.zTx)
     ϵᵢ[l]    = getepsc(ρ[l], ω)
     pz[l]      = getpz(ϵᵢ[l], kᵣ, ω)
-    @inbounds for intfc in 1:nlayers-1
+    @inbounds @fastmath for intfc in 1:nlayers-1
         l = intfc+1
         z[l]       = ztxorignify(zz[l], F.zTx)
         ϵᵢ[l]    = getepsc(ρ[l], ω)
