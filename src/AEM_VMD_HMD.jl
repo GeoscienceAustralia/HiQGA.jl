@@ -180,9 +180,23 @@ ztxorignify(z, zTx)      = z - zTx
 makesane(pz::Complex)    = imag(pz)  < 0.0 ? ( pz*=-1.) : pz # Sommerfeld radiation condition for fields 0 at ∞
 
 function unsafesqrt(z::ComplexF64)
-    x = real(z)
-    d = sqrt(x^2+imag(z)^2)
-    ComplexF64(sqrt(0.5(d+x)), sqrt(0.5(d-x)))
+    # x = real(z)
+    # d = sqrt(x^2+imag(z)^2)
+    # ComplexF64(sqrt(0.5(d+x)), sqrt(0.5(d-x)))
+    x, y = reim(z)
+    ρ = x*x + y*y
+    ρ=abs(x)+sqrt(ρ)
+    k = -1
+    ρ += ρ
+    ρ = ldexp(sqrt(ρ),k) #sqrt((abs(z)+abs(x))/2) without over/underflow
+    ξ = ρ
+    η = y
+    η=(η/ρ)/2
+    if x<0
+        ξ = abs(η)
+        η = copysign(ρ,y)
+    end
+    Complex(ξ,η)
 end
 
 function getAEM1DKernelsH!(F::HField, kᵣ::Float64, f::Float64, zz::Array{Float64, 1}, ρ::Array{Float64, 1})
