@@ -137,8 +137,8 @@ function kernel(K::Kernel, xtrain::AbstractArray, xtest::AbstractArray,
                 λ²test::AbstractArray, λ²train::AbstractArray; p=2)
     avλ² = 0.5*(λ²train + λ²test)
     dist = norm((xtrain - xtest)./sqrt.(avλ²),p)
-    det(diagm(0=>(λ²train.*λ²test)))^0.25 *
-    det(diagm(0=>(avλ²)))^-0.5 *
+    prod(λ²train.*λ²test)^0.25 /
+    sqrt(prod(avλ²)) *
     κ(K, dist, p=p)
 end
 
