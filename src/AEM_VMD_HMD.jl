@@ -139,9 +139,8 @@ end
 
 function lowerstack(Rlowerstack::ComplexF64, pz::SubArray{ComplexF64, 1},
                     r::Array{ComplexF64, 1}, d::SubArray{Float64, 1}, k::Int, ω::Float64)
-    e_to_the_2iwpznext_dnext = exp(2im*ω*pz[k+1]*d[k+1])
-    Rs_d = (r[k] + Rlowerstack * e_to_the_2iwpznext_dnext) /
-        (1. + r[k]*Rlowerstack * e_to_the_2iwpznext_dnext)
+    a = Rlowerstack*exp(2im*ω*pz[k+1]*d[k+1])
+    Rs_d = (r[k] + a) / (1. + r[k]*a)
 end
 
 function getCurlyR(Rs_d::ComplexF64, pz::ComplexF64,

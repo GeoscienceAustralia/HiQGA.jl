@@ -139,13 +139,13 @@ function stacks!(F::RadialEr, iTxLayer::Int, nlayers::Int, omega::Float64)
 
     # Capital R is for a stack
     # Starting from the bottom up, for Rs_down
-    Rlowerstack_TE, Rlowerstack_TM = 0. *im, 0. *im
+    Rlowerstack_TE, Rlowerstack_TM = Complex(0., 0.), Complex(0., 0.)
     for k = (nlayers-1):-1:iTxLayer
       Rlowerstack_TE = lowerstack(Rlowerstack_TE, pz, rTE, d, k, omega)
       Rlowerstack_TM = lowerstack(Rlowerstack_TM, pz, rTM, d, k, omega)
     end
 
-    Rupperstack_TE, Rupperstack_TM = 0. *im, 0. *im
+    Rupperstack_TE, Rupperstack_TM = Complex(0., 0.), Complex(0., 0.)
     # Starting from the top down for Rs_up
     for k   = 2:iTxLayer
         Rupperstack_TE = upperstack(Rupperstack_TE, pz, rTE, d, k, omega)
@@ -156,16 +156,14 @@ end
 
 function lowerstack(Rlowerstack::ComplexF64, pz::SubArray{ComplexF64, 1},
                     r::Array{ComplexF64, 1}, d::SubArray{Float64, 1}, k::Int, omega::Float64)
-    Rs_d = (r[k] + Rlowerstack*exp(2im*omega*pz[k+1]*d[k+1])) /
-        (1. + r[k]*Rlowerstack *
-        exp(2im*omega*pz[k+1]*d[k+1]))
+    a  = Rlowerstack*exp(2im*omega*pz[k+1]*d[k+1])
+    Rs_d = (r[k] + a) / (1. + r[k]*a)
 end
 
 function upperstack(Rupperstack::ComplexF64, pz::SubArray{ComplexF64, 1},
                     r::Array{ComplexF64, 1}, d::SubArray{Float64, 1}, k::Int, omega::Float64)
-    Rs_u = (-r[k-1] + Rupperstack*exp(2im*omega*pz[k-1]*d[k-1])) /
-        (1. - r[k-1]*Rupperstack *
-        exp(2im*omega*pz[k-1]*d[k-1]))
+    a = Rupperstack*exp(2im*omega*pz[k-1]*d[k-1])
+    Rs_u = (-r[k-1] + a) / (1. - r[k-1]*a)
 end
 
 function getCurlyR(Rs_u::ComplexF64, Rs_d::ComplexF64, pz::ComplexF64,
@@ -190,11 +188,29 @@ function getCurlyR(Rs_u::ComplexF64, Rs_d::ComplexF64, pz::ComplexF64,
 end
 
 getepsc(rho, omega)      = eps0 + 1im/(rho*omega)
-getpz(epsc, krho, omega) = sqrt(mu*epsc - (krho/omega)^2)
+getpz(epsc, krho, omega) = unsafesqrt(mu*epsc - (krho/omega)^2)
 checkz(z, zcheck)        = round(Int, z<zcheck)
 ztxorignify(z, zTx)      = z - zTx
 makesane(pz::Complex)    = imag(pz)  < 0.0 ? ( pz*=-1.) : pz
-
+function unsafesqrt(z::ComplexF64)
+    # x = real(z)
+    # d = sqrt(x^2+imag(z)^2)
+    # ComplexF64(sqrt(0.5(d+x)), sqrt(0.5(d-x)))
+    x, y = reim(z)
+    ρ = x*x + y*y
+    ρ=abs(x)+sqrt(ρ)
+    k = -1
+    ρ += ρ
+    ρ = ldexp(sqrt(ρ),k) #sqrt((abs(z)+abs(x))/2) without over/underflow
+    ξ = ρ
+    η = y
+    η=(η/ρ)/2
+    if x<0
+        ξ = abs(η)
+        η = copysign(ρ,y)
+    end
+    Complex(ξ,η)
+end
 function getCSEM1DKernelsEr!(F::RadialEr, krho::Float64, f::Float64, zz::Array{Float64, 1}, rho::Array{Float64, 1},
                             rxno::Int, txno::Int)
     nlayers = length(rho)
@@ -209,14 +225,14 @@ function getCSEM1DKernelsEr!(F::RadialEr, krho::Float64, f::Float64, zz::Array{F
     l = 1
     z[l]       = ztxorignify(zz[l], F.zTx[txno])
     epsc[l]    = getepsc(rho[l], omega)
-    pz[l]      = makesane(getpz(epsc[l], krho, omega))
+    pz[l]      = getpz(epsc[l], krho, omega)
     iTxLayer   =  checkz(z[l], 0)
     iRxLayer   =  checkz(z[l], zRx)
-    for intfc in 1:nlayers-1
+    @inbounds @fastmath for intfc in 1:nlayers-1
         l = intfc+1
         z[l]       = ztxorignify(zz[l], F.zTx[txno])
         epsc[l]    = getepsc(rho[l], omega)
-        pz[l]      = makesane(getpz(epsc[l], krho, omega))
+        pz[l]      = getpz(epsc[l], krho, omega)
         iTxLayer  += checkz(z[l], 0)
         iRxLayer  += checkz(z[l], zRx)
         rTE[intfc] = (pz[intfc] - pz[intfc+1])/(pz[intfc] + pz[intfc+1])
