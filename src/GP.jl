@@ -135,11 +135,14 @@ end
 
 function kernel(K::Kernel, xtrain::AbstractArray, xtest::AbstractArray,
                 λ²test::AbstractArray, λ²train::AbstractArray; p=2)
-    avλ² = 0.5*(λ²train + λ²test)
-    dist = norm((xtrain - xtest)./sqrt.(avλ²),p)
-    prod(λ²train.*λ²test)^0.25 /
-    sqrt(prod(avλ²)) *
-    κ(K, dist, p=p)
+    t = eltype(xtrain)
+    d, c = zero(t), one(t)
+    for i = 1:length(xtrain)
+        avλ² = 0.5*(λ²train[i] + λ²test[i])
+        d += (xtrain[i] - xtest[i])^2/avλ²
+        c *= ((λ²train[i]*λ²test[i])/(avλ²*avλ²))^0.25
+    end
+    c*κ(K, sqrt(d), p=p)
 end
 
 end
