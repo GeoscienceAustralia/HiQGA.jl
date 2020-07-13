@@ -1,6 +1,12 @@
-using LinearAlgebra, PyPlot, Random, Images, FileIO, DelimitedFiles, TransD_GP
+module ImageRegression
+import AbstractOperator.get_misfit
+using AbstractOperator
+using TransD_GP, PyPlot, LinearAlgebra
+using Random, Images, CommonToAll
 
-mutable struct Img<:Operator
+export Img, get_image_data, calc_image_RMS, get_image_prediction_points, plot_image_data
+
+mutable struct Img<:Operator2D
 
     filename          :: String
     x                 :: StepRangeLen
@@ -42,7 +48,7 @@ function get_image(filename::String, gausskernelwidth::Int, dec)
     imfilter(f,Kernel.gaussian(gausskernelwidth))
 end
 
-function get_training_data(img::Img;
+function get_image_data(img::Img;
                            sdmaxfrac = 0.05,
                            rseed     = 12,
                            ybreak    = 12321.0,
@@ -76,7 +82,7 @@ function get_training_data(img::Img;
     δtry, noisyd[lgood], Xtrain
 end
 
-function get_all_prediction_points(img::Img)
+function get_image_prediction_points(img::Img)
     f, x, y = img.f, img.x, img.y
     Xall = zeros(2, length(f))
     for i in 1:length(f)
@@ -86,7 +92,7 @@ function get_all_prediction_points(img::Img)
     Xall
 end
 
-function plot_data(ftrain::Array{Float64, 1}, Xtrain::Array{Float64, 2},
+function plot_image_data(ftrain::Array{Float64, 1}, Xtrain::Array{Float64, 2},
                    img::Img;  s=10, fsize=14)
     f, x, y = img.f, img.x, img.y
     f1, ax1 = plt.subplots(1,2,figsize=(10,5), sharex=true, sharey=true)
@@ -100,7 +106,7 @@ function plot_data(ftrain::Array{Float64, 1}, Xtrain::Array{Float64, 2},
 
 end
 
-function calc_simple_RMS(img::Img)
+function calc_image_RMS(img::Img)
     select = .!isnan.(img.d)
     r = (img.d[select] - img.f[select])/img.σ
     n = sum(select)
@@ -124,4 +130,4 @@ function get_misfit(m::TransD_GP.Model, opt::TransD_GP.Options, img::Img)
     return chi2by2
 end
 
-export get_misfit, get_training_data, plot_data, get_all_prediction_points, calc_simple_RMS,  Img
+end

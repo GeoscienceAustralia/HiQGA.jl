@@ -1,5 +1,5 @@
 ## lengthscale GP options
-xall = get_all_prediction_points(img)
+xall = GeophysOperator.get_image_prediction_points(img)
 nminlog10λ, nmaxlog10λ = 2, 100
 pnorm = 2.
 Klog10λ = GP.Mat32()
