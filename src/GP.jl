@@ -130,7 +130,9 @@ end
 function pairwise(K::Kernel, xtrain, xtest, λ²train, λ²test)
     nrows = size(xtest, 2)
     ncols = size(xtrain, 2)
+    @views begin
     [@inbounds @fastmath kernel(K, xtrain[:,j], xtest[:,i], λ²train[:,j], λ²test[:,i]) for i = 1:nrows, j = 1:ncols]
+    end
 end
 
 function kernel(K::Kernel, xtrain::AbstractArray, xtest::AbstractArray,
