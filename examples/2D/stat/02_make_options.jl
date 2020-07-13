@@ -1,4 +1,5 @@
 ## stationary GP options
+xall = GeophysOperator.get_image_prediction_points(img)
 nmin, nmax= 2, 100
 pnorm = 2.
 K = GP.Mat32()
