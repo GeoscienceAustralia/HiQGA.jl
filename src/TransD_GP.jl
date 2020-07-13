@@ -265,19 +265,22 @@ function updatenskernels!(opt::OptionsStat, m::ModelStat, ipoint::Union{Int, Arr
     idxs = gettrainidx(opt.kdtree, mns.xtrain, mns.n)
     # changes where test points are in influence radius of lscale change
     ks = view(mns.Kstar, kstarchangeidx, 1:mns.n)
-    map!(x->x, ks, GP.pairwise(optns.K, mns.xtrain[:,1:mns.n],
-                xtest[:,kstarchangeidx], λ²[:,idxs], λ²[:,kstarchangeidx]))
+    λ²train = @view λ²[:,idxs]
+    λ²test = @view λ²[:,kstarchangeidx]
+    xtr = @view mns.xtrain[:,1:mns.n]
+    xte = @view xtest[:,kstarchangeidx]
+    GP.pairwise(ks, optns.K, xtr, xte, λ²train, λ²test)
     if length(kychangeidx) > 0
         isposchange && (kychangeidx = reduce(vcat, kychangeidx))
         # set 1 of changes where training points are in influence radius of lscale change
-        ks = view(mns.Kstar, :, kychangeidx)
-        map!(x->x, ks, GP.pairwise(optns.K, mns.xtrain[:,kychangeidx],
-                    xtest, λ²[:,idxs][:,kychangeidx], λ²))
+        ks2 = view(mns.Kstar, :, kychangeidx)
+        xtr2 = @view mns.xtrain[:,kychangeidx]
+        λ²train2 = @view λ²[:,idxs][:,kychangeidx]
+        GP.pairwise(ks2, optns.K, xtr2, xtest, λ²train2, λ²)
         # set 2 of changes where training points are in influence radius of lscale change
         ky = view(mns.K_y, 1:mns.n , kychangeidx)
-        map!(x->x, ky, GP.pairwise(optns.K, mns.xtrain[:,kychangeidx], mns.xtrain[:,1:mns.n],
-                                    λ²[:,idxs][:,kychangeidx], λ²[:,idxs]))
-        mns.K_y[kychangeidx,1:mns.n] = mns.K_y[1:mns.n,kychangeidx]'
+        GP.pairwise(ky, optns.K, xtr2, xtr, λ²train2, λ²train)
+        mns.K_y[kychangeidx,1:mns.n] .= mns.K_y[1:mns.n,kychangeidx]'
         # nugget add
         ky = view(mns.K_y, 1:mns.n , 1:mns.n)
         ky[diagind(ky)] .= 1. + optns.δ^2
@@ -447,12 +450,12 @@ function init(opt::TransD_GP.OptionsNonstat, m::ModelStat)
         K_y = zeros(opt.nmax, opt.nmax)
         idxs = gettrainidx(opt.kdtree, xtrain, n)
         ky = view(K_y, 1:n, 1:n)
-        map!(x->x, ky, GP.pairwise(opt.K, xtrain[:,1:n], xtrain[:,1:n], λ²[:,idxs], λ²[:,idxs]))
+        GP.pairwise(ky, opt.K, xtrain[:,1:n], xtrain[:,1:n], λ²[:,idxs], λ²[:,idxs])
         K_y[diagind(K_y)] .+= opt.δ^2
         Kstar = zeros(Float64, size(opt.xall,2), opt.nmax)
         xtest = opt.xall
         ks = view(Kstar, :, 1:n)
-        map!(x->x, ks, GP.pairwise(opt.K, xtrain[:,1:n], xtest, λ²[:,idxs], λ²))
+        GP.pairwise(ks, opt.K, xtrain[:,1:n], xtest, λ²[:,idxs], λ²)
         fstar = zeros(size(opt.xall, 2), size(opt.fbounds, 1))
         calcfstar!(fstar, ftrain, opt, K_y, Kstar, n)
         return ModelNonstat(fstar, xtrain, ftrain, K_y, Kstar, n,
