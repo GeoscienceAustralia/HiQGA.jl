@@ -124,14 +124,18 @@ function colwise(K::Kernel, xtrain::AbstractArray, xtest::AbstractArray,
     else
         a, b, la, lb = xtest, xtrain, λ²test, λ²train
     end
-    [@inbounds @fastmath kernel(K::Kernel, a, b[:,j], la, lb[:,j]) for j = 1:max(na, nb)]
+    @views begin
+        [@inbounds @fastmath kernel(K::Kernel, a, b[:,j], la, lb[:,j]) for j = 1:max(na, nb)]
+    end    
 end
 
-function pairwise(K::Kernel, xtrain, xtest, λ²train, λ²test)
+function pairwise(A::AbstractArray, K::Kernel, xtrain::AbstractArray, xtest::AbstractArray, λ²train::AbstractArray, λ²test::AbstractArray)
     nrows = size(xtest, 2)
     ncols = size(xtrain, 2)
     @views begin
-    [@inbounds @fastmath kernel(K, xtrain[:,j], xtest[:,i], λ²train[:,j], λ²test[:,i]) for i = 1:nrows, j = 1:ncols]
+        for j = 1:ncols, i = 1:nrows
+            A[i,j] = kernel(K, xtrain[:,j], xtest[:,i], λ²train[:,j], λ²test[:,i])
+        end
     end
 end
 
