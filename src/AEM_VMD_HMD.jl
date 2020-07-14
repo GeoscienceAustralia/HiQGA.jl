@@ -129,7 +129,7 @@ function stacks!(F::HField, iTxLayer::Int, nlayers::Int, ω::Float64)
     # Capital R is for a stack
     # Starting from the bottom up, for Rs_down
     Rlowerstack_TE, Rlowerstack_TM = zero(ComplexF64), zero(ComplexF64)
-    for k = (nlayers-1):-1:iTxLayer
+    @inbounds @fastmath for k = (nlayers-1):-1:iTxLayer
       Rlowerstack_TE = lowerstack(Rlowerstack_TE, pz, rTE, d, k, ω)
       #Rlowerstack_TM = lowerstack(Rlowerstack_TM, pz, rTM, d, k, ω)
     end
@@ -137,7 +137,7 @@ function stacks!(F::HField, iTxLayer::Int, nlayers::Int, ω::Float64)
 return Rlowerstack_TE, Rlowerstack_TM
 end
 
-function lowerstack(Rlowerstack::ComplexF64, pz::SubArray{ComplexF64, 1},
+@inline function lowerstack(Rlowerstack::ComplexF64, pz::SubArray{ComplexF64, 1},
                     r::Array{ComplexF64, 1}, d::SubArray{Float64, 1}, k::Int, ω::Float64)
     a = Rlowerstack*exp(2im*ω*pz[k+1]*d[k+1])
     Rs_d = (r[k] + a) / (1. + r[k]*a)
