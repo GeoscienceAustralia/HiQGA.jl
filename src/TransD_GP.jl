@@ -218,11 +218,13 @@ function calcfstar!(fstar::Array{Float64,2}, ftrain::Array{Float64,2},
         mf = mean(opt.fbounds, dims=2)
     end
     rhs = ftrain[:,1:n] .- mf
-    U = cholesky(K_y[1:n,1:n]).U
+    ky = @view K_y[1:n,1:n]
+    U = cholesky(ky).U
+    ks = @view Kstar[:,1:n]
     if opt.needλ²fromlog
-        copy!(fstar, 10 .^(2(mf' .+ Kstar[:,1:n]*(U\(U'\rhs'))))' )
+        copy!(fstar, 10 .^(2(mf' .+ ks*(U\(U'\rhs'))))' )
     else
-        copy!(fstar, (mf' .+ Kstar[:,1:n]*(U\(U'\rhs')))' )
+        copy!(fstar, (mf' .+ ks*(U\(U'\rhs')))' )
     end
     nothing
 end
@@ -477,8 +479,10 @@ function calcfstar!(fstar::Array{Float64,2}, ftrain::Array{Float64,2},
         mf = mean(opt.fbounds, dims=2)
     end
     rhs = ftrain[:,1:n] .- mf
-    U = cholesky(K_y[1:n,1:n]).U
-    copy!(fstar, mf' .+ Kstar[:,1:n]*(U\(U'\rhs')) )
+    ky = view(K_y, 1:n, 1:n)
+    ks = @view Kstar[:,1:n]
+    U = cholesky(ky).U
+    copy!(fstar, mf' .+ ks*(U\(U'\rhs')) )
     nothing
 end
 

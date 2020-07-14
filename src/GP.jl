@@ -126,27 +126,27 @@ function colwise(K::Kernel, xtrain::AbstractArray, xtest::AbstractArray,
     end
     @views begin
         [@inbounds @fastmath kernel(K::Kernel, a, b[:,j], la, lb[:,j]) for j = 1:max(na, nb)]
-    end    
+    end
 end
 
 function pairwise(A::AbstractArray, K::Kernel, xtrain::AbstractArray, xtest::AbstractArray, λ²train::AbstractArray, λ²test::AbstractArray)
     nrows = size(xtest, 2)
     ncols = size(xtrain, 2)
     @views begin
-        for j = 1:ncols, i = 1:nrows
+        @inbounds @fastmath for j = 1:ncols, i = 1:nrows
             A[i,j] = kernel(K, xtrain[:,j], xtest[:,i], λ²train[:,j], λ²test[:,i])
         end
     end
 end
 
-function kernel(K::Kernel, xtrain::AbstractArray, xtest::AbstractArray,
+@inline function kernel(K::Kernel, xtrain::AbstractArray, xtest::AbstractArray,
                 λ²test::AbstractArray, λ²train::AbstractArray; p=2)
     t = eltype(xtrain)
     d, c = zero(t), one(t)
     for i = 1:length(xtrain)
         avλ² = 0.5*(λ²train[i] + λ²test[i])
         d += (xtrain[i] - xtest[i])^2/avλ²
-        c *= ((λ²train[i]*λ²test[i])/(avλ²*avλ²))^0.25
+        c *= sqrt(sqrt((λ²train[i]*λ²test[i])/(avλ²*avλ²)))
     end
     c*κ(K, sqrt(d), p=p)
 end
