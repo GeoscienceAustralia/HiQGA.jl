@@ -159,7 +159,7 @@ end
                 λ²test::AbstractArray, λ²train::AbstractArray; p=2)
     t = eltype(xtrain)
     d, c = zero(t), one(t)
-    for i = 1:length(xtrain)
+    @simd for i = 1:length(xtrain)
         avλ² = 0.5*(λ²train[i] + λ²test[i])
         d += (xtrain[i] - xtest[i])^2/avλ²
         c *= sqrt(sqrt((λ²train[i]*λ²test[i])/(avλ²*avλ²)))
