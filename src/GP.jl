@@ -124,8 +124,24 @@ function colwise(K::Kernel, xtrain::AbstractArray, xtest::AbstractArray,
     else
         a, b, la, lb = xtest, xtrain, λ²test, λ²train
     end
-    @views begin
+    # @views begin
         [@inbounds @fastmath kernel(K::Kernel, a, b[:,j], la, lb[:,j]) for j = 1:max(na, nb)]
+    # end
+end
+
+function colwise!(A::AbstractArray, K::Kernel, xtrain::AbstractArray, xtest::AbstractArray,
+                 λ²train::AbstractArray, λ²test::AbstractArray)
+    na, nb = size(xtrain, 2), size(xtest, 2)
+    @assert min(na, nb) == 1
+    if na == 1
+        a, b, la, lb = xtrain, xtest, λ²train, λ²test
+    else
+        a, b, la, lb = xtest, xtrain, λ²test, λ²train
+    end
+    @views begin
+        @inbounds @fastmath for j = 1:max(na, nb)
+            A[j] = kernel(K::Kernel, a, b[:,j], la, lb[:,j])
+        end
     end
 end
 

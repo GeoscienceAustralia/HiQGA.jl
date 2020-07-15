@@ -495,9 +495,11 @@ function birth!(m::ModelNonstat, opt::TransD_GP.OptionsNonstat, l::ModelStat)
     xtest = opt.xall
     Kstarv = @view Kstar[:,n+1]
     idxs = gettrainidx(opt.kdtree, xtrain, n+1)
-    map!(x²->x²,Kstarv,GP.colwise(opt.K, xtrain[:,n+1], xtest, λ²[:,idxs[end]], λ²))
     K_yv = @view K_y[n+1,1:n+1]
-    map!(x²->x²,K_yv,GP.colwise(opt.K, xtrain[:,n+1], xtrain[:,1:n+1], λ²[:,idxs[end]], λ²[:,idxs]))
+    @views begin
+    GP.colwise!(Kstarv, opt.K, xtrain[:,n+1], xtest, λ²[:,idxs[end]], λ²)
+    GP.colwise!(K_yv, opt.K, xtrain[:,n+1], xtrain[:,1:n+1], λ²[:,idxs[end]], λ²[:,idxs])
+    end
     K_y[1:n+1,n+1] = K_y[n+1,1:n+1]
     K_y[n+1,n+1] = K_y[n+1,n+1] + opt.δ^2
     calcfstar!(m.fstar, m.ftrain, opt, K_y, Kstar, n+1)
@@ -577,9 +579,11 @@ function position_change!(m::ModelNonstat, opt::TransD_GP.OptionsNonstat, l::Mod
     xtest = opt.xall
     Kstarv = @view Kstar[:,ipoint]
     idxs = gettrainidx(opt.kdtree, xtrain, n)
-    map!(x²->x²,Kstarv,GP.colwise(opt.K, xtrain[:,ipoint], xtest, λ²[:,idxs[ipoint]], λ²))
     K_yv = @view K_y[ipoint,1:n]
-    map!(x²->x²,K_yv,GP.colwise(opt.K, xtrain[:,ipoint], xtrain[:,1:n], λ²[:,idxs[ipoint]], λ²[:,idxs]))
+    @views begin
+    GP.colwise!(Kstarv, opt.K, xtrain[:,ipoint], xtest, λ²[:,idxs[ipoint]], λ²)
+    GP.colwise!(K_yv, opt.K, xtrain[:,ipoint], xtrain[:,1:n], λ²[:,idxs[ipoint]], λ²[:,idxs])
+    end
     K_y[1:n,ipoint] = K_y[ipoint,1:n]
     K_y[ipoint,ipoint] = K_y[ipoint,ipoint] + opt.δ^2
     calcfstar!(m.fstar, m.ftrain, opt, K_y, Kstar, n)
@@ -594,9 +598,11 @@ function undo_position_change!(m::ModelNonstat, opt::TransD_GP.OptionsNonstat, l
     xtest = opt.xall
     Kstarv = @view Kstar[:,ipoint]
     idxs = gettrainidx(opt.kdtree, xtrain, n)
-    map!(x²->x²,Kstarv,GP.colwise(opt.K, xtrain[:,ipoint], xtest, λ²[:,idxs[ipoint]], λ²))
     K_yv = @view K_y[ipoint,1:n]
-    map!(x²->x²,K_yv,GP.colwise(opt.K, xtrain[:,ipoint], xtrain[:,1:n], λ²[:,idxs[ipoint]], λ²[:,idxs]))
+    @views begin
+    GP.colwise!(Kstarv, opt.K, xtrain[:,ipoint], xtest, λ²[:,idxs[ipoint]], λ²)
+    GP.colwise!(K_yv, opt.K, xtrain[:,ipoint], xtrain[:,1:n], λ²[:,idxs[ipoint]], λ²[:,idxs])
+    end
     K_y[1:n,ipoint] = K_y[ipoint,1:n]
     K_y[ipoint,ipoint] = K_y[ipoint,ipoint] + opt.δ^2
     nothing
