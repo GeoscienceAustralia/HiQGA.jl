@@ -1,30 +1,20 @@
 using PyPlot, Random, Revise, Statistics, LinearAlgebra,
       Distributed, DelimitedFiles
-srcdir = dirname(dirname(pwd()))*"/src"
+srcdir = dirname(dirname(dirname(pwd())))*"/src"
 any(srcdir .== LOAD_PATH) || push!(LOAD_PATH, srcdir)
 using GP, TransD_GP, GeophysOperator, MCMC_Driver
 ##1D functions
-easy = false
 Random.seed!(10)
-fractrain = 1
-if easy
-    Random.seed!(10)
-    x = LinRange(-2,2,101)
-    y = sin.(x) +2exp.(-30x.^2)
-    σ = 0.3
-    δ = 0.25
-else
-    Random.seed!(10)
-    x = LinRange(0, 1, 201)
-    y = readdlm("func.txt")[:]
-    σ = 0.55
-    δ = 0.25
-    λ = [0.05]
-end
-ntrain = round(Int, (1-fractrain)*length(y))
-linidx = randperm(length(y))[1:ntrain]
-ynoisy = σ*randn(size(y)) + y
-ynoisy[linidx] .= NaN
+x = readdlm("func2.txt", ',', Float64, '\n')[:,1]
+y = readdlm("func2.txt", ',', Float64, '\n')[:,2]
+σ = 0.55
+δ = 0.25
+λ = [0.031]
+dec = 12
+ynoisy = NaN .+ x
+till = round(Int, length(x)/2)
+ynoisy[1:till] = (σ*randn(size(y)) + y)[1:till]
+ynoisy[till+1:dec:end] = (σ*randn(size(y)) + y)[till+1:dec:end]
 line = GeophysOperator.Line(ynoisy;useML=false, σ=σ)
 figure()
 plot(x[:], y)
@@ -74,7 +64,7 @@ optdummy = TransD_GP.OptionsNonstat(opt,
                         K = K
                         )
 ## set up McMC
-nsamples, nchains, nchainsatone = 15001, 4, 1
+nsamples, nchains, nchainsatone = 50001, 4, 1
 Tmax = 2.50
 addprocs(nchains)
 @info "workers are $(workers())"
