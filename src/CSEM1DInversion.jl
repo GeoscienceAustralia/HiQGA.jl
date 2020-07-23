@@ -4,7 +4,7 @@ import CSEM1DEr.getfield!
 using AbstractOperator, CSEM1DEr
 using TransD_GP, PyPlot, LinearAlgebra, CommonToAll
 
-export CSEMRadialEr, makezρ, plotmodelfield!, addnoise
+export CSEMRadialEr, plotmodelfield!, addnoise
 
 mutable struct CSEMRadialEr<:Operator1D
     d      :: Array{ComplexF64}

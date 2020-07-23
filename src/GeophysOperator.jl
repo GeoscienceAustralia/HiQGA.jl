@@ -9,5 +9,7 @@ include("CSEM1DInversion.jl")
 using .CSEM1DInversion
 include("ImageRegression.jl")
 using .ImageRegression
+include("SkyTEM1DInversion.jl")
+using .SkyTEM1DInversion
 export Operator, get_misfit
 end

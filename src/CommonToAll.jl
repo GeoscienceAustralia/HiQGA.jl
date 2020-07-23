@@ -3,7 +3,7 @@ using TransD_GP, PyPlot, StatsBase, Statistics, Distances, LinearAlgebra,
       AbstractOperator, GP
 
 export trimxft, assembleTat1, gettargtemps, checkns, getchi2forall, nicenup,
-        plot_posterior, make1Dhist, make1Dhists, setupz, plotdepthtransforms,
+        plot_posterior, make1Dhist, make1Dhists, setupz, makezρ, plotdepthtransforms,
         unwrap, getn, geomprogdepth, assemblemodelsatT, getstats
 
 function trimxft(opt::TransD_GP.Options, burninfrac::Float64, temperaturenum::Int)
@@ -319,6 +319,18 @@ function plotdepthtransforms(zall, znall, zboundaries, thickness)
     ax[2].set_xlabel("depth index")
     ax[2].yaxis.grid(which="major")
     nicenup(f)
+end
+
+function makezρ(zboundaries::Array{Float64, 1};
+          zfixed      = [-1e6,    0.],
+          ρfixed      = [1e12     0.3])
+    @assert length(zfixed) == length(ρfixed)
+    z = [zfixed..., zboundaries...]
+    @assert all(diff(z).>0)
+    ρ = zeros(length(z))
+    nfixed = length(ρfixed)
+    ρ[1:nfixed] .= ρfixed
+    z, ρ, nfixed
 end
 
 function nicenup(g::PyPlot.Figure;fsize=16)
