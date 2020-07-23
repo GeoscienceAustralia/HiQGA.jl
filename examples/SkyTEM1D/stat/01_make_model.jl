@@ -68,12 +68,12 @@ Fhm = AEM_VMD_HMD.HFieldDHT(
 ρ[(z.>=100) .&(z.<200)] .= 50
 ρ[(z.>=200) .&(z.<250)] .= 80
 ρ[(z.>=250)]            .= 150
-##
+## add noise
 GeophysOperator.plotmodelfield_skytem!(Flm, Fhm, z, ρ)
 dlow, dhigh, σlow, σhigh = GeophysOperator.addnoise_skytem(Flm, Fhm,
                 z, ρ, noisefrac=0.05,
                 dz=dz, extendfrac=extendfrac, nfixed=nfixed)
-##
+## create operator
 dlow, dhigh, σlow, σhigh = (dlow, dhigh, σlow, σhigh)./SkyTEM1DInversion.μ₀
 aem = GeophysOperator.dBzdt(Flm, Fhm, dlow, dhigh,
                                   σlow, σhigh, z=z, ρ=ρ, nfixed=nfixed)

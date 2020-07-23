@@ -57,7 +57,6 @@ end
 function get_misfit(m::TransD_GP.Model, opt::TransD_GP.Options, aem::dBzdt)
     chi2by2 = 0.0
     if !opt.debug
-        ndata = csem.ndata
         getfield!(m, aem)
         chi2by2 += getchi2by2(aem.Flow.dBzdt, aem.dlow,
                     aem.σlow, aem.selectlow, aem.useML, aem.ndatalow)
@@ -70,11 +69,10 @@ end
 function getchi2by2(dBzdt, d, σ, select, useML, ndata)
     r, d, s, idx = dBzdt, d, σ, select
     r .= (r - d)./s
-    T = eltype(r)
     if useML
-        chi2by2 = 0.5*ndata[ifreq]*log(norm(r[idx])^2) :: T
+        chi2by2 = 0.5*ndata[ifreq]*log(norm(r[idx])^2)
     else
-        chi2by2 = 0.5*norm(r[idx])^2 :: T
+        chi2by2 = 0.5*norm(r[idx])^2
     end
 end
 
@@ -130,7 +128,7 @@ function plotmodelfield_skytem!(Flow::AEM_VMD_HMD.HField, Fhigh::AEM_VMD_HMD.HFi
         axn = ax[1].twinx()
         ax[1].get_shared_y_axes().join(ax[1],axn)
         axn.step(log10.(ρ[2:end]), z[2:end])
-        yt = ax[1].get_yticks()[ax[1].get_yticks().>0]
+        yt = ax[1].get_yticks()[ax[1].get_yticks().>=0]
         axn.set_yticks(yt)
         axn.set_ylim(ax[1].get_ylim()[end:-1:1])
         axn.set_yticklabels(string.(Int.(round.(getn.(yt .- z[nfixed+1], dz, extendfrac)))))
