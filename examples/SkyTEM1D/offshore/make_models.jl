@@ -79,6 +79,9 @@ for i = 1:length(z)
     ax[2].loglog(Flm.times,μ₀*abs.(Flm.dBzdt))
     ax[2].loglog(Fhm.times,μ₀*abs.(Fhm.dBzdt), color=ax[2].lines[end].get_color())
 end
-grid()
+ax[1].grid()
+ax[2].grid()
 ax[1].invert_yaxis()
-##
+ax[2].set_ylabel("dBzdt")
+ax[2].set_xlabel("time (s)")
+plt.tight_layout()
