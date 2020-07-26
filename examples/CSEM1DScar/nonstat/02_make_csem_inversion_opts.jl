@@ -7,7 +7,7 @@ log10bounds = [0 1.5]
 λlog10λ = [0.07abs(diff([extrema(znall)...])[1])]
 δlog10λ = 0.1
 demean = false
-sdev_poslog10λ = [0.05abs(diff([extrema(znall)...])[1])]
+sdev_poslog10λ = [0.035abs(diff([extrema(znall)...])[1])]
 sdev_proplog10λ = 0.05*diff(log10bounds, dims=2)[:]
 xall = permutedims(collect(znall))
 xbounds = permutedims([extrema(znall)...])
@@ -26,14 +26,14 @@ optlog10λ = TransD_GP.OptionsStat(nmin = nminlog10λ,
                         pnorm = pnorm,
                         quasimultid = false,
                         K = Klog10λ,
-                        timesλ = 3.57
+                        timesλ = 3.6
                         )
 ## make options for the nonstationary actual properties GP
 nmin, nmax = 2, 20
 fbounds = [-0.5 2.3]
 δ = 0.2
-sdev_prop = 0.02*diff(fbounds, dims=2)[:]
-sdev_pos = [0.008abs(diff([extrema(znall)...])[1])]
+sdev_prop = 0.01*diff(fbounds, dims=2)[:]
+sdev_pos = [0.006abs(diff([extrema(znall)...])[1])]
 demean_ns = true
 K = GP.Mat32()
 ## Initialize model for the nonstationary properties GP
