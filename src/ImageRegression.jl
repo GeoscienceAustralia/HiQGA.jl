@@ -164,13 +164,12 @@ function plot_image_posterior(optns::TransD_GP.OptionsNonstat, opts::TransD_GP.O
                         temperaturenum = 1,
                         nbins = 50,
                         burninfrac=0.5,
-                        isns=true,
                         qp1=0.05,
                         qp2=0.95,
                         cmappdf = "magma",
                         cmapmean = "rainbow",
                         figsizerows=[11,6],
-                        figsizecols=[8,9.5],
+                        figsizecols=[7.5,9.5],
                         pdfnormalize=false,
                         fsize=10,
                         aspect=1.0)
@@ -304,36 +303,61 @@ function plot_image_posterior(optns::TransD_GP.OptionsNonstat, opts::TransD_GP.O
     nicenup(f, fsize=fsize)
 end
 
-function plot_image_posterior(opt::TransD_GP.OptionsStat,
-                        img::Img, roworcol::Symbol;
-                        rowcolnum = 1,
+function plot_image_posterior(opt::TransD_GP.Options,
+                        img::Img;
+                        rownum = 10,
+                        colnum = 10,
                         temperaturenum = 1,
                         nbins = 50,
                         burninfrac=0.5,
-                        isns=true,
                         qp1=0.05,
                         qp2=0.95,
-                        cmappdf = "viridis",
-                        figsize=(5,5),
+                        cmappdf = "magma",
+                        cmapmean = "rainbow",
+                        figsize=[7.5,5.9],
                         pdfnormalize=false,
-                        fsize=14)
-    himage, edges, CI = slice_image_posterior(opt, burninfrac=burninfrac, nbins = nbins, qp1=qp1, qp2=qp2,
-                                    pdfnormalize=pdfnormalize, temperaturenum=temperaturenum)
-    f,ax = plt.subplots(1,1, sharey=true, figsize=figsize)
-    xall = opt.xall
-    #im1 = ax.imshow(himage, extent=[edges[1],edges[end],xall[end],xall[1]], aspect="auto", cmap=cmappdf)
-    #ax.grid()
-    im1 = ax.pcolormesh(edges[:], xall[:], himage, cmap=cmappdf)
-    ax.set_ylim(extrema(xall)...)
-    ax.invert_yaxis()
-    cb1 = colorbar(im1, ax=ax)
-    cb1.ax.set_xlabel("pdf \nstationary")
-    ax.plot(CI, xall[:], linewidth=2, color="g")
-    ax.plot(CI, xall[:], linewidth=2, color="k", linestyle="--")
-    ax.set_xlabel(L"\log_{10} \rho")
-    ax.set_ylabel("depth (m)")
+                        fsize=10,
+                        aspect=1.0)
+    @assert temperaturenum == 1
+    if typeof(opt) == TransD_GP.OptionsStat
+        @assert opt.updatenonstat == false
+        @assert needλ²fromlog == false
+    end
+    M = assembleTat1(opt, :fstar, burninfrac=burninfrac, temperaturenum=temperaturenum)
+    m = mean(M)
+    m = reshape(m, length(img.y), length(img.x))
+    himage_r, edges_r, CI_r = slice_image_posterior(M, opt, img, :row, rowcolnum=rownum, nbins = nbins, qp1=qp1, qp2=qp2,
+                                pdfnormalize=pdfnormalize, temperaturenum=temperaturenum)
+    himage_c, edges_c, CI_c = slice_image_posterior(M, opt, img, :col, rowcolnum=colnum, nbins = nbins, qp1=qp1, qp2=qp2,
+                                pdfnormalize=pdfnormalize, temperaturenum=temperaturenum)
+    f = figure(figsize=figsize)
+    s1 = subplot(223)
+    im1 = s1.pcolormesh(img.x, img.y, m, cmap=cmapmean)
+    s1.plot([img.x[1], img.x[end]], [img.y[rownum], img.y[rownum]], "--k", alpha=0.5)
+    s1.plot([img.y[colnum], img.y[colnum]], [img.y[1], img.y[end]], "--k", alpha=0.5)
+    s1.set_title("Mean pixel value")
+    s1.set_ylabel("distance y")
+    s1.invert_yaxis()
+    # s1.set_aspect(aspect)
+    s1.set_xlabel("distance x")
+    cb1 = colorbar(im1, ax=s1)
+    s2 = subplot(221, sharex=s1)
+    im2 = s2.pcolormesh(img.x, edges_r[:], himage_r', cmap=cmappdf)
+    s2.plot(img.x, m[rownum,:][:],"--w", alpha=0.5)
+    s2.set_title("Pixel value PDF")
+    s2.set_ylabel("pixel value")
+    s2.set_xlabel("distance x")
+    cb2 = colorbar(im2, ax=s2)
+    cb2.ax.set_title("pdf")
+    s3 = subplot(224, sharey=s1)
+    im3 = s3.pcolormesh(edges_c[:], img.y, himage_c, cmap=cmappdf)
+    s3.plot(m[:,colnum][:], img.y, "--w", alpha=0.5)
+    s3.set_title("Pixel value PDF")
+    s3.set_xlabel("pixel value")
+    s3.set_ylabel("distance y")
+    cb3 = colorbar(im3, ax=s3)
+    cb3.ax.set_title("pdf")
     nicenup(f, fsize=fsize)
 end
-
 
 end
