@@ -4,7 +4,7 @@ using TransD_GP, PyPlot, StatsBase, Statistics, Distances, LinearAlgebra,
 
 export trimxft, assembleTat1, gettargtemps, checkns, getchi2forall, nicenup,
         plot_posterior, make1Dhist, make1Dhists, setupz, makezρ, plotdepthtransforms,
-        unwrap, getn, geomprogdepth, assemblemodelsatT, getstats
+        unwrap, getn, geomprogdepth, assemblemodelsatT, getstats, gethimage
 
 function trimxft(opt::TransD_GP.Options, burninfrac::Float64, temperaturenum::Int)
     x_ft = assembleTat1(opt, :x_ftrain, burninfrac=burninfrac, temperaturenum=temperaturenum)
@@ -488,7 +488,7 @@ function gethimage(M::AbstractArray, opt::TransD_GP.Options;
     edges = LinRange(rhomin, rhomax, nbins+1)
     himage = zeros(Float64, length(M[1]), nbins)
     CI = zeros(Float64, length(M[1]), 2)
-    for ilayer=1:size(opt.xall,2)
+    for ilayer=1:length(M[1])
         if typeof(opt) == TransD_GP.OptionsStat && opt.needλ²fromlog
             himage[ilayer,:] = fit(Histogram, [0.5log10.(m[ilayer]) for m in M], edges).weights
         else
