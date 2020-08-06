@@ -2,3 +2,4 @@
 *.run
 *_temps.txt
 *.out
+*.un~
