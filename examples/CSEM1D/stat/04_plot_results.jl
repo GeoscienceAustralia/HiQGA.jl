@@ -1,10 +1,10 @@
-GeophysOperator.getchi2forall(opt, nxticks=3)
+GeophysOperator.getchi2forall(opt, nxticks=4, fsize=6)
 ax = gcf().axes;
 ax[3].set_ylim(100, 200)
 ax[4].set_ylim(100, 200)
 savefig("csem_conv_s.png", dpi=300)
 opt.xall[:] .= zall
-GeophysOperator.plot_posterior(csem, opt, burninfrac=0.5, figsize=(4,6),
+GeophysOperator.plot_posterior(csem, opt, burninfrac=0.5, figsize=(4,4),
     cmappdf="inferno")
 step(log10.(ρ[2:end]), z[2:end], color="w", alpha=0.6)
 ax = gcf().axes

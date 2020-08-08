@@ -130,11 +130,8 @@ function plotmodelfield!(F::CSEM1DEr.RadialEr, z, ρ::Vector{Float64}, d::Array{
         axn.set_ylim(ax[1].get_ylim()[end:-1:1])
         axn.set_yticklabels(string.(Int.(round.(getn.(yt .- z[nfixed+1], dz, extendfrac)))))
     end
-    CSEM1DEr.getfield!(F, z, ρ)
     ax[2] = subplot(132)
-    ax[2].semilogy(F.rRx, abs.(real(F.Er)))
     ax[3] = subplot(133, sharex=ax[2], sharey=ax[2])
-    ax[3].semilogy(F.rRx, abs.(imag(F.Er)))
     for lfreq in eachindex(F.freqs)
         yerr = sigma*0.707abs.(σ[:,lfreq])
         ax[2].errorbar(F.rRx, abs.(real(d[:,lfreq])), yerr = yerr,
@@ -142,6 +139,9 @@ function plotmodelfield!(F::CSEM1DEr.RadialEr, z, ρ::Vector{Float64}, d::Array{
         ax[3].errorbar(F.rRx, abs.(imag(d[:,lfreq])), yerr = yerr,
                         linestyle="none", marker=".", elinewidth=0, capsize=3, alpha=0.5, markersize=5)
     end
+    CSEM1DEr.getfield!(F, z, ρ)
+    ax[2].semilogy(F.rRx, abs.(real(F.Er)), "-k", alpha=0.5)
+    ax[3].semilogy(F.rRx, abs.(imag(F.Er)), "-k", alpha=0.5)
     ax[1].grid()
     ax[1].set_ylabel("Depth m")
     axn.set_ylabel("Depth index", rotation=-90)

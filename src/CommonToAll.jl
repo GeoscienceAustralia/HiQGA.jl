@@ -217,6 +217,7 @@ function getchi2forall(opt_in::TransD_GP.Options;
 
     f, ax = plt.subplots(3,2, sharex=true, figsize=figsize)
     ax[1].plot(iters, kacrosschains, alpha=alpha)
+    ax[1].set_xlim(extrema(iters)...)
     ax[1].set_title("unsorted by temperature")
     ax[1].grid()
     ax[1].set_ylabel("# nodes")
@@ -228,7 +229,6 @@ function getchi2forall(opt_in::TransD_GP.Options;
     ax[3].set_ylabel("Temperature")
     ax[3].set_xlabel("iterations")
     ax[3].set_xticks(iters[1]:div(iters[end],nxticks):iters[end])
-
     for jstep = 1:niters
         sortidx = sortperm(vec(Tacrosschains[jstep,:]))
         X2by2inchains[jstep,:] = X2by2inchains[jstep,sortidx]
@@ -384,10 +384,10 @@ function plot_posterior(operator::Operator1D,
     ax[2].invert_yaxis()
     cb2 = colorbar(im2, ax=ax[2])
     cb2.ax.set_xlabel("pdf \nstationary")
-    ax[1].plot(CI_ns, xall[:], linewidth=2, color="g")
-    ax[1].plot(CI_ns, xall[:], linewidth=2, color="c", linestyle="--")
-    ax[2].plot(CI, xall[:], linewidth=2, color="g")
-    ax[2].plot(CI, xall[:], linewidth=2, color="c", linestyle="--")
+    ax[1].plot(CI_ns, xall[:], linewidth=2, color="g", alpha=0.5)
+    ax[1].plot(CI_ns, xall[:], linewidth=2, color="c", linestyle="--", alpha=0.5)
+    ax[2].plot(CI, xall[:], linewidth=2, color="g", alpha=0.5)
+    ax[2].plot(CI, xall[:], linewidth=2, color="c", linestyle="--", alpha=0.5)
     ax[1].set_xlabel(L"\log_{10} \rho")
     ax[1].set_ylabel("depth (m)")
     ax[2].set_xlabel(L"\log_{10} λ")
@@ -416,8 +416,8 @@ function plot_posterior(operator::Operator1D,
     ax.invert_yaxis()
     cb1 = colorbar(im1, ax=ax)
     cb1.ax.set_xlabel("pdf \nstationary")
-    ax.plot(CI, xall[:], linewidth=2, color="g")
-    ax.plot(CI, xall[:], linewidth=2, color="c", linestyle="--")
+    ax.plot(CI, xall[:], linewidth=2, color="g", alpha=0.5)
+    ax.plot(CI, xall[:], linewidth=2, color="c", linestyle="--", alpha=0.5)
     ax.set_xlabel(L"\log_{10} \rho")
     ax.set_ylabel("depth (m)")
     nicenup(f, fsize=fsize)
