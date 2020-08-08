@@ -81,9 +81,19 @@ addprocs(nchains)
 rmprocs(workers())
 ## plot
 GeophysOperator.getchi2forall(opt)
+ax = gcf().axes;
+ax[3].set_ylim(100, 200)
+ax[4].set_ylim(100, 200)
+savefig("line_conv_ns_1.png", dpi=300)
 GeophysOperator.getchi2forall(optlog10λ)
-GeophysOperator.plot_posterior(line, opt, optlog10λ, burninfrac=0.2, figsize=(10,10))
+ax = gcf().axes;
+ax[3].set_ylim(100, 200)
+ax[4].set_ylim(100, 200)
+savefig("line_conv_ns_2.png", dpi=300)
+GeophysOperator.plot_posterior(line, opt, optlog10λ, burninfrac=0.2, figsize=(7.8,6), fsize=12)
 ax = gcf().axes
-ax[1].plot(ynoisy, x, ".m")
-ax[1].plot(y, x, color="orange")
-ax[1].plot(y, x, "--k")
+ax[1].plot(ynoisy, x, ".c", alpha=0.4)
+ax[1].plot(y, x, color="orange", alpha=0.4)
+ax[1].plot(y, x, "--w", alpha=0.4)
+ax[1].set_xlim(fbounds...)
+savefig("jump1D_ns.png", dpi=300)

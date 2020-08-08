@@ -188,9 +188,10 @@ end
 
 function getchi2forall(opt_in::TransD_GP.Options;
                         nchains          = 1,
-                        figsize          = (17,8),
-                        fsize            = 14,
-                        alpha            = 0.6
+                        figsize          = (6,4),
+                        fsize            = 10,
+                        alpha            = 0.6,
+                        nxticks=4
                       )
     if nchains == 1 # then actually find out how many chains there are saved
         nchains = length(filter( x -> occursin(r"misfits_ns.*bin", x), readdir(pwd()) )) # my terrible regex
@@ -218,7 +219,7 @@ function getchi2forall(opt_in::TransD_GP.Options;
     ax[1].plot(iters, kacrosschains, alpha=alpha)
     ax[1].set_title("unsorted by temperature")
     ax[1].grid()
-    ax[1].set_ylabel("# nodes", alpha=alpha)
+    ax[1].set_ylabel("# nodes")
     ax[2].plot(iters, X2by2inchains, alpha=alpha)
     ax[2].grid()
     ax[2].set_ylabel("-Log L")
@@ -226,6 +227,7 @@ function getchi2forall(opt_in::TransD_GP.Options;
     ax[3].plot(iters, Tacrosschains, alpha=alpha)
     ax[3].set_ylabel("Temperature")
     ax[3].set_xlabel("iterations")
+    ax[3].set_xticks(iters[1]:div(iters[end],nxticks):iters[end])
 
     for jstep = 1:niters
         sortidx = sortperm(vec(Tacrosschains[jstep,:]))
@@ -356,7 +358,7 @@ function plot_posterior(operator::Operator1D,
     burninfrac=0.5,
     qp1=0.05,
     qp2=0.95,
-    cmappdf = "viridis",
+    cmappdf = "inferno",
     figsize=(10,5),
     pdfnormalize=false,
     fsize=14)
@@ -383,9 +385,9 @@ function plot_posterior(operator::Operator1D,
     cb2 = colorbar(im2, ax=ax[2])
     cb2.ax.set_xlabel("pdf \nstationary")
     ax[1].plot(CI_ns, xall[:], linewidth=2, color="g")
-    ax[1].plot(CI_ns, xall[:], linewidth=2, color="k", linestyle="--")
+    ax[1].plot(CI_ns, xall[:], linewidth=2, color="c", linestyle="--")
     ax[2].plot(CI, xall[:], linewidth=2, color="g")
-    ax[2].plot(CI, xall[:], linewidth=2, color="k", linestyle="--")
+    ax[2].plot(CI, xall[:], linewidth=2, color="c", linestyle="--")
     ax[1].set_xlabel(L"\log_{10} \rho")
     ax[1].set_ylabel("depth (m)")
     ax[2].set_xlabel(L"\log_{10} λ")
@@ -399,7 +401,7 @@ function plot_posterior(operator::Operator1D,
     burninfrac=0.5,
     qp1=0.05,
     qp2=0.95,
-    cmappdf = "viridis",
+    cmappdf = "inferno",
     figsize=(5,5),
     pdfnormalize=false,
     fsize=14)
@@ -415,7 +417,7 @@ function plot_posterior(operator::Operator1D,
     cb1 = colorbar(im1, ax=ax)
     cb1.ax.set_xlabel("pdf \nstationary")
     ax.plot(CI, xall[:], linewidth=2, color="g")
-    ax.plot(CI, xall[:], linewidth=2, color="k", linestyle="--")
+    ax.plot(CI, xall[:], linewidth=2, color="c", linestyle="--")
     ax.set_xlabel(L"\log_{10} \rho")
     ax.set_ylabel("depth (m)")
     nicenup(f, fsize=fsize)

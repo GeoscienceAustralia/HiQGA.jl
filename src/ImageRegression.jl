@@ -94,9 +94,9 @@ function get_image_prediction_points(img::Img)
 end
 
 function plot_image_data(ftrain::Array{Float64, 1}, Xtrain::Array{Float64, 2},
-                   img::Img;  s=10, fsize=14)
+                   img::Img;  s=3, fsize=12)
     f, x, y = img.f, img.x, img.y
-    f1, ax1 = plt.subplots(1,2,figsize=(10,5), sharex=true, sharey=true)
+    f1, ax1 = plt.subplots(1,2,figsize=(6.7,2.7), sharex=true, sharey=true)
     im1 = ax1[1].imshow(f, extent=[x[1],x[end],y[end],y[1]])
     cb1 = colorbar(im1, ax=ax1[1])
     ax1[2].imshow(f, extent=[x[1],x[end],y[end],y[1]], alpha=0.0)
@@ -167,7 +167,7 @@ function plot_image_posterior(optns::TransD_GP.OptionsNonstat, opts::TransD_GP.O
                         qp1=0.05,
                         qp2=0.95,
                         cmappdf = "magma",
-                        cmapmean = "rainbow",
+                        cmapmean = "bone",
                         figsizerows=[11,6],
                         figsizecols=[7.5,9.5],
                         pdfnormalize=false,
@@ -319,7 +319,7 @@ function plot_image_posterior(opt::TransD_GP.Options,
                         qp1=0.05,
                         qp2=0.95,
                         cmappdf = "magma",
-                        cmapmean = "rainbow",
+                        cmapmean = "bone",
                         figsize=[7.5,5.9],
                         pdfnormalize=false,
                         fsize=10,

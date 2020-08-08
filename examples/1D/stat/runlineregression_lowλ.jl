@@ -16,9 +16,10 @@ till = round(Int, length(x)/2)
 ynoisy[1:till] = (σ*randn(size(y)) + y)[1:till]
 ynoisy[till+1:dec:end] = (σ*randn(size(y)) + y)[till+1:dec:end]
 line = GeophysOperator.Line(ynoisy;useML=false, σ=σ)
-figure()
+figure(figsize=(4,3))
 plot(x[:], y)
-plot(x[:], ynoisy, ".m")
+plot(x[:], ynoisy, ".m", alpha=0.5)
+savefig("jump1D.png", dpi=300)
 ## make options for the stationary GP
 nmin, nmax = 2, 20
 pnorm = 2.
@@ -77,8 +78,14 @@ addprocs(nchains)
 rmprocs(workers())
 ## plot
 GeophysOperator.getchi2forall(opt)
-GeophysOperator.plot_posterior(line, opt, burninfrac=0.2, figsize=(5,10))
+ax = gcf().axes;
+ax[3].set_ylim(100, 200)
+ax[4].set_ylim(100, 200)
+savefig("line_conv_s.png", dpi=300)
+GeophysOperator.plot_posterior(line, opt, burninfrac=0.2, figsize=(4,6), fsize=12)
 ax = gcf().axes
-ax[1].plot(ynoisy, x, ".m")
-ax[1].plot(y, x, color="orange")
-ax[1].plot(y, x, "--k")
+ax[1].plot(ynoisy, x, ".c", alpha=0.4)
+ax[1].plot(y, x, color="orange", alpha=0.4)
+ax[1].plot(y, x, "--w", alpha=0.4)
+ax[1].set_xlim(fbounds...)
+savefig("jump1D_low.png", dpi=300)

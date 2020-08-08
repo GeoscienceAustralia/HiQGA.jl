@@ -41,5 +41,6 @@ F = CSEM1DEr.RadialErLagged(zTx    = [zTx],
 GeophysOperator.plotmodelfield!(F, z, ρ)
 d, σ = GeophysOperator.addnoise(F, z, ρ, noisefrac=0.05,
                dz=dz, extendfrac=extendfrac, nfixed=nfixed)
+savefig("data_model.png", dpi=300)
 ##
 csem = GeophysOperator.CSEMRadialEr(F, d, σ, z=z, ρ=ρ, nfixed=nfixed)
