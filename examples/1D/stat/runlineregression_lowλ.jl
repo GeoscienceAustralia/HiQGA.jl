@@ -4,17 +4,18 @@ srcdir = dirname(dirname(dirname(pwd())))*"/src"
 any(srcdir .== LOAD_PATH) || push!(LOAD_PATH, srcdir)
 using GP, TransD_GP, GeophysOperator, MCMC_Driver
 ##1D functions
-Random.seed!(10)
+Random.seed!(2)
 x = readdlm("func2.txt", ',', Float64, '\n')[:,1]
 y = readdlm("func2.txt", ',', Float64, '\n')[:,2]
-σ = 0.55
+σ = 1.0
 δ = 0.25
 λ = [0.031]
 dec = 12
-ynoisy = NaN .+ x
 till = round(Int, length(x)/2)
-ynoisy[1:till] = (σ*randn(size(y)) + y)[1:till]
-ynoisy[till+1:dec:end] = (σ*randn(size(y)) + y)[till+1:dec:end]
+ynoisy = σ*randn(size(y)) + y
+keep = copy(ynoisy)
+ynoisy[till+1:end] .= NaN
+ynoisy[till+1:dec:end] .= keep[till+1:dec:end]
 line = GeophysOperator.Line(ynoisy;useML=false, σ=σ)
 figure(figsize=(4,3))
 plot(x[:], y)

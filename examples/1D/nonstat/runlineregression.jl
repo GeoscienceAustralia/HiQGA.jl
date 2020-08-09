@@ -4,20 +4,24 @@ srcdir = dirname(dirname(dirname(pwd())))*"/src"
 any(srcdir .== LOAD_PATH) || push!(LOAD_PATH, srcdir)
 using GP, TransD_GP, GeophysOperator, MCMC_Driver
 ##1D functions
-Random.seed!(10)
+Random.seed!(2)
 x = readdlm("func2.txt", ',', Float64, '\n')[:,1]
 y = readdlm("func2.txt", ',', Float64, '\n')[:,2]
-σ = 0.55
 log10bounds = [-1.5 -0.5]
+σ = 1.0
+δ = 0.25
+λ = [0.031]
 dec = 12
-ynoisy = NaN .+ x
 till = round(Int, length(x)/2)
-ynoisy[1:till] = (σ*randn(size(y)) + y)[1:till]
-ynoisy[till+1:dec:end] = (σ*randn(size(y)) + y)[till+1:dec:end]
+ynoisy = σ*randn(size(y)) + y
+keep = copy(ynoisy)
+ynoisy[till+1:end] .= NaN
+ynoisy[till+1:dec:end] .= keep[till+1:dec:end]
 line = GeophysOperator.Line(ynoisy;useML=false, σ=σ)
-figure()
+figure(figsize=(4,3))
 plot(x[:], y)
-plot(x[:], ynoisy, ".m")
+plot(x[:], ynoisy, ".m", alpha=0.5)
+savefig("jump1D.png", dpi=300)
 ## make options for the multichannel lengthscale GP
 δlog10λ = 0.2
 nminlog10λ, nmaxlog10λ = 2, 20
@@ -90,7 +94,7 @@ ax = gcf().axes;
 ax[3].set_ylim(100, 200)
 ax[4].set_ylim(100, 200)
 savefig("line_conv_ns_2.png", dpi=300)
-GeophysOperator.plot_posterior(line, opt, optlog10λ, burninfrac=0.2, figsize=(7.8,6), fsize=12)
+GeophysOperator.plot_posterior(line, opt, optlog10λ, burninfrac=0.2, figsize=(7.5,6), fsize=12)
 ax = gcf().axes
 ax[1].plot(ynoisy, x, ".c", alpha=0.4)
 ax[1].plot(y, x, color="orange", alpha=0.4)
