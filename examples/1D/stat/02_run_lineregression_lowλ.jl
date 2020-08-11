@@ -1,28 +1,7 @@
-using PyPlot, Random, Revise, Statistics, LinearAlgebra,
-      Distributed, DelimitedFiles
-srcdir = dirname(dirname(dirname(pwd())))*"/src"
-any(srcdir .== LOAD_PATH) || push!(LOAD_PATH, srcdir)
-using GP, TransD_GP, GeophysOperator, MCMC_Driver
-##1D functions
-Random.seed!(2)
-x = readdlm("func2.txt", ',', Float64, '\n')[:,1]
-y = readdlm("func2.txt", ',', Float64, '\n')[:,2]
-σ = 1.0
-δ = 0.25
-λ = [0.031]
-dec = 12
-till = round(Int, length(x)/2)
-ynoisy = σ*randn(size(y)) + y
-keep = copy(ynoisy)
-ynoisy[till+1:end] .= NaN
-ynoisy[till+1:dec:end] .= keep[till+1:dec:end]
-line = GeophysOperator.Line(ynoisy;useML=false, σ=σ)
-figure(figsize=(4,3))
-plot(x[:], y)
-plot(x[:], ynoisy, ".m", alpha=0.5)
-savefig("jump1D.png", dpi=300)
 ## make options for the stationary GP
-nmin, nmax = 2, 20
+λ = [.017]
+δ = 0.1
+nmin, nmax = 2, 80
 pnorm = 2.
 K = GP.Mat32()
 demean = true
@@ -66,7 +45,7 @@ optdummy = TransD_GP.OptionsNonstat(opt,
                         K = K
                         )
 ## set up McMC
-nsamples, nchains, nchainsatone = 50001, 4, 1
+nsamples, nchains, nchainsatone = 200001, 4, 1
 Tmax = 2.50
 addprocs(nchains)
 @info "workers are $(workers())"

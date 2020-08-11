@@ -3,7 +3,7 @@ import AbstractOperator.get_misfit
 using AbstractOperator
 using TransD_GP, PyPlot, LinearAlgebra
 
-export Line
+export Line, linetestfunction
 
 mutable struct Line<:Operator1D
     d     :: Array{Float64}
@@ -29,6 +29,15 @@ function get_misfit(m::TransD_GP.Model, opt::TransD_GP.Options, line::Line)
         end
     end
     return chi2by2
+end
+
+function linetestfunction(;c=0.5,ngrid=100)
+    xx = LinRange(-1,1,ngrid)
+    y = zeros(size(xx))
+    for (i, x) in enumerate(xx)
+        y[i] = x <= -c ? -1 + 2(x+c)*(x+c) : c + c*x*x
+    end
+    xx, y
 end
 
 end

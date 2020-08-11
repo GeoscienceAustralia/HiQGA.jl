@@ -1,26 +1,6 @@
-using PyPlot, Random, Revise, Statistics, LinearAlgebra,
-      Distributed, DelimitedFiles
-srcdir = dirname(dirname(dirname(pwd())))*"/src"
-any(srcdir .== LOAD_PATH) || push!(LOAD_PATH, srcdir)
-using GP, TransD_GP, GeophysOperator, MCMC_Driver
-##1D functions
-Random.seed!(10)
-x = readdlm("func2.txt", ',', Float64, '\n')[:,1]
-y = readdlm("func2.txt", ',', Float64, '\n')[:,2]
-σ = 0.55
-δ = 0.25
-λ = [0.31]
-dec = 12
-ynoisy = NaN .+ x
-till = round(Int, length(x)/2)
-ynoisy[1:till] = (σ*randn(size(y)) + y)[1:till]
-ynoisy[till+1:dec:end] = (σ*randn(size(y)) + y)[till+1:dec:end]
-line = GeophysOperator.Line(ynoisy;useML=false, σ=σ)
-figure(figsize=(4,3))
-plot(x[:], y)
-plot(x[:], ynoisy, ".m", alpha=0.5)
-savefig("jump1D.png", dpi=300)
 ## make options for the stationary GP
+λ = [.17]
+δ = 0.05
 nmin, nmax = 2, 20
 pnorm = 2.
 K = GP.Mat32()
@@ -47,7 +27,7 @@ opt = TransD_GP.OptionsStat(nmin = nmin,
                         pnorm = pnorm,
                         quasimultid = false,
                         K = K,
-                        timesλ = 3.,
+                        timesλ = 3.6,
                         needλ²fromlog = needλ²fromlog,
                         updatenonstat = updatenonstat
                         )
@@ -65,7 +45,7 @@ optdummy = TransD_GP.OptionsNonstat(opt,
                         K = K
                         )
 ## set up McMC
-nsamples, nchains, nchainsatone = 50001, 4, 1
+nsamples, nchains, nchainsatone = 200001, 4, 1
 Tmax = 2.50
 addprocs(nchains)
 @info "workers are $(workers())"
@@ -77,11 +57,16 @@ addprocs(nchains)
 @time MCMC_Driver.main(opt, optdummy, line, Tmax=Tmax, nsamples=nsamples, nchains=nchains, nchainsatone=nchainsatone)
 rmprocs(workers())
 ## plot
-GeophysOperator.getchi2forall(opt)
-GeophysOperator.plot_posterior(line, opt, burninfrac=0.2, figsize=(4,6), cmappdf="magma", fsize=12)
+GeophysOperator.getchi2forall(opt, fsize=8)
+ax = gcf().axes;
+ax[3].set_ylim(30, 100)
+ax[4].set_ylim(30, 100)
+savefig("line_conv_s.png", dpi=300)
+GeophysOperator.plot_posterior(line, opt,
+    burninfrac=0.5, figsize=(4,4), fsize=8, nbins=100)
 ax = gcf().axes
-ax[1].plot(ynoisy, x, ".c", alpha=0.4)
-ax[1].plot(y, x, color="orange", alpha=0.4)
-ax[1].plot(y, x, "--w", alpha=0.4)
+# ax[1].plot(ynoisy, x, ".w", alpha=0.4, markersize=10)
+ax[1].plot(y, x, "--w", alpha=0.5)
+# ax[1].plot(y, x, color="g", alpha=0.5)
 ax[1].set_xlim(fbounds...)
 savefig("jump1D_high.png", dpi=300)
