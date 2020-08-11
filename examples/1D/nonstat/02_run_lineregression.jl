@@ -1,5 +1,5 @@
 ## make options for the multichannel lengthscale GP
-δlog10λ = 0.2
+δlog10λ = 0.1
 log10bounds = [-2 0.5]
 nminlog10λ, nmaxlog10λ = 2, 10
 pnorm = 2.
@@ -49,7 +49,7 @@ opt = TransD_GP.OptionsNonstat(optlog10λ,
                         K = K
                         )
 ## set up McMC
-nsamples, nchains, nchainsatone = 100001, 4, 1
+nsamples, nchains, nchainsatone = 200001, 4, 1
 Tmax = 2.50
 addprocs(nchains)
 @info "workers are $(workers())"

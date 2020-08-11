@@ -1,5 +1,5 @@
 module TransD_GP
-using Printf, LinearAlgebra, Statistics, Distributed,
+using Printf, LinearAlgebra, Statistics, Distributed, PositiveFactorizations,
       Distances, NearestNeighbors,
       GP
 
@@ -219,7 +219,7 @@ function calcfstar!(fstar::Array{Float64,2}, ftrain::Array{Float64,2},
     end
     rhs = ftrain[:,1:n] .- mf
     ky = @view K_y[1:n,1:n]
-    U = cholesky(ky).U
+    U = cholesky(Positive, ky, Val{false}).U
     ks = @view Kstar[:,1:n]
     if opt.needλ²fromlog
         copy!(fstar, 10 .^(2(mf' .+ ks*(U\(U'\rhs'))))' )
@@ -481,7 +481,7 @@ function calcfstar!(fstar::Array{Float64,2}, ftrain::Array{Float64,2},
     rhs = ftrain[:,1:n] .- mf
     ky = view(K_y, 1:n, 1:n)
     ks = @view Kstar[:,1:n]
-    U = cholesky(ky).U
+    U = cholesky(Positive, ky, Val{false}).U
     copy!(fstar, mf' .+ ks*(U\(U'\rhs')) )
     nothing
 end
