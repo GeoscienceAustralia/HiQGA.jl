@@ -1,7 +1,7 @@
 ## make options for the stationary GP
-λ = [.17]
+λ = [.1]
 δ = 0.05
-nmin, nmax = 2, 20
+nmin, nmax = 2, 30
 pnorm = 2.
 K = GP.Mat32()
 demean = true
@@ -59,14 +59,14 @@ rmprocs(workers())
 ## plot
 GeophysOperator.getchi2forall(opt, fsize=8)
 ax = gcf().axes;
-ax[3].set_ylim(30, 100)
-ax[4].set_ylim(30, 100)
+ndata = sum(.!isnan.(line.d[:]))
+ax[3].set_ylim(ndata/2 - 20, ndata/2 + 20)
+ax[4].set_ylim(ndata/2 - 20, ndata/2 + 20)
 savefig("line_conv_s.png", dpi=300)
 GeophysOperator.plot_posterior(line, opt,
     burninfrac=0.5, figsize=(4,4), fsize=8, nbins=50)
 ax = gcf().axes
-# ax[1].plot(ynoisy, x, ".w", alpha=0.4, markersize=10)
+ax[1].plot(ynoisy, x, ".w", alpha=0.1, markersize=10)
 ax[1].plot(y, x, "--w", alpha=0.5)
-# ax[1].plot(y, x, color="g", alpha=0.5)
 ax[1].set_xlim(fbounds...)
 savefig("jump1D_high.png", dpi=300)

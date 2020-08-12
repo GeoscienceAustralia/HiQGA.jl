@@ -31,11 +31,11 @@ function get_misfit(m::TransD_GP.Model, opt::TransD_GP.Options, line::Line)
     return chi2by2
 end
 
-function linetestfunction(;c=0.5,ngrid=100)
+function linetestfunction(;c=0.25,ngrid=200)
     xx = LinRange(-1,1,ngrid)
     y = zeros(size(xx))
     for (i, x) in enumerate(xx)
-        y[i] = x <= -c ? -1 + 2(x+c)*(x+c) : c + c*x*x
+        y[i] = x <= -c ? -1 - 2(x+c)*(x+c) : 2 + 2*x*x
     end
     xx, y
 end

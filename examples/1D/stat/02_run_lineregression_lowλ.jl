@@ -1,5 +1,5 @@
 ## make options for the stationary GP
-λ = [.017]
+λ = [.056]
 δ = 0.1
 nmin, nmax = 2, 80
 pnorm = 2.

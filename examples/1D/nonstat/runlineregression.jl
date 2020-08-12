@@ -1,5 +1,5 @@
 ## make options for the multichannel lengthscale GP
-log10bounds = [-2 0]
+log10bounds = [-2.5 0]
 δlog10λ = 0.2
 nminlog10λ, nmaxlog10λ = 2, 30
 pnorm = 2.
