@@ -8,7 +8,7 @@ Random.seed!(200)
 x = readdlm("func2.txt", ',', Float64, '\n')[:,1]
 y = readdlm("func2.txt", ',', Float64, '\n')[:,2]
 σ = 0.55
-dec = 12
+dec = 1
 till = round(Int, length(x)/2)
 ynoisy = σ*randn(size(y)) + y
 keep = copy(ynoisy)

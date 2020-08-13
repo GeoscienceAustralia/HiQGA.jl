@@ -66,7 +66,7 @@ savefig("line_conv_s.png", dpi=300)
 GeophysOperator.plot_posterior(line, opt,
     burninfrac=0.5, figsize=(4,4), fsize=8, nbins=50)
 ax = gcf().axes
-ax[1].plot(ynoisy, x, ".w", alpha=0.1, markersize=10)
+ax[1].plot(ynoisy, x, ".w", alpha=0.2, markersize=10)
 ax[1].plot(y, x, "--w", alpha=0.5)
 ax[1].set_xlim(fbounds...)
 savefig("jump1D_high.png", dpi=300)

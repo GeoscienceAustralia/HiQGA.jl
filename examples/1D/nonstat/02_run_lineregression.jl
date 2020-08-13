@@ -1,10 +1,10 @@
 ## make options for the multichannel lengthscale GP
-log10bounds = [-2 0]
+log10bounds = [-1.7 -0.3]
 δlog10λ = 0.2
 nminlog10λ, nmaxlog10λ = 2, 30
 pnorm = 2.
 Klog10λ = GP.Mat32()
-λlog10λ = [0.03abs(diff([extrema(x)...])[1])]
+λlog10λ = [0.02abs(diff([extrema(x)...])[1])]
 demean = false
 sdev_poslog10λ = [0.05abs(diff([extrema(x)...])[1])]
 sdev_proplog10λ = 0.05*diff(log10bounds, dims=2)[:]
@@ -61,13 +61,13 @@ addprocs(nchains)
 @time MCMC_Driver.main(optlog10λ, opt, line, Tmax=Tmax, nsamples=nsamples, nchains=nchains, nchainsatone=nchainsatone)
 rmprocs(workers())
 ## plot
-GeophysOperator.getchi2forall(opt)
+GeophysOperator.getchi2forall(opt, fsize=8)
 ax = gcf().axes;
 ndata = sum(.!isnan.(line.d[:]))
 ax[3].set_ylim(ndata/2 - 20, ndata/2 + 20)
 ax[4].set_ylim(ndata/2 - 20, ndata/2 + 20)
 savefig("line_conv_ns_1.png", dpi=300)
-GeophysOperator.getchi2forall(optlog10λ)
+GeophysOperator.getchi2forall(optlog10λ, fsize=8)
 ax = gcf().axes;
 ax[3].set_ylim(ndata/2 - 20, ndata/2 + 20)
 ax[4].set_ylim(ndata/2 - 20, ndata/2 + 20)
@@ -75,7 +75,7 @@ savefig("line_conv_ns_2.png", dpi=300)
 GeophysOperator.plot_posterior(line, opt, optlog10λ,
     burninfrac=0.5, figsize=(7.5,4), fsize=8, nbins=50)
 ax=gcf().axes
-ax[1].plot(ynoisy, x, ".w", alpha=0.1, markersize=10)
-ax[1].plot(y, x, "--w", alpha=0.5)
+ax[1].plot(ynoisy, x, ".w", alpha=0.2, markersize=10)
+ax[1].plot(y, x, "--w", alpha=0.25)
 ax[1].set_xlim(fbounds...)
 savefig("jump1D_ns.png", dpi=300)
