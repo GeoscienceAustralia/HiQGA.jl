@@ -33,7 +33,8 @@ opt_in = TransD_GP.Options(
               sdev_pos          = [10.0, 10.0],
               pnorm             = 2,
               debug             = false,
-              fdataname         = "2Dtest_smooth"
+              fdataname         = "2Dtest_smooth",
+              quasimultid       = false
               )
 
 opt_EM_in  = MCMC_Driver.EMoptions(sd=sd)
@@ -41,7 +42,7 @@ opt_EM_in  = MCMC_Driver.EMoptions(sd=sd)
 ImageRegression.calc_simple_RMS(d, img, opt_in, opt_EM_in, sd)
 
 # actual run of McMC
-nsamples, nchains, nchainsatone = 300001, 8, 1
+nsamples, nchains, nchainsatone = 4001, 8, 1
 Tmax = 2.5
 mgr = MPI.start_main_loop(MPI.MPI_TRANSPORT_ALL)
 
