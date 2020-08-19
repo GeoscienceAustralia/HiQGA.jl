@@ -188,7 +188,7 @@ end
 
 function getchi2forall(opt_in::TransD_GP.Options;
                         nchains          = 1,
-                        figsize          = (6,4),
+                        figsize         = (6,4),
                         fsize            = 10,
                         alpha            = 0.6,
                         nxticks=4
@@ -373,13 +373,14 @@ function plot_posterior(operator::Operator1D,
     end
     f,ax = plt.subplots(1,2, sharey=true, figsize=figsize)
     xall = opts.xall
+    xmesh = vcat(xall[1:end-1] - diff(xall[:])/2, xall[end])
     # im1 = ax[1].imshow(himage_ns, extent=[edges_ns[1],edges_ns[end],xall[end],xall[1]], aspect="auto", cmap=cmappdf)
-    im1 = ax[1].pcolormesh(edges_ns[:], xall[:], himage_ns, cmap=cmappdf)
+    im1 = ax[1].pcolormesh(edges_ns[:], xmesh, himage_ns, cmap=cmappdf)
     cb1 = colorbar(im1, ax=ax[1])
     cb1.ax.set_xlabel("pdf \nns")
     # ax[1].grid()
     # im2 = ax[2].imshow(himage, extent=[edges[1],edges[end],xall[end],xall[1]], aspect="auto", cmap=cmappdf)
-    im2 = ax[2].pcolormesh(edges[:], xall[:], himage, cmap=cmappdf)
+    im2 = ax[2].pcolormesh(edges[:], xmesh, himage, cmap=cmappdf)
     ax[2].set_ylim(extrema(xall)...)
     ax[2].invert_yaxis()
     cb2 = colorbar(im2, ax=ax[2])
@@ -411,7 +412,8 @@ function plot_posterior(operator::Operator1D,
     xall = opt.xall
     #im1 = ax.imshow(himage, extent=[edges[1],edges[end],xall[end],xall[1]], aspect="auto", cmap=cmappdf)
     #ax.grid()
-    im1 = ax.pcolormesh(edges[:], xall[:], himage, cmap=cmappdf)
+    xmesh = vcat(xall[1:end-1] - diff(xall[:])/2, xall[end])
+    im1 = ax.pcolormesh(edges[:], xmesh, himage, cmap=cmappdf)
     ax.set_ylim(extrema(xall)...)
     ax.invert_yaxis()
     cb1 = colorbar(im1, ax=ax)

@@ -30,6 +30,9 @@ optlog10λ = TransD_GP.OptionsStat(nmin = nminlog10λ,
 ## make options for the nonstationary actual properties GP
 nmin, nmax = 2, 30
 fbounds = permutedims([extrema(ynoisy[.!isnan.(ynoisy)])...])
+ymin, ymax = extrema(y)
+fbounds[1] > ymin && (fbounds[1] = ymin)
+fbounds[2] < ymax && (fbounds[2] = ymax)
 sdev_prop = 0.05*diff(fbounds, dims=2)[:]
 sdev_pos = [0.05abs(diff([extrema(x)...])[1])]
 demean_ns = true
@@ -65,17 +68,25 @@ GeophysOperator.getchi2forall(opt, fsize=8)
 ax = gcf().axes;
 ndata = sum(.!isnan.(line.d[:]))
 ax[3].set_ylim(ndata/2 - 20, ndata/2 + 20)
+ax[3].plot(xlim(), [ndata/2 , ndata/2], "--", color="gray")
 ax[4].set_ylim(ndata/2 - 20, ndata/2 + 20)
+ax[4].plot(xlim(), [ndata/2 , ndata/2], "--", color="gray")
 savefig("line_conv_ns_1.png", dpi=300)
 GeophysOperator.getchi2forall(optlog10λ, fsize=8)
 ax = gcf().axes;
 ax[3].set_ylim(ndata/2 - 20, ndata/2 + 20)
+ax[3].plot(xlim(), [ndata/2 , ndata/2], "--", color="gray")
 ax[4].set_ylim(ndata/2 - 20, ndata/2 + 20)
+ax[4].plot(xlim(), [ndata/2 , ndata/2], "--", color="gray")
 savefig("line_conv_ns_2.png", dpi=300)
 GeophysOperator.plot_posterior(line, opt, optlog10λ,
-    burninfrac=0.5, figsize=(7.5,4), fsize=8, nbins=50)
+    burninfrac=0.5, figsize=(7.5,4), fsize=8, nbins=100)
 ax=gcf().axes
 ax[1].plot(ynoisy, x, ".w", alpha=0.2, markersize=10)
-ax[1].plot(y, x, "--w", alpha=0.25)
-ax[1].set_xlim(fbounds...)
+ax[1].plot(y, x, "--w", alpha=0.5)
+del = fbounds[2]-fbounds[1]
+ax[1].set_xlim(fbounds[1]-0.05del, fbounds[2]+0.05del,)
 savefig("jump1D_ns.png", dpi=300)
+ax[1].set_ylim(0.35,0.45)
+ax[1].invert_yaxis()
+savefig("jump1D_ns_zoom.png", dpi=300)

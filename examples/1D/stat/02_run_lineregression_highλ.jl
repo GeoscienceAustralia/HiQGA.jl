@@ -6,6 +6,9 @@ pnorm = 2.
 K = GP.Mat32()
 demean = true
 fbounds = permutedims([extrema(ynoisy[.!isnan.(ynoisy)])...])
+ymin, ymax = extrema(y)
+fbounds[1] > ymin && (fbounds[1] = ymin)
+fbounds[2] < ymax && (fbounds[2] = ymax)
 sdev_pos = [0.05abs(diff([extrema(x)...])[1])]
 sdev_prop = 0.05*diff(fbounds, dims=2)[:]
 xall = permutedims(collect(x))
@@ -61,12 +64,18 @@ GeophysOperator.getchi2forall(opt, fsize=8)
 ax = gcf().axes;
 ndata = sum(.!isnan.(line.d[:]))
 ax[3].set_ylim(ndata/2 - 20, ndata/2 + 20)
+ax[3].plot(xlim(), [ndata/2 , ndata/2], "--", color="gray")
 ax[4].set_ylim(ndata/2 - 20, ndata/2 + 20)
+ax[4].plot(xlim(), [ndata/2 , ndata/2], "--", color="gray")
 savefig("line_conv_s.png", dpi=300)
 GeophysOperator.plot_posterior(line, opt,
-    burninfrac=0.5, figsize=(4,4), fsize=8, nbins=50)
+    burninfrac=0.5, figsize=(4,4), fsize=8, nbins=100)
 ax = gcf().axes
 ax[1].plot(ynoisy, x, ".w", alpha=0.2, markersize=10)
 ax[1].plot(y, x, "--w", alpha=0.5)
-ax[1].set_xlim(fbounds...)
+del = fbounds[2]-fbounds[1]
+ax[1].set_xlim(fbounds[1]-0.05del, fbounds[2]+0.05del,)
 savefig("jump1D_high.png", dpi=300)
+ax[1].set_ylim(0.35,0.45)
+ax[1].invert_yaxis()
+savefig("jump1D_high_zoom.png", dpi=300)
