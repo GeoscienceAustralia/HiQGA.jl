@@ -3,17 +3,16 @@ using PyPlot, Random, Revise, Statistics, LinearAlgebra,
 srcdir = dirname(dirname(dirname(pwd())))*"/src"
 any(srcdir .== LOAD_PATH) || push!(LOAD_PATH, srcdir)
 using GP, TransD_GP, GeophysOperator, MCMC_Driver
-##1D functions
+## 1D functions
 Random.seed!(200)
 x = readdlm("func2.txt", ',', Float64, '\n')[:,1]
 y = readdlm("func2.txt", ',', Float64, '\n')[:,2]
-σ = 0.55
-dec = 1
-till = round(Int, length(x)/2)
-ynoisy = σ*randn(size(y)) + y
-keep = copy(ynoisy)
-ynoisy[till+1:end] .= NaN
-ynoisy[till+1:dec:end] .= keep[till+1:dec:end]
+σ, fractrain = 0.275, 0.5
+ntrain = round(Int, fractrain*length(y))
+# ynoisy = σ*randn(size(y)) + y
+ynoisy = similar(y) .+ NaN
+linidx = randperm(length(y))[1:ntrain]
+ynoisy[linidx] = y[linidx] + σ*randn(ntrain)
 line = GeophysOperator.Line(ynoisy;useML=false, σ=σ)
 figure(figsize=(4,3))
 plot(x[:], y)

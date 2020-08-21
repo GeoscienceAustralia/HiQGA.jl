@@ -31,6 +31,7 @@ opt = TransD_GP.OptionsStat(nmin = nmin,
                         quasimultid = false,
                         K = K,
                         timesλ = 3.6,
+                        save_freq = 20,
                         needλ²fromlog = needλ²fromlog,
                         updatenonstat = updatenonstat
                         )
@@ -48,7 +49,7 @@ optdummy = TransD_GP.OptionsNonstat(opt,
                         K = K
                         )
 ## set up McMC
-nsamples, nchains, nchainsatone = 200001, 4, 1
+nsamples, nchains, nchainsatone = 400001, 4, 1
 Tmax = 2.50
 addprocs(nchains)
 @info "workers are $(workers())"
@@ -62,20 +63,32 @@ rmprocs(workers())
 ## plot
 GeophysOperator.getchi2forall(opt, fsize=8)
 ax = gcf().axes;
-ndata = sum(.!isnan.(line.d[:]))
-ax[3].set_ylim(ndata/2 - 20, ndata/2 + 20)
-ax[3].plot(xlim(), [ndata/2 , ndata/2], "--", color="gray")
-ax[4].set_ylim(ndata/2 - 20, ndata/2 + 20)
-ax[4].plot(xlim(), [ndata/2 , ndata/2], "--", color="gray")
+r = ynoisy[linidx] - y[linidx]
+χ² = r'*r/σ^2
+ax[3].set_ylim(χ²/2 - 20, χ²/2 + 40)
+ax[3].plot(xlim(), [χ²/2 , χ²/2], "--", color="gray")
+ax[4].set_ylim(χ²/2 - 20, χ²/2 + 40)
+ax[4].plot(xlim(), [χ²/2 , χ²/2], "--", color="gray")
 savefig("line_conv_s.png", dpi=300)
 GeophysOperator.plot_posterior(line, opt,
-    burninfrac=0.5, figsize=(4,4), fsize=8, nbins=100)
+    burninfrac=0.25, figsize=(4,4), fsize=8, nbins=100)
 ax = gcf().axes
-ax[1].plot(ynoisy, x, ".w", alpha=0.2, markersize=10)
+p = ax[1].scatter(ynoisy, x, c="w", alpha=0.2, s=25)
 ax[1].plot(y, x, "--w", alpha=0.5)
 del = fbounds[2]-fbounds[1]
 ax[1].set_xlim(fbounds[1]-0.05del, fbounds[2]+0.05del,)
-savefig("jump1D_high.png", dpi=300)
+savefig("jump1D_ns.png", dpi=300)
 ax[1].set_ylim(0.35,0.45)
+p.set_alpha([0.5])
+p.set_sizes([35])
 ax[1].invert_yaxis()
 savefig("jump1D_high_zoom.png", dpi=300)
+## correlated residuals
+h, edges = GeophysOperator.makehist(line, opt)
+f, ax = plt.subplots(2,1, figsize=(4,3), sharex=true, sharey=true)
+ax[1].pcolormesh(x[sort(linidx)], edges, h)
+ax[1].set_ylabel("residual")
+ax[2].set_ylabel("residual")
+ax[1].set_title("Stationary TDGP")
+ax[2].set_xlabel("depth m")
+ax[2].set_title("Non-stationary TDGP")

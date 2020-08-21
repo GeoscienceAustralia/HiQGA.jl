@@ -1,9 +1,9 @@
 module LineRegression
 import AbstractOperator.get_misfit
-using AbstractOperator
-using TransD_GP, PyPlot, LinearAlgebra
+using AbstractOperator, CommonToAll
+using TransD_GP, PyPlot, LinearAlgebra, StatsBase
 
-export Line, linetestfunction
+export Line, makehist
 
 mutable struct Line<:Operator1D
     d     :: Array{Float64}
@@ -31,13 +31,24 @@ function get_misfit(m::TransD_GP.Model, opt::TransD_GP.Options, line::Line)
     return chi2by2
 end
 
-function linetestfunction(;c=0.25,ngrid=200)
-    xx = LinRange(-1,1,ngrid)
-    y = zeros(size(xx))
-    for (i, x) in enumerate(xx)
-        y[i] = x <= -c ? -1 - 2(x+c)*(x+c) : 2 + 2*x*x
+function makehist(line::Line, opt::TransD_GP.Options;
+    nbins=100, burninfrac=0.5, temperaturenum=1)
+    linidx = findall(.!isnan.(line.d))
+    M = assembleTat1(opt, :fstar,
+        temperaturenum=temperaturenum, burninfrac=burninfrac)
+    resids = similar(M)
+    for (im, m) in enumerate(M)
+        resids[im] = m[sort(linidx)] - line.d[sort(linidx)]
     end
-    xx, y
+    resids = permutedims(hcat(resids...))
+    mmin, mmax = extrema(resids)
+    edges = LinRange(mmin, mmax, nbins+1)
+    himage = zeros(Float64, nbins,length(linidx))
+    for ilayer=1:length(linidx)
+        himage[:,ilayer] = fit(Histogram, resids[:,ilayer], edges).weights
+        himage[:,ilayer] = himage[:,ilayer]/sum(himage[:,ilayer])/(diff(edges)[1])
+    end
+    himage, edges
 end
 
 end
