@@ -65,7 +65,8 @@ addprocs(nchains)
 @time MCMC_Driver.main(optlog10λ, opt, line, Tmax=Tmax, nsamples=nsamples, nchains=nchains, nchainsatone=nchainsatone)
 rmprocs(workers())
 ## plot
-GeophysOperator.getchi2forall(opt, fsize=8)
+GeophysOperator.getchi2forall(opt, fsize=10, nxticks=3)
+gcf().text(0.02, 0.9, "a.", fontsize=14, color="red")
 ax = gcf().axes;
 r = ynoisy[linidx] - y[linidx]
 χ² = r'*r/σ^2
@@ -74,7 +75,8 @@ ax[3].plot(xlim(), [χ²/2 , χ²/2], "--", color="gray")
 ax[4].set_ylim(χ²/2 - 20, χ²/2 + 40)
 ax[4].plot(xlim(), [χ²/2 , χ²/2], "--", color="gray")
 savefig("line_conv_ns_1.png", dpi=300)
-GeophysOperator.getchi2forall(optlog10λ, fsize=8)
+GeophysOperator.getchi2forall(optlog10λ, fsize=10, nxticks=3)
+gcf().text(0.02, 0.9, "b.", fontsize=14, color="red")
 ax = gcf().axes;
 ax[3].set_ylim(χ²/2 - 20, χ²/2 + 40)
 ax[3].plot(xlim(), [χ²/2 , χ²/2], "--", color="gray")
@@ -92,6 +94,7 @@ savefig("jump1D_ns.png", dpi=300)
 ax[1].set_ylim(0.35,0.45)
 p.set_alpha([0.5])
 p.set_sizes([35])
+gcf().text(0.02, 0.9, "b.", fontsize=14, color="red")
 ax[1].invert_yaxis()
 savefig("jump1D_ns_zoom.png", dpi=300)
 ## correlated residuals (hacky, uncomment after running the stationary script first)
