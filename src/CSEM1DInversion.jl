@@ -122,6 +122,7 @@ function plotmodelfield!(F::CSEM1DEr.RadialEr, z, ρ::Vector{Float64}, d::Array{
     ρmin, ρmax = extrema(log10.(ρ[2:end]))
     delρ = ρmax - ρmin
     ax[1].set_xlim(ρmin-0.1delρ,ρmax+0.1delρ)
+    ax[1].plot([ρmin-0.1delρ,ρmax+0.1delρ], z[nfixed+1]*[1., 1])
     if dz > 0
         axn = ax[1].twinx()
         ax[1].get_shared_y_axes().join(ax[1],axn)
@@ -178,13 +179,14 @@ function plotmodelfield!(csem::CSEMRadialEr, Ρ::Vector{Array{Float64}};
     delρ = ρmax - ρmin
     ax[1].set_xlim(ρmin-0.1delρ,ρmax+0.1delρ)
     nfixed, z = csem.nfixed, csem.z
+    ax[1].plot([ρmin-0.1delρ,ρmax+0.1delρ], z[nfixed+1]*[1., 1], color="b")
     ax[2] = subplot(132)
     ax[3] = subplot(133, sharex=ax[2], sharey=ax[2])
     F = csem.F
     d, σ = csem.d, csem.σ
     for lfreq in eachindex(F.freqs)
         yerr = sigma*0.707abs.(σ[:,lfreq])
-        ax[2].errorbar(F.rRx, abs.(real(d[:,lfreq])), yerr = yerr,
+        ax[2].errorbar(F.rRx, abs.(real(d[:,lfreq])), yerr = yerr, label=string(F.freqs[lfreq])*" Hz",
                         linestyle="none", marker=".", elinewidth=0, capsize=3, alpha=0.3, markersize=5)
         ax[3].errorbar(F.rRx, abs.(imag(d[:,lfreq])), yerr = yerr,
                         linestyle="none", marker=".", elinewidth=0, capsize=3, alpha=0.3, markersize=5)
@@ -213,6 +215,7 @@ function plotmodelfield!(csem::CSEMRadialEr, Ρ::Vector{Array{Float64}};
     ax[2].set_ylabel(L"E_r \; V/(A.m^2)")
     ax[2].set_xlabel("Receiver range m")
     ax[2].set_title("Real "*L"E_r")
+    ax[2].legend()
     ax[2].grid()
     ax[3].grid()
     ax[3].set_title("Imaginary "*L"E_r")

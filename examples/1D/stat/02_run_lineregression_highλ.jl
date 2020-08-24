@@ -61,14 +61,17 @@ addprocs(nchains)
 @time MCMC_Driver.main(opt, optdummy, line, Tmax=Tmax, nsamples=nsamples, nchains=nchains, nchainsatone=nchainsatone)
 rmprocs(workers())
 ## plot
-GeophysOperator.getchi2forall(opt, fsize=10, nxticks=3)
-ax = gcf().axes;
+GeophysOperator.getchi2forall(opt, fsize=8, alpha=0.5)
 r = ynoisy[linidx] - y[linidx]
-χ² = r'*r/σ^2
-ax[3].set_ylim(χ²/2 - 20, χ²/2 + 40)
-ax[3].plot(xlim(), [χ²/2 , χ²/2], "--", color="gray")
-ax[4].set_ylim(χ²/2 - 20, χ²/2 + 40)
-ax[4].plot(xlim(), [χ²/2 , χ²/2], "--", color="gray")
+χ² = length(r)#r'*r/σ^2
+figure(1)
+ax = gcf().axes;
+ax[2].set_ylim(χ²/2 - 20, χ²/2 + 40)
+ax[2].plot(xlim(), [χ²/2 , χ²/2], "--", color="gray")
+figure(2)
+ax = gcf().axes;
+ax[2].set_ylim(χ²/2 - 20, χ²/2 + 40)
+ax[2].plot(xlim(), [χ²/2 , χ²/2], "--", color="gray")
 savefig("line_conv_s.png", dpi=300)
 GeophysOperator.plot_posterior(line, opt,
     burninfrac=0.25, figsize=(4,4), fsize=8, nbins=100)

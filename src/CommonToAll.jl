@@ -187,11 +187,12 @@ function checkns(optin::TransD_GP.Options)
 end
 
 function getchi2forall(opt_in::TransD_GP.Options;
-                        nchains          = 1,
+                        nchains         = 1,
                         figsize         = (6,4),
-                        fsize            = 10,
-                        alpha            = 0.6,
-                        nxticks=4
+                        fsize           = 8,
+                        alpha           = 0.25,
+                        nxticks         = 0,
+                        gridon          = false
                       )
     if nchains == 1 # then actually find out how many chains there are saved
         nchains = length(filter( x -> occursin(r"misfits_ns.*bin", x), readdir(pwd()) )) # my terrible regex
@@ -215,20 +216,23 @@ function getchi2forall(opt_in::TransD_GP.Options;
         X2by2inchains[:,ichain] = TransD_GP.history(opt, stat=:U)
     end
 
-    f, ax = plt.subplots(3,2, sharex=true, figsize=figsize)
+    f, ax = plt.subplots(3,1, sharex=true, figsize=figsize)
     ax[1].plot(iters, kacrosschains, alpha=alpha)
     ax[1].set_xlim(extrema(iters)...)
-    ax[1].set_title("unsorted by temperature")
-    ax[1].grid()
+    ax[1].set_title(isns*" unsorted by temperature")
+    gridon && ax[1].grid()
     ax[1].set_ylabel("# nodes")
     ax[2].plot(iters, X2by2inchains, alpha=alpha)
-    ax[2].grid()
+    gridon && ax[2].grid()
     ax[2].set_ylabel("-Log L")
-    ax[3].grid()
+    gridon && ax[3].grid()
     ax[3].plot(iters, Tacrosschains, alpha=alpha)
     ax[3].set_ylabel("Temperature")
     ax[3].set_xlabel("iterations")
-    ax[3].set_xticks(iters[1]:div(iters[end],nxticks):iters[end])
+    nxticks == 0 || ax[3].set_xticks(iters[1]:div(iters[end],nxticks):iters[end])
+    nicenup(f, fsize=fsize)
+
+    Tunsorted = copy(Tacrosschains)
     for jstep = 1:niters
         sortidx = sortperm(vec(Tacrosschains[jstep,:]))
         X2by2inchains[jstep,:] = X2by2inchains[jstep,sortidx]
@@ -236,19 +240,24 @@ function getchi2forall(opt_in::TransD_GP.Options;
         Tacrosschains[jstep,:] = Tacrosschains[jstep,sortidx]
     end
 
+    f, ax = plt.subplots(3,1, sharex=true, figsize=figsize)
     nchainsatone = sum(Tacrosschains[1,:] .== 1)
-    ax[4].plot(iters, kacrosschains, alpha=alpha)
-    ax[4].set_title("sorted by temperature")
-    ax[4].plot(iters, kacrosschains[:,1:nchainsatone], "k", alpha=alpha)
-    ax[4].grid()
-    ax[5].plot(iters, X2by2inchains, alpha=alpha)
-    ax[5].plot(iters, X2by2inchains[:,1:nchainsatone], "k", alpha=alpha)
-    ax[5].grid()
-    ax[6].plot(iters, Tacrosschains, alpha=alpha)
-    ax[6].plot(iters, Tacrosschains[:,1:nchainsatone], "k", alpha=alpha)
-    ax[6].grid()
-    ax[6].set_xlabel("iterations")
-
+    ax[1].plot(iters, kacrosschains, alpha=alpha)
+    ax[1].set_xlim(extrema(iters)...)
+    ax[1].set_ylabel("# nuclei")
+    ax[1].set_title(isns*" sorted by temperature")
+    ax[1].plot(iters, kacrosschains[:,1:nchainsatone], "k", alpha=alpha)
+    gridon && ax[1].grid()
+    ax[2].plot(iters, X2by2inchains, alpha=alpha)
+    ax[2].plot(iters, X2by2inchains[:,1:nchainsatone], "k", alpha=alpha)
+    ax[2].set_ylabel("-Log L")
+    gridon && ax[2].grid()
+    ax[3].plot(iters, Tunsorted, alpha=alpha, color="gray")
+    ax[3].set_ylabel("Temperature")
+    # ax[3].plot(iters, Tacrosschains[:,1:nchainsatone], "k", alpha=alpha)
+    gridon && ax[3].grid()
+    nxticks == 0 || ax[3].set_xticks(iters[1]:div(iters[end],nxticks):iters[end])
+    ax[3].set_xlabel("iterations")
     nicenup(f, fsize=fsize)
 
 end
