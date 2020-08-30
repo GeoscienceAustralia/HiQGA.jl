@@ -12,7 +12,7 @@ struct Mat52 <: Kernel end
 
 κ(K::SqEuclidean, d::Real; p::Real=2.0) = exp(-0.5*(d^p))
 κ(K::Mat32, d::Real; p::Real=2.0) = (1.0 + sqrt(3.0) * d) * exp(-sqrt(3.0) * d)
-κ(K::Mat52, d::Real; p::Real=2.0 ) = (1.0 + sqrt(5.0) * d + 5.0 * d^2 / 3.0) * exp(-sqrt(5.0) * d)
+κ(K::Mat52, d::Real; p::Real=2.0 ) = (1.0 + sqrt(5.0) * d + 5.0 * abs2(d) / 3.0) * exp(-sqrt(5.0) * d)
 
 function makekernel(K::Kernel, xtrain::AbstractArray, xtest::AbstractArray,
                     λ²::AbstractArray, p::Real)
@@ -161,7 +161,7 @@ end
     d, c = zero(t), one(t)
     @simd for i = 1:length(xtrain)
         avλ² = 0.5*(λ²train[i] + λ²test[i])
-        d += (xtrain[i] - xtest[i])^2/avλ²
+        d += abs2(xtrain[i] - xtest[i])/avλ²
         c *= sqrt(sqrt((λ²train[i]*λ²test[i])/(avλ²*avλ²)))
     end
     c*κ(K, sqrt(d), p=p)

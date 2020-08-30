@@ -40,7 +40,7 @@ optlog10λ = TransD_GP.OptionsStat(nmin = nminlog10λ,
                         pnorm = pnorm,
                         quasimultid = false,
                         K = Klog10λ,
-                        timesλ = 3
+                        timesλ = 3.6
                         )
 @time  log10λ = TransD_GP.init(optlog10λ)
 ## make options for the nonstationary GP
@@ -174,19 +174,28 @@ ftest = TransD_GP.testupdate(opt, log10λ, m)
         @test norm(mean(mold.fstar - m.fstar)) < 1e-12
     end
 end
-## timing for birth
-@time for i = 1:150
+## timing for ns birth in ns model
+log10λ = TransD_GP.init(optlog10λ)
+m = TransD_GP.init(opt, log10λ)
+for i = 1:148
+    TransD_GP.birth!(log10λ, optlog10λ, m, opt)
+end
+@time for i = 1:148
     TransD_GP.birth!(m, opt, log10λ)
 end
 ## time for ntimes birth death
+NTIMES = 20
 ntimes = 150
-t = time()
-for i = 1:ntimes
-    TransD_GP.birth!(m, opt, log10λ)
-    TransD_GP.death!(m, opt)
+T = zeros(NTIMES)
+for I = 1:NTIMES
+    T[I] = time()
+    for i = 1:ntimes
+        TransD_GP.birth!(m, opt, log10λ)
+        TransD_GP.death!(m, opt)
+    end
+    T[I] = (time() - T[I])/2ntimes
 end
-t = time() - t
-@info "time for $ntimes birth/death is $(0.5t/ntimes)"
+@info "time for $ntimes birth/death is $(mean(T)) +- $(std(T)/sqrt(NTIMES))"
 ## plot
 l = log10.(log10λ.fstar.^0.5)
 fig,ax = plt.subplots(1,3, sharex=true, sharey=true)

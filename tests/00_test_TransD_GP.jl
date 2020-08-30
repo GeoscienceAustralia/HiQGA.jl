@@ -200,15 +200,27 @@ end
 @time for i = 1:150
           TransD_GP.birth!(log10λ, optlog10λ, m, opt)
 end
-## timing for many births
-ntimes = 150
-t = time()
-for i = 1:ntimes
-    TransD_GP.death!(log10λ, optlog10λ, m, opt)
+## timing for s birth in s model for ns mode
+log10λ = TransD_GP.init(optlog10λ)
+m = TransD_GP.init(opt, log10λ)
+for i = 1:148
     TransD_GP.birth!(log10λ, optlog10λ, m, opt)
 end
-t = time() - t
-@info "time for $ntimes birth/death is $(0.5t/ntimes)"
+@time for i = 1:148
+    TransD_GP.birth!(m, opt, log10λ)
+end
+NTIMES = 20
+ntimes = 150
+T = zeros(NTIMES)
+for I = 1:NTIMES
+    T[I] = time()
+    for i = 1:ntimes
+        TransD_GP.death!(log10λ, optlog10λ, m, opt)
+        TransD_GP.birth!(log10λ, optlog10λ, m, opt)
+    end
+    T[I] = (time() - T[I])/2ntimes
+end
+@info "time for $ntimes birth/death is $(mean(T)) +- $(std(T)/sqrt(NTIMES))"
 ## plot
 l = log10.(log10λ.fstar.^0.5)
 fig,ax = plt.subplots(1,3, sharex=true, sharey=true)

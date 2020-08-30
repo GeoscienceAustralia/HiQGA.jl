@@ -170,18 +170,24 @@ opt = TransD_GP.OptionsNonstat(optlog10λ,
     # undo position change works if here
 end
 ## timing for birth
-@time for i = 1:150
+m = TransD_GP.init(opt, log10λ)
+log10λ = TransD_GP.init(optlog10λ)
+@time for i = 1:148
           TransD_GP.birth!(log10λ, optlog10λ, m, opt)
 end
 ## timing for many births
+NTIMES = 20
 ntimes = 150
-t = time()
-for i = 1:ntimes
-    TransD_GP.death!(log10λ, optlog10λ, m, opt)
-    TransD_GP.birth!(log10λ, optlog10λ, m, opt)
+T = zeros(NTIMES)
+for I = 1:NTIMES
+    T[I] = time()
+    for i = 1:ntimes
+        TransD_GP.death!(log10λ, optlog10λ, m, opt)
+        TransD_GP.birth!(log10λ, optlog10λ, m, opt)
+    end
+    T[I] = (time() - T[I])/2ntimes
 end
-t = time() - t
-@info "time for $ntimes birth/death is $(0.5t/ntimes)"
+@info "time for $ntimes birth/death is $(mean(T)) +- $(std(T)/sqrt(NTIMES))"
 ## plot
 l = log10λ.fstar
 fig,ax = plt.subplots(1,2, sharex=true, sharey=true)
