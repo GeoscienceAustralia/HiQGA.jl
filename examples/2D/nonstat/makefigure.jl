@@ -7,7 +7,8 @@ using Statistics
 M = GeophysOperator.assembleTat1(opt, :fstar, temperaturenum=1)
 mns = reshape(mean(M), length(img.y), length(img.x))
 stdns = reshape(std(M), length(img.y), length(img.x))
-rownum, colnum = 168, 60
+##
+rownum, colnum = 195, 85
 GeophysOperator.plot_image_posterior(opt, optlog10λ, img, burninfrac=0.5, rownum=rownum, colnum=colnum, nbins=100)
 figure(1)
 ax = gcf().axes

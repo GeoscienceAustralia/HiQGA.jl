@@ -157,6 +157,15 @@ function slice_image_posterior( M::AbstractArray,
                 pdfnormalize=pdfnormalize)
 end
 
+function get_image_quantile(M::AbstractArray, q=0.5)
+    mall = hcat(M...)
+    quantM = zeros(length(M[1]))
+    for i = 1:length(M[1])
+        quantM[i] = quantile(mall[i,:], q)
+    end
+    quantM
+end
+
 function plot_image_posterior(optns::TransD_GP.OptionsNonstat, opts::TransD_GP.OptionsStat,
                         img::Img;
                         rownum = 10,
@@ -172,17 +181,29 @@ function plot_image_posterior(optns::TransD_GP.OptionsNonstat, opts::TransD_GP.O
                         figsizecols=[7.5,9.5],
                         pdfnormalize=false,
                         fsize=10,
-                        aspect=1.0)
+                        aspect=1.0,
+                        domean = false,
+                        getquant = 0.5)
     @assert temperaturenum == 1
+    @assert 0.0 < getquant < 1.0
     M = assembleTat1(optns, :fstar, burninfrac=burninfrac, temperaturenum=temperaturenum)
-    mns = mean(M)
+    if domean
+        mns = mean(M)
+    else
+        mns = get_image_quantile(M, getquant)
+    end
     mns = reshape(mns, length(img.y), length(img.x))
     himage_r_ns, edges_r_ns, CI_r_ns = slice_image_posterior(M, optns, img, :row, rowcolnum=rownum, nbins = nbins, qp1=qp1, qp2=qp2,
                                 pdfnormalize=pdfnormalize, temperaturenum=temperaturenum)
     himage_c_ns, edges_c_ns, CI_c_ns = slice_image_posterior(M, optns, img, :col, rowcolnum=colnum, nbins = nbins, qp1=qp1, qp2=qp2,
                                 pdfnormalize=pdfnormalize, temperaturenum=temperaturenum)
     M = assembleTat1(opts, :fstar, burninfrac=burninfrac, temperaturenum=temperaturenum)
-    ms = 0.5*log10.(mean(M))
+    if domean
+        ms = 0.5*log10.(mean(M))
+    else
+        a, b = [m[1,:] for m in M], [m[2,:] for m in M]
+        ms = 0.5*log10.([get_image_quantile(a, getquant) get_image_quantile(b, getquant)])'
+    end
     msx = reshape(ms[1,:], length(img.y), length(img.x))
     msy = reshape(ms[2,:], length(img.y), length(img.x))
     Mx, My = Array{Array{Float64}, 1}(undef, length(M)), Array{Array{Float64}, 1}(undef, length(M))
@@ -202,7 +223,8 @@ function plot_image_posterior(optns::TransD_GP.OptionsNonstat, opts::TransD_GP.O
     s1 = subplot(231)
     im1 = s1.pcolormesh(img.x, img.y, mns, cmap=cmapmean)
     s1.plot([img.x[1], img.x[end]], [img.y[rownum], img.y[rownum]], "--k", alpha=0.5)
-    s1.set_title("Mean pixel value")
+    central_tendency = domean ? ("Mean") : ("Percentile "*"$(round(Int, getquant*100))")
+    s1.set_title(central_tendency*" pixel value")
     s1.set_ylabel("distance y")
     # s1.set_aspect(aspect)
     s1.set_xlabel("distance x")
@@ -210,7 +232,7 @@ function plot_image_posterior(optns::TransD_GP.OptionsNonstat, opts::TransD_GP.O
     s2 = subplot(232, sharex=s1, sharey=s1)
     im2 = s2.pcolormesh(img.x, img.y, msx, cmap=cmapmean)
     s2.plot([img.x[1], img.x[end]], [img.y[rownum], img.y[rownum]], "--k", alpha=0.5)
-    s2.set_title("Mean "*L"\log_{10}λ_x")
+    s2.set_title(central_tendency*" "*L"\log_{10}λ_x")
     s2.set_ylabel("distance y")
     s2.set_xlabel("distance x")
     # s2.set_aspect(aspect)
@@ -220,7 +242,7 @@ function plot_image_posterior(optns::TransD_GP.OptionsNonstat, opts::TransD_GP.O
     s3.plot([img.x[1], img.x[end]], [img.y[rownum], img.y[rownum]], "--k", alpha=0.5)
     # s3.set_aspect(aspect)
     s3.invert_yaxis()
-    s3.set_title("Mean "*L"\log_{10}λ_y")
+    s3.set_title(central_tendency*" "*L"\log_{10}λ_y")
     s3.set_ylabel("distance y")
     s3.set_xlabel("distance x")
     cb3 = colorbar(im3, ax=s3)
@@ -257,7 +279,7 @@ function plot_image_posterior(optns::TransD_GP.OptionsNonstat, opts::TransD_GP.O
     s1 = subplot(321)
     im1 = s1.pcolormesh(img.x, img.y, mns, cmap=cmapmean)
     s1.plot([img.y[colnum], img.y[colnum]], [img.y[1], img.y[end]], "--k", alpha=0.5)
-    s1.set_title("Mean pixel value")
+    s1.set_title(central_tendency*" pixel value")
     s1.set_ylabel("distance y")
     s1.set_xlabel("distance x")
     # s1.set_aspect(aspect)
@@ -265,7 +287,7 @@ function plot_image_posterior(optns::TransD_GP.OptionsNonstat, opts::TransD_GP.O
     s2 = subplot(323, sharex=s1, sharey=s1)
     im2 = s2.pcolormesh(img.x, img.y, msx, cmap=cmapmean)
     s2.plot([img.y[colnum], img.y[colnum]], [img.y[1], img.y[end]], "--k", alpha=0.5)
-    s2.set_title("Mean "*L"\log_{10}λ_x")
+    s2.set_title(central_tendency*" "*L"\log_{10}λ_x")
     s2.set_ylabel("distance y")
     s2.set_xlabel("distance x")
     # s2.set_aspect(aspect)
@@ -275,7 +297,7 @@ function plot_image_posterior(optns::TransD_GP.OptionsNonstat, opts::TransD_GP.O
     s3.plot([img.y[colnum], img.y[colnum]], [img.y[1], img.y[end]], "--k", alpha=0.5)
     # s3.set_aspect(aspect)
     s3.invert_yaxis()
-    s3.set_title("Mean "*L"\log_{10}λ_y")
+    s3.set_title(central_tendency*" "*L"\log_{10}λ_y")
     s3.set_ylabel("distance y")
     s3.set_xlabel("distance x")
     cb3 = colorbar(im3, ax=s3)
@@ -323,14 +345,22 @@ function plot_image_posterior(opt::TransD_GP.Options,
                         figsize=[7.5,5.9],
                         pdfnormalize=false,
                         fsize=10,
-                        aspect=1.0)
+                        aspect=1.0,
+                        domean = false,
+                        getquant = 0.5)
     @assert temperaturenum == 1
+    @assert 0.0 < getquant < 1.0
     if typeof(opt) == TransD_GP.OptionsStat
         @assert opt.updatenonstat == false
         @assert opt.needλ²fromlog == false
     end
     M = assembleTat1(opt, :fstar, burninfrac=burninfrac, temperaturenum=temperaturenum)
-    m = mean(M)
+    if domean
+        m = mean(M)
+    else
+        a = [m' for m in M]
+        m = get_image_quantile(a, getquant)
+    end
     m = reshape(m, length(img.y), length(img.x))
     himage_r, edges_r, CI_r = slice_image_posterior(M, opt, img, :row, rowcolnum=rownum, nbins = nbins, qp1=qp1, qp2=qp2,
                                 pdfnormalize=pdfnormalize, temperaturenum=temperaturenum)
@@ -338,10 +368,11 @@ function plot_image_posterior(opt::TransD_GP.Options,
                                 pdfnormalize=pdfnormalize, temperaturenum=temperaturenum)
     f = figure(figsize=figsize)
     s1 = subplot(223)
+    central_tendency = domean ? ("Mean") : ("Percentile "*"$(round(Int, getquant*100))")
     im1 = s1.pcolormesh(img.x, img.y, m, cmap=cmapmean)
     s1.plot([img.x[1], img.x[end]], [img.y[rownum], img.y[rownum]], "--k", alpha=0.5)
     s1.plot([img.y[colnum], img.y[colnum]], [img.y[1], img.y[end]], "--k", alpha=0.5)
-    s1.set_title("Mean pixel value")
+    s1.set_title(central_tendency*" pixel value")
     s1.set_ylabel("distance y")
     s1.invert_yaxis()
     # s1.set_aspect(aspect)
