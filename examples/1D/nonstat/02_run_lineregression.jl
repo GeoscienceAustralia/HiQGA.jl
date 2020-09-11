@@ -26,7 +26,8 @@ optlog10λ = TransD_GP.OptionsStat(nmin = nminlog10λ,
                         quasimultid = false,
                         K = Klog10λ,
                         save_freq = 20,
-                        timesλ = 3.6
+                        timesλ = 3.6,
+                        peskycholesky = true
                         )
 ## make options for the nonstationary actual properties GP
 nmin, nmax = 2, 30
@@ -53,7 +54,7 @@ opt = TransD_GP.OptionsNonstat(optlog10λ,
                         K = K,
                         )
 ## set up McMC
-nsamples, nchains, nchainsatone = 300001, 4, 1
+nsamples, nchains, nchainsatone = 400001, 4, 1
 Tmax = 2.50
 addprocs(nchains)
 @info "workers are $(workers())"

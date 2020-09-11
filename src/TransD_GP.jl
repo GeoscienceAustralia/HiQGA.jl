@@ -35,6 +35,7 @@ mutable struct OptionsStat <: Options
     timesλ              :: Float64
     needλ²fromlog       :: Bool
     updatenonstat       :: Bool
+    peskycholesky       :: Bool
 end
 
 function OptionsStat(;
@@ -61,7 +62,8 @@ function OptionsStat(;
         K                  = GP.SqEuclidean(),
         timesλ             = 1.0,
         needλ²fromlog      = true,
-        updatenonstat      = true
+        updatenonstat      = true,
+        peskycholesky      = false,
         )
 
         @assert xall != nothing
@@ -87,7 +89,7 @@ function OptionsStat(;
         OptionsStat(nmin, nmax, xbounds, fbounds, xall, λ.^2 , δ, demean, sdev_prop, sdev_pos, pnorm,
                 stat_window, dispstatstoscreen, report_freq, save_freq,
                 fdataname, history_mode, costs_filename, fstar_filename, x_ftrain_filename,
-                debug, quasimultid, influenceradius, K, kdtree, balltree, timesλ, needλ²fromlog, updatenonstat)
+                debug, quasimultid, influenceradius, K, kdtree, balltree, timesλ, needλ²fromlog, updatenonstat, peskycholesky)
 end
 
 mutable struct OptionsNonstat <: Options
@@ -117,6 +119,7 @@ mutable struct OptionsNonstat <: Options
     kdtree              :: KDTree
     needλ²fromlog       :: Bool
     updatenonstat       :: Bool
+    peskycholesky       :: Bool
 end
 
 function OptionsNonstat(opt::OptionsStat;
@@ -144,7 +147,7 @@ function OptionsNonstat(opt::OptionsStat;
         OptionsNonstat(nmin, nmax, opt.xbounds, fbounds, opt.xall, δ, demean, sdev_prop, sdev_pos, pnorm,
                 opt.stat_window, opt.dispstatstoscreen, opt.report_freq, opt.save_freq,
                 opt.fdataname, opt.history_mode, opt.costs_filename, opt.fstar_filename, opt.x_ftrain_filename,
-                opt.debug, opt.quasimultid, influenceradius, K, opt.kdtree, opt.needλ²fromlog, opt.updatenonstat)
+                opt.debug, opt.quasimultid, influenceradius, K, opt.kdtree, opt.needλ²fromlog, opt.updatenonstat, opt.peskycholesky)
 end
 
 abstract type Model end
@@ -219,7 +222,11 @@ function calcfstar!(fstar::Array{Float64,2}, ftrain::Array{Float64,2},
     end
     rhs = ftrain[:,1:n] .- mf
     ky = @view K_y[1:n,1:n]
-    U = cholesky(Positive, ky, Val{false}).U
+    if opt.peskycholesky
+        U = cholesky(Positive, ky, Val{false}).U
+    else
+        U = cholesky(ky).U
+    end
     ks = @view Kstar[:,1:n]
     if opt.needλ²fromlog
         copy!(fstar, 10 .^(2(mf' .+ ks*(U\(U'\rhs'))))' )
@@ -481,7 +488,11 @@ function calcfstar!(fstar::Array{Float64,2}, ftrain::Array{Float64,2},
     rhs = ftrain[:,1:n] .- mf
     ky = view(K_y, 1:n, 1:n)
     ks = @view Kstar[:,1:n]
-    U = cholesky(Positive, ky, Val{false}).U
+    if opt.peskycholesky
+        U = cholesky(Positive, ky, Val{false}).U
+    else
+        U = cholesky(ky).U
+    end
     copy!(fstar, mf' .+ ks*(U\(U'\rhs')) )
     nothing
 end

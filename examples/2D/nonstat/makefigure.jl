@@ -77,10 +77,10 @@ for a in ax
    a.axis("off")
 end
 # f.tight_layout()
-f.subplots_adjust(bottom=0.1)
-cbar_ax = f.add_axes([0.4, 0.95, 0.05, 0.7])
-fig.colorbar(im, cax=cbar_ax, orientation="horizontal")
-# f.subplots_adjust(wspace=0, hspace=0)
+# f.subplots_adjust(bottom=0.1)
+cbar_ax = f.add_axes([0.125, 0.08, 0.775, 0.025])
+f.colorbar(im1, cax=cbar_ax, orientation="horizontal")
+f.subplots_adjust(wspace=0, hspace=0)
 savefig("compare_ns_s.png", dpi=300)
 ## plot stats
 GeophysOperator.getchi2forall(opt, fsize=8, alpha=0.5)

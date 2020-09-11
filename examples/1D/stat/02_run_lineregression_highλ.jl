@@ -33,7 +33,8 @@ opt = TransD_GP.OptionsStat(nmin = nmin,
                         timesλ = 3.6,
                         save_freq = 20,
                         needλ²fromlog = needλ²fromlog,
-                        updatenonstat = updatenonstat
+                        updatenonstat = updatenonstat,
+                        peskycholesky = true
                         )
 ## Initialize options for the dummy nonstationary properties GP
 Random.seed!(13)
