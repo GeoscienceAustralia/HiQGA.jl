@@ -253,6 +253,11 @@ function getchi2forall(opt_in::TransD_GP.Options;
     ax[2].set_ylabel("-Log L")
     gridon && ax[2].grid()
     ax[3].plot(iters, Tunsorted, alpha=alpha, color="gray")
+    # for i = 1:size(Tunsorted, 2)
+    #    for (j, s) = enumerate(Base.Iterators.cycle(lstyles))
+    #        j == i && (ax[3].plot(iters, Tunsorted, alpha=alpha/5, color="gray", linestyle=s); break)
+    #    end
+    # end
     ax[3].set_ylabel("Temperature")
     # ax[3].plot(iters, Tacrosschains[:,1:nchainsatone], "k", alpha=alpha)
     gridon && ax[3].grid()
