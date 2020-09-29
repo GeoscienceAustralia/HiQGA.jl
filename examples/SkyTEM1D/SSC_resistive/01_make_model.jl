@@ -134,5 +134,5 @@ HM_noise = 1e-12*[6.044069e-02    3.294512e-02    2.174927e-02    1.393709e-02  
 dlow, dhigh, σlow, σhigh = (LM_data, HM_data, 0.03*LM_data+LM_noise, 0.03*HM_data+HM_noise)./SkyTEM1DInversion.μ₀
 aem = GeophysOperator.dBzdt(Flm, Fhm, vec(dlow), vec(dhigh),
                                   vec(σlow), vec(σhigh), z=z, ρ=ρ, nfixed=nfixed)
-GeophysOperator.plotmodelfield_skytem!(Flm, Fhm, z, ρ, dlow, dhigh, σlow, σhigh;
+GeophysOperator.SkyTEM1DInversion.plotmodelfield!(Flm, Fhm, z, ρ, dlow, dhigh, σlow, σhigh;
                       figsize=(12,4), nfixed=nfixed, dz=dz, extendfrac=extendfrac)
