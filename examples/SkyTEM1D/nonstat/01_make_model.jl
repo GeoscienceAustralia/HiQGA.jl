@@ -48,7 +48,8 @@ Flm = AEM_VMD_HMD.HFieldDHT(
                       zTx    = zTx,
                       rRx    = rRx,
                       rTx    = rTx,
-                      zRx    = zRx)
+                      zRx    = zRx,
+                      modelprimary = true)
 ## HM operator
 Fhm = AEM_VMD_HMD.HFieldDHT(
                       ntimesperdecade = ntimesperdecade,
@@ -60,7 +61,8 @@ Fhm = AEM_VMD_HMD.HFieldDHT(
                       zTx    = zTx,
                       rRx    = rRx,
                       rTx    = rTx,
-                      zRx    = zRx)
+                      zRx    = zRx,
+                      modelprimary = true)
 ## fill in detail in ohm-m
 ρ[(z.>=zstart) .& (z.<50)] .= 20.
 ρ[(z.>=50) .&(z.<80)] .= 1

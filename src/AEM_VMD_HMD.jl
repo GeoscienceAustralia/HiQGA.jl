@@ -38,6 +38,7 @@ mutable struct HFieldDHT <: HField
     rxwithinloop    :: Bool
     provideddt      :: Bool
     doconvramp      :: Bool
+    useprimary      :: Float64
 end
 
 function HFieldDHT(;
@@ -54,7 +55,8 @@ function HFieldDHT(;
       glegintegorder = 5,
       lowpassfcs = [],
       provideddt = true,
-      doconvramp = true
+      doconvramp = true,
+      modelprimary = false
   )
     @assert all(freqs .> 0.)
     @assert all(diff(times) .> 0)
@@ -90,9 +92,11 @@ function HFieldDHT(;
             rxwithinloop = true
         end
     end
+
+    useprimary = modelprimary ? one(Float64) : zero(Float64)
     HFieldDHT(thickness, pz, ϵᵢ, zintfc, rTE, rTM, zRx, zTx, rTx, rRx, freqs, times, ramp, log10ω, interptimes,
             HFD, HFDinterp, HTDinterp, dBzdt, J0_kernel_h, J1_kernel_h, J0_kernel_v, J1_kernel_v, lowpassfcs,
-            quadnodes, quadweights, preallocate_ω_Hsc(interptimes, lowpassfcs)..., rxwithinloop, provideddt, doconvramp)
+            quadnodes, quadweights, preallocate_ω_Hsc(interptimes, lowpassfcs)..., rxwithinloop, provideddt, doconvramp, useprimary)
 end
 
 function preallocate_ω_Hsc(interptimes, lowpassfcs)
@@ -144,13 +148,14 @@ end
 end
 
 function getCurlyR(Rs_d::ComplexF64, pz::ComplexF64,
-                  zR::Float64, z::SubArray{Float64, 1}, iTxLayer::Int, ω::Float64)
+                  zR::Float64, z::SubArray{Float64, 1}, iTxLayer::Int, ω::Float64,
+                  useprimary::Float64)
 
     if (zR>=0)
         e_to_the_iwpzzr               = exp( im*ω*pz*zR)
         e_to_the_iwpz_2znext_minus_zr = exp( im*ω*pz*(2*z[iTxLayer+1] - zR))
 
-        finRA = e_to_the_iwpzzr + e_to_the_iwpz_2znext_minus_zr*Rs_d
+        finRA = useprimary*e_to_the_iwpzzr + e_to_the_iwpz_2znext_minus_zr*Rs_d
         # Will need these for other components
         # finRB = e_to_the_iwpzzr + e_to_the_iwpz_2znext_minus_zr*Rs_d
         #
@@ -161,7 +166,7 @@ function getCurlyR(Rs_d::ComplexF64, pz::ComplexF64,
         e_to_the_iwpz2znext              = exp(im*ω*pz*2*z[iTxLayer+1])
         e_to_the_minus_iwpzzr            = exp(-im*ω*pz*zR)
 
-        finRA = (1. + e_to_the_iwpz2znext*Rs_d) * e_to_the_minus_iwpzzr
+        finRA = (useprimary + e_to_the_iwpz2znext*Rs_d) * e_to_the_minus_iwpzzr
         # Will need these for other components
         # finRB = (-1. + e_to_the_iwpz2znext*Rs_d) * e_to_the_minus_iwpzzr
         #
@@ -226,7 +231,7 @@ function getAEM1DKernelsH!(F::HField, kᵣ::Float64, f::Float64, zz::Array{Float
 
     # TE and TM modes
     Rs_dTE, Rs_dTM   = stacks!(F, iTxLayer, nlayers, ω)
-    curlyRA,         = getCurlyR(Rs_dTE, pz[iTxLayer], zRx, z, iTxLayer, ω)
+    curlyRA,         = getCurlyR(Rs_dTE, pz[iTxLayer], zRx, z, iTxLayer, ω, F.useprimary)
     lf = 1.0
     if F.rxwithinloop
         lf *= loopfactor(F.rTx, kᵣ, F.rRx)
