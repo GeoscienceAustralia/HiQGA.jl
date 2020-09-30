@@ -39,6 +39,8 @@ mutable struct HFieldDHT <: HField
     provideddt      :: Bool
     doconvramp      :: Bool
     useprimary      :: Float64
+    interpkᵣ        :: Array{Float64,1}
+    log10interpkᵣ   :: Array{Float64,1}
 end
 
 function HFieldDHT(;
@@ -76,7 +78,10 @@ function HFieldDHT(;
     if isempty(freqs)
         freqs = 10 .^(log10(freqlow):1/nfreqsperdecade:log10(freqhigh))
     end
-    J0_kernel_h, J1_kernel_h, J0_kernel_v, J1_kernel_v = map(x->zeros(ComplexF64, length(Filter_base), length(freqs)), 1:4)
+    nkᵣeval = 40
+    interpkᵣ = 10 .^range(minimum(log10.(Filter_base))-0.5, maximum(log10.(Filter_base))+0.5, length = nkᵣeval)
+    log10interpkᵣ = log10.(interpkᵣ)
+    J0_kernel_h, J1_kernel_h, J0_kernel_v, J1_kernel_v = map(x->zeros(ComplexF64, length(interpkᵣ), length(freqs)), 1:4)
     log10freqs = log10.(freqs)
     log10ω = log10.(2*pi*freqs)
     interptimes = 10 .^(minimum(log10.(times))-1:1/ntimesperdecade:maximum(log10.(times))+1)
@@ -96,7 +101,8 @@ function HFieldDHT(;
     useprimary = modelprimary ? one(Float64) : zero(Float64)
     HFieldDHT(thickness, pz, ϵᵢ, zintfc, rTE, rTM, zRx, zTx, rTx, rRx, freqs, times, ramp, log10ω, interptimes,
             HFD, HFDinterp, HTDinterp, dBzdt, J0_kernel_h, J1_kernel_h, J0_kernel_v, J1_kernel_v, lowpassfcs,
-            quadnodes, quadweights, preallocate_ω_Hsc(interptimes, lowpassfcs)..., rxwithinloop, provideddt, doconvramp, useprimary)
+            quadnodes, quadweights, preallocate_ω_Hsc(interptimes, lowpassfcs)..., rxwithinloop, provideddt, doconvramp, useprimary,
+            interpkᵣ, log10interpkᵣ)
 end
 
 function preallocate_ω_Hsc(interptimes, lowpassfcs)
@@ -251,8 +257,9 @@ loopfactor(rTx::Float64, kᵣ::Float64)               = kᵣ^2*besselj1(kᵣ*rTx
 loopfactor(rTx::Float64, kᵣ::Float64, rRx::Float64) = kᵣ^2*besselj0(kᵣ*rRx)/(2*pi*rTx)
 
 function getfieldFD!(F::HFieldDHT, z::Array{Float64, 1}, ρ::Array{Float64, 1})
+    interpkᵣ = F.interpkᵣ
     for (ifreq, freq) in enumerate(F.freqs)
-        for (ikᵣ, kᵣ) in enumerate(Filter_base)
+        for (ikᵣ, kᵣ) in enumerate(interpkᵣ)
             if F.rxwithinloop
                 F.J1_kernel_v[ikᵣ,ifreq] = getAEM1DKernelsH!(F, kᵣ/F.rTx, freq, z, ρ)
             else
@@ -260,10 +267,14 @@ function getfieldFD!(F::HFieldDHT, z::Array{Float64, 1}, ρ::Array{Float64, 1})
             end
         end # kᵣ loop
         if F.rxwithinloop
-            J1_kernel_v = @view F.J1_kernel_v[:,ifreq]
+            splreal = CubicSpline(real(F.J1_kernel_v[:,ifreq]), log10.(interpkᵣ/F.rTx))
+            splimag = CubicSpline(imag(F.J1_kernel_v[:,ifreq]), log10.(interpkᵣ/F.rTx))
+            J1_kernel_v = splreal.(log10.(Filter_base/F.rTx)) + 1im*splimag.(log10.(Filter_base/F.rTx))
             F.HFD[ifreq] = dot(J1_kernel_v, Filter_J1)/F.rTx
         else
-            J0_kernel_v = @view F.J0_kernel_v[:,ifreq]
+            splreal = CubicSpline(real(F.J0_kernel_v[:,ifreq]), log10.(interpkᵣ/F.rRx))
+            splimag = CubicSpline(imag(F.J0_kernel_v[:,ifreq]), log10.(interpkᵣ/F.rRx))
+            J0_kernel_v = splreal.(log10.(Filter_base/F.rRx)) + 1im*splimag.(log10.(Filter_base/F.rRx))
             F.HFD[ifreq] = dot(J0_kernel_v, Filter_J0)/F.rRx
         end
     end # freq loop
