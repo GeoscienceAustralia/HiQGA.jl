@@ -144,9 +144,9 @@ function plotmodelfield!(Flow::AEM_VMD_HMD.HField, Fhigh::AEM_VMD_HMD.HField,
     AEM_VMD_HMD.getfieldTD!(Fhigh, z, ρ)
     ax[2].loglog(Flow.times,μ₀*Flow.dBzdt, label="low moment")
     ax[2].loglog(Fhigh.times,μ₀*Fhigh.dBzdt, label="high moment")
-    ax[2].errorbar(Flow.times, μ₀*dlow, yerr = μ₀*2abs.(σlow),
+    ax[2].errorbar(Flow.times, μ₀*vec(dlow), yerr = μ₀*2abs.(vec(σlow)),
                         linestyle="none", marker=".", elinewidth=0, capsize=3)
-    ax[2].errorbar(Fhigh.times, μ₀*dhigh, yerr = μ₀*2abs.(σhigh),
+    ax[2].errorbar(Fhigh.times, μ₀*vec(dhigh), yerr = μ₀*2abs.(vec(σhigh)),
                         linestyle="none", marker=".", elinewidth=0, capsize=3)
     ax[1].grid()
     ax[2].grid()
