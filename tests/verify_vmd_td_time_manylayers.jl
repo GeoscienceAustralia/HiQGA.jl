@@ -1,6 +1,6 @@
 srcdir = dirname(pwd())*"/src"
 any(srcdir .== LOAD_PATH) || push!(LOAD_PATH, srcdir)
-using PyPlot, Revise, AEM_VMD_HMD, Random, Statistics
+using PyPlot, Revise, AEM_VMD_HMD, Random, Statistics, BenchmarkTools
 profile_within_juno  = false
 ## model
 zfixed   = [-1e5,   0,    20,   50]
@@ -92,13 +92,12 @@ xlim(-0.5,1)
 grid(); gca().invert_yaxis()
 ntimes = 100
 ## solely timing
-t = time()
-for i = 1:ntimes
-    AEM_VMD_HMD.getfieldTD!(Flm, z, ρ)
-    AEM_VMD_HMD.getfieldTD!(Fhm, z, ρ)
+function mytest(Fl, Fh, zz, rr)
+   AEM_VMD_HMD.getfieldTD!(Fl, zz, rr)
+   AEM_VMD_HMD.getfieldTD!(Fh, zz, rr)
 end
-t = time() - t
-@info "timing is $(t/ntimes) s a $(length(z)) layer model"
+@info "timing for a $(length(z)) layer model is:"
+@btime mytest($Flm, $Fhm, $z, $ρ)
 ## using Profile
 if profile_within_juno
     using Profile
