@@ -1,6 +1,9 @@
 srcdir = dirname(pwd())*"/src"
 any(srcdir .== LOAD_PATH) || push!(LOAD_PATH, srcdir)
 using PyPlot, Revise, AEM_VMD_HMD, Random, Statistics
+## from matlab circle code
+matlabLM = vec([5.588e-9  3.9533e-9  2.6558e-9  1.7276e-9  1.1292e-9  7.3569e-10  4.9102e-10  3.401e-10  2.4425e-10  1.8129e-10  1.3582e-10  1.0205e-10  7.7079e-11  5.8448e-11  4.4735e-11  3.4357e-11 2.6101e-11  1.9288e-11])
+matlabHM = vec([5.4669e-10  3.4682e-10  2.4341e-10  1.7922e-10  1.3526e-10  1.0387e-10  8.0645e-11  6.343e-11  5.0158e-11  3.9315e-11  3.0087e-11  2.2234e-11  1.5781e-11  1.0723e-11  6.9601e-12 4.3111e-12  2.5472e-12  1.4351e-12  7.7144e-13  3.9605e-13  2.0261e-13])
 ## model
 zfixed   = [-1e5,   0,    20,   50]
 rho      = [1e12,   10,   1,   100]
@@ -54,29 +57,26 @@ Fhm = AEM_VMD_HMD.HFieldDHT(
                       rRx    = rRx,
                       rTx    = rTx,
                       zRx    = zRx)
-## get the fields in place
-@time AEM_VMD_HMD.getfieldTD!(Flm, zfixed, rho)
-@time AEM_VMD_HMD.getfieldTD!(Fhm, zfixed, rho)
-##
+## get the fields in place and time it
+function myfunc(Fl, Fh, zz, rr)
+    AEM_VMD_HMD.getfieldTD!(Fl, zz, rr)
+    AEM_VMD_HMD.getfieldTD!(Fh, zz, rr)
+end
+@btime myfunc($Flm, $Fhm, $zfixed, $rho)
+## plot
 figure()
-loglog(Flm.times,4*pi*1e-7*abs.(Flm.dBzdt), label="lm")
-loglog(Fhm.times,4*pi*1e-7*abs.(Fhm.dBzdt), label="hm")
-grid()
-## timing FD
-ntimes = 1000
-t = time()
-for i = 1:ntimes
-    AEM_VMD_HMD.getfieldFD!(Flm, zfixed, rho)
-    AEM_VMD_HMD.getfieldFD!(Fhm, zfixed, rho)
-end
-t = time() - t
-@info "FD timing is $(t/ntimes) s"
-## timing TD
-ntimes = 1000
-t = time()
-for i = 1:ntimes
-    AEM_VMD_HMD.getfieldTD!(Flm, zfixed, rho)
-    AEM_VMD_HMD.getfieldTD!(Fhm, zfixed, rho)
-end
-t = time() - t
-@info "TD timing is $(t/ntimes) s"
+s1 = subplot(211)
+loglog(Flm.times,4*pi*1e-7*abs.(Flm.dBzdt), label="lm_julia")
+loglog(Fhm.times,4*pi*1e-7*abs.(Fhm.dBzdt), label="hm_julia")
+loglog(Flm.times, matlabLM, ".", label="lm_matlab")
+loglog(Fhm.times, matlabHM, ".", label="hm_matlab")
+ylabel("dBzdt V/Am^4")
+grid(which="both")
+legend()
+s2 = subplot(212, sharex=s1)
+semilogx(Flm.times,(4*pi*1e-7*Flm.dBzdt-matlabLM)./matlabLM*100, label="lm")
+semilogx(Fhm.times,(4*pi*1e-7*Fhm.dBzdt-matlabHM)./matlabHM*100, label="hm")
+ylabel("% difference")
+xlabel("time s")
+grid(which="both")
+legend()
