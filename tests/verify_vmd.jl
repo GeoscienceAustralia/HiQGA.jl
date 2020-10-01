@@ -14,6 +14,7 @@ nmax = 200
 rRx = 100.
 zRx = -0.02
 zTx = -0.01
+modelprimary = true
 # Note that the receiver depth needs to be in same model layer as transmitter.
 ##
 F = AEM_VMD_HMD.HFieldDHT(
@@ -21,7 +22,8 @@ F = AEM_VMD_HMD.HFieldDHT(
                       zTx    = zTx,
                       rRx    = rRx,
                       freqs  = freqs,
-                      zRx    = zRx)
+                      zRx    = zRx,
+                      modelprimary = modelprimary)
 
 ##
 AEM_VMD_HMD.getfieldFD!(F, zfixed, rho)

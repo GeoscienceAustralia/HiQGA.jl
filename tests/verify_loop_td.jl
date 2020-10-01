@@ -11,6 +11,8 @@ rRx = 0.001
 zRx = -0.001
 zTx = -0.002
 doconvramp = false
+modelprimary = true
+nkᵣeval = 100
 ntimesperdecade = 15
 nfreqsperdecade = 15
 times = 10 .^LinRange(-6,1,40)
@@ -23,7 +25,9 @@ F = AEM_VMD_HMD.HFieldDHT(
                       rRx    = rRx,
                       rTx    = rTx,
                       zRx    = zRx,
-                      doconvramp = doconvramp)
+                      doconvramp = doconvramp,
+                      modelprimary = modelprimary,
+                      nkᵣeval = nkᵣeval)
 ## get TD field
 AEM_VMD_HMD.getfieldTD!(F, zfixed, rho)
 ## Analytic loop

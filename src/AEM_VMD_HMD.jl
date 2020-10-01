@@ -39,6 +39,7 @@ mutable struct HFieldDHT <: HField
     provideddt      :: Bool
     doconvramp      :: Bool
     useprimary      :: Float64
+    nkᵣeval         :: Int
     interpkᵣ        :: Array{Float64,1}
     log10interpkᵣ   :: Array{Float64,1}
     log10Filter_base   :: Array{Float64,1}
@@ -59,7 +60,8 @@ function HFieldDHT(;
       lowpassfcs = [],
       provideddt = true,
       doconvramp = true,
-      modelprimary = false
+      modelprimary = false,
+      nkᵣeval = 50
   )
     @assert all(freqs .> 0.)
     @assert all(diff(times) .> 0)
@@ -79,7 +81,6 @@ function HFieldDHT(;
     if isempty(freqs)
         freqs = 10 .^(log10(freqlow):1/nfreqsperdecade:log10(freqhigh))
     end
-    nkᵣeval = 50
     interpkᵣ = 10 .^range(minimum(log10.(Filter_base))-0.5, maximum(log10.(Filter_base))+0.5, length = nkᵣeval)
     J0_kernel_h, J1_kernel_h, J0_kernel_v, J1_kernel_v = map(x->zeros(ComplexF64, length(interpkᵣ), length(freqs)), 1:4)
     log10ω = log10.(2*pi*freqs)
@@ -106,7 +107,7 @@ function HFieldDHT(;
     HFieldDHT(thickness, pz, ϵᵢ, zintfc, rTE, rTM, zRx, zTx, rTx, rRx, freqs, times, ramp, log10ω, interptimes,
             HFD, HFDinterp, HTDinterp, dBzdt, J0_kernel_h, J1_kernel_h, J0_kernel_v, J1_kernel_v, lowpassfcs,
             quadnodes, quadweights, preallocate_ω_Hsc(interptimes, lowpassfcs)..., rxwithinloop, provideddt, doconvramp, useprimary,
-            interpkᵣ, log10interpkᵣ, log10Filter_base)
+            nkᵣeval, interpkᵣ, log10interpkᵣ, log10Filter_base)
 end
 
 function preallocate_ω_Hsc(interptimes, lowpassfcs)

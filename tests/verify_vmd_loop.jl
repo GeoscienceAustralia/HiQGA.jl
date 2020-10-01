@@ -14,6 +14,8 @@ nmax = 200
 rRx = 100.
 zRx = -0.01
 zTx = -0.02
+modelprimary = true
+nkᵣeval = 150
 # Note that the receiver depth needs to be in same model layer as transmitter.
 ##
 Fvmd = AEM_VMD_HMD.HFieldDHT(
@@ -21,7 +23,9 @@ Fvmd = AEM_VMD_HMD.HFieldDHT(
                       zTx    = zTx,
                       rRx    = rRx,
                       freqs  = freqs,
-                      zRx    = zRx)
+                      zRx    = zRx,
+                      nkᵣeval = nkᵣeval,
+                      modelprimary = modelprimary)
 
 ## now use a tiny loop radius - VMD approximation is worse as radius gets larger
 ##
@@ -32,7 +36,9 @@ Floop = AEM_VMD_HMD.HFieldDHT(
                       rRx    = rRx,
                       rTx    = rTx,
                       freqs  = freqs,
-                      zRx    = zRx)
+                      zRx    = zRx,
+                      nkᵣeval = nkᵣeval,
+                      modelprimary = modelprimary)
 ##
 AEM_VMD_HMD.getfieldFD!(Fvmd, zfixed, rho)
 AEM_VMD_HMD.getfieldFD!(Floop, zfixed, rho)
@@ -57,7 +63,9 @@ Floopin = AEM_VMD_HMD.HFieldDHT(
                       rRx    = rRx,
                       rTx    = rTx,
                       freqs  = freqs,
-                      zRx    = zRx)
+                      zRx    = zRx,
+                      nkᵣeval = nkᵣeval,
+                      modelprimary = modelprimary)
 AEM_VMD_HMD.getfieldFD!(Floopin, zfixed, rho)
 ##
 figure()
