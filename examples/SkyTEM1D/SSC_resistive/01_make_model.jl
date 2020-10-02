@@ -131,7 +131,7 @@ HM_data = 1e-12*[3.324394E+01   2.522483E+01   1.890557E+01   1.373576E+01   9.7
 LM_noise = 1e-12*[7.396625e+00    4.862768e+00    3.903425e+00    2.763621e+00    2.266908e+00    1.737678e+00    1.361518e+00    1.081970e+00    8.484297e-01    6.708301e-01    5.049530e-01    3.889236e-01    3.091977e-01    2.402437e-01    1.942889e-01    1.556078e-01    1.346912e-01    1.260919e-01]'
 HM_noise = 1e-12*[6.044069e-02    3.294512e-02    2.174927e-02    1.393709e-02    1.029002e-02    8.436072e-03    6.701908e-03    5.082382e-03    4.312096e-03    3.399737e-03    2.691244e-03    2.320745e-03    2.018198e-03    1.759839e-03    1.586694e-03    1.435991e-03    1.282377e-03    1.097777e-03    9.950349e-04    8.986489e-04    8.252542e-04    7.411206e-04    6.240619e-04]'
 ## create operator
-dlow, dhigh, σlow, σhigh = (LM_data, HM_data, 0.03*LM_data+LM_noise, 0.03*HM_data+HM_noise)./SkyTEM1DInversion.μ₀
+dlow, dhigh, σlow, σhigh = (LM_data, HM_data, sqrt.((0.03*LM_data).^2+LM_noise.^2), sqrt.((0.03*HM_data).^2+HM_noise.^2))./SkyTEM1DInversion.μ₀
 aem = GeophysOperator.dBzdt(Flm, Fhm, vec(dlow), vec(dhigh),
                                   vec(σlow), vec(σhigh), z=z, ρ=ρ, nfixed=nfixed)
 GeophysOperator.SkyTEM1DInversion.plotmodelfield!(Flm, Fhm, z, ρ, dlow, dhigh, σlow, σhigh;
