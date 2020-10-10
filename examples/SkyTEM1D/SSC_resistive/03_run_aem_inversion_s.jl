@@ -7,7 +7,7 @@ rank = MPI.Comm_rank(MPI.COMM_WORLD)
 size = MPI.Comm_size(MPI.COMM_WORLD)
 
 manager = MPIClusterManagers.start_main_loop(MPI_TRANSPORT_ALL)
-addprocs(1)
+addprocs(4)
 @everywhere @info gethostname()
 
 ## set up McMC
