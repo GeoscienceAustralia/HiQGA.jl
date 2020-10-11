@@ -114,13 +114,22 @@ function assemblemodelsatT(optns::TransD_GP.OptionsNonstat, opts::TransD_GP.Opti
     msatT, mnsatT
 end
 
+function getnchains(costs_filename)
+c = 0
+    for fname in readdir(pwd())
+           r = Regex(costs_filename)
+           c += match(r, fname) != nothing
+    end
+    c
+end
+
 function gettargtemps(opt_in::TransD_GP.Options)
     isns = checkns(opt_in)
-    nchains = length(filter( x -> occursin(r"misfits_ns.*bin", x), readdir(pwd()) )) # my terrible regex
-    @info "Number of chains is $nchains"
-    # now look at any chain to get how many iterations
     opt = deepcopy(opt_in)
     costs_filename = "misfits_"*isns*opt.fdataname
+    nchains = getnchains(costs_filename)
+    @info "Number of chains is $nchains"
+    # now look at any chain to get how many iterations
     opt.costs_filename    = costs_filename*"_1.bin"
     iters          = TransD_GP.history(opt, stat=:iter)
     niters         = length(iters)
@@ -139,7 +148,7 @@ function getstats(optin::TransD_GP.Options;
                   figsize=(5,6), fontsize=12,
                   nxticks=5, nyticks=5, alpha=0.6, chains=[-1])
     if chains[1] == -1
-        nchains = length(filter( x -> occursin(r"misfits_ns.*bin", x), readdir(pwd()) )) # my terrible regex
+        nchains = getnchains(costs_filename)
         chains = 1:nchains
     else
         nchains = length(chains)
@@ -194,13 +203,13 @@ function getchi2forall(opt_in::TransD_GP.Options;
                         nxticks         = 0,
                         gridon          = false
                       )
-    if nchains == 1 # then actually find out how many chains there are saved
-        nchains = length(filter( x -> occursin(r"misfits_ns.*bin", x), readdir(pwd()) )) # my terrible regex
-    end
     # now look at any chain to get how many iterations
     isns = checkns(opt_in)
     opt = deepcopy(opt_in)
     costs_filename = "misfits_"*isns*opt.fdataname
+    if nchains == 1 # then actually find out how many chains there are saved
+        nchains = getnchains(costs_filename)
+    end
     opt.costs_filename    = costs_filename*"_1.bin"
     iters          = TransD_GP.history(opt, stat=:iter)
     niters         = length(iters)

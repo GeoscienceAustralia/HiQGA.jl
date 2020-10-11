@@ -11,6 +11,30 @@ for iter = 1:nsequentialiters
     else
         @show s = (iter-1)*nparallelsoundings+1:nsoundings
     end
-    @show pids = [(i-1)*nchainspersounding+1:i*nchainspersounding for i = 1:length(s)]
+    @show pids = [(i-1)*nchainspersounding+2:i*nchainspersounding+1 for i = 1:length(s)]
     # set up dBzdt operators for sounding numbers in s, at pids, with fnames
+end
+
+## trying parallel, workers calling other workers
+using Distributed
+addprocs(4)
+@info "workers are $(workers())"
+##
+@everywhere function sleeper(t)
+    @info "sleeping at $(myid())"
+    sleep(t)
+end
+@everywhere function trycall(t, pids)
+    @sync for pid in pids
+        @async remotecall_fetch(sleeper, pid, t)
+    end
+end
+## now use them
+ntimes = 2
+tsleep = 2
+@time for i = 1:ntimes
+    @sync for (jpid, pids) in enumerate([[2,3],[4,5]])
+        @async remotecall_fetch(trycall, jpid*2, tsleep, pids)
+        println()
+    end
 end

@@ -1,8 +1,14 @@
 ## MPI stuff and parallel tempering chains
-using MPIClusterManagers, Distributed
+using Distributed
 nchains = 4
-manager = MPIManager(np=nchains)
-addprocs(manager)
+usempi = false
+if usempi
+    using MPIClusterManagers
+    manager = MPIManager(np=nchains)
+    addprocs(manager)
+else
+    addprocs(nchains)
+end
 @info "there are $(nworkers()) workers"
 @everywhere @info gethostname()
 ## set up McMC

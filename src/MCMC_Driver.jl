@@ -40,6 +40,29 @@ function Chain(nchains::Int;
     chains
 end
 
+function Chain(chainprocs::Array{Int, 1};
+               Tmax          = 2.5,
+               nchainsatone  = 1)
+
+    @assert Tmax > 1
+
+    npidsperchain = floor(Int, length(chainprocs)/nchains)
+    @info "npidsperchain = $npidsperchain"
+    T = 10.0.^range(0, stop = log10(Tmax), length = nchains-nchainsatone+1)
+    append!(T, ones(nchainsatone-1))
+    chains = Array{Chain, 1}(undef, nchains)
+
+    pid_end = 0
+    for ichain in 1:nchains
+        pid_start      = pid_end + 1
+        pid_end        = pid_start + npidsperchain - 1
+        pids           = chainprocs[pid_start:pid_end]
+
+        chains[ichain] = Chain(pids[1], npidsperchain, T[ichain], 0.0)
+    end
+    chains
+end
+
 function mh_step!(mns::TransD_GP.ModelNonstat, m::TransD_GP.ModelStat,
     F::Operator, optns::TransD_GP.OptionsNonstat, stat::TransD_GP.Stats,
     Temp::Float64, movetype::Int, current_misfit::Array{Float64, 1})
@@ -273,6 +296,37 @@ function main(opt_in       ::TransD_GP.OptionsStat,
     F, current_misfit, wp, wpns, iterlast = init_chain_darrays(opt_in,
                                                 optns_in, F_in, chains)
 
+    domcmciters(iterlast, nsamples, chains, opt_in, mns, m, optns, opt,
+                statns, stat, current_misfit, F, wpns, wp)
+
+    close_history(wp)
+    close_history(wpns)
+    nothing
+end
+
+function main(opt_in       ::TransD_GP.OptionsStat,
+              optns_in     ::TransD_GP.OptionsNonstat,
+              F_in         ::Operator,
+              chainprocs   ::Array{Int, 1};
+              nsamples     = 4001,
+              nchainsatone = 1,
+              Tmax         = 2.5)
+
+    chains = Chain(chainprocs, Tmax=Tmax)
+    m, mns, opt, optns, stat, statns,
+    F, current_misfit, wp, wpns, iterlast = init_chain_darrays(opt_in,
+                                                optns_in, F_in, chains)
+
+    domcmciters(iterlast, nsamples, chains, opt_in, mns, m, optns, opt,
+                statns, stat, current_misfit, F, wpns, wp)
+
+    close_history(wp)
+    close_history(wpns)
+    nothing
+end
+
+function domcmciters(iterlast, nsamples, chains, opt_in, mns, m, optns, opt,
+            statns, stat, current_misfit, F, wpns, wp)
     t2 = time()
     for isample = iterlast+1:iterlast+nsamples
 
@@ -296,25 +350,7 @@ function main(opt_in       ::TransD_GP.OptionsStat,
             t2 = time()
             @info("*****$dt**sec*****")
         end
-
     end
-
-    close_history(wp)
-    close_history(wpns)
-    nothing
-end
-
-function nicenup(g::PyPlot.Figure;fsize=14)
-    for ax in gcf().axes
-        ax.tick_params("both",labelsize=fsize)
-        ax.xaxis.label.set_fontsize(fsize)
-        ax.yaxis.label.set_fontsize(fsize)
-        ax.title.set_fontsize(fsize)
-        if typeof(ax.get_legend_handles_labels()[1]) != Array{Any,1}
-            ax.legend(loc="best", fontsize=fsize)
-        end
-    end
-    g.tight_layout()
 end
 
 end
