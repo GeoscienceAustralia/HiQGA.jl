@@ -32,8 +32,17 @@ nsequentialiters = ceil(Int, nsoundings/nparallelsoundings)
 ## set up McMC
 using Distributed, MCMC_Driver
 nsamples, nchains, nchainsatone = 100001, 4, 1
+usempi = false
+if usempi
+    using MPIClusterManagers
+    manager = MPIManager(np=nchains)
+    addprocs(manager)
+else
+    addprocs(ncores)
+end
+@info "there are $(nworkers()) workers"
+@everywhere @info gethostname()
 Tmax = 2.50
-addprocs(ncores)
 @info "workers are $(workers())"
 @everywhere any($srcdir .== LOAD_PATH) || push!(LOAD_PATH, $srcdir)
 @everywhere any(pwd() .== LOAD_PATH) || push!(LOAD_PATH, pwd())
