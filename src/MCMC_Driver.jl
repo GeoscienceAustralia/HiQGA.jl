@@ -45,7 +45,7 @@ function Chain(chainprocs::Array{Int, 1};
                nchainsatone  = 1)
 
     @assert Tmax > 1
-
+    nchains = length(chainprocs)
     npidsperchain = floor(Int, length(chainprocs)/nchains)
     @info "npidsperchain = $npidsperchain"
     T = 10.0.^range(0, stop = log10(Tmax), length = nchains-nchainsatone+1)
@@ -235,8 +235,9 @@ function init_chain_darrays(opt_in::TransD_GP.OptionsStat,
         mns_[idx]              = @spawnat chain.pid [TransD_GP.init(optns_in,
                                                             fetch(m_[idx])[1])]
 
-        wp_[idx]             = @spawnat chain.pid [TransD_GP.open_history(opt_in)]
-        wpns_[idx]           = @spawnat chain.pid [TransD_GP.open_history(optns_in)]
+        @sync wp_[idx]             = @spawnat chain.pid [TransD_GP.open_history(opt_in)]
+        #@info "sending $(optns_in.costs_filename)"
+        @sync wpns_[idx]           = @spawnat chain.pid [TransD_GP.open_history(optns_in)]
 
         stat_[idx]           = @spawnat chain.pid [TransD_GP.Stats()]
         statns_[idx]         = @spawnat chain.pid [TransD_GP.Stats()]
@@ -258,7 +259,7 @@ function init_chain_darrays(opt_in::TransD_GP.OptionsStat,
             chains[idx].T = TransD_GP.history(opt_in, stat=:T)[end]
         end
     end
-
+    @info "got here"
     m, mns, opt, optns, stat, statns, F,
     current_misfit, wp, wpns = map(x -> DArray(x), (m_, mns_, opt_, optns_,
                                     stat_, statns_, F_in_, current_misfit_,
@@ -312,7 +313,7 @@ function main(opt_in       ::TransD_GP.OptionsStat,
               nchainsatone = 1,
               Tmax         = 2.5)
 
-    chains = Chain(chainprocs, Tmax=Tmax)
+    @show chains = Chain(chainprocs, Tmax=Tmax)
     m, mns, opt, optns, stat, statns,
     F, current_misfit, wp, wpns, iterlast = init_chain_darrays(opt_in,
                                                 optns_in, F_in, chains)

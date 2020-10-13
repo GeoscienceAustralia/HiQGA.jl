@@ -1,7 +1,7 @@
 module SkyTEM1DInversion
 import AbstractOperator.get_misfit
 using AbstractOperator, AEM_VMD_HMD
-using TransD_GP, PyPlot, LinearAlgebra, CommonToAll
+using TransD_GP, PyPlot, LinearAlgebra, CommonToAll, MAT, Random
 
 export dBzdt, plotmodelfield!, addnoise_skytem, plotmodelfield!
 
@@ -205,5 +205,143 @@ function plotmodelfield!(aem::dBzdt, Ρ::Vector{Array{Float64}};
     ax[1].invert_xaxis()
     nicenup(f, fsize=fsize)
 end
+
+function makeoperator(fdataname::String;
+                       zfixed   = [-1e5],
+                       ρfixed   = [1e12],
+                       zstart = 0.0,
+                       extendfrac = 1.06,
+                       dz = 2.,
+                       ρbg = 10,
+                       nlayers = 40,
+                       ntimesperdecade = 10,
+                       nfreqsperdecade = 5,
+                       showgeomplot = false,
+                       plotfield = false)
+    @assert extendfrac > 1.0
+    @assert dz > 0.0
+    @assert ρbg > 0.0
+    @assert nlayers > 1
+    nmax = nlayers+1
+
+    zall, znall, zboundaries = setupz(zstart, extendfrac, dz=dz, n=nlayers, showplot=showgeomplot)
+    z, ρ, nfixed = makezρ(zboundaries; zfixed=zfixed, ρfixed=ρfixed)
+    ρ[z.>=zstart] .= ρbg
+    ##  geometry and modeling parameters
+    file = matopen(fdataname)
+    rRx = read(file, "rRx")
+    zRxLM = read(file, "LM_zRx")
+    zTxLM = read(file, "LM_zTx")
+    zRxHM = read(file, "HM_zRx")
+    zTxHM = read(file, "HM_zTx")
+    rTx = read(file, "rTxLoop")
+    lowpassfcs = read(file, "lowPassFilters")
+    # Note that the receiver depth needs to be in same model layer as transmitter.
+    ## LM times and ramp
+    LM_times = read(file, "LM_times")[:]
+    LM_ramp = read(file, "LM_ramp")
+    ## HM times and ramp
+    HM_times = read(file, "HM_times")[:]
+    HM_ramp = read(file, "HM_ramp")
+    ## LM operator
+    Flm = AEM_VMD_HMD.HFieldDHT(
+                          ntimesperdecade = ntimesperdecade,
+                          nfreqsperdecade = nfreqsperdecade,
+                          lowpassfcs = lowpassfcs,
+                          times  = LM_times,
+                          ramp   = LM_ramp,
+                          nmax   = nmax,
+                          zTx    = zTxLM,
+                          rRx    = rRx,
+                          rTx    = rTx,
+                          zRx    = zRxLM)
+    ## HM operator
+    Fhm = AEM_VMD_HMD.HFieldDHT(
+                          ntimesperdecade = ntimesperdecade,
+                          nfreqsperdecade = nfreqsperdecade,
+                          lowpassfcs = lowpassfcs,
+                          times  = HM_times,
+                          ramp   = HM_ramp,
+                          nmax   = nmax,
+                          zTx    = zTxHM,
+                          rRx    = rRx,
+                          rTx    = rTx,
+                          zRx    = zRxHM)
+    ## data and high altitude noise
+    LM_data = read(file, "d_LM")
+    HM_data = read(file, "d_HM")
+    LM_noise = read(file, "sd_LM")
+    HM_noise = read(file, "sd_HM")
+    ## create operator
+    dlow, dhigh, σlow, σhigh = (LM_data, HM_data, LM_noise, HM_noise)./μ₀
+    aem = dBzdt(Flm, Fhm, vec(dlow), vec(dhigh),
+                                      vec(σlow), vec(σhigh), z=z, ρ=ρ, nfixed=nfixed)
+    plotfield && plotmodelfield!(Flm, Fhm, z, ρ, dlow, dhigh, σlow, σhigh;
+                          figsize=(12,4), nfixed=nfixed, dz=dz, extendfrac=extendfrac)
+    aem, znall
+end
+
+function make_tdgp_statmode_opt(;
+                    rseed = nothing,
+                    znall = znall,
+                    fileprefix = "sounding",
+                    nmin = 2,
+                    nmax = 40,
+                    K = GP.Mat32(),
+                    demean = true,
+                    sdpos = 0.05,
+                    sdprop = 0.05,
+                    fbounds = [-0.5 2.5],
+                    λ = [2],
+                    δ = 0.1,
+                    pnorm = 2,
+                    save_freq = 25
+                    )
+    sdev_pos = [sdpos*abs(diff([extrema(znall)...])[1])]
+    sdev_prop = sdprop*diff(fbounds, dims=2)[:]
+    xall = permutedims(collect(znall))
+    xbounds = permutedims([extrema(znall)...])
+
+    updatenonstat = false
+    needλ²fromlog = false
+    if rseed != nothing
+        Random.seed!(rseed)
+    end
+    opt = TransD_GP.OptionsStat(fdataname = fileprefix*"_",
+                            nmin = nmin,
+                            nmax = nmax,
+                            xbounds = xbounds,
+                            fbounds = fbounds,
+                            xall = xall,
+                            λ = λ,
+                            δ = δ,
+                            demean = demean,
+                            sdev_prop = sdev_prop,
+                            sdev_pos = sdev_pos,
+                            pnorm = pnorm,
+                            quasimultid = false,
+                            K = K,
+                            save_freq = save_freq,
+                            needλ²fromlog = needλ²fromlog,
+                            updatenonstat = updatenonstat
+                            )
+
+    ## Initialize options for the dummy nonstationary properties GP
+    optdummy = TransD_GP.OptionsNonstat(opt,
+                            nmin = 2,
+                            nmax = 3,
+                            fbounds = fbounds,
+                            δ = δ,
+                            demean = demean,
+                            sdev_prop = sdev_prop,
+                            sdev_pos = sdev_pos,
+                            pnorm = pnorm,
+                            K = K
+                            )
+
+    opt, optdummy
+
+end
+
 
 end

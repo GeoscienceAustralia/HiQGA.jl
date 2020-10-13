@@ -747,7 +747,7 @@ end
 # history methods
 function open_history(opt::Options)
     if isfile(opt.costs_filename)
-        @assert (opt.history_mode=="a")
+        @assert (opt.history_mode=="a") "$(opt.costs_filename) exists"
     end
     if opt.report_freq > 0
         @info("running transD_sampler...")
@@ -755,6 +755,7 @@ function open_history(opt::Options)
     fp_costs = nothing
     if length(opt.costs_filename) > 0
         fp_costs = open(opt.costs_filename, opt.history_mode)
+        @info "opened $(opt.costs_filename) opened"
     end
     fp_models = nothing
     if length(opt.fstar_filename) > 0
