@@ -2,7 +2,9 @@ srcdir = dirname(dirname(dirname(dirname(pwd()))))*"/src"
 any(srcdir .== LOAD_PATH) || push!(LOAD_PATH, srcdir)
 ## load the sounding names
 fdataname = ["Line_115651_dbdt_gates_rangeidx_40.mat",
-              "Line_115651_dbdt_gates_rangeidx_123.mat"]
+              "Line_115651_dbdt_gates_rangeidx_123.mat", 
+              "Line_115651_dbdt_gates_rangeidx_205.mat",
+              "Line_115651_dbdt_gates_rangeidx_288.mat"]
 ## same for all
 zfixed   = [-1e5]
 ρfixed   = [1e12]
@@ -24,7 +26,7 @@ sdprop = 0.05
 save_freq = 25
 ## split into sequential iterations of parallel soundings
 nsoundings = length(fdataname)
-ncores = 9
+ncores = 19
 nchainspersounding = 4
 @assert mod(ncores+1,nchainspersounding+1) == 0
 nparallelsoundings = Int((ncores+1)/(nchainspersounding+1))
@@ -100,3 +102,4 @@ for iter = 1:nsequentialiters
         #sleep(300)
     end
 end
+exit()
