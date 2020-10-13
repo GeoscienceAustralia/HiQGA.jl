@@ -41,9 +41,9 @@ function assembleTat1(optin::TransD_GP.Options, stat::Symbol; burninfrac=0.5, te
     opt = deepcopy(optin)
     imodel = 0
     for ichain in 1:size(Tacrosschains, 2)
-        opt.fstar_filename = "models_"*isns*opt.fdataname*"_$ichain.bin"
-        opt.x_ftrain_filename = "points_"*isns*opt.fdataname*"_$ichain.bin"
-        opt.costs_filename = "misfits_"*isns*opt.fdataname*"_$ichain.bin"
+        opt.fstar_filename = "models_"*opt.fdataname*isns*"_$ichain.bin"
+        opt.x_ftrain_filename = "points_"*opt.fdataname*isns*"_$ichain.bin"
+        opt.costs_filename = "misfits_"*opt.fdataname*isns*"_$ichain.bin"
         if stat == :fstar
             at1idx = findall(Tacrosschains[:,ichain].==ttarget) .>= start
         else
@@ -126,7 +126,7 @@ end
 function gettargtemps(opt_in::TransD_GP.Options)
     isns = checkns(opt_in)
     opt = deepcopy(opt_in)
-    costs_filename = "misfits_"*isns*opt.fdataname
+    costs_filename = "misfits_"*opt.fdataname*isns
     nchains = getnchains(costs_filename)
     @info "Number of chains is $nchains"
     # now look at any chain to get how many iterations
@@ -156,7 +156,7 @@ function getstats(optin::TransD_GP.Options;
     @info "Number of chains is $nchains"
     isns = checkns(optin)
     opt = deepcopy(optin)
-    costs_filename = "misfits_"*isns*opt.fdataname
+    costs_filename = "misfits_"*opt.fdataname*isns
     opt.costs_filename    = costs_filename*"_1.bin"
     iters          = TransD_GP.history(opt, stat=:iter)
     statnames = [:acceptanceRateBirth, :acceptanceRateDeath,
@@ -206,7 +206,7 @@ function getchi2forall(opt_in::TransD_GP.Options;
     # now look at any chain to get how many iterations
     isns = checkns(opt_in)
     opt = deepcopy(opt_in)
-    costs_filename = "misfits_"*isns*opt.fdataname
+    costs_filename = "misfits_"*opt.fdataname*isns
     if nchains == 1 # then actually find out how many chains there are saved
         nchains = getnchains(costs_filename)
     end
