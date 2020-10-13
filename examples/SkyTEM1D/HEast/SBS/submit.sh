@@ -1,9 +1,9 @@
 #!/bin/bash
 #PBS -P z67
 #PBS -q normal
-#PBS -l ncpus=4
-#PBS -l mem=16GB
-#PBS -l walltime=01:00:00
+#PBS -l ncpus=9
+#PBS -l mem=36GB
+#PBS -l walltime=01:30:00
 #PBS -l wd
 #PBS -N juliaAEM
 #PBS -e grid.err

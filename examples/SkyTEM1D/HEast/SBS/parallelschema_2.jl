@@ -32,10 +32,10 @@ nsequentialiters = ceil(Int, nsoundings/nparallelsoundings)
 ## set up McMC
 using Distributed, MCMC_Driver
 nsamples, nchains, nchainsatone = 100001, 4, 1
-usempi = false
+usempi = true
 if usempi
     using MPIClusterManagers
-    manager = MPIManager(np=nchains)
+    manager = MPIManager(np=ncores)
     addprocs(manager)
 else
     addprocs(ncores)
