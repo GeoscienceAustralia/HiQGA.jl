@@ -323,7 +323,8 @@ function make_tdgp_statmode_opt(;
                             K = K,
                             save_freq = save_freq,
                             needλ²fromlog = needλ²fromlog,
-                            updatenonstat = updatenonstat
+                            updatenonstat = updatenonstat,
+                            dispstatstoscreen = false
                             )
 
     ## Initialize options for the dummy nonstationary properties GP
