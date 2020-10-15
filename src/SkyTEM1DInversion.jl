@@ -47,7 +47,7 @@ function dBzdt(Flow       :: AEM_VMD_HMD.HField,
     Flow, Fhigh, z, nfixed, copy(ρ), selectlow, selecthigh, ndatalow, ndatahigh)
 end
 
-struct SkyTEMSoundingData
+mutable struct SkyTEMsoundingData
     sounding_string:: String
     rRx :: Float64
     zRxLM :: Float64
@@ -66,12 +66,13 @@ struct SkyTEMSoundingData
     HM_data :: Array{Float64, 1}
 end
 
-function SkyTEMsoundingData(rRx=-12., zRxLM=12., zTxLM=12.,
-                            zRxHM=12., zTxHm=12., rTx=-12.,lowpassfcs=[-1, -2.],
+function SkyTEMsoundingData(;rRx=-12., zRxLM=12., zTxLM=12.,
+                            zRxHM=12., zTxHM=12., rTx=-12.,lowpassfcs=[-1, -2.],
                             LM_times=[1., 2.], LM_ramp=[1 2; 3 4],
                             HM_times=[1., 2.], HM_ramp=[1 2; 3 4],
                             LM_noise=[1.], HM_noise=[1.], LM_data=[1.], HM_data=[1.],
-                            sounding_String="sounding" )
+                            sounding_string="sounding" )
+    @info "on top"
     @assert rRx > 0 && rTx > 0
     @assert zRxLM <0 && zTxLM <0
     @assert zRxHM <0 && zTxHM <0
@@ -84,10 +85,13 @@ function SkyTEMsoundingData(rRx=-12., zRxLM=12., zTxLM=12.,
     @assert all(HM_noise .>0 )
     @assert length(LM_data) == length(LM_noise)
     @assert length(HM_data) == length(HM_noise)
-
-    SkyTEMsoundingData(sounding, rRx, zRxLM, zTxLM, zRxHM, zTxHM, rTx,
+    @info "here"
+    SkyTEMsoundingData(sounding_string, rRx, zRxLM, zTxLM, zRxHM, zTxHM, rTx,
     lowpassfcs, LM_times, LM_ramp, HM_times, HM_ramp, LM_noise, HM_noise,
     LM_data, HM_data)
+    # @show (sounding_string, rRx, zRxLM, zTxLM, zRxHM, zTxHM, rTx,
+    # lowpassfcs, LM_times, LM_ramp, HM_times, HM_ramp, LM_noise, HM_noise,
+    # LM_data, HM_data)
 end
 
 function read_survey_files(;
@@ -95,21 +99,38 @@ function read_survey_files(;
     fname_specs_halt="",
     frame_height = -2,
     frame_dz = -2,
+    frame_dx = -2,
+    frame_dy = -2,
     LM_Z = [-2, -2],
     HM_Z = [-2, -2],
     units=1e-12,
-    figsize=(5,8))
+    figsize = (9,7),
+    makesounding = false,
+    dotillsounding = nothing,
+    skipevery = 1,
+    multnoise = 0.03)
     @assert frame_height > 0
     @assert frame_dz > 0
+    @assert frame_dx > 0
+    @assert frame_dy > 0
     @assert all(LM_Z .> 0)
     @assert all(HM_Z .> 0)
 
-    soundings = readdlm(fname_dat)
+    @info "reading $fname_dat"
+    if dotillsounding!= nothing
+        soundings = readdlm(fname_dat)[1:skipevery:dotillsounding,:]
+    else
+        soundings = readdlm(fname_dat)[1:skipevery:end,:]
+    end
+
     d_LM = soundings[:,LM_Z[1]:LM_Z[2]]
     d_HM = soundings[:,HM_Z[1]:HM_Z[2]]
     zTx = soundings[:,frame_height]
-    zRx = zTx + soundings[:,frame_dz]
-    @info "reading"
+    zRx = -(zTx + soundings[:,frame_dz])
+    zTx = -zTx
+    rRx = sqrt.(soundings[:,frame_dx].^2 + soundings[:,frame_dy].^2)
+
+    @info "reading $fname_specs_halt"
     include(fname_specs_halt)
     @assert size(d_LM, 2) == length(LM_times)
     @assert size(d_HM, 2) == length(HM_times)
@@ -120,8 +141,8 @@ function read_survey_files(;
     d_LM[:]     .*= units
     d_HM[:]     .*= units
     f = figure(figsize=figsize)
-    ax = Array{Any, 1}(undef, 3)
-    ax[1] = subplot(3,1,1)
+    ax = Array{Any, 1}(undef, 4)
+    ax[1] = subplot(2,2,1)
     nsoundings = size(soundings, 1)
     plot_dLM = permutedims(d_LM)
     plot_dLM[plot_dLM .<0] .= NaN
@@ -133,7 +154,7 @@ function read_survey_files(;
     axLM = ax[1].twiny()
     axLM.semilogy(LM_noise, LM_times)
     axLM.set_xlabel("high alt noise")
-    ax[2] = subplot(3,1,2,sharex=ax[1], sharey=ax[1])
+    ax[2] = subplot(2,2,3,sharex=ax[1], sharey=ax[1])
     plot_dHM = permutedims(d_HM)
     plot_dHM[plot_dHM .<0] .= NaN
     pcolormesh(1:nsoundings, HM_times, log10.(plot_dHM), shading="nearest")
@@ -145,15 +166,32 @@ function read_survey_files(;
     axHM = ax[2].twiny()
     axHM.semilogy(HM_noise, HM_times)
     axHM.set_xlabel("high alt noise")
-    ax[3] = subplot(3,1,3, sharex=ax[1])
-    plot(1:nsoundings, zRx, label="receiver")
-    plot(1:nsoundings, zTx, label="transmitter")
-    cbHM = colorbar()
-    cbHM.set_label("log₁₀ d_HM")
+    ax[3] = subplot(2,2,2, sharex=ax[1])
+    plot(1:nsoundings, zRx, label="Rx")
+    plot(1:nsoundings, zTx, label="Tx")
     legend()
     xlabel("sounding #")
     ylabel("height m")
+    ax[4] = subplot(2,2,4, sharex=ax[1])
+    ax[4].plot(1:nsoundings, rRx)
+    xlabel("sounding #")
+    ylabel("rRx m")
     plt.tight_layout()
+    if makesounding
+        s_array = Array{SkyTEMsoundingData, 1}(undef, nsoundings)
+        for is in 1:nsoundings
+            dₗₘ, dₕₘ = vec(d_LM[is,:]), vec(d_HM[is,:])
+            σLM = sqrt.((multnoise*dₗₘ).^2 + LM_noise.^2)
+            σHM = sqrt.((multnoise*dₕₘ).^2 + HM_noise.^2)
+            s_array[is] = SkyTEMsoundingData(rRx=rRx[is], zRxLM=zRx[is], zTxLM=zTx[is],
+                zRxHM=zRx[is], zTxHM=zTx[is], rTx=rTx, lowpassfcs=lowpassfcs,
+                LM_times=LM_times, LM_ramp=LM_ramp,
+                HM_times=HM_times, HM_ramp=HM_ramp,
+                LM_noise=σLM, HM_noise=σHM, LM_data=dₗₘ, HM_data=dₕₘ,
+                sounding_string="sounding_$is")
+        end
+        return s_array
+    end
 end
 
 function getfield!(m::TransD_GP.Model, aem::dBzdt)
