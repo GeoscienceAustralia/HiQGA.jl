@@ -1,7 +1,7 @@
 module SkyTEM1DInversion
 import AbstractOperator.get_misfit
-using AbstractOperator, AEM_VMD_HMD
-using TransD_GP, PyPlot, LinearAlgebra, CommonToAll, MAT, Random
+using AbstractOperator, AEM_VMD_HMD, Statistics
+using TransD_GP, PyPlot, LinearAlgebra, CommonToAll, MAT, Random, DelimitedFiles
 
 export dBzdt, plotmodelfield!, addnoise_skytem, plotmodelfield!
 
@@ -45,6 +45,115 @@ function dBzdt(Flow       :: AEM_VMD_HMD.HField,
     selecthigh = .!isnan.(dhigh)
     dBzdt(dlow, dhigh, useML, σlow, σhigh,
     Flow, Fhigh, z, nfixed, copy(ρ), selectlow, selecthigh, ndatalow, ndatahigh)
+end
+
+struct SkyTEMSoundingData
+    sounding_string:: String
+    rRx :: Float64
+    zRxLM :: Float64
+    zTxLM :: Float64
+    zRxHM :: Float64
+    zTxHM :: Float64
+    rTx :: Float64
+    lowpassfcs :: Array{Float64, 1}
+    LM_times :: Array{Float64, 1}
+    LM_ramp :: Array{Float64, 2}
+    HM_times :: Array{Float64, 1}
+    HM_ramp :: Array{Float64, 2}
+    LM_noise :: Array{Float64, 1}
+    HM_noise :: Array{Float64, 1}
+    LM_data :: Array{Float64, 1}
+    HM_data :: Array{Float64, 1}
+end
+
+function SkyTEMsoundingData(rRx=-12., zRxLM=12., zTxLM=12.,
+                            zRxHM=12., zTxHm=12., rTx=-12.,lowpassfcs=[-1, -2.],
+                            LM_times=[1., 2.], LM_ramp=[1 2; 3 4],
+                            HM_times=[1., 2.], HM_ramp=[1 2; 3 4],
+                            LM_noise=[1.], HM_noise=[1.], LM_data=[1.], HM_data=[1.],
+                            sounding_String="sounding" )
+    @assert rRx > 0 && rTx > 0
+    @assert zRxLM <0 && zTxLM <0
+    @assert zRxHM <0 && zTxHM <0
+    @assert all(lowpassfcs .> 0)
+    @assert all(diff(LM_times) .>0 )
+    @assert all(diff(HM_times) .>0 )
+    @assert all(diff(LM_ramp[:,1]) .>0 )
+    @assert all(diff(HM_ramp[:,1]) .>0 )
+    @assert all(LM_noise .>0 )
+    @assert all(HM_noise .>0 )
+    @assert length(LM_data) == length(LM_noise)
+    @assert length(HM_data) == length(HM_noise)
+
+    SkyTEMsoundingData(sounding, rRx, zRxLM, zTxLM, zRxHM, zTxHM, rTx,
+    lowpassfcs, LM_times, LM_ramp, HM_times, HM_ramp, LM_noise, HM_noise,
+    LM_data, HM_data)
+end
+
+function read_survey_files(;
+    fname_dat="",
+    fname_specs_halt="",
+    frame_height = -2,
+    frame_dz = -2,
+    LM_Z = [-2, -2],
+    HM_Z = [-2, -2],
+    units=1e-12,
+    figsize=(5,8))
+    @assert frame_height > 0
+    @assert frame_dz > 0
+    @assert all(LM_Z .> 0)
+    @assert all(HM_Z .> 0)
+
+    soundings = readdlm(fname_dat)
+    d_LM = soundings[:,LM_Z[1]:LM_Z[2]]
+    d_HM = soundings[:,HM_Z[1]:HM_Z[2]]
+    zTx = soundings[:,frame_height]
+    zRx = zTx + soundings[:,frame_dz]
+    @info "reading"
+    include(fname_specs_halt)
+    @assert size(d_LM, 2) == length(LM_times)
+    @assert size(d_HM, 2) == length(HM_times)
+    @assert size(d_LM, 2) == length(LM_noise)
+    @assert size(d_HM, 2) == length(HM_noise)
+    LM_noise[:] .*= units
+    HM_noise[:] .*= units
+    d_LM[:]     .*= units
+    d_HM[:]     .*= units
+    f = figure(figsize=figsize)
+    ax = Array{Any, 1}(undef, 3)
+    ax[1] = subplot(3,1,1)
+    nsoundings = size(soundings, 1)
+    plot_dLM = permutedims(d_LM)
+    plot_dLM[plot_dLM .<0] .= NaN
+    pcolormesh(1:nsoundings, LM_times, log10.(plot_dLM), shading="nearest")
+    xlabel("sounding #")
+    cbLM = colorbar()
+    cbLM.set_label("log₁₀ d_LM")
+    ylabel("LM time s")
+    axLM = ax[1].twiny()
+    axLM.semilogy(LM_noise, LM_times)
+    axLM.set_xlabel("high alt noise")
+    ax[2] = subplot(3,1,2,sharex=ax[1], sharey=ax[1])
+    plot_dHM = permutedims(d_HM)
+    plot_dHM[plot_dHM .<0] .= NaN
+    pcolormesh(1:nsoundings, HM_times, log10.(plot_dHM), shading="nearest")
+    xlabel("sounding #")
+    cbHM = colorbar()
+    cbHM.set_label("log₁₀ d_HM")
+    ylabel("HM time s")
+    ax[2].invert_yaxis()
+    axHM = ax[2].twiny()
+    axHM.semilogy(HM_noise, HM_times)
+    axHM.set_xlabel("high alt noise")
+    ax[3] = subplot(3,1,3, sharex=ax[1])
+    plot(1:nsoundings, zRx, label="receiver")
+    plot(1:nsoundings, zTx, label="transmitter")
+    cbHM = colorbar()
+    cbHM.set_label("log₁₀ d_HM")
+    legend()
+    xlabel("sounding #")
+    ylabel("height m")
+    plt.tight_layout()
 end
 
 function getfield!(m::TransD_GP.Model, aem::dBzdt)
