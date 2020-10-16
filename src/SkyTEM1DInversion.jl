@@ -48,7 +48,11 @@ function dBzdt(Flow       :: AEM_VMD_HMD.HField,
 end
 
 mutable struct SkyTEMsoundingData
-    sounding_string:: String
+    sounding_string :: String
+    X :: Float64
+    Y :: Float64
+    fid :: Float64
+    linenum :: Int
     rRx :: Float64
     zRxLM :: Float64
     zTxLM :: Float64
@@ -71,8 +75,8 @@ function SkyTEMsoundingData(;rRx=-12., zRxLM=12., zTxLM=12.,
                             LM_times=[1., 2.], LM_ramp=[1 2; 3 4],
                             HM_times=[1., 2.], HM_ramp=[1 2; 3 4],
                             LM_noise=[1.], HM_noise=[1.], LM_data=[1.], HM_data=[1.],
-                            sounding_string="sounding" )
-    @info "on top"
+                            sounding_string="sounding", X=nothing, Y=nothing,
+                            linenum=nothing, fid=nothing)
     @assert rRx > 0 && rTx > 0
     @assert zRxLM <0 && zTxLM <0
     @assert zRxHM <0 && zTxHM <0
@@ -85,8 +89,7 @@ function SkyTEMsoundingData(;rRx=-12., zRxLM=12., zTxLM=12.,
     @assert all(HM_noise .>0 )
     @assert length(LM_data) == length(LM_noise)
     @assert length(HM_data) == length(HM_noise)
-    @info "here"
-    SkyTEMsoundingData(sounding_string, rRx, zRxLM, zTxLM, zRxHM, zTxHM, rTx,
+    SkyTEMsoundingData(sounding_string, X, Y, fid, linenum, rRx, zRxLM, zTxLM, zRxHM, zTxHM, rTx,
     lowpassfcs, LM_times, LM_ramp, HM_times, HM_ramp, LM_noise, HM_noise,
     LM_data, HM_data)
     # @show (sounding_string, rRx, zRxLM, zTxLM, zRxHM, zTxHM, rTx,
@@ -108,21 +111,31 @@ function read_survey_files(;
     makesounding = false,
     dotillsounding = nothing,
     skipevery = 1,
-    multnoise = 0.03)
+    multnoise = 0.03,
+    X = -1,
+    Y = -1,
+    fid = -1,
+    linenum = -1)
     @assert frame_height > 0
     @assert frame_dz > 0
     @assert frame_dx > 0
     @assert frame_dy > 0
     @assert all(LM_Z .> 0)
     @assert all(HM_Z .> 0)
-
+    @assert X > 0
+    @assert Y > 0
+    @assert linenum > 0
+    @assert fid > 0
     @info "reading $fname_dat"
     if dotillsounding!= nothing
         soundings = readdlm(fname_dat)[1:skipevery:dotillsounding,:]
     else
         soundings = readdlm(fname_dat)[1:skipevery:end,:]
     end
-
+    easting = soundings[:,X]
+    northing = soundings[:,Y]
+    fiducial = soundings[:,fid]
+    whichline = soundings[:,linenum]
     d_LM = soundings[:,LM_Z[1]:LM_Z[2]]
     d_HM = soundings[:,HM_Z[1]:HM_Z[2]]
     zTx = soundings[:,frame_height]
@@ -172,6 +185,7 @@ function read_survey_files(;
     legend()
     xlabel("sounding #")
     ylabel("height m")
+    ax[3].invert_yaxis()
     ax[4] = subplot(2,2,4, sharex=ax[1])
     ax[4].plot(1:nsoundings, rRx)
     xlabel("sounding #")
@@ -180,6 +194,7 @@ function read_survey_files(;
     if makesounding
         s_array = Array{SkyTEMsoundingData, 1}(undef, nsoundings)
         for is in 1:nsoundings
+            @info "read $is out of $nsoundings" 
             dₗₘ, dₕₘ = vec(d_LM[is,:]), vec(d_HM[is,:])
             σLM = sqrt.((multnoise*dₗₘ).^2 + LM_noise.^2)
             σHM = sqrt.((multnoise*dₕₘ).^2 + HM_noise.^2)
@@ -188,7 +203,9 @@ function read_survey_files(;
                 LM_times=LM_times, LM_ramp=LM_ramp,
                 HM_times=HM_times, HM_ramp=HM_ramp,
                 LM_noise=σLM, HM_noise=σHM, LM_data=dₗₘ, HM_data=dₕₘ,
-                sounding_string="sounding_$is")
+                sounding_string="sounding_$is",
+                X=easting[is], Y=northing[is], fid=fiducial[is],
+                linenum=Int(whichline[is]))
         end
         return s_array
     end
