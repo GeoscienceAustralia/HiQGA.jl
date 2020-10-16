@@ -483,7 +483,7 @@ function makeoperator( sounding::SkyTEMsoundingData;
     Fhm = AEM_VMD_HMD.HFieldDHT(
                           ntimesperdecade = ntimesperdecade,
                           nfreqsperdecade = nfreqsperdecade,
-                          lowpassfcs = lowpassfcs,
+                          lowpassfcs = sounding.lowpassfcs,
                           times  = sounding.HM_times,
                           ramp   = sounding.HM_ramp,
                           nmax   = nmax,
