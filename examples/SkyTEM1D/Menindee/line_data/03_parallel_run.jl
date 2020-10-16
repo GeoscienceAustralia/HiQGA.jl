@@ -1,27 +1,7 @@
 srcdir = dirname(dirname(dirname(dirname(pwd()))))*"/src"
 any(srcdir .== LOAD_PATH) || push!(LOAD_PATH, srcdir)
-## split into sequential iterations of parallel soundings
-nsoundings = length(sounding)
-ncores = 9
-nchainspersounding = 4
-@assert mod(ncores+1,nchainspersounding+1) == 0
-nparallelsoundings = Int((ncores+1)/(nchainspersounding+1))
-nsequentialiters = ceil(Int, nsoundings/nparallelsoundings)
 ## set up McMC
-using Distributed, MCMC_Driver
-nsamples, nchains, nchainsatone = 100001, 4, 1
-usempi = false
-if usempi
-    using MPIClusterManagers
-    manager = MPIManager(np=ncores)
-    addprocs(manager)
-else
-    addprocs(ncores)
-end
-@info "there are $(nworkers()) workers"
-@everywhere @info gethostname()
 Tmax = 2.50
-@info "workers are $(workers())"
 @everywhere any($srcdir .== LOAD_PATH) || push!(LOAD_PATH, $srcdir)
 @everywhere any(pwd() .== LOAD_PATH) || push!(LOAD_PATH, pwd())
 @everywhere using Distributed
