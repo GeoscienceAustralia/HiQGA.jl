@@ -30,7 +30,7 @@ SkyTEM1DInversion.read_survey_files(fname_dat         = fname_dat,
 									 fid              = fid,
 									 linenum          = linenum)
 ##
-ss = SkyTEM1DInversion.read_survey_files(fname_dat         = fname_dat,
+sounding = SkyTEM1DInversion.read_survey_files(fname_dat         = fname_dat,
 						             fname_specs_halt = fname_specs_halt,
 						             LM_Z             = LM_Z,
 									 HM_Z             = HM_Z,

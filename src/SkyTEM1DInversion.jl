@@ -194,7 +194,8 @@ function read_survey_files(;
     if makesounding
         s_array = Array{SkyTEMsoundingData, 1}(undef, nsoundings)
         for is in 1:nsoundings
-            @info "read $is out of $nsoundings" 
+            l, f = Int(whichline[is]), fiducial[is]
+            @info "read $is out of $nsoundings"
             dₗₘ, dₕₘ = vec(d_LM[is,:]), vec(d_HM[is,:])
             σLM = sqrt.((multnoise*dₗₘ).^2 + LM_noise.^2)
             σHM = sqrt.((multnoise*dₕₘ).^2 + HM_noise.^2)
@@ -203,9 +204,9 @@ function read_survey_files(;
                 LM_times=LM_times, LM_ramp=LM_ramp,
                 HM_times=HM_times, HM_ramp=HM_ramp,
                 LM_noise=σLM, HM_noise=σHM, LM_data=dₗₘ, HM_data=dₕₘ,
-                sounding_string="sounding_$is",
-                X=easting[is], Y=northing[is], fid=fiducial[is],
-                linenum=Int(whichline[is]))
+                sounding_string="sounding_$(l)_$f",
+                X=easting[is], Y=northing[is], fid=f,
+                linenum=l)
         end
         return s_array
     end
@@ -438,6 +439,60 @@ function makeoperator(fdataname::String;
     HM_noise = read(file, "sd_HM")
     ## create operator
     dlow, dhigh, σlow, σhigh = (LM_data, HM_data, LM_noise, HM_noise)./μ₀
+    aem = dBzdt(Flm, Fhm, vec(dlow), vec(dhigh),
+                                      vec(σlow), vec(σhigh), z=z, ρ=ρ, nfixed=nfixed)
+    plotfield && plotmodelfield!(Flm, Fhm, z, ρ, dlow, dhigh, σlow, σhigh;
+                          figsize=(12,4), nfixed=nfixed, dz=dz, extendfrac=extendfrac)
+    aem, znall
+end
+
+function makeoperator( sounding::SkyTEMsoundingData;
+                       zfixed   = [-1e5],
+                       ρfixed   = [1e12],
+                       zstart = 0.0,
+                       extendfrac = 1.06,
+                       dz = 2.,
+                       ρbg = 10,
+                       nlayers = 40,
+                       ntimesperdecade = 10,
+                       nfreqsperdecade = 5,
+                       showgeomplot = false,
+                       plotfield = false)
+    @assert extendfrac > 1.0
+    @assert dz > 0.0
+    @assert ρbg > 0.0
+    @assert nlayers > 1
+    nmax = nlayers+1
+
+    zall, znall, zboundaries = setupz(zstart, extendfrac, dz=dz, n=nlayers, showplot=showgeomplot)
+    z, ρ, nfixed = makezρ(zboundaries; zfixed=zfixed, ρfixed=ρfixed)
+    ρ[z.>=zstart] .= ρbg
+    ## LM operator
+    Flm = AEM_VMD_HMD.HFieldDHT(
+                          ntimesperdecade = ntimesperdecade,
+                          nfreqsperdecade = nfreqsperdecade,
+                          lowpassfcs = sounding.lowpassfcs,
+                          times  = sounding.LM_times,
+                          ramp   = sounding.LM_ramp,
+                          nmax   = nmax,
+                          zTx    = sounding.zTxLM,
+                          rRx    = sounding.rRx,
+                          rTx    = sounding.rTx,
+                          zRx    = sounding.zRxLM)
+    ## HM operator
+    Fhm = AEM_VMD_HMD.HFieldDHT(
+                          ntimesperdecade = ntimesperdecade,
+                          nfreqsperdecade = nfreqsperdecade,
+                          lowpassfcs = lowpassfcs,
+                          times  = sounding.HM_times,
+                          ramp   = sounding.HM_ramp,
+                          nmax   = nmax,
+                          zTx    = sounding.zTxHM,
+                          rRx    = sounding.rRx,
+                          rTx    = sounding.rTx,
+                          zRx    = sounding.zRxHM)
+    ## create operator
+    dlow, dhigh, σlow, σhigh = (sounding.LM_data, sounding.HM_data, sounding.LM_noise, sounding.HM_noise)./μ₀
     aem = dBzdt(Flm, Fhm, vec(dlow), vec(dhigh),
                                       vec(σlow), vec(σhigh), z=z, ρ=ρ, nfixed=nfixed)
     plotfield && plotmodelfield!(Flm, Fhm, z, ρ, dlow, dhigh, σlow, σhigh;
