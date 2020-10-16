@@ -338,12 +338,12 @@ function plotdepthtransforms(zall, znall, zboundaries, thickness)
     f, ax = plt.subplots(1, 2, sharey=true, figsize=(11,5))
     ax[1].stem(zall,thickness, "k--", markerfmt=" ")
     ax[1].set_ylabel("thickness m")
-    ax[2].set_xlabel("depth m")
+    ax[1].set_xlabel("depth m")
     ax[1].yaxis.grid(which="major")
     ax[2].stem(znall,thickness, "k--", markerfmt=" ")
     ax[2].set_xlabel("depth index")
     ax[2].yaxis.grid(which="major")
-    nicenup(f)
+    nicenup(gcf())
 end
 
 function makezρ(zboundaries::Array{Float64, 1};
