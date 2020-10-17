@@ -755,7 +755,6 @@ function open_history(opt::Options)
     fp_costs = nothing
     if length(opt.costs_filename) > 0
         fp_costs = open(opt.costs_filename, opt.history_mode)
-        @info "opened $(opt.costs_filename) opened"
     end
     fp_models = nothing
     if length(opt.fstar_filename) > 0

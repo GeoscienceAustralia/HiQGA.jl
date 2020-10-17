@@ -259,7 +259,6 @@ function init_chain_darrays(opt_in::TransD_GP.OptionsStat,
             chains[idx].T = TransD_GP.history(opt_in, stat=:T)[end]
         end
     end
-    @info "got here"
     m, mns, opt, optns, stat, statns, F,
     current_misfit, wp, wpns = map(x -> DArray(x), (m_, mns_, opt_, optns_,
                                     stat_, statns_, F_in_, current_misfit_,
