@@ -68,3 +68,4 @@ nchainspersounding = 5
 @assert mod(ncores+1,nchainspersounding+1) == 0
 nparallelsoundings = Int((ncores+1)/(nchainspersounding+1))
 nsequentialiters = ceil(Int, nsoundings/nparallelsoundings)
+nsamples = 100001

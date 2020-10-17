@@ -19,6 +19,8 @@ sdpos = 0.05
 sdprop = 0.05
 λ, δ = [2], 0.1
 save_freq = 25
+Tmax = 2.50
+nchainsatone = 1
 ## plot n random soundings and a background response
 using Random
 nplot = 2
