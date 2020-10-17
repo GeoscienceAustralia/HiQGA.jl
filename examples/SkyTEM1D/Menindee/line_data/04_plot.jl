@@ -2,7 +2,7 @@ srcdir = dirname(dirname(dirname(dirname(pwd()))))*"/src"
 any(srcdir .== LOAD_PATH) || push!(LOAD_PATH, srcdir)
 ## plot n random soundings and a background response
 using GeophysOperator, Random, PyPlot
-idx = 1
+idx = 200
 ##
 aem, znall = SkyTEM1DInversion.makeoperator(sounding[idx],
                                zfixed = zfixed,
