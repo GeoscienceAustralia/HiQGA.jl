@@ -57,8 +57,8 @@ sounding = SkyTEM1DInversion.read_survey_files(fname_dat         = fname_dat,
 									 Y                = Y,
 									 fid              = fid,
 									 linenum          = linenum,
-									 skipevery        = 2,
-									 dotillsounding   = 4,
+									 skipevery        = 1,
+									 dotillsounding   = 96,
 									 makesounding     = true)
 ## MPI checks
 # split into sequential iterations of parallel soundings
