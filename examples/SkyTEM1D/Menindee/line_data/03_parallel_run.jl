@@ -53,7 +53,9 @@ for iter = 1:nsequentialiters
                     nsamples=nsamples,
                     nchainsatone=nchainsatone)
         end
-        @info "done $i"
     end
+    @info "done $iter out of $nsequentialiters"
 end
+MPIClusterManagers.stop_main_loop(manager)
+rmprocs(workers())
 exit()

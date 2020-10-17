@@ -35,6 +35,7 @@ GeophysOperator.getchi2forall(opt, alpha=0.8)
 ax = gcf().axes
 ax[2].set_ylim(10,40)
 ## plot posterior
+zall, znall, zboundaries = GeophysOperator.CommonToAll.setupz(zstart, extendfrac, dz=dz, n=nlayers)
 opt.xall[:] .= zall
 GeophysOperator.plot_posterior(aem, opt)
 ## plot forward response
