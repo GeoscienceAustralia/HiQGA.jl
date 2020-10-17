@@ -312,7 +312,7 @@ function main(opt_in       ::TransD_GP.OptionsStat,
               nchainsatone = 1,
               Tmax         = 2.5)
 
-    @show chains = Chain(chainprocs, Tmax=Tmax)
+    chains = Chain(chainprocs, Tmax=Tmax)
     m, mns, opt, optns, stat, statns,
     F, current_misfit, wp, wpns, iterlast = init_chain_darrays(opt_in,
                                                 optns_in, F_in, chains)
