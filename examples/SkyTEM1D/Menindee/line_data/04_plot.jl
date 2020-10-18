@@ -1,9 +1,10 @@
 srcdir = dirname(dirname(dirname(dirname(pwd()))))*"/src"
 any(srcdir .== LOAD_PATH) || push!(LOAD_PATH, srcdir)
 ## plot n random soundings and a background response
-using GeophysOperator, Random, PyPlot
+using GeophysOperator, Random, PyPlot, Statistics
 idx = 1
 ## make a closure to plot posteriors
+zall, znall, zboundaries = GeophysOperator.CommonToAll.setupz(zstart, extendfrac, dz=dz, n=nlayers)
 function plotposts(idx; computeforward=false, plotposterior=true, nbins=50,
                     computequants=false, nforwards=50, burninfrac=0.5, quants=[0.1,0.5,0.9])
     aem, znall = SkyTEM1DInversion.makeoperator(sounding[idx],
@@ -32,7 +33,6 @@ function plotposts(idx; computeforward=false, plotposterior=true, nbins=50,
                                 λ = λ,
                                 δ = δ,
                                 )
-    zall, znall, zboundaries = GeophysOperator.CommonToAll.setupz(zstart, extendfrac, dz=dz, n=nlayers)
     opt.xall[:] .= zall
     if plotposterior
         GeophysOperator.getchi2forall(opt, alpha=0.8)
