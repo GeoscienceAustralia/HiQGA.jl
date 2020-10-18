@@ -4,7 +4,8 @@ any(srcdir .== LOAD_PATH) || push!(LOAD_PATH, srcdir)
 using GeophysOperator, Random, PyPlot
 idx = 1
 ## make a closure to plot posteriors
-function plotposts(idx)
+function plotposts(idx; computefw=false, plotposterior=true
+                    computequants=false, nforwards=50, burninfrac=0.5, quants=[0.1,0.5,0.9])
     aem, znall = SkyTEM1DInversion.makeoperator(sounding[idx],
                                zfixed = zfixed,
                                ρfixed = ρfixed,
@@ -31,17 +32,27 @@ function plotposts(idx)
                                 λ = λ,
                                 δ = δ,
                                 )
-    GeophysOperator.getchi2forall(opt, alpha=0.8)
+    GeophysOperator.getchi2forall(opt, alpha=0.8, burninfrac=burninfrac)
     ax = gcf().axes
     ax[2].set_ylim(10,40)
     ## plot posterior
     zall, znall, zboundaries = GeophysOperator.CommonToAll.setupz(zstart, extendfrac, dz=dz, n=nlayers)
     opt.xall[:] .= zall
-    GeophysOperator.plot_posterior(aem, opt)
+    GeophysOperator.plot_posterior(aem, opt, burninfrac=burninfrac)
+    ax = gcf().axes
+    ax.invert_xaxis()
     ## plot forward response
-    M = GeophysOperator.assembleTat1(opt, :fstar, temperaturenum=1)
-    Random.seed!(10)
-    SkyTEM1DInversion.plotmodelfield!(aem, M[randperm(length(M))[1:50]],
+    if (computefw || computemedian)
+        M = GeophysOperator.assembleTat1(opt, :fstar, temperaturenum=1, burninfrac=burninfrac)
+    end
+    if computefw
+        Random.seed!(10)
+        SkyTEM1DInversion.plotmodelfield!(aem, M[randperm(length(M))[1:nforwards]],
                                        dz=dz, extendfrac=extendfrac, onesigma=false, alpha=0.05)
+    end
+    if computemedian
+        m = vcat(M...)
+        qs = [quantile(m[:,i],quants) for i in 1:size(m,2)]
+    end
 end
-plotposts(idx)
+plotposts(idx, computeforward=true)
