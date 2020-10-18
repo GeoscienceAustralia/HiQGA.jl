@@ -32,16 +32,18 @@ function plotposts(idx; computeforward=false, plotposterior=true, nbins=50,
                                 λ = λ,
                                 δ = δ,
                                 )
-    GeophysOperator.getchi2forall(opt, alpha=0.8)
-    ax = gcf().axes
-    ax[2].set_ylim(10,40)
-    ## plot posterior
     zall, znall, zboundaries = GeophysOperator.CommonToAll.setupz(zstart, extendfrac, dz=dz, n=nlayers)
     opt.xall[:] .= zall
-    GeophysOperator.plot_posterior(aem, opt, burninfrac=burninfrac, nbins=nbins)
-    ax = gcf().axes
-    ax[1].invert_xaxis()
-    ## plot forward response
+    if plotposterior
+        GeophysOperator.getchi2forall(opt, alpha=0.8)
+        ax = gcf().axes
+        ax[2].set_ylim(10,40)
+        ## plot posterior
+        GeophysOperator.plot_posterior(aem, opt, burninfrac=burninfrac, nbins=nbins)
+        ax = gcf().axes
+        ax[1].invert_xaxis()
+        ## plot forward response
+    end
     if (computeforward || computequants)
         M = GeophysOperator.assembleTat1(opt, :fstar, temperaturenum=1, burninfrac=burninfrac)
     end
@@ -56,3 +58,5 @@ function plotposts(idx; computeforward=false, plotposterior=true, nbins=50,
     end
 end
 plotposts(idx, computeforward=true)
+## now try to do this for all soundings ...
+[plotposts(i, plotposterior=false, computequants=true) for i in 1:length(sounding)]
