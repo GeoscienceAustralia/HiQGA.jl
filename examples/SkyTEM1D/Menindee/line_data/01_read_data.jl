@@ -64,9 +64,11 @@ sounding = SkyTEM1DInversion.read_survey_files(fname_dat         = fname_dat,
 # split into sequential iterations of parallel soundings
 nsoundings = length(sounding)
 nchainspersounding = 5
+ppn = 48
 if usempi
 	ncores = nworkers()
 	@assert mod(ncores+1,nchainspersounding+1) == 0
+	@assert mod(ppn, nchainspersounding+1) == 0 
 	nparallelsoundings = Int((ncores+1)/(nchainspersounding+1))
 	nsequentialiters = ceil(Int, nsoundings/nparallelsoundings)
 	@info "will require $nsequentialiters iterations of $nparallelsoundings"
