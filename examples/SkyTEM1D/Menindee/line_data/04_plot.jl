@@ -54,9 +54,13 @@ function plotposts(idx; computeforward=false, plotposterior=true, nbins=50,
     end
     if computequants
         m = vcat(M...)
-        qs = [quantile(m[:,i],quants) for i in 1:size(m,2)]
+        qs = hcat([quantile(m[:,i],quants) for i in 1:size(m,2)]...)
     end
 end
 plotposts(idx, computeforward=true)
 ## now try to do this for all soundings ...
-[plotposts(i, plotposterior=false, computequants=true) for i in 1:length(sounding)]
+soundingquants = [plotposts(i, plotposterior=false, computequants=true) for i in 1:length(sounding)]
+a = [s[2,:] for s in soundingquants]
+b = hcat(a...)
+figure()
+pcolormesh(1:length(sounding), zboundaries, -b, shading="gouraud", cmap="jet")
