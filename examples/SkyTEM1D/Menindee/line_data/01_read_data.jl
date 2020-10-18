@@ -3,7 +3,7 @@ any(srcdir .== LOAD_PATH) || push!(LOAD_PATH, srcdir)
 ## MPI Init same was as on gadi
 using MPIClusterManagers, Distributed
 import MPI
-usempi = true
+usempi = false
 if usempi
 	MPI.Init()
 	rank = MPI.Comm_rank(MPI.COMM_WORLD)
@@ -57,6 +57,7 @@ sounding = SkyTEM1DInversion.read_survey_files(fname_dat         = fname_dat,
 									 Y                = Y,
 									 fid              = fid,
 									 linenum          = linenum,
+                                     startfrom        = 6,
 									 skipevery        = 10,
 									 dotillsounding   = nothing,
 									 makesounding     = true)
