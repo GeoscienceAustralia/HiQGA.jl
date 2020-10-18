@@ -110,6 +110,7 @@ function read_survey_files(;
     figsize = (9,7),
     makesounding = false,
     dotillsounding = nothing,
+    startfrom = 1,
     skipevery = 1,
     multnoise = 0.03,
     X = -1,
@@ -128,9 +129,9 @@ function read_survey_files(;
     @assert fid > 0
     @info "reading $fname_dat"
     if dotillsounding!= nothing
-        soundings = readdlm(fname_dat)[1:skipevery:dotillsounding,:]
+        soundings = readdlm(fname_dat)[startfrom:skipevery:dotillsounding,:]
     else
-        soundings = readdlm(fname_dat)[1:skipevery:end,:]
+        soundings = readdlm(fname_dat)[startfrom:skipevery:end,:]
     end
     easting = soundings[:,X]
     northing = soundings[:,Y]
