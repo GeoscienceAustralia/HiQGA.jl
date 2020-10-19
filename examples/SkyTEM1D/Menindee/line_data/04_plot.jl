@@ -60,7 +60,32 @@ end
 plotposts(idx, computeforward=true)
 ## now try to do this for all soundings ...
 soundingquants = [plotposts(i, plotposterior=false, computequants=true) for i in 1:length(sounding)]
+## plot them
+figure(figsize=(14,5))
 a = [s[2,:] for s in soundingquants]
 b = hcat(a...)
-figure()
-pcolormesh(1:length(sounding), zboundaries, -b, shading="gouraud", cmap="jet")
+xaxis = [0.5, ((1:length(sounding)) .+ 0.5)...]
+s1 = subplot(311)
+pcolormesh(xaxis, zboundaries, -b, cmap="jet", vmin=-2, vmax=0.25)
+colorbar()
+ylabel("depth m")
+title("Median")
+s2 = subplot(312, sharex=s1, sharey=s1)
+a = [s[1,:] for s in soundingquants]
+b = hcat(a...)
+pcolormesh(xaxis, zboundaries, -b, cmap="jet", vmin=-2, vmax=0.25)
+colorbar()
+title("P90")
+ylabel("depth m")
+s3 = subplot(313, sharex=s1, sharey=s1)
+a = [s[3,:] for s in soundingquants]
+b = hcat(a...)
+pcolormesh(xaxis, zboundaries, -b, cmap="jet", vmin=-2, vmax=0.25)
+colorbar()
+title("P10")
+ylabel("depth m")
+xlabel("sounding #")
+s3.set_ylim(0,150)
+s3.invert_yaxis()
+s3.invert_xaxis()
+plt.tight_layout()
