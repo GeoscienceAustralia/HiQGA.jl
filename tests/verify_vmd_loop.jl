@@ -12,12 +12,11 @@ rho      = [1e12,   100,  ]
 nmax = 200
 ##  geometry
 rRx = 100.
-zRx = -0.01
-zTx = -0.02
+zRx = -0.011
+zTx = -0.01
+nkᵣeval = 200
+## VMD
 modelprimary = true
-nkᵣeval = 150
-# Note that the receiver depth needs to be in same model layer as transmitter.
-##
 Fvmd = AEM_VMD_HMD.HFieldDHT(
                       nmax   = nmax,
                       zTx    = zTx,
@@ -26,10 +25,9 @@ Fvmd = AEM_VMD_HMD.HFieldDHT(
                       zRx    = zRx,
                       nkᵣeval = nkᵣeval,
                       modelprimary = modelprimary)
-
+AEM_VMD_HMD.getfieldFD!(Fvmd, zfixed, rho)
 ## now use a tiny loop radius - VMD approximation is worse as radius gets larger
-##
-rTx = 0.01
+rTx = 0.001
 Floop = AEM_VMD_HMD.HFieldDHT(
                       nmax   = nmax,
                       zTx    = zTx,
@@ -39,19 +37,34 @@ Floop = AEM_VMD_HMD.HFieldDHT(
                       zRx    = zRx,
                       nkᵣeval = nkᵣeval,
                       modelprimary = modelprimary)
-##
-AEM_VMD_HMD.getfieldFD!(Fvmd, zfixed, rho)
 AEM_VMD_HMD.getfieldFD!(Floop, zfixed, rho)
-##
-figure()
-loglog(freqs,abs.(imag(Fvmd.HFD)), label="imaginary, VMD")
-loglog(freqs,abs.(real(Fvmd.HFD)), label="real, VMD")
-loglog(freqs,abs.(imag(Floop.HFD)), "*", label="imaginary, loop")
-loglog(freqs,abs.(real(Floop.HFD)), "*", label="real, loop")
-xlim(extrema(freqs))
-legend()
-title("Compare with W&H Fig 4.2")
-grid()
+## Compare H vertical
+f, ax = plt.subplots(2,1, sharex=true)
+ax[1].loglog(freqs,abs.(imag(Fvmd.HFD_z)), label="imaginary, VMD")
+ax[1].loglog(freqs,abs.(real(Fvmd.HFD_z)), label="real, VMD")
+ax[1].loglog(freqs,abs.(imag(Floop.HFD_z)), "*", label="imaginary, loop")
+ax[1].loglog(freqs,abs.(real(Floop.HFD_z)), "*", label="real, loop")
+ax[1].legend()
+ax[1].set_title("Compare with W&H Fig 4.2")
+## Compare H radial
+modelprimary = false # says W&H for within plane of observation !!
+getradialH = true
+Fvmd = AEM_VMD_HMD.HFieldDHT(
+                      nmax   = nmax,
+                      zTx    = zTx,
+                      rRx    = rRx,
+                      freqs  = freqs,
+                      zRx    = zRx,
+                      nkᵣeval = nkᵣeval,
+                      modelprimary = modelprimary,
+                      getradialH = getradialH)
+AEM_VMD_HMD.getfieldFD!(Fvmd, zfixed, rho)
+ax[2].loglog(freqs,abs.(imag(Fvmd.HFD_r)), label="imaginary, VMD")
+ax[2].loglog(freqs,abs.(real(Fvmd.HFD_r)), label="real, VMD")
+ax[2].set_title("Compare with W&H Fig 4.3")
+ax[2].set_xlim(extrema(freqs))
+ax[1].grid()
+ax[2].grid()
 ## now test loop field, receiver at center
 zTx = -0.01
 zRx = -0.02
@@ -69,8 +82,8 @@ Floopin = AEM_VMD_HMD.HFieldDHT(
 AEM_VMD_HMD.getfieldFD!(Floopin, zfixed, rho)
 ##
 figure()
-loglog(freqs,pi*rTx^2*abs.(imag(Floopin.HFD)), label="imaginary, rx in = $(Floopin.rxwithinloop)")
-loglog(freqs,pi*rTx^2*abs.(real(Floopin.HFD)), label="real, rx in = $(Floopin.rxwithinloop)")
+loglog(freqs,pi*rTx^2*abs.(imag(Floopin.HFD_z)), label="imaginary, rx in = $(Floopin.rxwithinloop)")
+loglog(freqs,pi*rTx^2*abs.(real(Floopin.HFD_z)), label="real, rx in = $(Floopin.rxwithinloop)")
 xlim(extrema(freqs))
 legend()
 title("Compare with W&H Fig 4.7")

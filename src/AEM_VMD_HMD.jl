@@ -21,10 +21,14 @@ mutable struct HFieldDHT <: HField
     ramp            :: Array{Float64, 2}
     log10ω          :: Array{Float64, 1}
     interptimes     :: Array{Float64, 1}
-    HFD             :: Array{ComplexF64, 1}
-    HFDinterp       :: Array{ComplexF64, 1}
-    HTDinterp       :: Array{Float64, 1}
+    HFD_z           :: Array{ComplexF64, 1}
+    HFD_r           :: Array{ComplexF64, 1}
+    HFD_z_interp       :: Array{ComplexF64, 1}
+    HFD_r_interp       :: Array{ComplexF64, 1}
+    HTD_z_interp       :: Array{Float64, 1}
+    HTD_r_interp       :: Array{Float64, 1}
     dBzdt           :: Array{Float64, 1}
+    dBrdt           :: Array{Float64, 1}
     J0_kernel_h     :: Array{ComplexF64, 2}
     J1_kernel_h     :: Array{ComplexF64, 2}
     J0_kernel_v     :: Array{ComplexF64, 2}
@@ -43,6 +47,7 @@ mutable struct HFieldDHT <: HField
     interpkᵣ        :: Array{Float64,1}
     log10interpkᵣ   :: Array{Float64,1}
     log10Filter_base   :: Array{Float64,1}
+    getradialH      :: Bool
 end
 
 function HFieldDHT(;
@@ -61,7 +66,8 @@ function HFieldDHT(;
       provideddt = true,
       doconvramp = true,
       modelprimary = false,
-      nkᵣeval = 50
+      nkᵣeval = 50,
+      getradialH = false
   )
     @assert all(freqs .> 0.)
     @assert all(diff(times) .> 0)
@@ -85,10 +91,14 @@ function HFieldDHT(;
     J0_kernel_h, J1_kernel_h, J0_kernel_v, J1_kernel_v = map(x->zeros(ComplexF64, length(interpkᵣ), length(freqs)), 1:4)
     log10ω = log10.(2*pi*freqs)
     interptimes = 10 .^(minimum(log10.(times))-1:1/ntimesperdecade:maximum(log10.(times))+1)
-    HFD       = zeros(ComplexF64, length(freqs)) # space domain fields in freq
+    HFD_z       = zeros(ComplexF64, length(freqs)) # space domain fields in freq
+    HFD_r       = zeros(ComplexF64, length(freqs)) # space domain fields in freq
     dBzdt     = zeros(Float64, length(times)) # time derivative of space domain fields convolved with ramp
-    HFDinterp = zeros(ComplexF64, length(Filter_t_base))
-    HTDinterp = zeros(Float64, length(interptimes))
+    dBrdt     = zeros(Float64, length(times)) # time derivative of space domain fields convolved with ramp
+    HFD_z_interp = zeros(ComplexF64, length(Filter_t_base))
+    HTD_z_interp = zeros(Float64, length(interptimes))
+    HFD_r_interp = zeros(ComplexF64, length(Filter_t_base))
+    HTD_r_interp = zeros(Float64, length(interptimes))
     lowpassfcs = float.([lowpassfcs..., 1e7])
     quadnodes, quadweights = gausslegendre(glegintegorder)
     rxwithinloop = false
@@ -105,9 +115,9 @@ function HFieldDHT(;
     log10interpkᵣ = log10.(interpkᵣ)
     useprimary = modelprimary ? one(Float64) : zero(Float64)
     HFieldDHT(thickness, pz, ϵᵢ, zintfc, rTE, rTM, zRx, zTx, rTx, rRx, freqs, times, ramp, log10ω, interptimes,
-            HFD, HFDinterp, HTDinterp, dBzdt, J0_kernel_h, J1_kernel_h, J0_kernel_v, J1_kernel_v, lowpassfcs,
+            HFD_z, HFD_r, HFD_z_interp, HFD_r_interp, HTD_z_interp, HTD_r_interp, dBzdt, dBrdt, J0_kernel_h, J1_kernel_h, J0_kernel_v, J1_kernel_v, lowpassfcs,
             quadnodes, quadweights, preallocate_ω_Hsc(interptimes, lowpassfcs)..., rxwithinloop, provideddt, doconvramp, useprimary,
-            nkᵣeval, interpkᵣ, log10interpkᵣ, log10Filter_base)
+            nkᵣeval, interpkᵣ, log10interpkᵣ, log10Filter_base, getradialH)
 end
 
 function preallocate_ω_Hsc(interptimes, lowpassfcs)
@@ -172,7 +182,7 @@ function getCurlyR(Rs_d::ComplexF64, pz::ComplexF64,
         #
         # finRC = e_to_the_iwpzzr + e_to_the_iwpz_2znext_minus_zr*(-Rs_d)
         #
-        # finRD = e_to_the_iwpzzr + e_to_the_iwpz_2znext_minus_zr*(-Rs_d)
+        finRD = useprimary*e_to_the_iwpzzr + e_to_the_iwpz_2znext_minus_zr*(-Rs_d)
     else
         e_to_the_iwpz2znext              = exp(im*ω*pz*2*z[iTxLayer+1])
         e_to_the_minus_iwpzzr            = exp(-im*ω*pz*zR)
@@ -183,10 +193,10 @@ function getCurlyR(Rs_d::ComplexF64, pz::ComplexF64,
         #
         # finRC = (1. + e_to_the_iwpz2znext*(-Rs_d)) * e_to_the_minus_iwpzzr
         #
-        # finRD = (-1. + e_to_the_iwpz2znext*(-Rs_d)) * e_to_the_minus_iwpzzr
+        finRD = (-useprimary + e_to_the_iwpz2znext*(-Rs_d)) * e_to_the_minus_iwpzzr
     end
 
-    return finRA #, finRB, finRC, finRD
+    return finRA, finRD #, finRB, finRC,
 end
 # FT convention in this function means will have to conjugate for compatibility with FT = exp(-iωt)
 getepsc(ρ::Float64, ω::Float64)      = Complex(ϵ₀, 1/(ρ*ω)) # corresponds to FT = exp(+iωt)
@@ -242,19 +252,20 @@ function getAEM1DKernelsH!(F::HField, kᵣ::Float64, f::Float64, zz::Array{Float
 
     # TE and TM modes
     Rs_dTE, Rs_dTM   = stacks!(F, iTxLayer, nlayers, ω)
-    curlyRA,         = getCurlyR(Rs_dTE, pz[iTxLayer], zRx, z, iTxLayer, ω, F.useprimary)
-    lf = 1.0
+    curlyRA, curlyRD = getCurlyR(Rs_dTE, pz[iTxLayer], zRx, z, iTxLayer, ω, F.useprimary)
+    lf_gA_TE, lf_gD_TE = 1.0, 1.0
     if F.rxwithinloop
-        lf *= loopfactor(F.rTx, kᵣ, F.rRx)
+        lf_gA_TE *= loopfactor(F.rTx, kᵣ, F.rRx)
     else
-        lf *= loopfactor(F.rTx, kᵣ)
+        lf_gA_TE *= loopfactor(F.rTx, kᵣ)
+        lf_gD_TE *= lf_gA_TE/kᵣ
     end
-    gA_TE            = μ/pz[iTxLayer]*curlyRA*lf
-
+    gA_TE            = μ/pz[iTxLayer]*curlyRA*lf_gA_TE
+    gD_TE            = -curlyRD*lf_gD_TE
     # Kernels according to Loseth, without the bessel functions multiplied
     J0v              = gA_TE*1im/(ω*μ)
-
-    return J0v
+    J1v              = gD_TE
+    return J0v, J1v
 end
 
 loopfactor(rTx::Nothing, kᵣ::Float64)               = kᵣ^3/(4*pi)
@@ -265,46 +276,54 @@ function getfieldFD!(F::HFieldDHT, z::Array{Float64, 1}, ρ::Array{Float64, 1})
     for (ifreq, freq) in enumerate(F.freqs)
         for (ikᵣ, kᵣ) in enumerate(F.interpkᵣ)
             if F.rxwithinloop
-                F.J1_kernel_v[ikᵣ,ifreq] = getAEM1DKernelsH!(F, kᵣ, freq, z, ρ)
+                F.J1_kernel_v[ikᵣ,ifreq], = getAEM1DKernelsH!(F, kᵣ, freq, z, ρ)
             else
-                F.J0_kernel_v[ikᵣ,ifreq] = getAEM1DKernelsH!(F, kᵣ, freq, z, ρ)
+                F.J0_kernel_v[ikᵣ,ifreq], F.J1_kernel_v[ikᵣ,ifreq] = getAEM1DKernelsH!(F, kᵣ, freq, z, ρ)
             end
         end # kᵣ loop
         if F.rxwithinloop
             splreal = CubicSpline(real(F.J1_kernel_v[:,ifreq]), F.log10interpkᵣ)
             splimag = CubicSpline(imag(F.J1_kernel_v[:,ifreq]), F.log10interpkᵣ)
             J1_kernel_v = splreal.(F.log10Filter_base) + 1im*splimag.(F.log10Filter_base)
-            F.HFD[ifreq] = dot(J1_kernel_v, Filter_J1)/F.rTx
+            F.HFD_z[ifreq] = dot(J1_kernel_v, Filter_J1)/F.rTx
         else
+            # Vertical component
             splreal = CubicSpline(real(F.J0_kernel_v[:,ifreq]), F.log10interpkᵣ)
             splimag = CubicSpline(imag(F.J0_kernel_v[:,ifreq]), F.log10interpkᵣ)
             J0_kernel_v = splreal.(F.log10Filter_base) + 1im*splimag.(F.log10Filter_base)
-            F.HFD[ifreq] = dot(J0_kernel_v, Filter_J0)/F.rRx
+            F.HFD_z[ifreq] = dot(J0_kernel_v, Filter_J0)/F.rRx
+            # radial component
+            if F.getradialH
+                splreal = CubicSpline(real(F.J1_kernel_v[:,ifreq]), F.log10interpkᵣ)
+                splimag = CubicSpline(imag(F.J1_kernel_v[:,ifreq]), F.log10interpkᵣ)
+                J1_kernel_v = splreal.(F.log10Filter_base) + 1im*splimag.(F.log10Filter_base)
+                F.HFD_r[ifreq] = dot(J1_kernel_v, Filter_J1)/F.rRx
+            end    
         end
     end # freq loop
 end
 
 function getfieldTD!(F::HFieldDHT, z::Array{Float64, 1}, ρ::Array{Float64, 1})
     getfieldFD!(F, z, ρ)
-    splreal = CubicSpline(real(F.HFD), F.log10ω) # TODO preallocate
-    splimag = CubicSpline(imag(F.HFD), F.log10ω) # TODO preallocate
+    splreal = CubicSpline(real(F.HFD_z), F.log10ω) # TODO preallocate
+    splimag = CubicSpline(imag(F.HFD_z), F.log10ω) # TODO preallocate
     @views begin
         for itime = 1:length(F.interptimes)
             l10w, H = F.interplog10ω[:,itime], F.Hsc[:,itime]
             t = F.interptimes[itime]
             # Conjugate for my sign convention, apply Butterworth and inverse transform
             if F.provideddt
-                F.HFDinterp[:] .= imag(conj((splreal.(l10w) .+ 1im*splimag.(l10w)).*H))*2/pi
-                F.HTDinterp[itime] = dot(F.HFDinterp, Filter_t_sin)/t
+                F.HFD_z_interp[:] .= imag(conj((splreal.(l10w) .+ 1im*splimag.(l10w)).*H))*2/pi
+                F.HTD_z_interp[itime] = dot(F.HFD_z_interp, Filter_t_sin)/t
             else
                 w = F.ω[:,itime]
-                F.HFDinterp[:] .= -imag(conj((splreal.(l10w) .+ 1im*splimag.(l10w)).*H)./w)*2/pi
-                F.HTDinterp[itime] = dot(F.HFDinterp, Filter_t_cos)/t
+                F.HFD_z_interp[:] .= -imag(conj((splreal.(l10w) .+ 1im*splimag.(l10w)).*H)./w)*2/pi
+                F.HTD_z_interp[itime] = dot(F.HFD_z_interp, Filter_t_cos)/t
             end
         end
     end
     if F.doconvramp
-        spl = CubicSpline(F.HTDinterp, log10.(F.interptimes)) # TODO preallocate
+        spl = CubicSpline(F.HTD_z_interp, log10.(F.interptimes)) # TODO preallocate
         convramp!(F, spl)
     end
 end
