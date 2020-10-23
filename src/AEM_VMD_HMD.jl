@@ -298,38 +298,60 @@ function getfieldFD!(F::HFieldDHT, z::Array{Float64, 1}, ρ::Array{Float64, 1})
                 splimag = CubicSpline(imag(F.J1_kernel_v[:,ifreq]), F.log10interpkᵣ)
                 J1_kernel_v = splreal.(F.log10Filter_base) + 1im*splimag.(F.log10Filter_base)
                 F.HFD_r[ifreq] = dot(J1_kernel_v, Filter_J1)/F.rRx
-            end    
+            end
         end
     end # freq loop
 end
 
 function getfieldTD!(F::HFieldDHT, z::Array{Float64, 1}, ρ::Array{Float64, 1})
     getfieldFD!(F, z, ρ)
-    splreal = CubicSpline(real(F.HFD_z), F.log10ω) # TODO preallocate
-    splimag = CubicSpline(imag(F.HFD_z), F.log10ω) # TODO preallocate
+    spl_z_real = CubicSpline(real(F.HFD_z), F.log10ω) # TODO preallocate
+    spl_z_imag = CubicSpline(imag(F.HFD_z), F.log10ω) # TODO preallocate
+    if F.getradialH
+        spl_r_real = CubicSpline(real(F.HFD_r), F.log10ω) # TODO preallocate
+        spl_r_imag = CubicSpline(imag(F.HFD_r), F.log10ω) # TODO preallocate
+    end
     @views begin
         for itime = 1:length(F.interptimes)
             l10w, H = F.interplog10ω[:,itime], F.Hsc[:,itime]
             t = F.interptimes[itime]
             # Conjugate for my sign convention, apply Butterworth and inverse transform
             if F.provideddt
-                F.HFD_z_interp[:] .= imag(conj((splreal.(l10w) .+ 1im*splimag.(l10w)).*H))*2/pi
+                # vertical
+                F.HFD_z_interp[:] .= imag(conj((spl_z_real.(l10w) .+ 1im*spl_z_imag.(l10w)).*H))*2/pi
                 F.HTD_z_interp[itime] = dot(F.HFD_z_interp, Filter_t_sin)/t
+                # radial
+                if F.getradialH
+                    F.HFD_r_interp[:] .= imag(conj((spl_r_real.(l10w) .+ 1im*spl_r_imag.(l10w)).*H))*2/pi
+                    F.HTD_r_interp[itime] = dot(F.HFD_r_interp, Filter_t_sin)/t
+                end
             else
+                # vertical
                 w = F.ω[:,itime]
-                F.HFD_z_interp[:] .= -imag(conj((splreal.(l10w) .+ 1im*splimag.(l10w)).*H)./w)*2/pi
+                F.HFD_z_interp[:] .= -imag(conj((spl_z_real.(l10w) .+ 1im*spl_z_imag.(l10w)).*H)./w)*2/pi
                 F.HTD_z_interp[itime] = dot(F.HFD_z_interp, Filter_t_cos)/t
+                # radial
+                if F.getradialH
+                    F.HFD_r_interp[:] .= -imag(conj((spl_r_real.(l10w) .+ 1im*spl_r_imag.(l10w)).*H)./w)*2/pi
+                    F.HTD_r_interp[itime] = dot(F.HFD_r_interp, Filter_t_cos)/t
+                end
             end
         end
     end
     if F.doconvramp
-        spl = CubicSpline(F.HTD_z_interp, log10.(F.interptimes)) # TODO preallocate
-        convramp!(F, spl)
+        splz = CubicSpline(F.HTD_z_interp, log10.(F.interptimes)) # TODO preallocate
+        if F.getradialH
+            splr = CubicSpline(F.HTD_r_interp, log10.(F.interptimes)) # TODO preallocate
+        else
+            splr = splz
+        end
+        convramp!(F, splz, splr)
     end
 end
 
-function convramp!(F::HFieldDHT, spl::CubicSpline)
+function convramp!(F::HFieldDHT, splz::CubicSpline, splr::CubicSpline)
     fill!(F.dBzdt, 0.)
+    F.getradialH && fill!(F.dBrdt, 0.)
     for itime = 1:length(F.times)
         for iramp = 1:size(F.ramp,1)-1
             rta, rtb  = F.ramp[iramp,1], F.ramp[iramp+1,1]
@@ -348,7 +370,10 @@ function convramp!(F::HFieldDHT, spl::CubicSpline)
             tb = max(F.times[itime]-rtb, 1e-8) # rtb > rta, so make sure this is not zero...
             a, b = log10(ta), log10(tb)
             x, w = F.quadnodes, F.quadweights
-            F.dBzdt[itime] += (b-a)/2*dot(getrampresponse((b-a)/2*x .+ (a+b)/2, spl), w)*dIdt
+            F.dBzdt[itime] += (b-a)/2*dot(getrampresponse((b-a)/2*x .+ (a+b)/2, splz), w)*dIdt
+            if F. getradialH
+                F.dBrdt[itime] += (b-a)/2*dot(getrampresponse((b-a)/2*x .+ (a+b)/2, splr), w)*dIdt
+            end
         end
     end
 end
