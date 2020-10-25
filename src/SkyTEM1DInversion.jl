@@ -3,7 +3,7 @@ import AbstractOperator.get_misfit
 using AbstractOperator, AEM_VMD_HMD, Statistics
 using TransD_GP, PyPlot, LinearAlgebra, CommonToAll, MAT, Random, DelimitedFiles
 
-export dBzdt, plotmodelfield!, addnoise_skytem, plotmodelfield!
+export dBzdt, plotmodelfield!, addnoise_skytem, plotmodelfield!, plotmodelfield_skytem!
 
 const μ₀ = 4*pi*1e-7
 
@@ -283,7 +283,7 @@ function addnoise_skytem(Flow::AEM_VMD_HMD.HField, Fhigh::AEM_VMD_HMD.HField,
     dhigh[abs.(dhigh).<noisefloorhigh] .= NaN
     σlow = noisefrac*abs.(dlow)
     σhigh = noisefrac*abs.(dhigh)
-    plotmodelfield_skytem!(Flow, Fhigh, z, ρ, dlow, dhigh, σlow, σhigh,
+    plotmodelfield!(Flow, Fhigh, z, ρ, dlow, dhigh, σlow, σhigh,
                                 figsize=figsize, nfixed=nfixed,
                                 dz=dz, extendfrac=extendfrac)
     # returned data is dBzdt not H if there is a μ multiplied
