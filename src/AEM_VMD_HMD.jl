@@ -261,7 +261,7 @@ function getAEM1DKernelsH!(F::HField, kᵣ::Float64, f::Float64, zz::Array{Float
         lf_gD_TE *= lf_gA_TE/kᵣ
     end
     gA_TE            = μ/pz[iTxLayer]*curlyRA*lf_gA_TE
-    gD_TE            = -curlyRD*lf_gD_TE
+    gD_TE            = curlyRD*lf_gD_TE
     # Kernels according to Loseth, without the bessel functions multiplied
     J0v              = gA_TE*1im/(ω*μ)
     J1v              = gD_TE
