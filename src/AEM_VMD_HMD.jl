@@ -77,12 +77,12 @@ function HFieldDHT(;
     ϵᵢ      = similar(pz)
     rTE       = zeros(length(pz)-1)
     rTM       = similar(rTE)
-    freqlow, freqhigh = 1e-3, 1e6
+    freqlow, freqhigh = 1e-6, 1e6
     if freqhigh < 3/minimum(times)
        freqhigh = 3/minimum(times)
     end
-    if freqlow > 3/maximum(times)
-       freqlow = 3/maximum(times)
+    if freqlow > 0.33/maximum(times)
+       freqlow = 0.33/maximum(times)
     end
     if isempty(freqs)
         freqs = 10 .^(log10(freqlow):1/nfreqsperdecade:log10(freqhigh))
