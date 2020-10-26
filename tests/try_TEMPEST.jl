@@ -29,7 +29,7 @@ times = vec(10 .^mean(log10.([
 ## Set up operator
 ntimesperdecade = 10
 nfreqsperdecade = 5
-nkᵣeval = 100
+nkᵣeval = 60
 zTx = -120
 zRx = -80
 rRx = 115.0
@@ -55,6 +55,7 @@ rho      = [1e12,   100]
 AEM_VMD_HMD.getfieldTD!(Ftempest, zfixed, rho)
 ## plot
 figure(figsize=(4,7))
+s1 = subplot(211)
 loglog(Ftempest.times, abs.(AEM_VMD_HMD.μ*Ftempest.dBzdt)*1e15, label="Bz", ".-")
 loglog(Ftempest.times, abs.(AEM_VMD_HMD.μ*Ftempest.dBrdt)*1e15, label="Br", ".-")
 xlabel("time s")
@@ -62,4 +63,14 @@ ylabel("B field 10⁻¹⁵ T")
 ylim(1e-4, 10)
 legend()
 grid(true, which="both")
+plt.tight_layout()
+include("ross_tempest_response.jl")
+plot(times, abs.(ross_secondary[:,1]))
+plot(times, abs.(ross_secondary[:,2]))
+s2 = subplot(212, sharex=s1)
+plot(times, 100*abs.(AEM_VMD_HMD.μ*Ftempest.dBzdt*1e15-ross_secondary[:,2])./abs.(ross_secondary[:,2]),"x-")
+plot(times, 100*abs.(AEM_VMD_HMD.μ*Ftempest.dBrdt*1e15-ross_secondary[:,1])./abs.(ross_secondary[:,1]),"x-")
+grid(true, which="both")
+xlabel("time s")
+ylabel("% diff")
 plt.tight_layout()
