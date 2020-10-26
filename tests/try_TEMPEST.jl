@@ -3,12 +3,12 @@ any(srcdir .== LOAD_PATH) || push!(LOAD_PATH, srcdir)
 using PyPlot, Revise, AEM_VMD_HMD, Random, Statistics
 ## waveform and times
 ramp = [    -0.0200000000000    0.0
-			-0.0199933333333    1.0
-			-0.0000066666667    1.0
-			 0.0000000000000    0.0]
-			 # 0.0000066666667   -1.0
-			 # 0.0199933333333   -1.0
-			 # 0.0200000000000    0.0]
+			-0.0199933333333    0.5
+			-0.0000066666667    0.5
+			 0.0000000000000    0.0
+			 0.0000066666667   -0.5
+			 0.0199933333333   -0.5
+			 0.0200000000000    0.0]
 
 times = vec(10 .^mean(log10.([
             0.0000066667	0.0000200000
@@ -29,7 +29,7 @@ times = vec(10 .^mean(log10.([
 ## Set up operator
 ntimesperdecade = 10
 nfreqsperdecade = 5
-nkᵣeval = 50
+nkᵣeval = 100
 zTx = -120
 zRx = -80
 rRx = 115.0
@@ -49,8 +49,8 @@ Ftempest = AEM_VMD_HMD.HFieldDHT(
 					  getradialH = getradialH,
 					  provideddt = provideddt)
 ## model
-zfixed   = [-1e6,   0, 400]
-rho      = [1e12,   100, 100]
+zfixed   = [-1e6,   0]
+rho      = [1e12,   100]
 ## do it
 AEM_VMD_HMD.getfieldTD!(Ftempest, zfixed, rho)
 ## plot
