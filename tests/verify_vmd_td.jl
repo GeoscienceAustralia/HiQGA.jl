@@ -11,8 +11,8 @@ nkᵣeval             = 200
 times               = 10 .^LinRange(-5,-1, 50)
 lowpassfcs          = []
 ## model
-zfixed   = [-1e5,   0,    ]
-rho      = [1e12,   100,  ]
+zfixed   = [-1e5,   0]
+rho      = [1e12,   100]
 nmax = 200
 ##  geometry
 rRx = 100.
@@ -54,4 +54,23 @@ loglog(F.interptimes*1e3, abs.(F.HTD_z_interp), label="h")
 legend()
 xlabel("time in ms")
 title("Compare with W&H Fig 4.4")
+plt.tight_layout()
+## Radial fields
+figure(figsize=(4,7))
+F.useprimary = 0.
+F.getradialH = true
+F.provideddt = true
+AEM_VMD_HMD.getfieldTD!(F, zfixed, rho)
+loglog(F.interptimes*1e3, abs.(F.HTD_r_interp), label="dh/dt")
+ylim(1e-11,1e-1)
+legend()
+ylabel("dh/dt")
+F.provideddt = false
+AEM_VMD_HMD.getfieldTD!(F, zfixed, rho)
+ax = twinx(gca())
+ax.loglog(F.interptimes*1e3, abs.(F.HTD_r_interp), label="h", color="k")
+ax.set_ylabel("h")
+xlim(1e-3,1e2)
+# grid(true, which="both")
+legend(loc="lower left")
 plt.tight_layout()
