@@ -24,6 +24,8 @@ F = AEM_VMD_HMD.HFieldDHT(
                       zTx    = zTx,
                       rRx    = rRx,
                       times = times,
+                      nfreqsperdecade = nfreqsperdecade,
+                      ntimesperdecade = ntimesperdecade,
                       zRx    = zRx,
                       nkᵣeval = nkᵣeval,
                       modelprimary = modelprimary,
@@ -43,14 +45,14 @@ figure(figsize=(4,7))
 # first dhzdt
 F.provideddt = true
 AEM_VMD_HMD.getfieldTD!(F, zfixed, rho)
-loglog(F.interptimes*1e3, abs.(F.HTD_z_interp), label="dh/dt")
+loglog(F.interptimes*1e3, abs.(F.HTD_z_interp), label="dhz/dt")
 xlim(1e-5,1e3)
 ylim(1e-11,1e-1)
 grid(true, which="both")
 # then dhdt
 F.provideddt = false
 AEM_VMD_HMD.getfieldTD!(F, zfixed, rho)
-loglog(F.interptimes*1e3, abs.(F.HTD_z_interp), label="h")
+loglog(F.interptimes*1e3, abs.(F.HTD_z_interp), label="hz")
 legend()
 xlabel("time in ms")
 title("Compare with W&H Fig 4.4")
@@ -61,14 +63,14 @@ F.useprimary = 0.
 F.getradialH = true
 F.provideddt = true
 AEM_VMD_HMD.getfieldTD!(F, zfixed, rho)
-loglog(F.interptimes*1e3, abs.(F.HTD_r_interp), label="dh/dt")
+loglog(F.interptimes*1e3, abs.(F.HTD_r_interp), label="dhr/dt")
 ylim(1e-11,1e-1)
 legend()
 ylabel("dh/dt")
 F.provideddt = false
 AEM_VMD_HMD.getfieldTD!(F, zfixed, rho)
 ax = twinx(gca())
-ax.loglog(F.interptimes*1e3, abs.(F.HTD_r_interp), label="h", color="k")
+ax.loglog(F.interptimes*1e3, abs.(F.HTD_r_interp), label="hr", color="k")
 ax.set_ylabel("h")
 xlim(1e-3,1e2)
 # grid(true, which="both")

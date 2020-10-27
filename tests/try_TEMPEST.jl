@@ -52,8 +52,8 @@ Ftempest = AEM_VMD_HMD.HFieldDHT(
 					  provideddt = provideddt)
 ## model and Ross' response - select one
 include("ross_tempest_response_10_ohm-m.jl")
- include("ross_tempest_response_100_ohm-m.jl")
-include("ross_tempest_response_20_10_1000_ohm-m.jl")
+#include("ross_tempest_response_100_ohm-m.jl")
+#include("ross_tempest_response_20_10_1000_ohm-m.jl")
 ## do it
 AEM_VMD_HMD.getfieldTD!(Ftempest, zfixed, rho)
 ## plot
