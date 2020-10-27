@@ -2,7 +2,7 @@ srcdir = dirname(pwd())*"/src"
 any(srcdir .== LOAD_PATH) || push!(LOAD_PATH, srcdir)
 using PyPlot, Revise, AEM_VMD_HMD, Random
 ## set up
-nfreqsperdecade     = 10
+nfreqsperdecade     = 100
 ntimesperdecade     = 10
 modelprimary        = true
 provideddt          = true
@@ -77,3 +77,41 @@ xlim(1e-3,1e2)
 title("Compare with W&H Fig 4.4")
 legend(loc="lower left")
 plt.tight_layout()
+## investigative function
+function plotkernelfunc(G::typeof(F); decfactor=10, J0=true)
+    figure()
+    for ifreq = 1:decfactor:length(G.freqs)
+        freq = G.freqs[ifreq]
+        if J0
+            loglog(G.interpkᵣ, abs.(real(G.J0_kernel_v[:,ifreq])), label="$freq Hz", "--")
+            loglog(G.interpkᵣ, abs.(imag(G.J0_kernel_v[:,ifreq])), "-")
+        else
+            loglog(G.interpkᵣ, abs.(real(G.J0_kernel_v[:,ifreq])), label="$freq Hz", "--")
+            loglog(G.interpkᵣ, abs.(imag(G.J1_kernel_v[:,ifreq])), "-")
+        end
+    end
+    J0 ? title("J0") : title("J1")
+    legend()
+    figure()
+    s1 = subplot(211)
+    if J0
+        pcolormesh(G.interpkᵣ, G.freqs, log10.(abs.(real(G.J0_kernel_v)))')
+    else
+        pcolormesh(G.interpkᵣ, G.freqs, log10.(abs.(real(G.J1_kernel_v)))')
+    end
+    colorbar()
+    J0 ? title("real J0 kernel v") : title("real J1 kernel v")
+    ylabel("Hz")
+    subplot(212, sharex=s1, sharey=s1)
+    if J0
+        pcolormesh(G.interpkᵣ, G.freqs, log10.(abs.(imag(G.J0_kernel_v)))')
+    else
+        pcolormesh(G.interpkᵣ, G.freqs, log10.(abs.(imag(G.J1_kernel_v)))')
+    end
+    colorbar()
+    J0 ? title("imag J0 kernel v") : title("imag J1 kernel v")
+    gca().set_yscale("log")
+    gca().set_xscale("log")
+    xlabel("kᵣ 1/m"); ylabel("Hz")
+    plt.tight_layout()
+end
