@@ -1,5 +1,9 @@
 # X and Z components in fT
 # conducting 100 Ωm
+## model
+zfixed   = [-1e6,   0, 40, 60]
+rho      = [1e12,   100, 100, 100]
+
 ross_primary = [25.7847     -18.7313]
 ross_secondary = [3.9416     -5.8586
     1.8035     -3.6031

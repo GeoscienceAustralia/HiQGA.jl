@@ -2,13 +2,15 @@ srcdir = dirname(pwd())*"/src"
 any(srcdir .== LOAD_PATH) || push!(LOAD_PATH, srcdir)
 using PyPlot, Revise, AEM_VMD_HMD, Random, Statistics
 ## waveform and times
-ramp = [    -0.0200000000000    0.0
+ramp =  [  # -0.0400066666667    0.5
+			-0.0400000000000    0.0
+			-0.0399933333333   -0.5
+			-0.0200066666667   -0.5
+			-0.0200000000000    0.0
 			-0.0199933333333    0.5
 			-0.0000066666667    0.5
 			 0.0000000000000    0.0
-			 0.0000066666667   -0.5
-			 0.0199933333333   -0.5
-			 0.0200000000000    0.0]
+			 0.0000066666667   -0.5]
 
 times = vec(10 .^mean(log10.([
             0.0000066667	0.0000200000
@@ -48,9 +50,10 @@ Ftempest = AEM_VMD_HMD.HFieldDHT(
 					  modelprimary = modelprimary,
 					  getradialH = getradialH,
 					  provideddt = provideddt)
-## model
-zfixed   = [-1e6,   0]
-rho      = [1e12,   100]
+## model and Ross' response - select one
+include("ross_tempest_response_10_ohm-m.jl")
+ include("ross_tempest_response_100_ohm-m.jl")
+include("ross_tempest_response_20_10_1000_ohm-m.jl")
 ## do it
 AEM_VMD_HMD.getfieldTD!(Ftempest, zfixed, rho)
 ## plot
@@ -60,16 +63,14 @@ loglog(Ftempest.times, abs.(AEM_VMD_HMD.μ*Ftempest.dBzdt)*1e15, label="Bz", ".-
 loglog(Ftempest.times, abs.(AEM_VMD_HMD.μ*Ftempest.dBrdt)*1e15, label="Br", ".-")
 xlabel("time s")
 ylabel("B field 10⁻¹⁵ T")
-ylim(1e-4, 10)
+ylim(1e-6, 50)
 legend()
 grid(true, which="both")
-plt.tight_layout()
-include("ross_tempest_response.jl")
-plot(times, abs.(ross_secondary[:,1]))
 plot(times, abs.(ross_secondary[:,2]))
+plot(times, abs.(ross_secondary[:,1]))
 s2 = subplot(212, sharex=s1)
-plot(times, 100*abs.(AEM_VMD_HMD.μ*Ftempest.dBzdt*1e15-ross_secondary[:,2])./abs.(ross_secondary[:,2]),"x-")
-plot(times, 100*abs.(AEM_VMD_HMD.μ*Ftempest.dBrdt*1e15-ross_secondary[:,1])./abs.(ross_secondary[:,1]),"x-")
+loglog(times, 100*abs.(AEM_VMD_HMD.μ*Ftempest.dBzdt*1e15-ross_secondary[:,2])./abs.(ross_secondary[:,2]),"x-")
+loglog(times, 100*abs.(AEM_VMD_HMD.μ*Ftempest.dBrdt*1e15-ross_secondary[:,1])./abs.(ross_secondary[:,1]),"x-")
 grid(true, which="both")
 xlabel("time s")
 ylabel("% diff")

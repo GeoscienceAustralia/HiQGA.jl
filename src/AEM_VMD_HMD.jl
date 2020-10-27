@@ -77,7 +77,7 @@ function HFieldDHT(;
     ϵᵢ      = similar(pz)
     rTE       = zeros(length(pz)-1)
     rTM       = similar(rTE)
-    freqlow, freqhigh = 1e-6, 1e6
+    freqlow, freqhigh = 1e-5, 1e6
     if freqhigh < 3/minimum(times)
        freqhigh = 3/minimum(times)
     end
@@ -99,7 +99,7 @@ function HFieldDHT(;
     HTD_z_interp = zeros(Float64, length(interptimes))
     HFD_r_interp = zeros(ComplexF64, length(Filter_t_base))
     HTD_r_interp = zeros(Float64, length(interptimes))
-    lowpassfcs = float.([lowpassfcs..., 1e7])
+    lowpassfcs = float.([lowpassfcs..., 5e6])
     quadnodes, quadweights = gausslegendre(glegintegorder)
     rxwithinloop = false
     log10Filter_base = log10.(Filter_base/rRx)
