@@ -67,9 +67,12 @@ function HFieldDHT(;
       doconvramp = true,
       modelprimary = false,
       nkᵣeval = 50,
-      getradialH = false
+      getradialH = false,
+      freqlow = 1e-4,
+      freqhigh = 1e6
   )
     @assert all(freqs .> 0.)
+    @assert freqhigh > freqlow
     @assert all(diff(times) .> 0)
     thickness = zeros(nmax)
     zintfc    = zeros(nmax)
@@ -77,7 +80,6 @@ function HFieldDHT(;
     ϵᵢ      = similar(pz)
     rTE       = zeros(length(pz)-1)
     rTM       = similar(rTE)
-    freqlow, freqhigh = 1e-5, 1e6
     if freqhigh < 3/minimum(times)
        freqhigh = 3/minimum(times)
     end
@@ -253,18 +255,17 @@ function getAEM1DKernelsH!(F::HField, kᵣ::Float64, f::Float64, zz::Array{Float
     # TE and TM modes
     Rs_dTE, Rs_dTM   = stacks!(F, iTxLayer, nlayers, ω)
     curlyRA, curlyRD = getCurlyR(Rs_dTE, pz[iTxLayer], zRx, z, iTxLayer, ω, F.useprimary)
-    lf_gA_TE, lf_gD_TE = 1.0, 1.0
+    lf_gA_TE  = 1.0
     if F.rxwithinloop
         lf_gA_TE *= loopfactor(F.rTx, kᵣ, F.rRx)
     else
         lf_gA_TE *= loopfactor(F.rTx, kᵣ)
-        lf_gD_TE *= lf_gA_TE/kᵣ
     end
     gA_TE            = μ/pz[iTxLayer]*curlyRA*lf_gA_TE
-    gD_TE            = curlyRD*lf_gD_TE
+    gD_TE            = curlyRD
     # Kernels according to Loseth, without the bessel functions multiplied
     J0v              = gA_TE*1im/(ω*μ)
-    J1v              = gD_TE
+    J1v              = gD_TE*kᵣ^2/4pi
     return J0v, J1v
 end
 

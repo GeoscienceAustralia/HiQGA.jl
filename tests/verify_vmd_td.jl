@@ -2,14 +2,16 @@ srcdir = dirname(pwd())*"/src"
 any(srcdir .== LOAD_PATH) || push!(LOAD_PATH, srcdir)
 using PyPlot, Revise, AEM_VMD_HMD, Random
 ## set up
-nfreqsperdecade     = 100
-ntimesperdecade     = 10
+nfreqsperdecade     = 20
+ntimesperdecade     = 20
 modelprimary        = true
 provideddt          = true
 doconvramp          = false
 nkᵣeval             = 200
-times               = 10 .^LinRange(-5,-1, 50)
-lowpassfcs          = []
+times               = 10 .^LinRange(-5,-1.1, 60)
+lowpassfcs          = [1e6]
+freqhigh = 1e6
+freqlow = 1e-8
 ## model
 zfixed   = [-1e5,   0]
 rho      = [1e12,   100]
@@ -20,7 +22,8 @@ zRx = 0.
 zTx = 0.
 modelprimary = true
 ##
-F = AEM_VMD_HMD.HFieldDHT(
+F = AEM_VMD_HMD.HFieldDHT(freqlow = freqlow,
+                      freqhigh = freqhigh,
                       zTx    = zTx,
                       rRx    = rRx,
                       times = times,
@@ -67,14 +70,18 @@ loglog(F.interptimes*1e3, abs.(F.HTD_r_interp), label="dhr/dt")
 ylim(1e-11,1e-1)
 legend()
 ylabel("dh/dt")
+# grid(true, which="both")
+xlabel("time in ms")
 F.provideddt = false
 AEM_VMD_HMD.getfieldTD!(F, zfixed, rho)
 ax = twinx(gca())
 ax.loglog(F.interptimes*1e3, abs.(F.HTD_r_interp), label="hr", color="k")
 ax.set_ylabel("h")
-xlim(1e-3,1e2)
-# grid(true, which="both")
-title("Compare with W&H Fig 4.4")
+ax.set_xlim(1e-3,10^3.5)
+ax.set_ylim(10^-7.05,10^-16.9)
+ax.invert_yaxis()
+# ax.grid(true, which="both")
+title("Compare with W&H Fig 4.5")
 legend(loc="lower left")
 plt.tight_layout()
 ## investigative function
@@ -86,11 +93,11 @@ function plotkernelfunc(G::typeof(F); decfactor=10, J0=true)
             loglog(G.interpkᵣ, abs.(real(G.J0_kernel_v[:,ifreq])), label="$freq Hz", "--")
             loglog(G.interpkᵣ, abs.(imag(G.J0_kernel_v[:,ifreq])), "-")
         else
-            loglog(G.interpkᵣ, abs.(real(G.J0_kernel_v[:,ifreq])), label="$freq Hz", "--")
+            loglog(G.interpkᵣ, abs.(real(G.J1_kernel_v[:,ifreq])), label="$freq Hz", "--")
             loglog(G.interpkᵣ, abs.(imag(G.J1_kernel_v[:,ifreq])), "-")
         end
     end
-    J0 ? title("J0") : title("J1")
+    J0 ? title("J0 v") : title("J1 v")
     legend()
     figure()
     s1 = subplot(211)
