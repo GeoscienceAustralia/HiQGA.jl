@@ -1,8 +1,11 @@
 module CSEM1DInversion
-import AbstractOperator.get_misfit
-import CSEM1DEr.getfield!
-using AbstractOperator, CSEM1DEr
-using TransD_GP, PyPlot, LinearAlgebra, CommonToAll
+import ..AbstractOperator.get_misfit
+include("CSEM1DEr.jl")
+import .CSEM1DEr.getfield!
+using ..AbstractOperator, .CSEM1DEr
+using PyPlot, LinearAlgebra, ..CommonToAll
+
+import ..Model, ..Options
 
 export CSEMRadialEr, plotmodelfield!, addnoise
 
@@ -47,7 +50,7 @@ end
 
 getfield!(csem::CSEMRadialEr) = getfield!(csem.F, csem.z, csem.ρ)
 
-function getfield!(m::TransD_GP.Model, csem::CSEMRadialEr)
+function getfield!(m::Model, csem::CSEMRadialEr)
     copyto!(csem.ρ, csem.nfixed+1:length(csem.ρ), 10 .^m.fstar, 1:length(m.fstar))
     getfield!(csem)
     nothing
@@ -59,7 +62,7 @@ function getfield!(m::Array{Float64}, csem::CSEMRadialEr)
     nothing
 end
 
-function get_misfit(m::TransD_GP.Model, opt::TransD_GP.Options, csem::CSEMRadialEr)
+function get_misfit(m::Model, opt::Options, csem::CSEMRadialEr)
     chi2by2 = 0.0
     if !opt.debug
         ndata = csem.ndata

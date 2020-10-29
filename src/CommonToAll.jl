@@ -1,12 +1,14 @@
 module CommonToAll
-using TransD_GP, PyPlot, StatsBase, Statistics, Distances, LinearAlgebra,
-      AbstractOperator, GP
+using PyPlot, StatsBase, Statistics, Distances, LinearAlgebra,
+      ..AbstractOperator
+
+import ..Options, ..OptionsStat, ..OptionsNonstat
 
 export trimxft, assembleTat1, gettargtemps, checkns, getchi2forall, nicenup,
         plot_posterior, make1Dhist, make1Dhists, setupz, makezρ, plotdepthtransforms,
         unwrap, getn, geomprogdepth, assemblemodelsatT, getstats, gethimage
 
-function trimxft(opt::TransD_GP.Options, burninfrac::Float64, temperaturenum::Int)
+function trimxft(opt::Options, burninfrac::Float64, temperaturenum::Int)
     x_ft = assembleTat1(opt, :x_ftrain, burninfrac=burninfrac, temperaturenum=temperaturenum)
     n = assembleTat1(opt, :nodes, burninfrac=burninfrac, temperaturenum=temperaturenum)
     x, ft = zeros(size(opt.xall, 1), sum(n)), zeros(size(opt.fbounds, 1), sum(n))
@@ -19,7 +21,7 @@ function trimxft(opt::TransD_GP.Options, burninfrac::Float64, temperaturenum::In
     x, ft, n
 end
 
-function assembleTat1(optin::TransD_GP.Options, stat::Symbol; burninfrac=0.5, temperaturenum=-1)
+function assembleTat1(optin::Options, stat::Symbol; burninfrac=0.5, temperaturenum=-1)
     @assert temperaturenum!=-1 "Please explicitly specify which temperature number"
     if stat == :fstar && temperaturenum!= 1
         return assemblemodelsatT(optin, burninfrac=burninfrac, temperaturenum=temperaturenum)
@@ -53,15 +55,15 @@ function assembleTat1(optin::TransD_GP.Options, stat::Symbol; burninfrac=0.5, te
         ninchain = sum(at1idx)
         @info "chain $ichain has $ninchain models"
         ninchain == 0 && continue
-        mat1[imodel+1:imodel+ninchain] .= TransD_GP.history(opt, stat=stat)[at1idx]
+        mat1[imodel+1:imodel+ninchain] .= history(opt, stat=stat)[at1idx]
         imodel += ninchain
     end
-    iters = TransD_GP.history(opt, stat=:iter)
+    iters = history(opt, stat=:iter)
     @info "obtained models $(iters[start]) to $(iters[end]) at T=$ttarget"
     mat1
 end
 
-function assemblemodelsatT(opt::TransD_GP.OptionsStat; burninfrac=0.9, temperaturenum=-1)
+function assemblemodelsatT(opt::OptionsStat; burninfrac=0.9, temperaturenum=-1)
     @assert temperaturenum!=-1 "Please explicitly specify which temperature number"
     x_ft = assembleTat1(opt, :x_ftrain, burninfrac=burninfrac, temperaturenum=temperaturenum)
     n = assembleTat1(opt, :nodes, burninfrac=burninfrac, temperaturenum=temperaturenum)
@@ -74,18 +76,18 @@ function assemblemodelsatT(opt::TransD_GP.OptionsStat; burninfrac=0.9, temperatu
         xtrain = @view x_ft[imodel][1:size(opt.xall, 1), 1:n[imodel]]
         ftrain = x_ft[imodel][size(opt.xall, 1)+1:end, :]
         ky = view(K_y, 1:n[imodel], 1:n[imodel])
-        map!(x->GP.κ(opt.K, x),ky,pairwise(WeightedEuclidean(1 ./opt.λ² ), xtrain, dims=2))
+        map!(x->κ(opt.K, x),ky,pairwise(WeightedEuclidean(1 ./opt.λ² ), xtrain, dims=2))
         K_y[diagind(K_y)] .+= opt.δ^2
         ks = view(Kstar, :, 1:n[imodel])
-        map!(x->GP.κ(opt.K, x),Kstar,pairwise(WeightedEuclidean(1 ./opt.λ² ), xtest, xtrain, dims=2))
+        map!(x->κ(opt.K, x),Kstar,pairwise(WeightedEuclidean(1 ./opt.λ² ), xtest, xtrain, dims=2))
         matT[imodel] = zeros(size(opt.fbounds, 1), size(opt.xall, 2))
         fstar = matT[imodel]
-        TransD_GP.calcfstar!(fstar, ftrain, opt, K_y, Kstar, n[imodel])
+        calcfstar!(fstar, ftrain, opt, K_y, Kstar, n[imodel])
     end
     matT
 end
 
-function assemblemodelsatT(optns::TransD_GP.OptionsNonstat, opts::TransD_GP.OptionsStat;
+function assemblemodelsatT(optns::OptionsNonstat, opts::OptionsStat;
     burninfrac=0.9, temperaturenum=-1)
     @assert temperaturenum!=-1 "Please explicitly specify which temperature number"
     msatT = assemblemodelsatT(opts, burninfrac=burninfrac, temperaturenum=temperaturenum)
@@ -100,16 +102,16 @@ function assemblemodelsatT(optns::TransD_GP.OptionsNonstat, opts::TransD_GP.Opti
         λ² = msatT[imodel]
         xtrain = x_ft[imodel][1:size(optns.xall, 1), :]
         ftrain = x_ft[imodel][size(optns.xall, 1)+1:end, :]
-        idxs = TransD_GP.gettrainidx(optns.kdtree, xtrain, n[imodel])
+        idxs = gettrainidx(optns.kdtree, xtrain, n[imodel])
         ky = view(K_y, 1:n[imodel], 1:n[imodel])
-        map!(x->x, ky, GP.pairwise(optns.K, xtrain[:,1:n[imodel]], xtrain[:,1:n[imodel]],
+        map!(x->x, ky, pairwise(optns.K, xtrain[:,1:n[imodel]], xtrain[:,1:n[imodel]],
                                     λ²[:,idxs], λ²[:,idxs]))
         K_y[diagind(K_y)] .+= optns.δ^2
         ks = view(Kstar, :, 1:n[imodel])
-        map!(x->x, ks, GP.pairwise(optns.K, xtrain[:,1:n[imodel]], xtest, λ²[:,idxs], λ²))
+        map!(x->x, ks, pairwise(optns.K, xtrain[:,1:n[imodel]], xtest, λ²[:,idxs], λ²))
         mnsatT[imodel] = zeros(size(optns.xall, 2), size(optns.fbounds, 1))
         fstar = mnsatT[imodel]
-        TransD_GP.calcfstar!(fstar, ftrain, optns, K_y, Kstar, n[imodel])
+        calcfstar!(fstar, ftrain, optns, K_y, Kstar, n[imodel])
     end
     msatT, mnsatT
 end
@@ -123,7 +125,7 @@ c = 0
     c
 end
 
-function gettargtemps(opt_in::TransD_GP.Options)
+function gettargtemps(opt_in::Options)
     isns = checkns(opt_in)
     opt = deepcopy(opt_in)
     costs_filename = "misfits_"*opt.fdataname*isns
@@ -131,7 +133,7 @@ function gettargtemps(opt_in::TransD_GP.Options)
     @info "Number of chains is $nchains"
     # now look at any chain to get how many iterations
     opt.costs_filename    = costs_filename*"_1.bin"
-    iters          = TransD_GP.history(opt, stat=:iter)
+    iters          = history(opt, stat=:iter)
     niters         = length(iters)
     @info "McMC has run for $(iters[end]) iterations"
     # then create arrays of unsorted by temperature T
@@ -139,12 +141,12 @@ function gettargtemps(opt_in::TransD_GP.Options)
     # get the values into the arrays
     for ichain in 1:nchains
         opt.costs_filename = costs_filename*"_$ichain.bin"
-        Tacrosschains[:,ichain] = TransD_GP.history(opt, stat=:T)
+        Tacrosschains[:,ichain] = history(opt, stat=:T)
     end
     Tacrosschains
 end
 
-function getstats(optin::TransD_GP.Options;
+function getstats(optin::Options;
                   figsize=(5,6), fontsize=12,
                   nxticks=5, nyticks=5, alpha=0.6, chains=[-1])
     if chains[1] == -1
@@ -158,7 +160,7 @@ function getstats(optin::TransD_GP.Options;
     opt = deepcopy(optin)
     costs_filename = "misfits_"*opt.fdataname*isns
     opt.costs_filename    = costs_filename*"_1.bin"
-    iters          = TransD_GP.history(opt, stat=:iter)
+    iters          = history(opt, stat=:iter)
     statnames = [:acceptanceRateBirth, :acceptanceRateDeath,
                  :acceptanceRatePosition, :acceptanceRateProperty]
     f,ax = plt.subplots(length(statnames), 1,
@@ -167,7 +169,7 @@ function getstats(optin::TransD_GP.Options;
     for (ichain, chain) in enumerate(chains)
         opt.costs_filename = costs_filename*"_$chain.bin"
         for (istat, statname) in enumerate(statnames)
-            ar = TransD_GP.history(opt, stat=statname)
+            ar = history(opt, stat=statname)
             mx = maximum(ar[.!isnan.(ar)])
             mx > maxar && (maxar = mx)
             ax[istat].plot(iters, ar, alpha=alpha)
@@ -187,15 +189,15 @@ function getstats(optin::TransD_GP.Options;
     nicenup(f, fsize=fontsize)
 end
 
-function checkns(optin::TransD_GP.Options)
-    isns = typeof(optin) == TransD_GP.OptionsNonstat
+function checkns(optin::Options)
+    isns = typeof(optin) == OptionsNonstat
     @info "ns is $isns"
     ns = "ns"
     isns || (ns="s")
     return ns
 end
 
-function getchi2forall(opt_in::TransD_GP.Options;
+function getchi2forall(opt_in::Options;
                         nchains         = 1,
                         figsize         = (6,4),
                         fsize           = 8,
@@ -211,7 +213,7 @@ function getchi2forall(opt_in::TransD_GP.Options;
         nchains = getnchains(costs_filename)
     end
     opt.costs_filename    = costs_filename*"_1.bin"
-    iters          = TransD_GP.history(opt, stat=:iter)
+    iters          = history(opt, stat=:iter)
     niters         = length(iters)
     # then create arrays of unsorted by temperature T, k, and chi2
     Tacrosschains  = zeros(Float64, niters, nchains)
@@ -220,9 +222,9 @@ function getchi2forall(opt_in::TransD_GP.Options;
     # get the values into the arrays
     for ichain in 1:nchains
         opt.costs_filename = costs_filename*"_$ichain.bin"
-        Tacrosschains[:,ichain] = TransD_GP.history(opt, stat=:T)
-        kacrosschains[:,ichain] = TransD_GP.history(opt, stat=:nodes)
-        X2by2inchains[:,ichain] = TransD_GP.history(opt, stat=:U)
+        Tacrosschains[:,ichain] = history(opt, stat=:T)
+        kacrosschains[:,ichain] = history(opt, stat=:nodes)
+        X2by2inchains[:,ichain] = history(opt, stat=:U)
     end
 
     f, ax = plt.subplots(3,1, sharex=true, figsize=figsize)
@@ -374,8 +376,8 @@ function nicenup(g::PyPlot.Figure;fsize=16)
 end
 
 function plot_posterior(operator::Operator1D,
-                        optns::TransD_GP.OptionsNonstat,
-                        opts::TransD_GP.OptionsStat;
+                        optns::OptionsNonstat,
+                        opts::OptionsStat;
     temperaturenum = 1,
     nbins = 50,
     burninfrac=0.5,
@@ -419,7 +421,7 @@ function plot_posterior(operator::Operator1D,
 end
 
 function plot_posterior(operator::Operator1D,
-                        opt::TransD_GP.OptionsStat;
+                        opt::OptionsStat;
     temperaturenum = 1,
     nbins = 50,
     burninfrac=0.5,
@@ -448,8 +450,8 @@ function plot_posterior(operator::Operator1D,
     nicenup(f, fsize=fsize)
 end
 
-function make1Dhist(optns::TransD_GP.OptionsNonstat,
-                    opts::TransD_GP.OptionsStat;
+function make1Dhist(optns::OptionsNonstat,
+                    opts::OptionsStat;
                 burninfrac = 0.5,
                 nbins = 50,
                 rhomin=Inf,
@@ -470,7 +472,7 @@ function make1Dhist(optns::TransD_GP.OptionsNonstat,
     return himage, edges, CI, himage_ns, edges_ns, CI_ns
 end
 
-function make1Dhist(opt::TransD_GP.Options;
+function make1Dhist(opt::Options;
                 burninfrac = 0.5,
                 nbins = 50,
                 rhomin=Inf,
@@ -486,7 +488,7 @@ function make1Dhist(opt::TransD_GP.Options;
     return himage, edges, CI
 end
 
-function gethimage(M::AbstractArray, opt::TransD_GP.Options;
+function gethimage(M::AbstractArray, opt::Options;
                 burninfrac = 0.5,
                 nbins = 50,
                 rhomin=Inf,
@@ -503,7 +505,7 @@ function gethimage(M::AbstractArray, opt::TransD_GP.Options;
             rhomax_mm > rhomax && (rhomax = rhomax_mm)
 
         end
-        if typeof(opt) == TransD_GP.OptionsStat && opt.needλ²fromlog
+        if typeof(opt) == OptionsStat && opt.needλ²fromlog
             rhomin = 0.5*log10(rhomin)
             rhomax = 0.5*log10(rhomax)
         end
@@ -514,14 +516,14 @@ function gethimage(M::AbstractArray, opt::TransD_GP.Options;
     himage = zeros(Float64, length(M[1]), nbins)
     CI = zeros(Float64, length(M[1]), 2)
     for ilayer=1:length(M[1])
-        if typeof(opt) == TransD_GP.OptionsStat && opt.needλ²fromlog
+        if typeof(opt) == OptionsStat && opt.needλ²fromlog
             himage[ilayer,:] = fit(Histogram, [0.5log10.(m[ilayer]) for m in M], edges).weights
         else
             himage[ilayer,:] = fit(Histogram, [m[ilayer] for m in M], edges).weights
         end
         himage[ilayer,:] = himage[ilayer,:]/sum(himage[ilayer,:])/(diff(edges)[1])
         pdfnormalize && (himage[ilayer,:] = himage[ilayer,:]/maximum(himage[ilayer,:]))
-        if typeof(opt) == TransD_GP.OptionsStat && opt.needλ²fromlog
+        if typeof(opt) == OptionsStat && opt.needλ²fromlog
             CI[ilayer,:] = [quantile([0.5log10.(m[ilayer]) for m in M],(qp1, qp2))...]
         else
             CI[ilayer,:] = [quantile([m[ilayer] for m in M],(qp1, qp2))...]
@@ -530,7 +532,7 @@ function gethimage(M::AbstractArray, opt::TransD_GP.Options;
     himage, edges, CI
 end
 
-function make1Dhists(opt_in::TransD_GP.Options, burninfrac::Real;
+function make1Dhists(opt_in::Options, burninfrac::Real;
                         kfigsize=(8,8),
                         nxbins=50,
                         nftbins=50,
