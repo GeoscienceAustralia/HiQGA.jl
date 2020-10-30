@@ -1,3 +1,5 @@
+module GP
+
 using Statistics, LinearAlgebra
 function gaussiankernel(x::AbstractArray, y::AbstractArray, p)
     return exp(-0.5*norm(x-y,p)^p)
@@ -164,4 +166,6 @@ end
         c *= sqrt(sqrt((λ²train[i]*λ²test[i])/(avλ²*avλ²)))
     end
     c*κ(K, sqrt(d), p=p)
+end
+
 end

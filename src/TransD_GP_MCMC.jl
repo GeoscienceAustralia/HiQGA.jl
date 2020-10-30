@@ -1,6 +1,8 @@
 using Printf, LinearAlgebra, Statistics, Distributed, PositiveFactorizations,
       Distances, NearestNeighbors
 
+using .GP
+
 abstract type Options end
 
 mutable struct OptionsStat <: Options
@@ -27,7 +29,7 @@ mutable struct OptionsStat <: Options
     debug               :: Bool
     quasimultid         :: Bool
     influenceradius     :: Array{Float64, 1}
-    K                   :: Kernel
+    K                   :: GP.Kernel
     kdtree              :: KDTree
     balltree            :: BallTree
     timesλ              :: Float64
@@ -78,7 +80,7 @@ function OptionsStat(;
             @assert influenceradius[1] > 0.0
             @assert length(influenceradius) == size(xall, 1) - 1
         end
-        @assert typeof(K) <: Kernel
+        @assert typeof(K) <: GP.Kernel
         costs_filename = "misfits_"*fdataname*".bin"
         fstar_filename = "models_"*fdataname*".bin"
         x_ftrain_filename = "points_"*fdataname*".bin"
@@ -113,7 +115,7 @@ mutable struct OptionsNonstat <: Options
     debug               :: Bool
     quasimultid         :: Bool
     influenceradius     :: Array{Float64, 1}
-    K                   :: Kernel
+    K                   :: GP.Kernel
     kdtree              :: KDTree
     needλ²fromlog       :: Bool
     updatenonstat       :: Bool
@@ -138,7 +140,7 @@ function OptionsNonstat(opt::OptionsStat;
         @assert length(sdev_prop) == size(fbounds, 1)
         @assert ndims(sdev_pos) == 1
         @assert length(sdev_pos) == size(opt.xbounds, 1)
-        @assert typeof(K) <: Kernel
+        @assert typeof(K) <: GP.Kernel
         costs_filename = "misfits_ns_"*opt.fdataname*".bin"
         fstar_filename = "models_ns_"*opt.fdataname*".bin"
         x_ftrain_filename = "points_ns_"*opt.fdataname*".bin"
@@ -198,11 +200,11 @@ end
 function init(opt::OptionsStat)
     n, xtrain, ftrain = initvalues(opt)
     K_y = zeros(opt.nmax, opt.nmax)
-    map!(x->κ(opt.K, x),K_y,pairwise(WeightedEuclidean(1 ./opt.λ² ), xtrain, dims=2))
+    map!(x->GP.κ(opt.K, x),K_y,pairwise(WeightedEuclidean(1 ./opt.λ² ), xtrain, dims=2))
     K_y[diagind(K_y)] .+= opt.δ^2
     Kstar = zeros(Float64, size(opt.xall,2), opt.nmax)
     xtest = opt.xall
-    map!(x->κ(opt.K, x),Kstar,pairwise(WeightedEuclidean(1 ./opt.λ² ), xtest, xtrain, dims=2))
+    map!(x->GP.κ(opt.K, x),Kstar,pairwise(WeightedEuclidean(1 ./opt.λ² ), xtest, xtrain, dims=2))
     fstar = zeros(size(opt.fbounds, 1), size(opt.xall, 2))
     calcfstar!(fstar, ftrain, opt, K_y, Kstar, n)
     return ModelStat(fstar, xtrain, ftrain, K_y, Kstar, n,
@@ -275,17 +277,17 @@ function updatenskernels!(opt::OptionsStat, m::ModelStat, ipoint::Union{Int, Arr
     λ²test = @view λ²[:,kstarchangeidx]
     xtr = @view mns.xtrain[:,1:mns.n]
     xte = @view xtest[:,kstarchangeidx]
-    pairwise(ks, optns.K, xtr, xte, λ²train, λ²test)
+    GP.pairwise(ks, optns.K, xtr, xte, λ²train, λ²test)
     if length(kychangeidx) > 0
         isposchange && (kychangeidx = reduce(vcat, kychangeidx))
         # set 1 of changes where training points are in influence radius of lscale change
         ks2 = view(mns.Kstar, :, kychangeidx)
         xtr2 = @view mns.xtrain[:,kychangeidx]
         λ²train2 = @view λ²[:,idxs][:,kychangeidx]
-        pairwise(ks2, optns.K, xtr2, xtest, λ²train2, λ²)
+        GP.pairwise(ks2, optns.K, xtr2, xtest, λ²train2, λ²)
         # set 2 of changes where training points are in influence radius of lscale change
         ky = view(mns.K_y, 1:mns.n , kychangeidx)
-        pairwise(ky, optns.K, xtr2, xtr, λ²train2, λ²train)
+        GP.pairwise(ky, optns.K, xtr2, xtr, λ²train2, λ²train)
         mns.K_y[kychangeidx,1:mns.n] .= mns.K_y[1:mns.n,kychangeidx]'
         # nugget add
         ky = view(mns.K_y, 1:mns.n , 1:mns.n)
@@ -303,9 +305,9 @@ function birth!(m::ModelStat, opt::OptionsStat,
     ftrain[:,n+1] = opt.fbounds[:,1] + diff(opt.fbounds, dims=2).*rand(size(opt.fbounds, 1))
     xtest = opt.xall
     Kstarv = @view Kstar[:,n+1]
-    map!(x->κ(opt.K, x),Kstarv,colwise(WeightedEuclidean(1 ./opt.λ² ), xtrain[:,n+1], xtest))
+    map!(x->GP.κ(opt.K, x),Kstarv,colwise(WeightedEuclidean(1 ./opt.λ² ), xtrain[:,n+1], xtest))
     K_yv = @view K_y[n+1,1:n+1]
-    map!(x->κ(opt.K, x),K_yv,colwise(WeightedEuclidean(1 ./opt.λ² ), xtrain[:,n+1], xtrain[:,1:n+1]))
+    map!(x->GP.κ(opt.K, x),K_yv,colwise(WeightedEuclidean(1 ./opt.λ² ), xtrain[:,n+1], xtrain[:,1:n+1]))
     K_y[1:n+1,n+1] = K_y[n+1,1:n+1]
     K_y[n+1,n+1] = K_y[n+1,n+1] + opt.δ^2
     calcfstar!(m.fstar, m.ftrain, opt, K_y, Kstar, n+1)
@@ -411,9 +413,9 @@ function position_change!(m::ModelStat, opt::OptionsStat,
     end
     xtest = opt.xall
     Kstarv = @view Kstar[:,ipoint]
-    map!(x->κ(opt.K, x),Kstarv,colwise(WeightedEuclidean(1 ./opt.λ² ), xtrain[:,ipoint], xtest))
+    map!(x->GP.κ(opt.K, x),Kstarv,colwise(WeightedEuclidean(1 ./opt.λ² ), xtrain[:,ipoint], xtest))
     K_yv = @view K_y[ipoint,1:n]
-    map!(x->κ(opt.K, x),K_yv,colwise(WeightedEuclidean(1 ./opt.λ² ), xtrain[:,ipoint], xtrain[:,1:n]))
+    map!(x->GP.κ(opt.K, x),K_yv,colwise(WeightedEuclidean(1 ./opt.λ² ), xtrain[:,ipoint], xtrain[:,1:n]))
     K_y[1:n,ipoint] = K_y[ipoint,1:n]
     K_y[ipoint,ipoint] = K_y[ipoint,ipoint] + opt.δ^2
     calcfstar!(m.fstar, m.ftrain, opt, K_y, Kstar, n)
@@ -428,9 +430,9 @@ function undo_position_change!(m::ModelStat, opt::OptionsStat, mns::ModelNonstat
     xtrain[:,ipoint] = m.xtrain_old
     xtest = opt.xall
     Kstarv = @view Kstar[:,ipoint]
-    map!(x->κ(opt.K, x),Kstarv,colwise(WeightedEuclidean(1 ./opt.λ² ), xtrain[:,ipoint], xtest))
+    map!(x->GP.κ(opt.K, x),Kstarv,colwise(WeightedEuclidean(1 ./opt.λ² ), xtrain[:,ipoint], xtest))
     K_yv = @view K_y[ipoint,1:n]
-    map!(x->κ(opt.K, x),K_yv,colwise(WeightedEuclidean(1 ./opt.λ² ), xtrain[:,ipoint], xtrain[:,1:n]))
+    map!(x->GP.κ(opt.K, x),K_yv,colwise(WeightedEuclidean(1 ./opt.λ² ), xtrain[:,ipoint], xtrain[:,1:n]))
     K_y[1:n,ipoint] = K_y[ipoint,1:n]
     K_y[ipoint,ipoint] = K_y[ipoint,ipoint] + opt.δ^2
     # updating the nonstationary kernels now
@@ -456,12 +458,12 @@ function init(opt::OptionsNonstat, m::ModelStat)
         K_y = zeros(opt.nmax, opt.nmax)
         idxs = gettrainidx(opt.kdtree, xtrain, n)
         ky = view(K_y, 1:n, 1:n)
-        pairwise(ky, opt.K, xtrain[:,1:n], xtrain[:,1:n], λ²[:,idxs], λ²[:,idxs])
+        GP.pairwise(ky, opt.K, xtrain[:,1:n], xtrain[:,1:n], λ²[:,idxs], λ²[:,idxs])
         K_y[diagind(K_y)] .+= opt.δ^2
         Kstar = zeros(Float64, size(opt.xall,2), opt.nmax)
         xtest = opt.xall
         ks = view(Kstar, :, 1:n)
-        pairwise(ks, opt.K, xtrain[:,1:n], xtest, λ²[:,idxs], λ²)
+        GP.pairwise(ks, opt.K, xtrain[:,1:n], xtest, λ²[:,idxs], λ²)
         fstar = zeros(size(opt.xall, 2), size(opt.fbounds, 1))
         calcfstar!(fstar, ftrain, opt, K_y, Kstar, n)
         return ModelNonstat(fstar, xtrain, ftrain, K_y, Kstar, n,
@@ -506,8 +508,8 @@ function birth!(m::ModelNonstat, opt::OptionsNonstat, l::ModelStat)
     idxs = gettrainidx(opt.kdtree, xtrain, n+1)
     K_yv = @view K_y[n+1,1:n+1]
     @views begin
-    colwise!(Kstarv, opt.K, xtrain[:,n+1], xtest, λ²[:,idxs[end]], λ²)
-    colwise!(K_yv, opt.K, xtrain[:,n+1], xtrain[:,1:n+1], λ²[:,idxs[end]], λ²[:,idxs])
+    GP.colwise!(Kstarv, opt.K, xtrain[:,n+1], xtest, λ²[:,idxs[end]], λ²)
+    GP.colwise!(K_yv, opt.K, xtrain[:,n+1], xtrain[:,1:n+1], λ²[:,idxs[end]], λ²[:,idxs])
     end
     K_y[1:n+1,n+1] = K_y[n+1,1:n+1]
     K_y[n+1,n+1] = K_y[n+1,n+1] + opt.δ^2
@@ -590,8 +592,8 @@ function position_change!(m::ModelNonstat, opt::OptionsNonstat, l::ModelStat)
     idxs = gettrainidx(opt.kdtree, xtrain, n)
     K_yv = @view K_y[ipoint,1:n]
     @views begin
-    colwise!(Kstarv, opt.K, xtrain[:,ipoint], xtest, λ²[:,idxs[ipoint]], λ²)
-    colwise!(K_yv, opt.K, xtrain[:,ipoint], xtrain[:,1:n], λ²[:,idxs[ipoint]], λ²[:,idxs])
+    GP.colwise!(Kstarv, opt.K, xtrain[:,ipoint], xtest, λ²[:,idxs[ipoint]], λ²)
+    GP.colwise!(K_yv, opt.K, xtrain[:,ipoint], xtrain[:,1:n], λ²[:,idxs[ipoint]], λ²[:,idxs])
     end
     K_y[1:n,ipoint] = K_y[ipoint,1:n]
     K_y[ipoint,ipoint] = K_y[ipoint,ipoint] + opt.δ^2
@@ -609,8 +611,8 @@ function undo_position_change!(m::ModelNonstat, opt::OptionsNonstat, l::ModelSta
     idxs = gettrainidx(opt.kdtree, xtrain, n)
     K_yv = @view K_y[ipoint,1:n]
     @views begin
-    colwise!(Kstarv, opt.K, xtrain[:,ipoint], xtest, λ²[:,idxs[ipoint]], λ²)
-    colwise!(K_yv, opt.K, xtrain[:,ipoint], xtrain[:,1:n], λ²[:,idxs[ipoint]], λ²[:,idxs])
+    GP.colwise!(Kstarv, opt.K, xtrain[:,ipoint], xtest, λ²[:,idxs[ipoint]], λ²)
+    GP.colwise!(K_yv, opt.K, xtrain[:,ipoint], xtrain[:,1:n], λ²[:,idxs[ipoint]], λ²[:,idxs])
     end
     K_y[1:n,ipoint] = K_y[ipoint,1:n]
     K_y[ipoint,ipoint] = K_y[ipoint,ipoint] + opt.δ^2
@@ -626,14 +628,14 @@ end
 function testupdate(optns::OptionsNonstat, l::ModelStat, mns::ModelNonstat)
     λ² = l.fstar
     idxs = gettrainidx(optns.kdtree, mns.xtrain, mns.n)
-    ftest, = GPfit(optns.K, mns.ftrain[:,1:mns.n], mns.xtrain[:,1:mns.n],
+    ftest, = GP.GPfit(optns.K, mns.ftrain[:,1:mns.n], mns.xtrain[:,1:mns.n],
             optns.xall, λ², λ²[:,idxs], optns.δ, p=2, demean=optns.demean, nogetvars=true,
             my=mean(optns.fbounds, dims=2))
     return ftest
 end
 
 function testupdate(opt::OptionsStat, m::ModelStat)
-    ftest, = GPfit(opt.K, m.ftrain[:,1:m.n], m.xtrain[:,1:m.n],
+    ftest, = GP.GPfit(opt.K, m.ftrain[:,1:m.n], m.xtrain[:,1:m.n],
             opt.xall, opt.λ², opt.δ, nogetvars=true, demean=opt.demean, p=2,
             my=mean(opt.fbounds, dims=2))
     return ftest
