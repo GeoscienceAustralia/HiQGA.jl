@@ -79,7 +79,7 @@ function makeopt(;nmin      = 2,
                   δ         = 0.1,
                   fbounds   = [0.5 4],
                   demean    = true,
-                  sdev_prop = 0.4,
+                  sdev_prop = [0.4],
                   sdev_pos  = [80.0;80.0;1.0],
                   stat_window = 500,
                   pnorm     = 2.0,
@@ -107,7 +107,7 @@ function makeopt(;nmin      = 2,
     end
     ## Initialize a model using these options
     Random.seed!(rseed)
-    opt = TransD_GP.Options(nmin = nmin,
+    opt = TransD_GP.OptionsStat(nmin = nmin,
                             nmax = nmax,
                             xbounds = xbounds,
                             fbounds = fbounds,
@@ -119,9 +119,23 @@ function makeopt(;nmin      = 2,
                             sdev_pos = sdev_pos,
                             stat_window = stat_window,
                             pnorm = pnorm,
-                            quasimultid = false
+                            quasimultid = false,
+                            updatenonstat = false,
+                            needλ²fromlog = false
                             )
-    return opt, x, y
+
+    optdummy = TransD_GP.OptionsNonstat(opt,
+                            nmin = 2,
+                            nmax = 3,
+                            fbounds = fbounds,
+                            δ = δ,
+                            demean = demean,
+                            sdev_prop = sdev_prop,
+                            sdev_pos = sdev_pos,
+                            pnorm = pnorm,
+                            K = opt.K
+                            )
+    return opt, optdummy, x, y
 end
 
 function slicemodel(m::TransD_GP.Model,
@@ -139,8 +153,8 @@ function slicemodel(m::TransD_GP.Model,
                 dz=dz, extendfrac=extendfrac, figsize=figsize)
 end
 
-function slicemodel(fstar::Array{Float64, 1}, npoints::Int,
-                    xtrain::Array{Float64, 2}, ftrain::Array{Float64, 1},
+function slicemodel(fstar::Array{Float64}, npoints::Int,
+                    xtrain::Array{Float64, 2}, ftrain::Array{Float64},
                     opt::TransD_GP.Options;
                     slicesx    = [],
                     slicesy    = [],

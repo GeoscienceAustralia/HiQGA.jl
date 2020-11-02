@@ -1,4 +1,4 @@
-using PyPlot, Random, TransD_GP, GP, Statistics, HDF5
+using PyPlot, Random, TransD_GP, GP, Statistics
 
 function geomprogdepth(n, dy, c)
     dy*(1.0-c^n)/(1-c)
@@ -40,13 +40,13 @@ end
     ax[1].stem(zall, zall, "k--", markerfmt=" ")
     ax[1].set_xlabel("depth km")
     ax[1].set_ylabel("depth km")
-   
+
     ax[2].stem(znrange[1:end-1], znrange[1:end-1], markerfmt="")
     ax[2].stem(znall, znall, "k--", markerfmt=" ")
     ax[2].set_ylabel("depth index")
     ax[2].set_xlabel("depth index")
     nicenup(gcf())
-   
+
     f, ax = plt.subplots(1, 2, figsize=(10,5), sharey=true)
     ax[1].stem(zall[1:end-1],thickness, "k--", markerfmt=" ")
     ax[1].set_xlabel("depth km")
@@ -58,16 +58,16 @@ end
     nicenup(f)
 
     nmin, nmax = 2, 200
-    λ, δ = [150, 400, 1], 0.1 
-    fbounds = [-2.5 0.25] 
+    λ, δ = [150, 400, 1], 0.1
+    fbounds = [-2.5 0.25]
     demean = true
-    sdev_prop = 0.1 
+    sdev_prop = 0.1
     sdev_pos = [8;8.0;1.4]
     pnorm = 2.
-    
+
     λx,λy = 1600.0, 1600.0
     dx, dy = 0.025λx, 0.025λy
-    x = 0:(dx):λx-dx 
+    x = 0:(dx):λx-dx
     y = 0:(dy):λy-dy
     xall = zeros(3,length(x)*length(y)*length(znall))
     for i in 1:size(xall,2)
@@ -92,18 +92,18 @@ opt = TransD_GP.Options(nmin = nmin,
                         sdev_prop = sdev_prop,
                         sdev_pos = sdev_pos,
                         pnorm = pnorm,
-                        quasimultid = false     
+                        quasimultid = false
                         )
 @time m = TransD_GP.init(opt)
 for i = 1:48 # 20 also works well if you switch off timebirth. Keep it on for an interesting model
-    TransD_GP.birth!(m, opt)
+    TransD_GP.birth!(m, opt, mdummy, optdummy)
 end
 timebirth = true
 if timebirth
     ts = time(); ndo = 100
     for i = 1:ndo
-        TransD_GP.birth!(m, opt)
-        TransD_GP.death!(m, opt)
+        TransD_GP.birth!(m, opt, mdummy, optdummy)
+        TransD_GP.death!(m, opt, mdummy, optdummy)
     end
     dt = time() - ts
     @info "avg time per move is $(dt/ndo/2)"
