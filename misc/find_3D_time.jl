@@ -2,15 +2,16 @@ Sys.iswindows() && (ENV["MPLBACKEND"]="qt4agg")
 using PyPlot, Test, Random, Revise, Statistics, LinearAlgebra
 srcdir = dirname(pwd())*"/src"
 any(srcdir .== LOAD_PATH) || push!(LOAD_PATH, srcdir)
+push!(LOAD_PATH, pwd())
 import GP, TransD_GP
 ## make options for the multichannel lengthscale GP
 nminlog10λ, nmaxlog10λ = 2, 200
 pnorm = 2.
 Klog10λ = GP.Mat32()
 λx,λy,λz = 1, 1, 1
-x = 0:(0.013λx):λx
-y = 0:(0.013λy):λy
-z = 0:(0.013λy):λy
+x = 0:(0.01λx):λx-0.01λx
+y = 0:(0.01λy):λy-0.01λy
+z = 0:(0.01λy):λy/2-0.01λz
 λlog10λ = [0.05maximum(x), 0.05maximum(y), 0.05maximum(z)]
 demean = false
 sdev_poslog10λ = [0.01maximum(y), 0.01maximum(x), 0.01maximum(z)]
@@ -72,7 +73,7 @@ m = TransD_GP.init(opt, log10λ)
 for i = 1:98
     TransD_GP.birth!(log10λ, optlog10λ, m, opt)
 end
-@time for i = 98
+for i = 98
     TransD_GP.birth!(m, opt, log10λ)
 end
 NTIMES = 1
