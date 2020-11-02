@@ -73,7 +73,7 @@ m = TransD_GP.init(opt, log10λ)
 for i = 1:98
     TransD_GP.birth!(log10λ, optlog10λ, m, opt)
 end
-for i = 98
+for i = 1:98
     TransD_GP.birth!(m, opt, log10λ)
 end
 NTIMES = 1
