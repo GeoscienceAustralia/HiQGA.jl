@@ -2,7 +2,7 @@ module CommonToAll
 using PyPlot, StatsBase, Statistics, Distances, LinearAlgebra,
       ..AbstractOperator
 
-import ..Options, ..OptionsStat, ..OptionsNonstat
+import ..Options, ..OptionsStat, ..OptionsNonstat, ..history
 
 export trimxft, assembleTat1, gettargtemps, checkns, getchi2forall, nicenup,
         plot_posterior, make1Dhist, make1Dhists, setupz, makezρ, plotdepthtransforms,
