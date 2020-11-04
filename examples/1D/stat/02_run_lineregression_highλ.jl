@@ -3,7 +3,7 @@
 δ = 0.05
 nmin, nmax = 2, 30
 pnorm = 2.
-K = GP.Mat32()
+K = transD_GP.GP.Mat32()
 demean = true
 fbounds = permutedims([extrema(ynoisy[.!isnan.(ynoisy)])...])
 ymin, ymax = extrema(y)
@@ -17,7 +17,7 @@ updatenonstat = false
 needλ²fromlog = false
 ## Initialize a stationary GP using these options
 Random.seed!(12)
-opt = TransD_GP.OptionsStat(nmin = nmin,
+opt = transD_GP.OptionsStat(nmin = nmin,
                         nmax = nmax,
                         xbounds = xbounds,
                         fbounds = fbounds,
@@ -38,7 +38,7 @@ opt = TransD_GP.OptionsStat(nmin = nmin,
                         )
 ## Initialize options for the dummy nonstationary properties GP
 Random.seed!(13)
-optdummy = TransD_GP.OptionsNonstat(opt,
+optdummy = transD_GP.OptionsNonstat(opt,
                         nmin = nmin,
                         nmax = nmax,
                         fbounds = fbounds,
@@ -54,27 +54,20 @@ nsamples, nchains, nchainsatone = 400001, 4, 1
 Tmax = 2.50
 addprocs(nchains)
 @info "workers are $(workers())"
-@everywhere any($srcdir .== LOAD_PATH) || push!(LOAD_PATH, $srcdir)
-@everywhere any(pwd() .== LOAD_PATH) || push!(LOAD_PATH, pwd())
 @everywhere using Distributed
-@everywhere import MCMC_Driver
+@everywhere using transD_GP
 ## run McMC
-@time MCMC_Driver.main(opt, optdummy, line, Tmax=Tmax, nsamples=nsamples, nchains=nchains, nchainsatone=nchainsatone)
+@time transD_GP.main(opt, optdummy, line, Tmax=Tmax, nsamples=nsamples, nchains=nchains, nchainsatone=nchainsatone)
 rmprocs(workers())
 ## plot
-GeophysOperator.getchi2forall(opt, fsize=8, alpha=0.5)
-r = ynoisy[linidx] - y[linidx]
-χ² = length(r)#r'*r/σ^2
-figure(1)
-ax = gcf().axes;
-ax[2].set_ylim(χ²/2 - 20, χ²/2 + 40)
-ax[2].plot(xlim(), [χ²/2 , χ²/2], "--", color="gray")
-figure(2)
-ax = gcf().axes;
-ax[2].set_ylim(χ²/2 - 20, χ²/2 + 40)
-ax[2].plot(xlim(), [χ²/2 , χ²/2], "--", color="gray")
-savefig("line_conv_s.png", dpi=300)
-GeophysOperator.plot_posterior(line, opt,
+transD_GP.getchi2forall(opt, fsize=8, alpha=0.5)
+# r = ynoisy[linidx] - y[linidx]
+# χ² = r.*r/σ^2
+# fig, ax = plt.subplots();
+# ax = gcf().axes;
+# ax[1].scatter(x[linidx], χ², color="gray")
+# savefig("line_conv_s.png", dpi=300)
+transD_GP.plot_posterior(line, opt,
     burninfrac=0.25, figsize=(4,4), fsize=8, nbins=100)
 ax = gcf().axes
 p = ax[1].scatter(ynoisy, x, c="w", alpha=0.2, s=25)
@@ -89,7 +82,7 @@ gcf().text(0.02, 0.9, "a.", fontsize=14, color="red")
 ax[1].invert_yaxis()
 savefig("jump1D_high_zoom.png", dpi=300)
 ## correlated residuals
-h, edges = GeophysOperator.makehist(line, opt)
+h, edges = transD_GP.makehist(line, opt)
 f, ax = plt.subplots(2,1, figsize=(4,3), sharex=true, sharey=true)
 ax[1].pcolormesh(x[sort(linidx)], edges, h)
 ax[1].set_ylabel("residual")
@@ -97,3 +90,4 @@ ax[2].set_ylabel("residual")
 ax[1].set_title("Stationary TDGP")
 ax[2].set_xlabel("depth m")
 ax[2].set_title("Non-stationary TDGP")
+gcf()

@@ -1,7 +1,7 @@
-module TransD_GP
 using Printf, LinearAlgebra, Statistics, Distributed, PositiveFactorizations,
-      Distances, NearestNeighbors,
-      GP
+      Distances, NearestNeighbors
+
+using .GP
 
 abstract type Options end
 
@@ -59,7 +59,7 @@ function OptionsStat(;
         debug              = false,
         quasimultid        = "",
         influenceradius    = [-9.9],
-        K                  = GP.SqEuclidean(),
+        K                  = SqEuclidean(),
         timesλ             = 1.0,
         needλ²fromlog      = true,
         updatenonstat      = true,
@@ -132,7 +132,7 @@ function OptionsNonstat(opt::OptionsStat;
         sdev_pos           = [0.05;0.05],
         pnorm              = 2,
         influenceradius    = [-9.9],
-        K                  = GP.SqEuclidean()
+        K                  = SqEuclidean()
         )
 
         @assert all(diff(fbounds, dims=2) .> 0)
@@ -197,7 +197,7 @@ mutable struct Writepointers
 end
 
 # Stationary GP functions, i.e., for λ
-function init(opt::TransD_GP.OptionsStat)
+function init(opt::OptionsStat)
     n, xtrain, ftrain = initvalues(opt)
     K_y = zeros(opt.nmax, opt.nmax)
     map!(x->GP.κ(opt.K, x),K_y,pairwise(WeightedEuclidean(1 ./opt.λ² ), xtrain, dims=2))
@@ -236,7 +236,7 @@ function calcfstar!(fstar::Array{Float64,2}, ftrain::Array{Float64,2},
     nothing
 end
 
-function initvalues(opt::TransD_GP.Options)
+function initvalues(opt::Options)
     xtrain = zeros(Float64, size(opt.xbounds,1), opt.nmax)
     ftrain = zeros(Float64, size(opt.fbounds,1), opt.nmax)
     if opt.history_mode == "w" # new start
@@ -245,8 +245,8 @@ function initvalues(opt::TransD_GP.Options)
         ftrain[:,1:n] = opt.fbounds[:,1] .+ diff(opt.fbounds, dims=2).*rand(size(opt.fbounds, 1), n)
     else # restart
         @info "opening $(opt.x_ftrain_filename)"
-        n = TransD_GP.history(opt, stat=:nodes)[end]
-        xft = TransD_GP.history(opt, stat=:x_ftrain)[end]
+        n = history(opt, stat=:nodes)[end]
+        xft = history(opt, stat=:x_ftrain)[end]
         xtrain[:,1:n] = xft[1:size(opt.xall, 1), 1:n]
         ftrain[:,1:n] = xft[size(opt.xall, 1)+1:end, 1:n]
     end
@@ -297,7 +297,7 @@ function updatenskernels!(opt::OptionsStat, m::ModelStat, ipoint::Union{Int, Arr
     nothing
 end
 
-function birth!(m::ModelStat, opt::TransD_GP.OptionsStat,
+function birth!(m::ModelStat, opt::OptionsStat,
                 mns::ModelNonstat, optns::OptionsNonstat; doall=false)
     xtrain, ftrain, K_y,  Kstar, n = m.xtrain, m.ftrain, m.K_y,  m.Kstar, m.n
     xtrain[:,n+1] = opt.xbounds[:,1] + diff(opt.xbounds, dims=2).*rand(size(opt.xbounds, 1))
@@ -328,7 +328,7 @@ function undo_birth!(m::ModelStat, opt::OptionsStat, mns::ModelNonstat)
     nothing
 end
 
-function death!(m::ModelStat, opt::TransD_GP.OptionsStat,
+function death!(m::ModelStat, opt::OptionsStat,
                 mns::ModelNonstat, optns::OptionsNonstat; doall=false)
     xtrain, ftrain, K_y,  Kstar, n = m.xtrain, m.ftrain, m.K_y,  m.Kstar, m.n
     ipoint = rand(1:n)
@@ -347,7 +347,7 @@ function death!(m::ModelStat, opt::TransD_GP.OptionsStat,
     nothing
 end
 
-function undo_death!(m::ModelStat, opt::TransD_GP.OptionsStat, mns::ModelNonstat)
+function undo_death!(m::ModelStat, opt::OptionsStat, mns::ModelNonstat)
     m.n = m.n + 1
     ftrain, xtrain, Kstar, K_y, n, ipoint = m.ftrain, m.xtrain, m.Kstar, m.K_y, m.n, m.iremember
     xtrain[:,ipoint], xtrain[:,n] = xtrain[:,n], xtrain[:,ipoint]
@@ -366,7 +366,7 @@ function undo_death!(m::ModelStat, opt::TransD_GP.OptionsStat, mns::ModelNonstat
     nothing
 end
 
-function property_change!(m::ModelStat, opt::TransD_GP.OptionsStat,
+function property_change!(m::ModelStat, opt::OptionsStat,
                           mns::ModelNonstat, optns::OptionsNonstat; doall=false)
     ftrain, K_y, Kstar, n = m.ftrain, m.K_y, m. Kstar, m.n
     ipoint = 1 + floor(Int, rand()*n)
@@ -397,7 +397,7 @@ function undo_property_change!(m::ModelStat, opt::OptionsStat, mns::ModelNonstat
     nothing
 end
 
-function position_change!(m::ModelStat, opt::TransD_GP.OptionsStat,
+function position_change!(m::ModelStat, opt::OptionsStat,
                           mns::ModelNonstat, optns::OptionsNonstat; doall=false)
     xtrain, ftrain, K_y, Kstar, n = m.xtrain, m.ftrain, m.K_y, m.Kstar, m.n
     ipoint = 1 + floor(Int, rand()*n)
@@ -424,7 +424,7 @@ function position_change!(m::ModelStat, opt::TransD_GP.OptionsStat,
     nothing
 end
 
-function undo_position_change!(m::ModelStat, opt::TransD_GP.OptionsStat, mns::ModelNonstat)
+function undo_position_change!(m::ModelStat, opt::OptionsStat, mns::ModelNonstat)
     xtrain, K_y, Kstar, n = m.xtrain, m.K_y, m.Kstar, m.n
     ipoint = m.iremember
     xtrain[:,ipoint] = m.xtrain_old
@@ -450,7 +450,7 @@ function gettrainidx(kdtree::KDTree, xtrain::Array{Float64, 2}, n::Int)
     reduce(vcat, idxs)
 end
 
-function init(opt::TransD_GP.OptionsNonstat, m::ModelStat)
+function init(opt::OptionsNonstat, m::ModelStat)
     donotinit = !opt.needλ²fromlog && !opt.updatenonstat
     if !donotinit
         λ² = m.fstar
@@ -497,7 +497,7 @@ function calcfstar!(fstar::Array{Float64,2}, ftrain::Array{Float64,2},
     nothing
 end
 
-function birth!(m::ModelNonstat, opt::TransD_GP.OptionsNonstat, l::ModelStat)
+function birth!(m::ModelNonstat, opt::OptionsNonstat, l::ModelStat)
     λ² = l.fstar
     xtrain, ftrain, K_y,  Kstar, n = m.xtrain, m.ftrain, m.K_y,  m.Kstar, m.n
     xtrain[:,n+1] = opt.xbounds[:,1] + diff(opt.xbounds, dims=2).*rand(size(opt.xbounds, 1))
@@ -523,7 +523,7 @@ function undo_birth!(m::ModelNonstat)
     nothing
 end
 
-function death!(m::ModelNonstat, opt::TransD_GP.OptionsNonstat)
+function death!(m::ModelNonstat, opt::OptionsNonstat)
     xtrain, ftrain, K_y,  Kstar, n = m.xtrain, m.ftrain, m.K_y,  m.Kstar, m.n
     ipoint = rand(1:n)
     m.iremember = ipoint
@@ -539,7 +539,7 @@ function death!(m::ModelNonstat, opt::TransD_GP.OptionsNonstat)
     nothing
 end
 
-function undo_death!(m::ModelNonstat, opt::TransD_GP.OptionsNonstat)
+function undo_death!(m::ModelNonstat, opt::OptionsNonstat)
     m.n = m.n + 1
     ftrain, xtrain, Kstar, K_y, n, ipoint = m.ftrain, m.xtrain, m.Kstar, m.K_y, m.n, m.iremember
     xtrain[:,ipoint], xtrain[:,n] = xtrain[:,n], xtrain[:,ipoint]
@@ -551,7 +551,7 @@ function undo_death!(m::ModelNonstat, opt::TransD_GP.OptionsNonstat)
     K_y[n,n] = 1.0 + opt.δ^2
 end
 
-function property_change!(m::ModelNonstat, opt::TransD_GP.OptionsNonstat)
+function property_change!(m::ModelNonstat, opt::OptionsNonstat)
     ftrain, K_y, Kstar, n = m.ftrain, m.K_y, m. Kstar, m.n
     ipoint = 1 + floor(Int, rand()*n)
     m.iremember = ipoint
@@ -573,7 +573,7 @@ function undo_property_change!(m::ModelNonstat)
     nothing
 end
 
-function position_change!(m::ModelNonstat, opt::TransD_GP.OptionsNonstat, l::ModelStat)
+function position_change!(m::ModelNonstat, opt::OptionsNonstat, l::ModelStat)
     λ² = l.fstar
     xtrain, ftrain, K_y, Kstar, n = m.xtrain, m.ftrain, m.K_y, m.Kstar, m.n
     ipoint = 1 + floor(Int, rand()*n)
@@ -601,7 +601,7 @@ function position_change!(m::ModelNonstat, opt::TransD_GP.OptionsNonstat, l::Mod
     nothing
 end
 
-function undo_position_change!(m::ModelNonstat, opt::TransD_GP.OptionsNonstat, l::ModelStat)
+function undo_position_change!(m::ModelNonstat, opt::OptionsNonstat, l::ModelStat)
     λ² = l.fstar
     xtrain, K_y, Kstar, n = m.xtrain, m.K_y, m.Kstar, m.n
     ipoint = m.iremember
@@ -892,6 +892,4 @@ function history(opt::Options; stat=:U)
     end
     @warn("history, requested stat: $(stat) is not recognized.")
     return []
-end
-
 end

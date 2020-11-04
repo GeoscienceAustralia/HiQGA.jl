@@ -1,7 +1,10 @@
 module SkyTEM1DInversion
-import AbstractOperator.get_misfit
-using AbstractOperator, AEM_VMD_HMD, Statistics
-using TransD_GP, PyPlot, LinearAlgebra, CommonToAll, MAT, Random, DelimitedFiles
+import ..AbstractOperator.get_misfit
+include("AEM_VMD_HMD.jl")
+using ..AbstractOperator, .AEM_VMD_HMD, Statistics
+using PyPlot, LinearAlgebra, ..CommonToAll, MAT, Random, DelimitedFiles
+
+import ..Model, ..Options, ..OptionsStat, ..OptionsNonstat
 
 export dBzdt, plotmodelfield!, addnoise_skytem, plotmodelfield!, plotmodelfield_skytem!
 
@@ -213,7 +216,7 @@ function read_survey_files(;
     end
 end
 
-function getfield!(m::TransD_GP.Model, aem::dBzdt)
+function getfield!(m::Model, aem::dBzdt)
     copyto!(aem.ρ, aem.nfixed+1:length(aem.ρ), 10 .^m.fstar, 1:length(m.fstar))
     AEM_VMD_HMD.getfieldTD!(aem.Flow,  aem.z, aem.ρ)
     AEM_VMD_HMD.getfieldTD!(aem.Fhigh, aem.z, aem.ρ)
@@ -227,7 +230,7 @@ function getfield!(m::Array{Float64}, aem::dBzdt)
     nothing
 end
 
-function get_misfit(m::TransD_GP.Model, opt::TransD_GP.Options, aem::dBzdt)
+function get_misfit(m::Model, opt::Options, aem::dBzdt)
     chi2by2 = 0.0
     if !opt.debug
         getfield!(m, aem)
@@ -527,7 +530,7 @@ function make_tdgp_statmode_opt(;
     if rseed != nothing
         Random.seed!(rseed)
     end
-    opt = TransD_GP.OptionsStat(fdataname = fileprefix*"_",
+    opt = OptionsStat(fdataname = fileprefix*"_",
                             nmin = nmin,
                             nmax = nmax,
                             xbounds = xbounds,
@@ -548,7 +551,7 @@ function make_tdgp_statmode_opt(;
                             )
 
     ## Initialize options for the dummy nonstationary properties GP
-    optdummy = TransD_GP.OptionsNonstat(opt,
+    optdummy = OptionsNonstat(opt,
                             nmin = 2,
                             nmax = 3,
                             fbounds = fbounds,

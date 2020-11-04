@@ -1,8 +1,8 @@
 ## lengthscale GP options
-xall = GeophysOperator.get_image_prediction_points(img)
+xall = transD_GP.get_image_prediction_points(img)
 nminlog10λ, nmaxlog10λ = 2, 100
 pnorm = 2.
-Klog10λ = GP.Mat32()
+Klog10λ = transD_GP.GP.Mat32()
 log10bounds = [log10(10) log10(2000); log10(10) log10(2000)]
 δlog10λ = 0.3
 λlog10λ = 0.1*abs.([diff([extrema(xall[1,:])...])[1], diff([extrema(xall[2,:])...])[1]])
@@ -11,7 +11,7 @@ sdev_proplog10λ = 0.05*diff(log10bounds, dims=2)[:]
 sdev_poslog10λ = 0.05*abs.([diff([extrema(xall[1,:])...])[1], diff([extrema(xall[2,:])...])[1]])
 ## Initialize a lengthscale model using these options
 Random.seed!(12)
-optlog10λ = TransD_GP.OptionsStat(nmin = nminlog10λ,
+optlog10λ = transD_GP.OptionsStat(nmin = nminlog10λ,
                         nmax = nmaxlog10λ,
                         xbounds = [img.x[1] img.x[end];img.y[1] img.y[end]],
                         fbounds = log10bounds,
@@ -33,10 +33,10 @@ sdev_prop = 0.05*diff(fbounds, dims=2)[:]
 sdev_pos = 0.05*abs.([diff([extrema(xall[1,:])...])[1], diff([extrema(xall[2,:])...])[1]])
 demean_ns = true
 δ = 0.25
-K = GP.Mat32()
+K = transD_GP.GP.Mat32()
 ## Initialize model for the nonstationary properties GP
 Random.seed!(13)
-opt = TransD_GP.OptionsNonstat(optlog10λ,
+opt = transD_GP.OptionsNonstat(optlog10λ,
                         nmin = nmin,
                         nmax = nmax,
                         fbounds = fbounds,

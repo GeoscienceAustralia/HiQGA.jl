@@ -1,6 +1,5 @@
-module MCMC_Driver
-using TransD_GP, Distributed, DistributedArrays,
-     PyPlot, LinearAlgebra, Formatting, GeophysOperator
+using Distributed, DistributedArrays,
+     PyPlot, LinearAlgebra, Formatting
 
 struct Tpointer
     fp   :: IOStream
@@ -63,8 +62,8 @@ function Chain(chainprocs::Array{Int, 1};
     chains
 end
 
-function mh_step!(mns::TransD_GP.ModelNonstat, m::TransD_GP.ModelStat,
-    F::Operator, optns::TransD_GP.OptionsNonstat, stat::TransD_GP.Stats,
+function mh_step!(mns::ModelNonstat, m::ModelStat,
+    F::Operator, optns::OptionsNonstat, stat::Stats,
     Temp::Float64, movetype::Int, current_misfit::Array{Float64, 1})
 
     if optns.quasimultid
@@ -77,13 +76,13 @@ function mh_step!(mns::TransD_GP.ModelNonstat, m::TransD_GP.ModelStat,
         current_misfit[1] = new_misfit
         stat.accepted_moves[movetype] += 1
     else
-        TransD_GP.undo_move!(movetype, mns, optns, m)
+        undo_move!(movetype, mns, optns, m)
     end
 end
 
-function mh_step!(m::TransD_GP.ModelStat, mns::TransD_GP.ModelNonstat, F::Operator,
-    opt::TransD_GP.OptionsStat, optns::TransD_GP.OptionsNonstat,
-    stat::TransD_GP.Stats, Temp::Float64, movetype::Int, current_misfit::Array{Float64, 1})
+function mh_step!(m::ModelStat, mns::ModelNonstat, F::Operator,
+    opt::OptionsStat, optns::OptionsNonstat,
+    stat::Stats, Temp::Float64, movetype::Int, current_misfit::Array{Float64, 1})
 
     if opt.quasimultid
         if opt.updatenonstat
@@ -103,39 +102,39 @@ function mh_step!(m::TransD_GP.ModelStat, mns::TransD_GP.ModelNonstat, F::Operat
         current_misfit[1] = new_misfit
         stat.accepted_moves[movetype] += 1
     else
-        TransD_GP.undo_move!(movetype, m, opt, mns, optns)
+        undo_move!(movetype, m, opt, mns, optns)
     end
 end
 
-function do_mcmc_step(m::TransD_GP.ModelStat, mns::TransD_GP.ModelNonstat,
-    opt::TransD_GP.OptionsStat, optns::TransD_GP.OptionsNonstat,
-    stat::TransD_GP.Stats,
+function do_mcmc_step(m::ModelStat, mns::ModelNonstat,
+    opt::OptionsStat, optns::OptionsNonstat,
+    stat::Stats,
     current_misfit::Array{Float64, 1}, F::Operator,
-    Temp::Float64, isample::Int, wp::TransD_GP.Writepointers)
+    Temp::Float64, isample::Int, wp::Writepointers)
 
     # select move and do it
-    movetype, priorviolate = TransD_GP.do_move!(m, opt, stat, mns, optns)
+    movetype, priorviolate = do_move!(m, opt, stat, mns, optns)
 
     if !priorviolate
         mh_step!(m, mns, F, opt, optns, stat, Temp, movetype, current_misfit)
     end
 
     # acceptance stats
-    TransD_GP.get_acceptance_stats!(isample, opt, stat)
+    get_acceptance_stats!(isample, opt, stat)
 
     # write models
     writemodel = false
     abs(Temp-1.0) < 1e-12 && (writemodel = true)
-    TransD_GP.write_history(isample, opt, m, current_misfit[1], stat, wp, Temp, writemodel)
+    write_history(isample, opt, m, current_misfit[1], stat, wp, Temp, writemodel)
 
     return current_misfit[1]
 end
 
-function do_mcmc_step(m::DArray{TransD_GP.ModelStat}, mns::DArray{TransD_GP.ModelNonstat},
-    opt::DArray{TransD_GP.OptionsStat}, optns::DArray{TransD_GP.OptionsNonstat},
-    stat::DArray{TransD_GP.Stats}, current_misfit::DArray{Array{Float64, 1}},
+function do_mcmc_step(m::DArray{ModelStat}, mns::DArray{ModelNonstat},
+    opt::DArray{OptionsStat}, optns::DArray{OptionsNonstat},
+    stat::DArray{Stats}, current_misfit::DArray{Array{Float64, 1}},
     F::DArray{x}, Temp::Float64, isample::Int,
-    wp::DArray{TransD_GP.Writepointers}) where x<:Operator
+    wp::DArray{Writepointers}) where x<:Operator
 
     misfit = do_mcmc_step(localpart(m)[1], localpart(mns)[1], localpart(opt)[1],
                         localpart(optns)[1], localpart(stat)[1],
@@ -144,34 +143,34 @@ function do_mcmc_step(m::DArray{TransD_GP.ModelStat}, mns::DArray{TransD_GP.Mode
 
 end
 
-function do_mcmc_step(mns::TransD_GP.ModelNonstat, m::TransD_GP.ModelStat,
-    optns::TransD_GP.OptionsNonstat, statns::TransD_GP.Stats,
+function do_mcmc_step(mns::ModelNonstat, m::ModelStat,
+    optns::OptionsNonstat, statns::Stats,
     current_misfit::Array{Float64, 1}, F::Operator,
-    Temp::Float64, isample::Int, wp::TransD_GP.Writepointers)
+    Temp::Float64, isample::Int, wp::Writepointers)
 
     # select move and do it
-    movetype, priorviolate = TransD_GP.do_move!(mns, m, optns, statns)
+    movetype, priorviolate = do_move!(mns, m, optns, statns)
 
     if !priorviolate
         mh_step!(mns, m, F, optns, statns, Temp, movetype, current_misfit)
     end
 
     # acceptance stats
-    TransD_GP.get_acceptance_stats!(isample, optns, statns)
+    get_acceptance_stats!(isample, optns, statns)
 
     # write models
     writemodel = false
     abs(Temp-1.0) < 1e-12 && (writemodel = true)
-    TransD_GP.write_history(isample, optns, mns, current_misfit[1], statns, wp, Temp, writemodel)
+    write_history(isample, optns, mns, current_misfit[1], statns, wp, Temp, writemodel)
 
     return current_misfit[1]
 end
 
-function do_mcmc_step(mns::DArray{TransD_GP.ModelNonstat}, m::DArray{TransD_GP.ModelStat},
-    optns::DArray{TransD_GP.OptionsNonstat}, statns::DArray{TransD_GP.Stats},
+function do_mcmc_step(mns::DArray{ModelNonstat}, m::DArray{ModelStat},
+    optns::DArray{OptionsNonstat}, statns::DArray{Stats},
     current_misfit::DArray{Array{Float64, 1}},
     F::DArray{x}, Temp::Float64, isample::Int,
-    wpns::DArray{TransD_GP.Writepointers}) where x<:Operator
+    wpns::DArray{Writepointers}) where x<:Operator
 
     misfit = do_mcmc_step(localpart(mns)[1], localpart(m)[1], localpart(optns)[1],
                          localpart(statns)[1],
@@ -182,11 +181,11 @@ end
 
 function close_history(wp::DArray)
     @sync for (idx, pid) in enumerate(procs(wp))
-        @spawnat pid TransD_GP.close_history(wp[idx])
+        @spawnat pid close_history(wp[idx])
     end
 end
 
-function open_temperature_file(opt_in::TransD_GP.Options, nchains::Int)
+function open_temperature_file(opt_in::Options, nchains::Int)
     fdataname = opt_in.costs_filename[9:end-4]
     fp_temps  = open(fdataname*"_temps.txt", opt_in.history_mode)
     fmt = "{:d} "
@@ -197,7 +196,7 @@ function open_temperature_file(opt_in::TransD_GP.Options, nchains::Int)
     tpointer = Tpointer(fp_temps, fmt)
 end
 
-function write_temperatures(iter::Int, chains::Array{Chain, 1}, tpointer::Tpointer, opt_in::TransD_GP.Options)
+function write_temperatures(iter::Int, chains::Array{Chain, 1}, tpointer::Tpointer, opt_in::Options)
     if (mod(iter-1, opt_in.save_freq) == 0 || iter == 1)
         printfmtln(tpointer.fp, tpointer.fstr, iter, (getproperty.(chains,:T))...)
         flush(tpointer.fp)
@@ -208,8 +207,8 @@ function close_temperature_file(fp::IOStream)
     close(fp)
 end
 
-function init_chain_darrays(opt_in::TransD_GP.OptionsStat,
-                            optns_in::TransD_GP.OptionsNonstat,
+function init_chain_darrays(opt_in::OptionsStat,
+                            optns_in::OptionsNonstat,
                             F_in::Operator, chains::Array{Chain, 1})
     m_, mns_, opt_, optns_, F_in_, stat_, statns_, d_in_,
     current_misfit_, wp_, wpns_  = map(x -> Array{Future, 1}(undef, length(chains)), 1:11)
@@ -231,16 +230,16 @@ function init_chain_darrays(opt_in::TransD_GP.OptionsStat,
         opt_[idx]            = @spawnat chain.pid [opt_in]
         optns_[idx]          = @spawnat chain.pid [optns_in]
 
-        m_[idx]                = @spawnat chain.pid [TransD_GP.init(opt_in)]
-        mns_[idx]              = @spawnat chain.pid [TransD_GP.init(optns_in,
+        m_[idx]                = @spawnat chain.pid [init(opt_in)]
+        mns_[idx]              = @spawnat chain.pid [init(optns_in,
                                                             fetch(m_[idx])[1])]
 
-        @sync wp_[idx]             = @spawnat chain.pid [TransD_GP.open_history(opt_in)]
+        @sync wp_[idx]             = @spawnat chain.pid [open_history(opt_in)]
         #@info "sending $(optns_in.costs_filename)"
-        @sync wpns_[idx]           = @spawnat chain.pid [TransD_GP.open_history(optns_in)]
+        @sync wpns_[idx]           = @spawnat chain.pid [open_history(optns_in)]
 
-        stat_[idx]           = @spawnat chain.pid [TransD_GP.Stats()]
-        statns_[idx]         = @spawnat chain.pid [TransD_GP.Stats()]
+        stat_[idx]           = @spawnat chain.pid [Stats()]
+        statns_[idx]         = @spawnat chain.pid [Stats()]
 
         F_in_[idx]           = @spawnat chain.pid [F_in]
         if opt_in.updatenonstat
@@ -254,9 +253,9 @@ function init_chain_darrays(opt_in::TransD_GP.OptionsStat,
         end
         if opt_in.history_mode=="a"
             if idx == length(chains)
-                iterlast = TransD_GP.history(opt_in, stat=:iter)[end]
+                iterlast = history(opt_in, stat=:iter)[end]
             end
-            chains[idx].T = TransD_GP.history(opt_in, stat=:T)[end]
+            chains[idx].T = history(opt_in, stat=:T)[end]
         end
     end
     m, mns, opt, optns, stat, statns, F,
@@ -282,8 +281,8 @@ function swap_temps(chains::Array{Chain, 1})
 
 end
 
-function main(opt_in       ::TransD_GP.OptionsStat,
-              optns_in     ::TransD_GP.OptionsNonstat,
+function main(opt_in       ::OptionsStat,
+              optns_in     ::OptionsNonstat,
               F_in         ::Operator;
               nsamples     = 4001,
               nchains      = 1,
@@ -304,8 +303,8 @@ function main(opt_in       ::TransD_GP.OptionsStat,
     nothing
 end
 
-function main(opt_in       ::TransD_GP.OptionsStat,
-              optns_in     ::TransD_GP.OptionsNonstat,
+function main(opt_in       ::OptionsStat,
+              optns_in     ::OptionsNonstat,
               F_in         ::Operator,
               chainprocs   ::Array{Int, 1};
               nsamples     = 4001,
@@ -351,6 +350,4 @@ function domcmciters(iterlast, nsamples, chains, opt_in, mns, m, optns, opt,
             @info("*****$dt**sec*****")
         end
     end
-end
-
 end

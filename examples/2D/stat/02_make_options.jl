@@ -1,8 +1,8 @@
 ## stationary GP options
-xall = GeophysOperator.get_image_prediction_points(img)
+xall = transD_GP.get_image_prediction_points(img)
 nmin, nmax= 2, 100
 pnorm = 2.
-K = GP.Mat32()
+K = transD_GP.GP.Mat32()
 fbounds = permutedims([extrema(ftrain)...])
 δ = 0.3
 λ = [141,141]
@@ -13,7 +13,7 @@ updatenonstat = false
 needλ²fromlog = false
 ## Initialize a stationary GP using these options
 Random.seed!(12)
-opt = TransD_GP.OptionsStat(nmin = nmin,
+opt = transD_GP.OptionsStat(nmin = nmin,
                         nmax = nmax,
                         xbounds = [img.x[1] img.x[end];img.y[1] img.y[end]],
                         fbounds = fbounds,
@@ -32,7 +32,7 @@ opt = TransD_GP.OptionsStat(nmin = nmin,
                         )
 ## Initialize model for the dummy nonstationary GP
 Random.seed!(13)
-optdummy = TransD_GP.OptionsNonstat(opt,
+optdummy = transD_GP.OptionsNonstat(opt,
                         nmin = nmin,
                         nmax = nmax,
                         fbounds = fbounds,

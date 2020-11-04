@@ -1,8 +1,10 @@
 module ImageRegression
-import AbstractOperator.get_misfit
-using AbstractOperator
-using TransD_GP, PyPlot, LinearAlgebra, Statistics
-using Random, Images, CommonToAll
+import ..AbstractOperator.get_misfit
+using ..AbstractOperator
+using PyPlot, LinearAlgebra, Statistics
+using Random, Images, ..CommonToAll
+
+import ..Model, ..Options, ..OptionsStat, ..OptionsNonstat
 
 export Img, get_image_data, calc_image_RMS, get_image_prediction_points,
         plot_image_data, plot_image_posterior, slice_image_posterior
@@ -115,7 +117,7 @@ function calc_image_RMS(img::Img)
     nothing
 end
 
-function get_misfit(m::TransD_GP.Model, opt::TransD_GP.Options, img::Img)
+function get_misfit(m::Model, opt::Options, img::Img)
     chi2by2 = 0.0
     if !opt.debug
         d = img.d
@@ -132,7 +134,7 @@ function get_misfit(m::TransD_GP.Model, opt::TransD_GP.Options, img::Img)
 end
 
 function slice_image_posterior( M::AbstractArray,
-                                opt::TransD_GP.Options,
+                                opt::Options,
                                 img::Img, roworcol::Symbol;
                                 rowcolnum = 1,
                                 nbins = 50,
@@ -166,7 +168,7 @@ function get_image_quantile(M::AbstractArray, q=0.5)
     quantM
 end
 
-function plot_image_posterior(optns::TransD_GP.OptionsNonstat, opts::TransD_GP.OptionsStat,
+function plot_image_posterior(optns::OptionsNonstat, opts::OptionsStat,
                         img::Img;
                         rownum = 10,
                         colnum = 10,
@@ -331,7 +333,7 @@ function plot_image_posterior(optns::TransD_GP.OptionsNonstat, opts::TransD_GP.O
     nicenup(f, fsize=fsize)
 end
 
-function plot_image_posterior(opt::TransD_GP.Options,
+function plot_image_posterior(opt::Options,
                         img::Img;
                         rownum = 10,
                         colnum = 10,
@@ -350,7 +352,7 @@ function plot_image_posterior(opt::TransD_GP.Options,
                         getquant = 0.5)
     @assert temperaturenum == 1
     @assert 0.0 < getquant < 1.0
-    if typeof(opt) == TransD_GP.OptionsStat
+    if typeof(opt) == OptionsStat
         @assert opt.updatenonstat == false
         @assert opt.needλ²fromlog == false
     end

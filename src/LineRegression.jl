@@ -1,7 +1,9 @@
 module LineRegression
-import AbstractOperator.get_misfit
-using AbstractOperator, CommonToAll
-using TransD_GP, PyPlot, LinearAlgebra, StatsBase
+import ..AbstractOperator.get_misfit
+using ..AbstractOperator, ..CommonToAll
+using PyPlot, LinearAlgebra, StatsBase
+
+import ..Model, ..Options
 
 export Line, makehist
 
@@ -15,7 +17,7 @@ function Line(d::Array{Float64, 1} ;useML=false, σ=1.0)
     Line(d, useML, σ)
 end
 
-function get_misfit(m::TransD_GP.Model, opt::TransD_GP.Options, line::Line)
+function get_misfit(m::Model, opt::Options, line::Line)
     chi2by2 = 0.0
     if !opt.debug
         d = line.d
@@ -31,7 +33,7 @@ function get_misfit(m::TransD_GP.Model, opt::TransD_GP.Options, line::Line)
     return chi2by2
 end
 
-function makehist(line::Line, opt::TransD_GP.Options;
+function makehist(line::Line, opt::Options;
     nbins=100, burninfrac=0.5, temperaturenum=1)
     linidx = findall(.!isnan.(line.d))
     M = assembleTat1(opt, :fstar,

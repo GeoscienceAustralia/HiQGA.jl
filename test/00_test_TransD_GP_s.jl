@@ -1,12 +1,7 @@
-Sys.iswindows() && (ENV["MPLBACKEND"]="qt4agg")
-using PyPlot, Test, Random, Revise, Statistics, LinearAlgebra
-srcdir = dirname(pwd())*"/src"
-any(srcdir .== LOAD_PATH) || push!(LOAD_PATH, srcdir)
-import GP, TransD_GP
 ## make options for the multichannel lengthscale GP
 nminlog10λ, nmaxlog10λ = 2, 200
 pnorm = 2.
-Klog10λ = GP.Mat32()
+Klog10λ = transD_GP.GP.Mat32()
 λx,λy = 1, 1
 x = 0:(0.005λx):λx
 y = 0:(0.005λy):0.5λy
@@ -31,7 +26,7 @@ for dim in 1:size(xall, 1)
 end
 ## Initialize a model using these options
 Random.seed!(12)
-optlog10λ = TransD_GP.OptionsStat(nmin = nminlog10λ,
+optlog10λ = transD_GP.OptionsStat(nmin = nminlog10λ,
                         nmax = nmaxlog10λ,
                         xbounds = xbounds,
                         fbounds = log10bounds,
@@ -48,18 +43,18 @@ optlog10λ = TransD_GP.OptionsStat(nmin = nminlog10λ,
                         needλ²fromlog = needλ²fromlog,
                         updatenonstat = updatenonstat
                         )
-@time  log10λ = TransD_GP.init(optlog10λ)
+@time  log10λ = transD_GP.init(optlog10λ)
 ## make options for the nonstationary GP
 nmin, nmax = 2, 200
 fbounds = [-2. 2]
 δ = 0.1
 sdev_prop = [0.1]
 sdev_pos = [0.05, 0.05]
-K = GP.Mat32()
+K = transD_GP.GP.Mat32()
 demean_ns = true
 ## Initialize model for the nonstationary GP - but we won't be using it
 Random.seed!(13)
-opt = TransD_GP.OptionsNonstat(optlog10λ,
+opt = transD_GP.OptionsNonstat(optlog10λ,
                         nmin = nmin,
                         nmax = nmax,
                         fbounds = fbounds,
@@ -70,138 +65,138 @@ opt = TransD_GP.OptionsNonstat(optlog10λ,
                         pnorm = pnorm,
                         K = K
                         )
-@time m = TransD_GP.init(opt, log10λ)
+@time m = transD_GP.init(opt, log10λ)
 ## run tests for the different McMC moves
 @testset "GP and MCMC move do and undo state tests" begin
     @testset "init test" begin
-        ftest = TransD_GP.testupdate(optlog10λ, log10λ)
+        ftest = transD_GP.testupdate(optlog10λ, log10λ)
         @test norm(mean(ftest' - log10λ.fstar)) < 1e-12
     end
     @testset "birth tests" begin
         for i = 1:50
-            TransD_GP.birth!(log10λ, optlog10λ, m, opt)
+            transD_GP.birth!(log10λ, optlog10λ, m, opt)
         end
-        ftest = TransD_GP.testupdate(optlog10λ, log10λ)
+        ftest = transD_GP.testupdate(optlog10λ, log10λ)
         @test norm(mean(ftest' - log10λ.fstar)) < 1e-12
     end
     @testset "death tests" begin
         for i = 1:20
-            TransD_GP.death!(log10λ, optlog10λ, m, opt)
+            transD_GP.death!(log10λ, optlog10λ, m, opt)
         end
-        ftest = TransD_GP.testupdate(optlog10λ, log10λ)
+        ftest = transD_GP.testupdate(optlog10λ, log10λ)
         @test norm(mean(ftest' - log10λ.fstar)) < 1e-12
     end
     # birth and death hold correct states if tests above passed
     @testset "undo birth" begin
         log10λold = deepcopy(log10λ)
-        TransD_GP.birth!(log10λ, optlog10λ, m, opt)
-        TransD_GP.undo_birth!(log10λ, optlog10λ, m)
-        TransD_GP.sync_model!(log10λ, optlog10λ)
-        ftest = TransD_GP.testupdate(optlog10λ, log10λ)
+        transD_GP.birth!(log10λ, optlog10λ, m, opt)
+        transD_GP.undo_birth!(log10λ, optlog10λ, m)
+        transD_GP.sync_model!(log10λ, optlog10λ)
+        ftest = transD_GP.testupdate(optlog10λ, log10λ)
         @test norm(mean(log10λold.fstar - log10λ.fstar)) < 1e-12
     end
     # undo_birth holds state if gotten till here
     @testset "undo multiple birth" begin
-        TransD_GP.birth!(log10λ, optlog10λ, m, opt)
-        TransD_GP.birth!(log10λ, optlog10λ, m, opt)
+        transD_GP.birth!(log10λ, optlog10λ, m, opt)
+        transD_GP.birth!(log10λ, optlog10λ, m, opt)
         log10λold = deepcopy(log10λ)
-        TransD_GP.birth!(log10λ, optlog10λ, m, opt)
-        TransD_GP.undo_birth!(log10λ, optlog10λ, m)
-        TransD_GP.sync_model!(log10λ, optlog10λ)
-        ftest = TransD_GP.testupdate(optlog10λ, log10λ)
+        transD_GP.birth!(log10λ, optlog10λ, m, opt)
+        transD_GP.undo_birth!(log10λ, optlog10λ, m)
+        transD_GP.sync_model!(log10λ, optlog10λ)
+        ftest = transD_GP.testupdate(optlog10λ, log10λ)
         @test norm(mean(ftest' - log10λ.fstar)) < 1e-12
         @test norm(mean(log10λold.fstar - log10λ.fstar)) < 1e-12
     end
     # undo_birth holds state as well for multiple births and deaths till here
     @testset "undo death" begin
         log10λold = deepcopy(log10λ)
-        TransD_GP.death!(log10λ, optlog10λ, m, opt)
-        TransD_GP.undo_death!(log10λ, optlog10λ, m)
-        TransD_GP.sync_model!(log10λ, optlog10λ)
-        ftest = TransD_GP.testupdate(optlog10λ, log10λ)
+        transD_GP.death!(log10λ, optlog10λ, m, opt)
+        transD_GP.undo_death!(log10λ, optlog10λ, m)
+        transD_GP.sync_model!(log10λ, optlog10λ)
+        ftest = transD_GP.testupdate(optlog10λ, log10λ)
         @test norm(mean(ftest' - log10λ.fstar)) < 1e-12
         @test norm(mean(log10λold.fstar - log10λ.fstar)) < 1e-12
     end
     # undo death holds state if here
     @testset "undo multiple death" begin
-        TransD_GP.birth!(log10λ, optlog10λ, m, opt)
-        TransD_GP.birth!(log10λ, optlog10λ, m, opt)
-        TransD_GP.birth!(log10λ, optlog10λ, m, opt)
+        transD_GP.birth!(log10λ, optlog10λ, m, opt)
+        transD_GP.birth!(log10λ, optlog10λ, m, opt)
+        transD_GP.birth!(log10λ, optlog10λ, m, opt)
         log10λold = deepcopy(log10λ)
-        TransD_GP.death!(log10λ, optlog10λ, m, opt)
-        TransD_GP.undo_death!(log10λ, optlog10λ, m)
-        TransD_GP.sync_model!(log10λ, optlog10λ)
-        ftest = TransD_GP.testupdate(optlog10λ, log10λ)
+        transD_GP.death!(log10λ, optlog10λ, m, opt)
+        transD_GP.undo_death!(log10λ, optlog10λ, m)
+        transD_GP.sync_model!(log10λ, optlog10λ)
+        ftest = transD_GP.testupdate(optlog10λ, log10λ)
         @test norm(mean(ftest' - log10λ.fstar)) < 1e-12
         @test norm(mean(log10λold.fstar - log10λ.fstar)) < 1e-12
     end
     # undo_death holds state as well for multiple births and deaths till here
     @testset "property change" begin
-        TransD_GP.property_change!(log10λ, optlog10λ, m, opt)
-        ftest = TransD_GP.testupdate(optlog10λ, log10λ)
+        transD_GP.property_change!(log10λ, optlog10λ, m, opt)
+        ftest = transD_GP.testupdate(optlog10λ, log10λ)
         @test norm(mean(ftest' - log10λ.fstar)) < 1e-12
     end
     # property change works if here
     @testset "undo property change" begin
         log10λold = deepcopy(log10λ)
-        TransD_GP.property_change!(log10λ, optlog10λ, m, opt)
-        TransD_GP.undo_property_change!(log10λ, optlog10λ, m)
-        TransD_GP.sync_model!(log10λ, optlog10λ)
-        ftest = TransD_GP.testupdate(optlog10λ, log10λ)
+        transD_GP.property_change!(log10λ, optlog10λ, m, opt)
+        transD_GP.undo_property_change!(log10λ, optlog10λ, m)
+        transD_GP.sync_model!(log10λ, optlog10λ)
+        ftest = transD_GP.testupdate(optlog10λ, log10λ)
         @test norm(mean(ftest' - log10λ.fstar)) < 1e-12
         @test norm(mean(log10λold.fstar - log10λ.fstar)) < 1e-12
     end
     # undo property change works if here
     @testset "position change" begin
-        TransD_GP.position_change!(log10λ, optlog10λ, m, opt)
-        ftest = TransD_GP.testupdate(optlog10λ, log10λ)
+        transD_GP.position_change!(log10λ, optlog10λ, m, opt)
+        ftest = transD_GP.testupdate(optlog10λ, log10λ)
         @test norm(mean(ftest' - log10λ.fstar)) < 1e-12
     end
     # position change works if here
     @testset "undo position change" begin
         log10λold = deepcopy(log10λ)
-        TransD_GP.position_change!(log10λ, optlog10λ, m, opt)
-        TransD_GP.undo_position_change!(log10λ, optlog10λ, m)
-        TransD_GP.sync_model!(log10λ, optlog10λ)
-        ftest = TransD_GP.testupdate(optlog10λ, log10λ)
+        transD_GP.position_change!(log10λ, optlog10λ, m, opt)
+        transD_GP.undo_position_change!(log10λ, optlog10λ, m)
+        transD_GP.sync_model!(log10λ, optlog10λ)
+        ftest = transD_GP.testupdate(optlog10λ, log10λ)
         @test norm(mean(ftest' - log10λ.fstar)) < 1e-12
         @test norm(mean(log10λold.fstar - log10λ.fstar)) < 1e-12
     end
     # undo position change works if here
 end
-## timing for birth
-m = TransD_GP.init(opt, log10λ)
-log10λ = TransD_GP.init(optlog10λ)
-@time for i = 1:148
-          TransD_GP.birth!(log10λ, optlog10λ, m, opt)
-end
-## timing for many births
-NTIMES = 20
-ntimes = 150
-T = zeros(NTIMES)
-for I = 1:NTIMES
-    T[I] = time()
-    for i = 1:ntimes
-        TransD_GP.death!(log10λ, optlog10λ, m, opt)
-        TransD_GP.birth!(log10λ, optlog10λ, m, opt)
-    end
-    T[I] = (time() - T[I])/2ntimes
-end
-@info "time for $ntimes birth/death is $(mean(T)) +- $(std(T)/sqrt(NTIMES))"
-## plot
-l = log10λ.fstar
-fig,ax = plt.subplots(1,2, sharex=true, sharey=true)
-vmin, vmax = minimum(l[1,:]), maximum(l[1,:])
-im1 = ax[1].imshow(reshape(l[1,:],length(x), length(y)), extent=[y[1],y[end],x[end],x[1]],
-    vmin=vmin, vmax=vmax)
-colorbar(im1, ax=ax[1])
-ax[1].scatter(log10λ.xtrain[2,1:log10λ.n], log10λ.xtrain[1,1:log10λ.n], marker="+",c="r")
-ax[1].scatter(log10λ.xtrain[2,1:log10λ.n], log10λ.xtrain[1,1:log10λ.n], c=log10λ.ftrain[1,1:log10λ.n], alpha=0.8)
-vmin, vmax = minimum(l[2,:]), maximum(l[2,:])
-im2 = ax[2].imshow(reshape(l[2,:],length(x), length(y)), extent=[y[1],y[end],x[end],x[1]],
-    vmin=vmin, vmax=vmax)
-colorbar(im2, ax=ax[2])
-ax[2].scatter(log10λ.xtrain[2,1:log10λ.n], log10λ.xtrain[1,1:log10λ.n], marker="+",c="r")
-ax[2].scatter(log10λ.xtrain[2,1:log10λ.n], log10λ.xtrain[1,1:log10λ.n], c=log10λ.ftrain[2,1:log10λ.n], alpha=0.8,
-    vmin=vmin, vmax=vmax)
-vmin, vmax = minimum(m.fstar), maximum(m.fstar)
+# ## timing for birth
+# m = transD_GP.init(opt, log10λ)
+# log10λ = transD_GP.init(optlog10λ)
+# @time for i = 1:148
+#           transD_GP.birth!(log10λ, optlog10λ, m, opt)
+# end
+# ## timing for many births
+# NTIMES = 20
+# ntimes = 150
+# T = zeros(NTIMES)
+# for I = 1:NTIMES
+#     T[I] = time()
+#     for i = 1:ntimes
+#         transD_GP.death!(log10λ, optlog10λ, m, opt)
+#         transD_GP.birth!(log10λ, optlog10λ, m, opt)
+#     end
+#     T[I] = (time() - T[I])/2ntimes
+# end
+# @info "time for $ntimes birth/death is $(mean(T)) +- $(std(T)/sqrt(NTIMES))"
+# ## plot
+# l = log10λ.fstar
+# fig,ax = plt.subplots(1,2, sharex=true, sharey=true)
+# vmin, vmax = minimum(l[1,:]), maximum(l[1,:])
+# im1 = ax[1].imshow(reshape(l[1,:],length(x), length(y)), extent=[y[1],y[end],x[end],x[1]],
+#     vmin=vmin, vmax=vmax)
+# colorbar(im1, ax=ax[1])
+# ax[1].scatter(log10λ.xtrain[2,1:log10λ.n], log10λ.xtrain[1,1:log10λ.n], marker="+",c="r")
+# ax[1].scatter(log10λ.xtrain[2,1:log10λ.n], log10λ.xtrain[1,1:log10λ.n], c=log10λ.ftrain[1,1:log10λ.n], alpha=0.8)
+# vmin, vmax = minimum(l[2,:]), maximum(l[2,:])
+# im2 = ax[2].imshow(reshape(l[2,:],length(x), length(y)), extent=[y[1],y[end],x[end],x[1]],
+#     vmin=vmin, vmax=vmax)
+# colorbar(im2, ax=ax[2])
+# ax[2].scatter(log10λ.xtrain[2,1:log10λ.n], log10λ.xtrain[1,1:log10λ.n], marker="+",c="r")
+# ax[2].scatter(log10λ.xtrain[2,1:log10λ.n], log10λ.xtrain[1,1:log10λ.n], c=log10λ.ftrain[2,1:log10λ.n], alpha=0.8,
+#     vmin=vmin, vmax=vmax)
+# vmin, vmax = minimum(m.fstar), maximum(m.fstar)

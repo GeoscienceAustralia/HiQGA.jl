@@ -1,12 +1,10 @@
 ## set up McMC
-nsamples, nchains, nchainsatone = 200001, 8, 1
+nsamples, nchains, nchainsatone = 12001, 6, 1
 Tmax = 2.50
 addprocs(nchains)
 @info "workers are $(workers())"
-@everywhere any($srcdir .== LOAD_PATH) || push!(LOAD_PATH, $srcdir)
-@everywhere any(pwd() .== LOAD_PATH) || push!(LOAD_PATH, pwd())
 @everywhere using Distributed
-@everywhere import MCMC_Driver
+@everywhere using transD_GP
 ## run McMCopt.his
-@time MCMC_Driver.main(opt, optdummy, img, Tmax=Tmax, nsamples=nsamples, nchains=nchains, nchainsatone=nchainsatone)
+@time transD_GP.main(opt, optdummy, img, Tmax=Tmax, nsamples=nsamples, nchains=nchains, nchainsatone=nchainsatone)
 rmprocs(workers())
