@@ -1,7 +1,5 @@
-srcdir = dirname(dirname(dirname(pwd())))*"/src"
-any(srcdir .== LOAD_PATH) || push!(LOAD_PATH, srcdir)
 using PyPlot, DelimitedFiles, Random, Revise,
-      CSEM1DEr, GeophysOperator
+      transD_GP
 ##
 Random.seed!(23)
 rMin = 500 #m
@@ -18,10 +16,10 @@ zfixed = [-1e6,    0      ]
 ρfixed = [1e13,    0.3    ]
 zstart = zRx + eps(1.)
 extendfrac, dz = 1.008, 12.
-zall, znall, zboundaries = GeophysOperator.setupz(zstart, extendfrac, dz=dz, n=126)
-z, ρ, nfixed = GeophysOperator.makezρ(zboundaries; zfixed=zfixed, ρfixed=ρfixed)
+zall, znall, zboundaries = transD_GP.setupz(zstart, extendfrac, dz=dz, n=126)
+z, ρ, nfixed = transD_GP.makezρ(zboundaries; zfixed=zfixed, ρfixed=ρfixed)
 ##
-F = CSEM1DEr.RadialErLagged(zTx    = [zTx],
+F = transD_GP.CSEM1DInversion.CSEM1DEr.RadialErLagged(zTx    = [zTx],
                       rRx    = rRx,
                       freqs  = freqs,
                       zRx    = [zRx],
@@ -38,9 +36,9 @@ F = CSEM1DEr.RadialErLagged(zTx    = [zTx],
 ρ[(z.>=2500) .&(z.<3500)] .= 10^0.7
 ρ[(z.>=3500)]              .= 10^1.0
 ##
-GeophysOperator.plotmodelfield!(F, z, ρ)
-d, σ = GeophysOperator.addnoise(F, z, ρ, noisefrac=0.05,
+transD_GP.CSEM1DInversion.plotmodelfield!(F, z, ρ)
+d, σ = transD_GP.addnoise(F, z, ρ, noisefrac=0.05,
                dz=dz, extendfrac=extendfrac, nfixed=nfixed)
 savefig("data_model.png", dpi=300)
 ##
-csem = GeophysOperator.CSEMRadialEr(F, d, σ, z=z, ρ=ρ, nfixed=nfixed)
+csem = transD_GP.CSEMRadialEr(F, d, σ, z=z, ρ=ρ, nfixed=nfixed)
