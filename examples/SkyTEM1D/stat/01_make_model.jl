@@ -1,7 +1,5 @@
-srcdir = dirname(dirname(dirname(pwd())))*"/src"
-any(srcdir .== LOAD_PATH) || push!(LOAD_PATH, srcdir)
 using PyPlot, DelimitedFiles, Random, Statistics, Revise,
-      AEM_VMD_HMD, SkyTEM1DInversion, GeophysOperator
+      transD_GP
 ## model fixed parts, i.e., air
 Random.seed!(23)
 zfixed   = [-1e5]
@@ -10,8 +8,8 @@ nmax = 100
 # Note that the receiver and transmitter need to be in layer 1
 zstart = 0.0
 extendfrac, dz = 1.06, 2.
-zall, znall, zboundaries = GeophysOperator.setupz(zstart, extendfrac, dz=dz, n=40)
-z, ρ, nfixed = GeophysOperator.makezρ(zboundaries; zfixed=zfixed, ρfixed=ρfixed)
+zall, znall, zboundaries = transD_GP.setupz(zstart, extendfrac, dz=dz, n=40)
+z, ρ, nfixed = transD_GP.makezρ(zboundaries; zfixed=zfixed, ρfixed=ρfixed)
 ##  geometry and modeling parameters
 rRx = 17.
 zRx = -37.0
@@ -38,7 +36,7 @@ HM_ramp = [
 -0.01  -0.008386  -0.00638  -0.003783  0.0  3.96e-7  7.782e-7  1.212e-6  3.44e-6  1.981e-5  3.619e-5  3.664e-5  3.719e-5   3.798e-5  3.997e-5  0.01
   0.0    0.4568     0.7526    0.9204    1.0  0.9984   0.9914    0.9799    0.9175   0.4587    0.007675  0.003072  0.0008319  0.000119  0.0       0.0]'
 ## LM operator
-Flm = AEM_VMD_HMD.HFieldDHT(
+Flm = transD_GP.SkyTEM1DInversion.AEM_VMD_HMD.HFieldDHT(
                       ntimesperdecade = ntimesperdecade,
                       nfreqsperdecade = nfreqsperdecade,
                       lowpassfcs = lowpassfcs,
@@ -51,7 +49,7 @@ Flm = AEM_VMD_HMD.HFieldDHT(
                       zRx    = zRx,
                       modelprimary = true)
 ## HM operator
-Fhm = AEM_VMD_HMD.HFieldDHT(
+Fhm = transD_GP.SkyTEM1DInversion.AEM_VMD_HMD.HFieldDHT(
                       ntimesperdecade = ntimesperdecade,
                       nfreqsperdecade = nfreqsperdecade,
                       lowpassfcs = lowpassfcs,
@@ -71,11 +69,11 @@ Fhm = AEM_VMD_HMD.HFieldDHT(
 ρ[(z.>=200) .&(z.<250)] .= 80
 ρ[(z.>=250)]            .= 150
 ## add noise
-GeophysOperator.plotmodelfield_skytem!(Flm, Fhm, z, ρ)
-dlow, dhigh, σlow, σhigh = GeophysOperator.addnoise_skytem(Flm, Fhm,
+transD_GP.plotmodelfield_skytem!(Flm, Fhm, z, ρ)
+dlow, dhigh, σlow, σhigh = transD_GP.addnoise_skytem(Flm, Fhm,
                 z, ρ, noisefrac=0.05,
                 dz=dz, extendfrac=extendfrac, nfixed=nfixed)
 ## create operator
-dlow, dhigh, σlow, σhigh = (dlow, dhigh, σlow, σhigh)./SkyTEM1DInversion.μ₀
-aem = GeophysOperator.dBzdt(Flm, Fhm, dlow, dhigh,
+dlow, dhigh, σlow, σhigh = (dlow, dhigh, σlow, σhigh)./transD_GP.SkyTEM1DInversion.μ₀
+aem = transD_GP.dBzdt(Flm, Fhm, dlow, dhigh,
                                   σlow, σhigh, z=z, ρ=ρ, nfixed=nfixed)

@@ -1,8 +1,8 @@
-using GP, TransD_GP, GeophysOperator, MCMC_Driver, Distributed
+using transD_GP, Distributed
 ## make options for the stationary GP
 nmin, nmax = 2, 40
 pnorm = 2.
-K = GP.Mat32()
+K = transD_GP.GP.Mat32()
 demean = true
 fbounds = [-0.5 2.5]
 sdev_pos = [0.05abs(diff([extrema(znall)...])[1])]
@@ -14,7 +14,7 @@ needλ²fromlog = false
 λ, δ = [2], 0.1
 ## Initialize a stationary GP using these options
 Random.seed!(12)
-opt = TransD_GP.OptionsStat(nmin = nmin,
+opt = transD_GP.OptionsStat(nmin = nmin,
                         nmax = nmax,
                         xbounds = xbounds,
                         fbounds = fbounds,
@@ -33,7 +33,7 @@ opt = TransD_GP.OptionsStat(nmin = nmin,
                         )
 ## Initialize options for the dummy nonstationary properties GP
 Random.seed!(13)
-optdummy = TransD_GP.OptionsNonstat(opt,
+optdummy = transD_GP.OptionsNonstat(opt,
                         nmin = nmin,
                         nmax = nmax,
                         fbounds = fbounds,
