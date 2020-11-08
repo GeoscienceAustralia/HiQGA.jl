@@ -2,3 +2,8 @@
 *.run
 *_temps.txt
 *.out
+*.un~
+*.png
+*.tar.gz
+*._*
+Manifest.toml
