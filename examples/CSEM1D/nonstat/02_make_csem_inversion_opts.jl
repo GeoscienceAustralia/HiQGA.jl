@@ -26,7 +26,7 @@ optlog10λ = transD_GP.OptionsStat(nmin = nminlog10λ,
                         pnorm = pnorm,
                         quasimultid = false,
                         K = Klog10λ,
-                        timesλ = 3.57
+                        timesλ = 3.6
                         )
 ## make options for the nonstationary actual properties GP
 nmin, nmax = 2, 20

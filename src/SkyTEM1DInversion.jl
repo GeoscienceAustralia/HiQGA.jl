@@ -1,7 +1,7 @@
 module SkyTEM1DInversion
 import ..AbstractOperator.get_misfit
-include("AEM_VMD_HMD.jl")
-using ..AbstractOperator, .AEM_VMD_HMD, Statistics
+# include("AEM_VMD_HMD.jl")
+using ..AbstractOperator, ..AEM_VMD_HMD, Statistics
 using PyPlot, LinearAlgebra, ..CommonToAll, MAT, Random, DelimitedFiles
 
 import ..Model, ..Options, ..OptionsStat, ..OptionsNonstat

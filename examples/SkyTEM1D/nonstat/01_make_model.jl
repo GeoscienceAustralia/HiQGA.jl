@@ -36,7 +36,7 @@ HM_ramp = [
 -0.01  -0.008386  -0.00638  -0.003783  0.0  3.96e-7  7.782e-7  1.212e-6  3.44e-6  1.981e-5  3.619e-5  3.664e-5  3.719e-5   3.798e-5  3.997e-5  0.01
   0.0    0.4568     0.7526    0.9204    1.0  0.9984   0.9914    0.9799    0.9175   0.4587    0.007675  0.003072  0.0008319  0.000119  0.0       0.0]'
 ## LM operator
-Flm = transD_GP.SkyTEM1DInversion.AEM_VMD_HMD.HFieldDHT(
+Flm = transD_GP.AEM_VMD_HMD.HFieldDHT(
                       ntimesperdecade = ntimesperdecade,
                       nfreqsperdecade = nfreqsperdecade,
                       lowpassfcs = lowpassfcs,
@@ -49,7 +49,7 @@ Flm = transD_GP.SkyTEM1DInversion.AEM_VMD_HMD.HFieldDHT(
                       zRx    = zRx,
                       modelprimary = true)
 ## HM operator
-Fhm = transD_GP.SkyTEM1DInversion.AEM_VMD_HMD.HFieldDHT(
+Fhm = transD_GP.AEM_VMD_HMD.HFieldDHT(
                       ntimesperdecade = ntimesperdecade,
                       nfreqsperdecade = nfreqsperdecade,
                       lowpassfcs = lowpassfcs,

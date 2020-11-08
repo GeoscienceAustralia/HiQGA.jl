@@ -1,6 +1,4 @@
-srcdir = dirname(pwd())*"/src"
-any(srcdir .== LOAD_PATH) || push!(LOAD_PATH, srcdir)
-using PyPlot, Revise, AEM_VMD_HMD, Random
+using PyPlot, Revise, transD_GP, Random
 ## set up
 nfreqsperdecade     = 20
 ntimesperdecade     = 20
@@ -22,7 +20,7 @@ zRx = 0.
 zTx = 0.
 modelprimary = true
 ##
-F = AEM_VMD_HMD.HFieldDHT(freqlow = freqlow,
+F = transD_GP.AEM_VMD_HMD.HFieldDHT(freqlow = freqlow,
                       freqhigh = freqhigh,
                       zTx    = zTx,
                       rRx    = rRx,
@@ -34,7 +32,7 @@ F = AEM_VMD_HMD.HFieldDHT(freqlow = freqlow,
                       modelprimary = modelprimary,
                       provideddt = provideddt,
                       lowpassfcs = lowpassfcs)
-AEM_VMD_HMD.getfieldTD!(F, zfixed, rho)
+transD_GP.AEM_VMD_HMD.getfieldTD!(F, zfixed, rho)
 ## plot FD
 figure()
 loglog(F.freqs, abs.(real.(F.HFD_z)))
@@ -47,14 +45,14 @@ title("Compare with W&H 4.2")
 figure(figsize=(4,7))
 # first dhzdt
 F.provideddt = true
-AEM_VMD_HMD.getfieldTD!(F, zfixed, rho)
+transD_GP.AEM_VMD_HMD.getfieldTD!(F, zfixed, rho)
 loglog(F.interptimes*1e3, abs.(F.HTD_z_interp), label="dhz/dt")
 xlim(1e-5,1e3)
 ylim(1e-11,1e-1)
 grid(true, which="both")
 # then dhdt
 F.provideddt = false
-AEM_VMD_HMD.getfieldTD!(F, zfixed, rho)
+transD_GP.AEM_VMD_HMD.getfieldTD!(F, zfixed, rho)
 loglog(F.interptimes*1e3, abs.(F.HTD_z_interp), label="hz")
 legend()
 xlabel("time in ms")
@@ -65,7 +63,7 @@ figure(figsize=(4,7))
 F.useprimary = 0.
 F.getradialH = true
 F.provideddt = true
-AEM_VMD_HMD.getfieldTD!(F, zfixed, rho)
+transD_GP.AEM_VMD_HMD.getfieldTD!(F, zfixed, rho)
 loglog(F.interptimes*1e3, abs.(F.HTD_r_interp), label="dhr/dt")
 ylim(1e-11,1e-1)
 legend()
@@ -73,7 +71,7 @@ ylabel("dh/dt")
 # grid(true, which="both")
 xlabel("time in ms")
 F.provideddt = false
-AEM_VMD_HMD.getfieldTD!(F, zfixed, rho)
+transD_GP.AEM_VMD_HMD.getfieldTD!(F, zfixed, rho)
 ax = twinx(gca())
 ax.loglog(F.interptimes*1e3, abs.(F.HTD_r_interp), label="hr", color="k")
 ax.set_ylabel("h")

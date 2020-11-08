@@ -19,7 +19,7 @@ extendfrac, dz = 1.008, 12.
 zall, znall, zboundaries = transD_GP.setupz(zstart, extendfrac, dz=dz, n=126)
 z, ρ, nfixed = transD_GP.makezρ(zboundaries; zfixed=zfixed, ρfixed=ρfixed)
 ##
-F = transD_GP.CSEM1DInversion.CSEM1DEr.RadialErLagged(zTx    = [zTx],
+F = transD_GP.CSEM1DEr.RadialErLagged(zTx    = [zTx],
                       rRx    = rRx,
                       freqs  = freqs,
                       zRx    = [zRx],

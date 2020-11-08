@@ -1,6 +1,4 @@
-srcdir = dirname(pwd())*"/src"
-any(srcdir .== LOAD_PATH) || push!(LOAD_PATH, srcdir)
-using PyPlot, Revise, AEM_VMD_HMD, Random
+using PyPlot, Revise, transD_GP, Random
 ## frequencies
 nFreqsPerDecade     = 7
 freqLowLimit        = 1e-1
@@ -17,7 +15,7 @@ zTx = -0.01
 nkᵣeval = 200
 ## VMD
 modelprimary = true
-Fvmd = AEM_VMD_HMD.HFieldDHT(
+Fvmd = transD_GP.AEM_VMD_HMD.HFieldDHT(
                       nmax   = nmax,
                       zTx    = zTx,
                       rRx    = rRx,
@@ -25,10 +23,10 @@ Fvmd = AEM_VMD_HMD.HFieldDHT(
                       zRx    = zRx,
                       nkᵣeval = nkᵣeval,
                       modelprimary = modelprimary)
-AEM_VMD_HMD.getfieldFD!(Fvmd, zfixed, rho)
+transD_GP.AEM_VMD_HMD.getfieldFD!(Fvmd, zfixed, rho)
 ## now use a tiny loop radius - VMD approximation is worse as radius gets larger
 rTx = 0.001
-Floop = AEM_VMD_HMD.HFieldDHT(
+Floop = transD_GP.AEM_VMD_HMD.HFieldDHT(
                       nmax   = nmax,
                       zTx    = zTx,
                       rRx    = rRx,
@@ -37,7 +35,7 @@ Floop = AEM_VMD_HMD.HFieldDHT(
                       zRx    = zRx,
                       nkᵣeval = nkᵣeval,
                       modelprimary = modelprimary)
-AEM_VMD_HMD.getfieldFD!(Floop, zfixed, rho)
+transD_GP.AEM_VMD_HMD.getfieldFD!(Floop, zfixed, rho)
 ## Compare H vertical
 f, ax = plt.subplots(2,1, sharex=true)
 ax[1].loglog(freqs,abs.(imag(Fvmd.HFD_z)), label="imaginary, VMD")
@@ -48,7 +46,7 @@ ax[1].legend()
 ax[1].set_title("Compare with W&H Fig 4.2")
 ## Compare H radial
 getradialH = true
-Fvmd = AEM_VMD_HMD.HFieldDHT(
+Fvmd = transD_GP.AEM_VMD_HMD.HFieldDHT(
                       nmax   = nmax,
                       zTx    = 0,
                       rRx    = rRx,
@@ -57,7 +55,7 @@ Fvmd = AEM_VMD_HMD.HFieldDHT(
                       nkᵣeval = nkᵣeval,
                       modelprimary = false, # says W&H for within plane of observation !!
                       getradialH = getradialH)
-AEM_VMD_HMD.getfieldFD!(Fvmd, zfixed, rho)
+transD_GP.AEM_VMD_HMD.getfieldFD!(Fvmd, zfixed, rho)
 ax[2].loglog(freqs,abs.(imag(Fvmd.HFD_r)), label="imaginary, VMD")
 ax[2].loglog(freqs,abs.(real(Fvmd.HFD_r)), label="real, VMD")
 ax[2].set_title("Compare with W&H Fig 4.3")
@@ -72,7 +70,7 @@ zTx = -0.01
 zRx = -0.02
 rRx = 0.001
 rTx = 50.0
-Floopin = AEM_VMD_HMD.HFieldDHT(
+Floopin = transD_GP.AEM_VMD_HMD.HFieldDHT(
                       nmax   = nmax,
                       zTx    = zTx,
                       rRx    = rRx,
@@ -81,7 +79,7 @@ Floopin = AEM_VMD_HMD.HFieldDHT(
                       zRx    = zRx,
                       nkᵣeval = nkᵣeval,
                       modelprimary = modelprimary)
-AEM_VMD_HMD.getfieldFD!(Floopin, zfixed, rho)
+transD_GP.AEM_VMD_HMD.getfieldFD!(Floopin, zfixed, rho)
 ##
 figure()
 loglog(freqs,pi*rTx^2*abs.(imag(Floopin.HFD_z)), label="imaginary, rx in = $(Floopin.rxwithinloop)")

@@ -1,6 +1,4 @@
-srcdir = dirname(pwd())*"/src"
-any(srcdir .== LOAD_PATH) || push!(LOAD_PATH, srcdir)
-using PyPlot, Revise, AEM_VMD_HMD, Random, Statistics, BenchmarkTools
+using PyPlot, Revise, transD_GP, Random, Statistics, BenchmarkTools
 profile_within_juno  = false
 ## model
 zfixed   = [-1e5,   0,    20,   50]
@@ -32,7 +30,7 @@ HM_ramp = [
 -0.01  -0.008386  -0.00638  -0.003783  0.0  3.96e-7  7.782e-7  1.212e-6  3.44e-6  1.981e-5  3.619e-5  3.664e-5  3.719e-5   3.798e-5  3.997e-5  0.01
   0.0    0.4568     0.7526    0.9204    1.0  0.9984   0.9914    0.9799    0.9175   0.4587    0.007675  0.003072  0.0008319  0.000119  0.0       0.0]'
 ## LM operator
-Flm = AEM_VMD_HMD.HFieldDHT(
+Flm = transD_GP.AEM_VMD_HMD.HFieldDHT(
                       ntimesperdecade = ntimesperdecade,
                       nfreqsperdecade = nfreqsperdecade,
                       lowpassfcs = lowpassfcs,
@@ -44,7 +42,7 @@ Flm = AEM_VMD_HMD.HFieldDHT(
                       rTx    = rTx,
                       zRx    = zRx)
 ## HM operator
-Fhm = AEM_VMD_HMD.HFieldDHT(
+Fhm = transD_GP.AEM_VMD_HMD.HFieldDHT(
                       ntimesperdecade = ntimesperdecade,
                       nfreqsperdecade = nfreqsperdecade,
                       lowpassfcs = lowpassfcs,
@@ -56,19 +54,20 @@ Fhm = AEM_VMD_HMD.HFieldDHT(
                       rTx    = rTx,
                       zRx    = zRx)
 ## get the fields in place
-@time AEM_VMD_HMD.getfieldTD!(Flm, zfixed, rho)
-@time AEM_VMD_HMD.getfieldTD!(Fhm, zfixed, rho)
+μ = transD_GP.AEM_VMD_HMD.μ
+@time transD_GP.AEM_VMD_HMD.getfieldTD!(Flm, zfixed, rho)
+@time transD_GP.AEM_VMD_HMD.getfieldTD!(Fhm, zfixed, rho)
 ##
 figure()
-loglog(Flm.times,4*pi*1e-7*abs.(Flm.dBzdt), label="lm")
-loglog(Fhm.times,4*pi*1e-7*abs.(Fhm.dBzdt), label="hm")
+loglog(Flm.times,μ*abs.(Flm.dBzdt), label="lm")
+loglog(Fhm.times,μ*abs.(Fhm.dBzdt), label="hm")
 grid()
 ## timing FD
 ntimes = 1000
 t = time()
 for i = 1:ntimes
-    AEM_VMD_HMD.getfieldFD!(Flm, zfixed, rho)
-    AEM_VMD_HMD.getfieldFD!(Fhm, zfixed, rho)
+    transD_GP.AEM_VMD_HMD.getfieldFD!(Flm, zfixed, rho)
+    transD_GP.AEM_VMD_HMD.getfieldFD!(Fhm, zfixed, rho)
 end
 t = time() - t
 @info "FD timing is $(t/ntimes) s"
@@ -76,8 +75,8 @@ t = time() - t
 ntimes = 1000
 t = time()
 for i = 1:ntimes
-    AEM_VMD_HMD.getfieldTD!(Flm, zfixed, rho)
-    AEM_VMD_HMD.getfieldTD!(Fhm, zfixed, rho)
+    transD_GP.AEM_VMD_HMD.getfieldTD!(Flm, zfixed, rho)
+    transD_GP.AEM_VMD_HMD.getfieldTD!(Fhm, zfixed, rho)
 end
 t = time() - t
 @info "TD timing is $(t/ntimes) s for a $(length(zfixed)) layer model"
@@ -93,8 +92,8 @@ grid(); gca().invert_yaxis()
 ntimes = 100
 ## solely timing
 function mytest(Fl, Fh, zz, rr)
-   AEM_VMD_HMD.getfieldTD!(Fl, zz, rr)
-   AEM_VMD_HMD.getfieldTD!(Fh, zz, rr)
+   transD_GP.AEM_VMD_HMD.getfieldTD!(Fl, zz, rr)
+   transD_GP.AEM_VMD_HMD.getfieldTD!(Fh, zz, rr)
 end
 @info "timing for a $(length(z)) layer model is:"
 @btime mytest($Flm, $Fhm, $z, $ρ)
@@ -103,7 +102,7 @@ if profile_within_juno
     using Profile
     function doprofile(ntimes::Int)
         for i = 1:ntimes
-            AEM_VMD_HMD.getfieldTD!(Flm, z, ρ)
+            transD_GP.AEM_VMD_HMD.getfieldTD!(Flm, z, ρ)
         end
     end
     @profiler doprofile(ntimes) combine=true

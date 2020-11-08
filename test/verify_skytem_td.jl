@@ -4,7 +4,7 @@ include("skytem_response.jl")
 ntimesperdecade = 10
 nfreqsperdecade = 5
 ## LM operator
-Flm = transD_GP.SkyTEM1DInversion.AEM_VMD_HMD.HFieldDHT(
+Flm = transD_GP.AEM_VMD_HMD.HFieldDHT(
                       ntimesperdecade = ntimesperdecade,
                       nfreqsperdecade = nfreqsperdecade,
                       lowpassfcs = lowpassfcs,
@@ -15,7 +15,7 @@ Flm = transD_GP.SkyTEM1DInversion.AEM_VMD_HMD.HFieldDHT(
                       rTx    = rTx,
                       zRx    = zRxLM)
 ## HM operator
-Fhm = transD_GP.SkyTEM1DInversion.AEM_VMD_HMD.HFieldDHT(
+Fhm = transD_GP.AEM_VMD_HMD.HFieldDHT(
                       ntimesperdecade = ntimesperdecade,
                       nfreqsperdecade = nfreqsperdecade,
                       lowpassfcs = lowpassfcs,
@@ -26,8 +26,8 @@ Fhm = transD_GP.SkyTEM1DInversion.AEM_VMD_HMD.HFieldDHT(
                       rTx    = rTx,
                       zRx    = zRxHM)
 ## get the fields in place
-@time transD_GP.SkyTEM1DInversion.AEM_VMD_HMD.getfieldTD!(Flm, zfixed, rho)
-@time transD_GP.SkyTEM1DInversion.AEM_VMD_HMD.getfieldTD!(Fhm, zfixed, rho)
+@time transD_GP.AEM_VMD_HMD.getfieldTD!(Flm, zfixed, rho)
+@time transD_GP.AEM_VMD_HMD.getfieldTD!(Fhm, zfixed, rho)
 ## plot
 figure()
 s1 = subplot(211)

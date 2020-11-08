@@ -1,6 +1,4 @@
-srcdir = dirname(pwd())*"/src"
-any(srcdir .== LOAD_PATH) || push!(LOAD_PATH, srcdir)
-using PyPlot, Revise, AEM_VMD_HMD, Random, Statistics
+using PyPlot, Revise, transD_GP, Random, Statistics
 ## waveform and times
 ramp =  [  # -0.0400066666667    0.5
 			-0.0400000000000    0.0
@@ -38,7 +36,7 @@ rRx = 115.0
 modelprimary = false
 getradialH = true
 provideddt = false
-Ftempest = AEM_VMD_HMD.HFieldDHT(
+Ftempest = transD_GP.AEM_VMD_HMD.HFieldDHT(
                       ntimesperdecade = ntimesperdecade,
                       nfreqsperdecade = nfreqsperdecade,
 					  nkᵣeval = nkᵣeval,
@@ -55,12 +53,13 @@ include("ross_tempest_response_10_ohm-m.jl")
 #include("ross_tempest_response_100_ohm-m.jl")
 #include("ross_tempest_response_20_10_1000_ohm-m.jl")
 ## do it
-AEM_VMD_HMD.getfieldTD!(Ftempest, zfixed, rho)
+transD_GP.AEM_VMD_HMD.getfieldTD!(Ftempest, zfixed, rho)
 ## plot
+μ = transD_GP.AEM_VMD_HMD.μ
 figure(figsize=(4,7))
 s1 = subplot(211)
-loglog(Ftempest.times, abs.(AEM_VMD_HMD.μ*Ftempest.dBzdt)*1e15, label="Bz", ".-")
-loglog(Ftempest.times, abs.(AEM_VMD_HMD.μ*Ftempest.dBrdt)*1e15, label="Br", ".-")
+loglog(Ftempest.times, abs.(μ*Ftempest.dBzdt)*1e15, label="Bz", ".-")
+loglog(Ftempest.times, abs.(μ*Ftempest.dBrdt)*1e15, label="Br", ".-")
 xlabel("time s")
 ylabel("B field 10⁻¹⁵ T")
 ylim(1e-6, 50)
@@ -69,8 +68,8 @@ grid(true, which="both")
 plot(times, abs.(ross_secondary[:,2]))
 plot(times, abs.(ross_secondary[:,1]))
 s2 = subplot(212, sharex=s1)
-loglog(times, 100*abs.(AEM_VMD_HMD.μ*Ftempest.dBzdt*1e15-ross_secondary[:,2])./abs.(ross_secondary[:,2]),"x-")
-loglog(times, 100*abs.(AEM_VMD_HMD.μ*Ftempest.dBrdt*1e15-ross_secondary[:,1])./abs.(ross_secondary[:,1]),"x-")
+loglog(times, 100*abs.(μ*Ftempest.dBzdt*1e15-ross_secondary[:,2])./abs.(ross_secondary[:,2]),"x-")
+loglog(times, 100*abs.(μ*Ftempest.dBrdt*1e15-ross_secondary[:,1])./abs.(ross_secondary[:,1]),"x-")
 grid(true, which="both")
 xlabel("time s")
 ylabel("% diff")

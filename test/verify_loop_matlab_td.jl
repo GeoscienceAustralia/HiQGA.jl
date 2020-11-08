@@ -1,6 +1,4 @@
-srcdir = dirname(pwd())*"/src"
-any(srcdir .== LOAD_PATH) || push!(LOAD_PATH, srcdir)
-using PyPlot, Revise, AEM_VMD_HMD, Random, Statistics, BenchmarkTools
+using PyPlot, Revise, transD_GP, Random, Statistics, BenchmarkTools
 ## from matlab circle code
 matlabLM = vec([5.588e-9  3.9533e-9  2.6558e-9  1.7276e-9  1.1292e-9  7.3569e-10  4.9102e-10  3.401e-10  2.4425e-10  1.8129e-10  1.3582e-10  1.0205e-10  7.7079e-11  5.8448e-11  4.4735e-11  3.4357e-11 2.6101e-11  1.9288e-11])
 matlabHM = vec([5.4669e-10  3.4682e-10  2.4341e-10  1.7922e-10  1.3526e-10  1.0387e-10  8.0645e-11  6.343e-11  5.0158e-11  3.9315e-11  3.0087e-11  2.2234e-11  1.5781e-11  1.0723e-11  6.9601e-12 4.3111e-12  2.5472e-12  1.4351e-12  7.7144e-13  3.9605e-13  2.0261e-13])
@@ -34,7 +32,7 @@ HM_ramp = [
 -0.01  -0.008386  -0.00638  -0.003783  0.0  3.96e-7  7.782e-7  1.212e-6  3.44e-6  1.981e-5  3.619e-5  3.664e-5  3.719e-5   3.798e-5  3.997e-5  0.01
   0.0    0.4568     0.7526    0.9204    1.0  0.9984   0.9914    0.9799    0.9175   0.4587    0.007675  0.003072  0.0008319  0.000119  0.0       0.0]'
 ## LM operator
-Flm = AEM_VMD_HMD.HFieldDHT(
+Flm = transD_GP.AEM_VMD_HMD.HFieldDHT(
                       ntimesperdecade = ntimesperdecade,
                       nfreqsperdecade = nfreqsperdecade,
                       lowpassfcs = lowpassfcs,
@@ -46,7 +44,7 @@ Flm = AEM_VMD_HMD.HFieldDHT(
                       rTx    = rTx,
                       zRx    = zRx)
 ## HM operator
-Fhm = AEM_VMD_HMD.HFieldDHT(
+Fhm = transD_GP.AEM_VMD_HMD.HFieldDHT(
                       ntimesperdecade = ntimesperdecade,
                       nfreqsperdecade = nfreqsperdecade,
                       lowpassfcs = lowpassfcs,
@@ -59,23 +57,24 @@ Fhm = AEM_VMD_HMD.HFieldDHT(
                       zRx    = zRx)
 ## get the fields in place and time it
 function myfunc(Fl, Fh, zz, rr)
-    AEM_VMD_HMD.getfieldTD!(Fl, zz, rr)
-    AEM_VMD_HMD.getfieldTD!(Fh, zz, rr)
+    transD_GP.AEM_VMD_HMD.getfieldTD!(Fl, zz, rr)
+    transD_GP.AEM_VMD_HMD.getfieldTD!(Fh, zz, rr)
 end
 @btime myfunc($Flm, $Fhm, $zfixed, $rho)
 ## plot
+μ = transD_GP.AEM_VMD_HMD.μ
 figure()
 s1 = subplot(211)
-loglog(Flm.times,4*pi*1e-7*abs.(Flm.dBzdt), label="lm_julia")
-loglog(Fhm.times,4*pi*1e-7*abs.(Fhm.dBzdt), label="hm_julia")
+loglog(Flm.times,μ*abs.(Flm.dBzdt), label="lm_julia")
+loglog(Fhm.times,μ*abs.(Fhm.dBzdt), label="hm_julia")
 loglog(Flm.times, matlabLM, ".", label="lm_matlab")
 loglog(Fhm.times, matlabHM, ".", label="hm_matlab")
 ylabel("dBzdt V/Am^4")
 grid(which="both")
 legend()
 s2 = subplot(212, sharex=s1)
-semilogx(Flm.times,(4*pi*1e-7*Flm.dBzdt-matlabLM)./matlabLM*100, label="lm")
-semilogx(Fhm.times,(4*pi*1e-7*Fhm.dBzdt-matlabHM)./matlabHM*100, label="hm")
+semilogx(Flm.times,(μ*Flm.dBzdt-matlabLM)./matlabLM*100, label="lm")
+semilogx(Fhm.times,(μ*Fhm.dBzdt-matlabHM)./matlabHM*100, label="hm")
 ylabel("% difference")
 xlabel("time s")
 grid(which="both")

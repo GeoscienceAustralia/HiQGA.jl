@@ -1,8 +1,8 @@
 module CSEM1DInversion
 import ..AbstractOperator.get_misfit
-include("CSEM1DEr.jl")
-import .CSEM1DEr.getfield!
-using ..AbstractOperator, .CSEM1DEr
+# include("CSEM1DEr.jl")
+import ..CSEM1DEr.getfield!
+using ..AbstractOperator, ..CSEM1DEr
 using PyPlot, LinearAlgebra, ..CommonToAll
 
 import ..Model, ..Options
