@@ -23,6 +23,6 @@ jobs:
         with:
           version: ${{ matrix.julia-version }}
       - name: Install python deps
-        run: pip install matplotlib
+        run: python3 -m pip install matplotlib
       - uses: julia-actions/julia-buildpkg@latest
       - uses: julia-actions/julia-runtest@latest
