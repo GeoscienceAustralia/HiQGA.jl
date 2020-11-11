@@ -1,8 +1,12 @@
+# transD_GP.jl
+
+![CI status](https://github.com/a2ray/transD_GP/workflows/CI/badge.svg)
+
 Implements TransD_GP algorithm as published in
 
-Bayesian geophysical inversion with trans-dimensional Gaussian process machine learning 
+Bayesian geophysical inversion with trans-dimensional Gaussian process machine learning
 A Ray, D Myer - Geophysical Journal International, 2019
 
 Use run_image_regression.jl in > Julia 1.1.0 for a parallel version, please remember to specify nchains before start, it takes about 139 seconds for 4001 parallel iterations on 4 cores, 398 seconds on 32 cores. Variable nchains controls the number of parallel workers.
- 
+
 Doesn't need MPI to run on your PC - simply comment out all lines starting with MPI in run_image_regression.jl to use Julia's in built parallelism. MPI is for use on a cluster with PBS that doesn't allow SSH communication between different nodes, should you choose to scale up your problem.
