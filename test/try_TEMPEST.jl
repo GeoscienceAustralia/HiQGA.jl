@@ -49,9 +49,10 @@ Ftempest = transD_GP.AEM_VMD_HMD.HFieldDHT(
 					  getradialH = getradialH,
 					  provideddt = provideddt)
 ## model and Ross' response - select one
-include("ross_tempest_response_10_ohm-m.jl")
+#include("ross_tempest_response_10_ohm-m.jl")
 #include("ross_tempest_response_100_ohm-m.jl")
 #include("ross_tempest_response_20_10_1000_ohm-m.jl")
+include("yusen_tempest_response_20_1_100_ohm-m.jl")
 ## do it
 transD_GP.AEM_VMD_HMD.getfieldTD!(Ftempest, zfixed, rho)
 ## plot
