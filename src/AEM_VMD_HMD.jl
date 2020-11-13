@@ -352,6 +352,10 @@ function getfieldTD!(F::HFieldDHT, z::Array{Float64, 1}, ρ::Array{Float64, 1})
                     F.HFD_r_interp[:] .= imag(conj((spl_r_real.(l10w) .+ 1im*spl_r_imag.(l10w)).*H))*2/pi
                     F.HTD_r_interp[itime] = dot(F.HFD_r_interp, Filter_t_sin)/t
                 end
+                if F.getazimH
+                    F.HFD_az_interp[:] .= imag(conj((spl_az_real.(l10w) .+ 1im*spl_az_imag.(l10w)).*H))*2/pi
+                    F.HTD_az_interp[itime] = dot(F.HFD_az_interp, Filter_t_sin)/t
+                end
             else
                 # vertical
                 w = F.ω[:,itime]
@@ -362,6 +366,10 @@ function getfieldTD!(F::HFieldDHT, z::Array{Float64, 1}, ρ::Array{Float64, 1})
                     F.HFD_r_interp[:] .= -imag(conj((spl_r_real.(l10w) .+ 1im*spl_r_imag.(l10w)).*H)./w)*2/pi
                     F.HTD_r_interp[itime] = dot(F.HFD_r_interp, Filter_t_cos)/t
                 end
+                if F.getazimH
+                    F.HFD_az_interp[:] .= -imag(conj((spl_az_real.(l10w) .+ 1im*spl_az_imag.(l10w)).*H)./w)*2/pi
+                    F.HTD_az_interp[itime] = dot(F.HFD_az_interp, Filter_t_cos)/t
+                end        
             end
         end
     end
@@ -407,7 +415,7 @@ function convramp!(F::HFieldDHT, splz::CubicSpline, splr::CubicSpline, splaz::Cu
                 F.dBrdt[itime] += (b-a)/2*dot(getrampresponse((b-a)/2*x .+ (a+b)/2, splr), w)*dIdt
             end
             if F.getazimH
-                F.dBazt[itime] += (b-a)/2*dot(getrampresponse((b-a)/2*x .+ (a+b)/2, splaz), w)*dIdt
+                F.dBazdt[itime] += (b-a)/2*dot(getrampresponse((b-a)/2*x .+ (a+b)/2, splaz), w)*dIdt
             end
         end
     end

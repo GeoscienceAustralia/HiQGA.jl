@@ -38,11 +38,11 @@ rx_roll = 0.
 rx_pitch = 0.
 rx_yaw = 0.
 tx_roll = 0.
-tx_pitch = 0.
+tx_pitch = 90.
 tx_yaw = 0.
 order = "ypr"
 ##
-F = transD_GP.TEMPEST1DInversion.Bfield(
+tempest = transD_GP.TEMPEST1DInversion.Bfield(
   					  ntimesperdecade = ntimesperdecade,
                       nfreqsperdecade = nfreqsperdecade,
 					  nkᵣeval = nkᵣeval,
@@ -52,27 +52,27 @@ F = transD_GP.TEMPEST1DInversion.Bfield(
 					  zRx    = zRx,
 					  x_rx   = x_rx,
 					  y_rx   = y_rx,
-					  rx_roll = 0.,
-					  rx_pitch = 0.,
-					  rx_yaw = 0.,
-					  tx_roll = 0.,
-					  tx_pitch = 0.,
-					  tx_yaw = 0.,
-					  order = "ypr"
-)
+					  rx_roll = rx_roll,
+					  rx_pitch = rx_pitch,
+					  rx_yaw = rx_yaw,
+					  tx_roll = tx_roll,
+					  tx_pitch = tx_pitch,
+					  tx_yaw = tx_yaw,
+					  order = "ypr")
 ## model and Ross' response - select one
 #include("ross_tempest_response_10_ohm-m.jl")
 #include("ross_tempest_response_100_ohm-m.jl")
 #include("ross_tempest_response_20_10_1000_ohm-m.jl")
-include("yusen_tempest_response_20_1_100_ohm-m.jl")
+#include("yusen_tempest_response_20_1_100_ohm-m.jl")
+include("yusen_tempest_response_20_1_100_ohm-m_txpitch90.jl");
 ## do it
-transD_GP.AEM_VMD_HMD.getfieldTD!(Ftempest, zfixed, rho)
+transD_GP.TEMPEST1DInversion.getfieldTD!(tempest, zfixed, rho)
 ## plot
 μ = transD_GP.AEM_VMD_HMD.μ
 figure(figsize=(4,7))
 s1 = subplot(211)
-loglog(Ftempest.times, abs.(μ*Ftempest.dBzdt)*1e15, label="Bz", ".-")
-loglog(Ftempest.times, abs.(μ*Ftempest.dBrdt)*1e15, label="Br", ".-")
+loglog(times, abs.(μ*tempest.Hz)*1e15, label="Bz", ".-")
+loglog(times, abs.(μ*tempest.Hx)*1e15, label="Br", ".-")
 xlabel("time s")
 ylabel("B field 10⁻¹⁵ T")
 ylim(1e-6, 50)
@@ -81,9 +81,20 @@ grid(true, which="both")
 plot(times, abs.(ross_secondary[:,2]))
 plot(times, abs.(ross_secondary[:,1]))
 s2 = subplot(212, sharex=s1)
-loglog(times, 100*abs.(μ*Ftempest.dBzdt*1e15-ross_secondary[:,2])./abs.(ross_secondary[:,2]),"x-")
-loglog(times, 100*abs.(μ*Ftempest.dBrdt*1e15-ross_secondary[:,1])./abs.(ross_secondary[:,1]),"x-")
+loglog(times, 100*abs.(abs.(μ*tempest.Hz*1e15)-abs.(ross_secondary[:,2]))./abs.(ross_secondary[:,2]),"x-")
+loglog(times, 100*abs.(abs.(μ*tempest.Hx*1e15)-abs.(ross_secondary[:,1]))./abs.(ross_secondary[:,1]),"x-")
 grid(true, which="both")
 xlabel("time s")
 ylabel("% diff")
 plt.tight_layout()
+## timing for many random layers
+## time many random layers
+doprofile=false
+if doprofile
+	using BenchmarkTools
+	Random.seed!(435)
+	nlayers = 50
+	z = [-1e5, 0, 20, 50 .+ cumsum(15*rand(nlayers-3))...]
+	ρ = [1e13, 10, 1, 10 .^(-0.5 .+ 1.5*rand(nlayers-3))...]
+	@btime transD_GP.TEMPEST1DInversion.getfieldTD!($tempest, $z, $rho)
+end
