@@ -126,7 +126,6 @@ function HFieldDHT(;
     end
     log10interpkᵣ = log10.(interpkᵣ)
     useprimary = modelprimary ? one(Float64) : zero(Float64)
-    @info "there there"
     HFieldDHT(thickness, pz, ϵᵢ, zintfc, rTE, rTM, zRx, zTx, rTx, rRx, freqs, times, ramp, log10ω, interptimes,
             HFD_z, HFD_r, HFD_az, HFD_z_interp, HFD_r_interp, HFD_az_interp,
             HTD_z_interp, HTD_r_interp, HTD_az_interp, dBzdt, dBrdt, dBazdt, J0_kernel_h, J1_kernel_h, J0_kernel_v, J1_kernel_v, lowpassfcs,

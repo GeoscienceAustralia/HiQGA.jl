@@ -33,11 +33,11 @@ end
 
 function Bfield(;
 				dataBx = zeros(0),
-				dataBy = zeros(0),
+				dataBz = zeros(0),
 				σx = zeros(0),
-				σy = zeros(0),
+				σz = zeros(0),
 				selectx = zeros(Bool, 0),
-				selecty = zeros(Bool, 0),
+				selectz = zeros(Bool, 0),
 				useML = false,
 				nfixed = 1,
 				times = [],
