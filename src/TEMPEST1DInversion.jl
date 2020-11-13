@@ -46,13 +46,13 @@ function Bfield(;
 				ρ = zeros(0),
 				ndatax = 0,
 				ndataz = 0,
-				ntimesperdecade = 10
-				nfreqsperdecade = 5
-				nkᵣeval = 60
-				zTx = -120
-				zRx = -80
-				xRx = 115.0
-				yRx = 0,
+				ntimesperdecade = 10,
+				nfreqsperdecade = 5,
+				nkᵣeval = 60,
+				zTx = -120,
+				zRx = -80,
+				x_rx = -115.0,
+				y_rx = 0.,
 				rx_roll = 0.,
 			    rx_pitch = 0.,
 			    rx_yaw = 0.,
@@ -65,19 +65,18 @@ function Bfield(;
 @assert(!isempty(ramp))
 @assert zTx<0
 @assert zRx>zTx # receiver below transmitter
-@assert xRx<0 # receiver behind transmitter
+@assert x_rx<0 # receiver behind transmitter
 
 Rot_rx = makerotationmatrix(order=order,yaw=tx_yaw, pitch=tx_pitch, roll=tx_roll)
 Rot_tx = makerotationmatrix(order=order,yaw=tx_yaw, pitch=tx_pitch, roll=tx_roll)
-
-F = transD_GP.AEM_VMD_HMD.HFieldDHT(
+F = AEM_VMD_HMD.HFieldDHT(;
                       ntimesperdecade = ntimesperdecade,
                       nfreqsperdecade = nfreqsperdecade,
 					  nkᵣeval = nkᵣeval,
                       times  = times,
                       ramp   = ramp,
                       zTx    = zTx,
-                      rRx    = sqrt(x_rx^2 + y_rx^2)
+                      rRx    = sqrt(x_rx^2 + y_rx^2),
                       zRx    = zRx,
 					  modelprimary = false,
 					  getradialH = true,

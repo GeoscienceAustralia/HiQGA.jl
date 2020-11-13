@@ -126,9 +126,10 @@ function HFieldDHT(;
     end
     log10interpkᵣ = log10.(interpkᵣ)
     useprimary = modelprimary ? one(Float64) : zero(Float64)
+    @info "there there"
     HFieldDHT(thickness, pz, ϵᵢ, zintfc, rTE, rTM, zRx, zTx, rTx, rRx, freqs, times, ramp, log10ω, interptimes,
             HFD_z, HFD_r, HFD_az, HFD_z_interp, HFD_r_interp, HFD_az_interp,
-            HTD_z_interp, HTD_r_interp, HTD_az_interp, dBzdt, dBrdt, J0_kernel_h, J1_kernel_h, J0_kernel_v, J1_kernel_v, lowpassfcs,
+            HTD_z_interp, HTD_r_interp, HTD_az_interp, dBzdt, dBrdt, dBazdt, J0_kernel_h, J1_kernel_h, J0_kernel_v, J1_kernel_v, lowpassfcs,
             quadnodes, quadweights, preallocate_ω_Hsc(interptimes, lowpassfcs)..., rxwithinloop, provideddt, doconvramp, useprimary,
             nkᵣeval, interpkᵣ, log10interpkᵣ, log10Filter_base, getradialH, getazimH)
 end
@@ -381,7 +382,7 @@ function getfieldTD!(F::HFieldDHT, z::Array{Float64, 1}, ρ::Array{Float64, 1})
     end
 end
 
-function convramp!(F::HFieldDHT, splz::CubicSpline, splr::CubicSpline)
+function convramp!(F::HFieldDHT, splz::CubicSpline, splr::CubicSpline, splaz::CubicSpline)
     fill!(F.dBzdt, 0.)
     F.getradialH && fill!(F.dBrdt, 0.)
     for itime = 1:length(F.times)

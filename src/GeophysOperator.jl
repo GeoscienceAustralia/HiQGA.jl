@@ -14,4 +14,6 @@ include("AEM_VMD_HMD.jl") # add this before using VMD or HMD for land/AEM geophy
 using .AEM_VMD_HMD
 include("SkyTEM1DInversion.jl")
 using .SkyTEM1DInversion
+include("TEMPEST1DInversion.jl")
+using .TEMPEST1DInversion
 export Operator, get_misfit
