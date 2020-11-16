@@ -2,11 +2,13 @@
 
 ![CI status](https://github.com/a2ray/transD_GP/workflows/CI/badge.svg)
 
-Implements TransD_GP algorithm as published in
+This package implements the trans-dimensional Gaussian process algorithm as published in [*Bayesian geophysical inversion with trans-dimensional Gaussian process machine learning*, A. Ray and D. Myer, Geophysical Journal International **217(3)**, 2019](https://doi.org/10.1093/gji/ggz111).
 
-Bayesian geophysical inversion with trans-dimensional Gaussian process machine learning
-A Ray, D Myer - Geophysical Journal International, 2019
+## Installation
+To install, use Julia's `Pkg` REPL:
+```
+pkg> add https://github.com/a2ray/transD_GP.git
+```
 
-Use run_image_regression.jl in > Julia 1.1.0 for a parallel version, please remember to specify nchains before start, it takes about 139 seconds for 4001 parallel iterations on 4 cores, 398 seconds on 32 cores. Variable nchains controls the number of parallel workers.
-
-Doesn't need MPI to run on your PC - simply comment out all lines starting with MPI in run_image_regression.jl to use Julia's in built parallelism. MPI is for use on a cluster with PBS that doesn't allow SSH communication between different nodes, should you choose to scale up your problem.
+## Usage
+Examples of how to use the package can be found in the `examples` directory. The Markov Chain Monte Carlo sampler is configured to support parallel tempering on multiple CPUs - some of the examples accomplish this with Julia's built-in multiprocessing, and others use MPI in order to support inversions on HPC clusters that don't work with Julia's default SSH-based multiprocessing. The MPI examples require [MPI.jl](https://github.com/JuliaParallel/MPI.jl) and [MPIClusterManagers.jl](https://github.com/JuliaParallel/MPIClusterManagers.jl/), which are not installed as dependencies for this package, so you will need to ensure they are installed and configured correctly to run these examples. Please note that MPIClusterManagers.jl has issues with Julia <1.4.2, so please ensure you are using an up-to-date Julia version.
