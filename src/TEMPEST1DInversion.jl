@@ -125,7 +125,8 @@ end
 function makerotationmatrix(;yaw=0.0,roll=0.0,pitch=0.0, order="lala", doinv = false)
     ordervector = ["ypr","yrp","rpy","ryp","pyr","pry"]
     @assert any(ordervector .== order) """not a valid order such as "ypr" """
-    # All these matrices are transposes
+    # All these matrices need to be transposed before left multiplying
+	# a column vector
     Rr = [ 1.           0            0
            0            cosd(roll)  -sind(roll)
            0            sind(roll)   cosd(roll)  ]
@@ -137,21 +138,21 @@ function makerotationmatrix(;yaw=0.0,roll=0.0,pitch=0.0, order="lala", doinv = f
     Ry = [ cosd(yaw)   -sind(yaw)    0
            sind(yaw)    cosd(yaw)    0
            0            0            1.          ]
-    # multiplying above transposes from left to right
-    # is applying them to a column vector from right to left
-    # e.g., ypr is r(p(y(v)))
+    # Applying them to a column vector from right to left
+    # e.g., ypr is r(p(y(v))), we need to transpose
+	# also takes care of transposing above matrices
     if order     == "ypr"
-        Rot = Ry*Rp*Rr
+        Rot = (Ry*Rp*Rr)'
     elseif order == "yrp"
-        Rot = Ry*Rr*Rp
+        Rot = (Ry*Rr*Rp)'
     elseif order == "rpy"
-        Rot = Rr*Rp*Ry
+        Rot = (Rr*Rp*Ry)'
     elseif order == "ryp"
-        Rot = Rr*Ry*Rp
+        Rot = (Rr*Ry*Rp)'
     elseif order == "pyr"
-        Rot = Rp*Ry*Rr
+        Rot = (Rp*Ry*Rr)'
     else
-        Rot = Rp*Rr*Ry
+        Rot = (Rp*Rr*Ry)'
     end
 
     if doinv
