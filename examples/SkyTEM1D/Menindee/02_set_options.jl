@@ -1,5 +1,3 @@
-srcdir = dirname(dirname(dirname(dirname(pwd()))))*"/src"
-any(srcdir .== LOAD_PATH) || push!(LOAD_PATH, srcdir)
 ## same for all soundings
 zfixed   = [-1e5]
 ρfixed   = [1e12]
@@ -10,9 +8,8 @@ nlayers = 40
 ntimesperdecade = 10
 nfreqsperdecade = 5
 ## make transD options
-using GP
 nmin, nmax = 2, 40
-K = GP.Mat32()
+K = transD_GP.GP.Mat32()
 demean = true
 fbounds = [-0.5 2.5]
 sdpos = 0.05
@@ -26,7 +23,7 @@ using Random
 nplot = 2
 nplot = min(nplot, length(sounding))
 for idx in randperm(length(sounding))[1:nplot]
-        aem, znall = SkyTEM1DInversion.makeoperator(sounding[idx],
+        aem, znall = transD_GP.SkyTEM1DInversion.makeoperator(sounding[idx],
                                zfixed = zfixed,
                                ρfixed = ρfixed,
                                zstart = zstart,
@@ -39,7 +36,7 @@ for idx in randperm(length(sounding))[1:nplot]
                                showgeomplot = false,
                                plotfield = true)
 
-        opt, optdummy = SkyTEM1DInversion.make_tdgp_statmode_opt(znall = znall,
+        opt, optdummy = transD_GP.SkyTEM1DInversion.make_tdgp_statmode_opt(znall = znall,
                                 fileprefix = sounding[idx].sounding_string,
                                 nmin = nmin,
                                 nmax = nmax,

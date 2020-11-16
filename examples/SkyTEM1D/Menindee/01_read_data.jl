@@ -1,9 +1,7 @@
-srcdir = dirname(dirname(dirname(dirname(pwd()))))*"/src"
-any(srcdir .== LOAD_PATH) || push!(LOAD_PATH, srcdir)
 ## MPI Init same was as on gadi
 using MPIClusterManagers, Distributed
 import MPI
-usempi = false
+usempi = true
 if usempi
 	MPI.Init()
 	rank = MPI.Comm_rank(MPI.COMM_WORLD)
@@ -31,8 +29,8 @@ frame_dz = 23
 LM_Z = [26,42]
 HM_Z = [43,67]
 ##
-using Revise, SkyTEM1DInversion
-SkyTEM1DInversion.read_survey_files(fname_dat         = fname_dat,
+using Revise, transD_GP
+transD_GP.SkyTEM1DInversion.read_survey_files(fname_dat         = fname_dat,
 						             fname_specs_halt = fname_specs_halt,
 						             LM_Z             = LM_Z,
 									 HM_Z             = HM_Z,
@@ -45,7 +43,7 @@ SkyTEM1DInversion.read_survey_files(fname_dat         = fname_dat,
 									 fid              = fid,
 									 linenum          = linenum)
 ##
-sounding = SkyTEM1DInversion.read_survey_files(fname_dat         = fname_dat,
+sounding = transD_GP.SkyTEM1DInversion.read_survey_files(fname_dat         = fname_dat,
 						             fname_specs_halt = fname_specs_halt,
 						             LM_Z             = LM_Z,
 									 HM_Z             = HM_Z,
@@ -59,7 +57,7 @@ sounding = SkyTEM1DInversion.read_survey_files(fname_dat         = fname_dat,
 									 linenum          = linenum,
                                      startfrom        = 1,
 									 skipevery        = 5,
-									 dotillsounding   = nothing,
+									 dotillsounding   = 200,
 									 makesounding     = true)
 ## MPI checks
 # split into sequential iterations of parallel soundings

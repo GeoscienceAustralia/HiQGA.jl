@@ -1,11 +1,6 @@
-srcdir = dirname(dirname(dirname(dirname(pwd()))))*"/src"
-any(srcdir .== LOAD_PATH) || push!(LOAD_PATH, srcdir)
 ## set up McMC
-@everywhere any($srcdir .== LOAD_PATH) || push!(LOAD_PATH, $srcdir)
-@everywhere any(pwd() .== LOAD_PATH) || push!(LOAD_PATH, pwd())
 @everywhere using Distributed
-@everywhere import MCMC_Driver
-@everywhere using SkyTEM1DInversion
+@everywhere using transD_GP
 ## do the parallel soundings
 @info "starting"
 for iter = 1:nsequentialiters
@@ -17,7 +12,7 @@ for iter = 1:nsequentialiters
     @sync for (i, s) in enumerate(ss)
         @show pids = (i-1)*nchainspersounding+i:i*(nchainspersounding+1)
         r_aem_and_znall = @spawnat pids[2] begin
-            SkyTEM1DInversion.makeoperator(sounding[s],
+            transD_GP.SkyTEM1DInversion.makeoperator(sounding[s],
                                zfixed = zfixed,
                                ρfixed = ρfixed,
                                zstart = zstart,
@@ -31,7 +26,7 @@ for iter = 1:nsequentialiters
                                plotfield = false)
         end
         r_opt_and_optdummy = @spawnat pids[2] begin
-            SkyTEM1DInversion.make_tdgp_statmode_opt(znall = fetch(r_aem_and_znall)[2],
+            transD_GP.SkyTEM1DInversion.make_tdgp_statmode_opt(znall = fetch(r_aem_and_znall)[2],
                                 fileprefix = sounding[s].sounding_string,
                                 nmin = nmin,
                                 nmax = nmax,
@@ -46,7 +41,7 @@ for iter = 1:nsequentialiters
                                 )
         end
         @spawnat pids[1] begin
-                    MCMC_Driver.main(fetch(r_opt_and_optdummy)...,
+                    transD_GP.main(fetch(r_opt_and_optdummy)...,
                     fetch(r_aem_and_znall)[1],
                     collect(pids[2:end]),
                     Tmax=Tmax,
