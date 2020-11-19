@@ -40,7 +40,6 @@ rx_yaw = 0.
 tx_roll = 0.
 tx_pitch = 90.
 tx_yaw = 0.
-order = "ypr"
 ##
 tempest = transD_GP.TEMPEST1DInversion.Bfield(
   					  ntimesperdecade = ntimesperdecade,
@@ -57,8 +56,7 @@ tempest = transD_GP.TEMPEST1DInversion.Bfield(
 					  rx_yaw = rx_yaw,
 					  tx_roll = tx_roll,
 					  tx_pitch = tx_pitch,
-					  tx_yaw = tx_yaw,
-					  order = "ypr")
+					  tx_yaw = tx_yaw)
 ## model and Ross' response - select one
 #include("ross_tempest_response_10_ohm-m.jl")
 #include("ross_tempest_response_100_ohm-m.jl")

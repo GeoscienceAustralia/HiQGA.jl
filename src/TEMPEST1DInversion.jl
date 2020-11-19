@@ -62,13 +62,16 @@ function Bfield(;
 			    tx_roll = 0.,
 			    tx_pitch = 0.,
 			    tx_yaw = 0.,
-				order = "ypr")
+				order = "pry",
+				strictgeometry = true)
 
 	@assert !isempty(times)
 	@assert(!isempty(ramp))
 	@assert zTx<0
-	@assert zRx>zTx # receiver below transmitter
-	@assert x_rx<0 # receiver behind transmitter
+	if strictgeometry
+		@assert zRx>zTx # receiver below transmitter
+		@assert x_rx<0 # receiver behind transmitter
+	end
 	Rot_rx = makerotationmatrix(order=order,yaw=rx_yaw, pitch=rx_pitch, roll=rx_roll)
 	Rot_tx = makerotationmatrix(order=order,yaw=tx_yaw, pitch=tx_pitch, roll=tx_roll)
 	F = AEM_VMD_HMD.HFieldDHT(;
@@ -84,7 +87,7 @@ function Bfield(;
 						  getradialH = true,
 						  getazimH = true,
 						  provideddt = false)
-	mhat = Rot_tx'*[0,0,1] # dirn cosines in inertial frame for VMDz
+	mhat = Rot_tx*[0,0,1] # dirn cosines in inertial frame for VMDz
 	Hx, Hy, Hz = map(x->zeros(size(times)), 1:3)
 	Bfield(F, dataHx, dataHz, useML,σx, σz, z, nfixed, copy(ρ), selectx, selectz,
 			ndatax, ndataz, rx_roll, rx_pitch, rx_yaw, tx_roll, tx_pitch, tx_yaw,
@@ -124,35 +127,33 @@ end
 
 function makerotationmatrix(;yaw=0.0,roll=0.0,pitch=0.0, order="lala", doinv = false)
     ordervector = ["ypr","yrp","rpy","ryp","pyr","pry"]
-    @assert any(ordervector .== order) """not a valid order such as "ypr" """
-    # All these matrices need to be transposed before left multiplying
-	# a column vector
+    @assert any(ordervector .== order) """not a valid order such as "pry" """
+	# y --> z or [0,1,0] --> [0,0,1]
     Rr = [ 1.           0            0
            0            cosd(roll)  -sind(roll)
            0            sind(roll)   cosd(roll)  ]
-
-    Rp = [ cosd(pitch)  0           -sind(pitch)
+	# z --> x or [0,0,1] --> [1,0,0]
+    Rp = [ cosd(pitch)  0            sind(pitch)
            0            1            0.
-           sind(pitch)  0            cosd(pitch) ]
-
+          -sind(pitch)  0            cosd(pitch) ]
+	# x --> y or [1,0,0] --> [0,1,0]
     Ry = [ cosd(yaw)   -sind(yaw)    0
            sind(yaw)    cosd(yaw)    0
            0            0            1.          ]
     # Applying them to a column vector from right to left
-    # e.g., ypr is r(p(y(v))), we need to transpose
-	# also takes care of transposing above matrices
+    # e.g., ypr is r(p(y(v)))
     if order     == "ypr"
-        Rot = (Ry*Rp*Rr)'
+        Rot = Rr*Rp*Ry
     elseif order == "yrp"
-        Rot = (Ry*Rr*Rp)'
+        Rot = Rp*Rr*Ry
     elseif order == "rpy"
-        Rot = (Rr*Rp*Ry)'
+        Rot = Ry*Rp*Rr
     elseif order == "ryp"
-        Rot = (Rr*Ry*Rp)'
+        Rot = Rp*Ry*Rr
     elseif order == "pyr"
-        Rot = (Rp*Ry*Rr)'
+        Rot = Rr*Ry*Rp
     else
-        Rot = (Rp*Rr*Ry)'
+        Rot = Ry*Rr*Rp
     end
 
     if doinv
