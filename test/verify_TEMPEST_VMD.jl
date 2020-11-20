@@ -26,7 +26,7 @@ times = vec(10 .^mean(log10.([
 			0.0051266667	0.0079933333
 			0.0080066667	0.0123933333
 			0.0124066667	0.0199933333]), dims=2))
-## Set up operator
+## Set up VMD operator, not specialised to TEMPEST
 ntimesperdecade = 10
 nfreqsperdecade = 5
 nkᵣeval = 60
@@ -48,30 +48,43 @@ Ftempest = transD_GP.AEM_VMD_HMD.HFieldDHT(
 					  modelprimary = modelprimary,
 					  getradialH = getradialH,
 					  provideddt = provideddt)
-## model and Ross' response - select one
-#include("ross_tempest_response_10_ohm-m.jl")
-#include("ross_tempest_response_100_ohm-m.jl")
-#include("ross_tempest_response_20_10_1000_ohm-m.jl")
-include("yusen_tempest_response_20_1_100_ohm-m.jl")
-## do it
-transD_GP.AEM_VMD_HMD.getfieldTD!(Ftempest, zfixed, rho)
-## plot
-μ = transD_GP.AEM_VMD_HMD.μ
-figure(figsize=(4,7))
-s1 = subplot(211)
-loglog(Ftempest.times, abs.(μ*Ftempest.dBzdt)*1e15, label="Bz", ".-")
-loglog(Ftempest.times, abs.(μ*Ftempest.dBrdt)*1e15, label="Br", ".-")
-xlabel("time s")
-ylabel("B field 10⁻¹⁵ T")
-ylim(1e-6, 50)
-legend()
-grid(true, which="both")
-plot(times, abs.(ross_secondary[:,2]))
-plot(times, abs.(ross_secondary[:,1]))
-s2 = subplot(212, sharex=s1)
-loglog(times, 100*abs.(μ*Ftempest.dBzdt*1e15-ross_secondary[:,2])./abs.(ross_secondary[:,2]),"x-")
-loglog(times, 100*abs.(μ*Ftempest.dBrdt*1e15-ross_secondary[:,1])./abs.(ross_secondary[:,1]),"x-")
-grid(true, which="both")
-xlabel("time s")
-ylabel("% diff")
-plt.tight_layout()
+## GA_AEM TEMPEST responses with included conductivities
+fnames = ["ross_tempest_response_10_ohm-m.jl",
+"ross_tempest_response_100_ohm-m.jl",
+"ross_tempest_response_20_10_1000_ohm-m.jl",
+"yusen_tempest_response_20_1_100_ohm-m.jl",]
+# 1000 ohm-m model terminating halfspace has wonky responses in last gate
+## model conductivities in file
+for (ifn, fn) in enumerate(fnames)
+	include(fn)
+	transD_GP.AEM_VMD_HMD.getfieldTD!(Ftempest, zfixed, rho)
+	## plot
+	μ = transD_GP.AEM_VMD_HMD.μ
+	figure(figsize=(6,7))
+	s = subplot(121)
+	s.step(vcat(rho[2:end],rho[end]), vcat(zfixed[2:end], zfixed[end]+50))
+	s.set_xscale("log")
+	s.invert_xaxis()
+	xlabel("ρ")
+	ylabel("depth m")
+	grid(true, which="both")
+	s1 = subplot(222)
+	loglog(Ftempest.times, abs.(μ*Ftempest.dBzdt)*1e15, label="Bz", ".-")
+	loglog(Ftempest.times, abs.(μ*Ftempest.dBrdt)*1e15, label="Br", ".-")
+	xlabel("time s")
+	ylabel("B field 10⁻¹⁵ T")
+	# ylim(1e-6, 50)
+	legend()
+	grid(true, which="both")
+	plot(times, abs.(ross_secondary[:,2]))
+	plot(times, abs.(ross_secondary[:,1]))
+	s2 = subplot(224, sharex=s1)
+	loglog(times, 100*abs.(μ*Ftempest.dBzdt*1e15-ross_secondary[:,2])./abs.(ross_secondary[:,2]),"x-")
+	loglog(times, 100*abs.(μ*Ftempest.dBrdt*1e15-ross_secondary[:,1])./abs.(ross_secondary[:,1]),"x-")
+	grid(true, which="both")
+	xlabel("time s")
+	ylabel("% diff")
+	plt.suptitle("Pure VMD no roll or pitch")
+	plt.draw()
+	plt.tight_layout()
+end

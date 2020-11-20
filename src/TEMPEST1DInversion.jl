@@ -34,6 +34,11 @@ mutable struct Bfield<:Operator1D
 	Hz         :: Array{Float64, 1}
 end
 
+# If needed to make z axis flip to align with GA-AEM
+const Roll180 = [1. 0. 0.
+				 0 -1  0.
+				 0  0 -1]
+
 function Bfield(;
 				dataHx = zeros(0),
 				dataHz = zeros(0),
@@ -62,7 +67,8 @@ function Bfield(;
 			    tx_roll = 0.,
 			    tx_pitch = 0.,
 			    tx_yaw = 0.,
-				order = "pry",
+				order_tx = "yrp",
+				order_rx = "pry",
 				strictgeometry = true)
 
 	@assert !isempty(times)
@@ -72,11 +78,12 @@ function Bfield(;
 		@assert zRx>zTx # receiver below transmitter
 		@assert x_rx<0 # receiver behind transmitter
 	end
-	Rot_rx = makerotationmatrix(order=order,yaw=rx_yaw, pitch=rx_pitch, roll=rx_roll)
-	Rot_tx = makerotationmatrix(order=order,yaw=tx_yaw, pitch=tx_pitch, roll=tx_roll)
+	Rot_rx = makerotationmatrix(order=order_rx,yaw=rx_yaw, pitch=rx_pitch, roll=rx_roll,doinv=true)
+	Rot_tx = makerotationmatrix(order=order_tx,yaw=tx_yaw, pitch=tx_pitch, roll=tx_roll)
 	F = AEM_VMD_HMD.HFieldDHT(;
 	                      ntimesperdecade = ntimesperdecade,
 	                      nfreqsperdecade = nfreqsperdecade,
+						  freqlow=1e-5,
 						  nkᵣeval = nkᵣeval,
 	                      times  = times,
 	                      ramp   = ramp,
@@ -121,7 +128,7 @@ function reducegreenstensor!(tempest)
 			y/r*J1v,
 			J0v                            ]
 
-	Hx[:], Hy[:], Hz[:] = Rot_rx*[HMDx HMDy VMDz]*mhat
+	Hx[:], Hy[:], Hz[:] = Rot_rx*Roll180*[HMDx HMDy VMDz]*Roll180*mhat
 	nothing
 end
 
