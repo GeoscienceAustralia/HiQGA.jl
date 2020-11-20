@@ -27,8 +27,8 @@ times = vec(10 .^mean(log10.([
 			0.0080066667	0.0123933333
 			0.0124066667	0.0199933333]), dims=2))
 ## model and GA-AEM TEMPEST responses
-# GA-AEM does not model yaw as far as I can see so leaving out
-# TX and RX pitch are the big hitters
+# GA-AEM does not model yaw as far as I can see so leaving those examples out
+# TX and RX pitch are the big hitters anyway
 fnames=[
 "yusen_tempest_response_20_1_100_ohm-m_txpitch90.jl",
 "yusen_tempest_response_20_1_100_ohm-m_txroll10_txpitch10.jl",
