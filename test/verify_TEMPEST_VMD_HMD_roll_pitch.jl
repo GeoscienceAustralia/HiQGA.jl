@@ -30,10 +30,11 @@ times = vec(10 .^mean(log10.([
 # GA-AEM does not model yaw as far as I can see so leaving out
 # TX and RX pitch are the big hitters
 fnames=[
+"yusen_tempest_response_20_1_100_ohm-m_pure_VMD.jl",
 "yusen_tempest_response_20_1_100_ohm-m_txpitch90.jl",
 "yusen_tempest_response_20_1_100_ohm-m_txroll10_txpitch10.jl",
 "yusen_tempest_response_20_1_100_ohm-m_rxroll10_rxpitch10.jl",
-#"yusen_tempest_response_20_1_100_ohm-m_rxyaw10.jl",
+#"yusen_tempest_response_20_1_100_ohm-m_rxyaw10.jl"
 #"yusen_tempest_response_20_1_100_ohm-m_rxroll10_rxpitch10_rxyaw10.jl"
 ]
 ## model conductivities and yaw pitch roll in file
