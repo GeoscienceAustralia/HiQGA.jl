@@ -3,6 +3,8 @@ import ..AbstractOperator.get_misfit
 using ..AbstractOperator, ..AEM_VMD_HMD, Statistics
 using PyPlot, LinearAlgebra, ..CommonToAll, Random, DelimitedFiles
 
+import ..Model, ..Options, ..OptionsStat, ..OptionsNonstat
+
 const μ₀ = 4*pi*1e-7
 
 mutable struct Bfield<:Operator1D
@@ -104,6 +106,15 @@ end
 function getfieldTD!(tempest::Bfield, z::Array{Float64, 1}, ρ::Array{Float64, 1})
 	AEM_VMD_HMD.getfieldTD!(tempest.F,  z, ρ)
 	reducegreenstensor!(tempest)
+	nothing
+end
+
+#match API for SkyTEM inversion getfield
+function getfield!(m::Model, tempest::Bfield)
+	copyto!(tempest.ρ, tempest.nfixed+1:length(tempest.ρ),
+	10 .^m.fstar, 1:length(m.fstar))
+	getfieldTD!(tempest, tempest.z, tempest.ρ)
+	nothing
 end
 
 function reducegreenstensor!(tempest)
@@ -168,6 +179,60 @@ function makerotationmatrix(;yaw=0.0,roll=0.0,pitch=0.0, order="lala", doinv = f
     else
         Rot
     end
+end
+
+function get_misfit(m::Model, opt::Options, tempest::Bfield)
+	chi2by2 = 0.0;
+	if !opt.debug
+		getfield!(m, tempest)
+		chi2by2 = getchi2by2([tempest.Hx; tempest.Hz], [tempest.dataHx; tempest.dataHz],
+		[tempest.σx;tempest.σz], false, tempest.ndatax + tempest.ndataz);
+	end
+	return chi2by2
+end
+
+function getchi2by2(fm, d, σ, useML, ndata)
+    r = (fm - d)./σ
+    if useML
+        chi2by2 = 0.5*ndata[ifreq]*log(norm(r[idx])^2)
+    else
+        chi2by2 = 0.5*norm(r)^2
+    end
+end
+
+function plotmodelfield!(tempest::Bfield, z::Array{Float64,1}, ρ::Array{Float64,1})
+	getfieldTD!(tempest, z, ρ)
+	μ = AEM_VMD_HMD.μ
+	figure(figsize=(8,9))
+	s = subplot(121)
+	s.step(vcat(ρ[2:end],ρ[end]), vcat(z[2:end], z[end]+50))
+	s.set_xscale("log")
+
+	s.set_xscale("log")
+	s.invert_xaxis()
+	s.invert_yaxis()
+	xlabel("ρ")
+	ylabel("depth m")
+	grid(true, which="both")
+	s1 = subplot(222)
+	loglog(tempest.F.times, abs.(μ*tempest.Hz)*1e15, label="Bz", ".-")
+	loglog(tempest.F.times, abs.(μ*tempest.Hx)*1e15, label="Bx", ".-")
+	xlabel("time s")
+	ylabel("B field 10⁻¹⁵ T")
+	# ylim(1e-6, 50)
+	legend()
+	grid(true, which="both")
+end
+
+#for synthetics
+function set_noisy_data!(tempest::Bfield, z::Array{Float64,1}, ρ::Array{Float64,1},
+	noisefracx = 0.05, noisefracz = 0.05)
+	getfieldTD!(tempest, z, ρ)
+	tempest.σx = noisefracx*abs.(tempest.Hx)
+	tempest.dataHx = tempest.Hx + tempest.σx.*randn(size(tempest.Hx))
+	tempest.σz = noisefracz*abs.(tempest.Hz)
+	tempest.dataHz = tempest.Hz + tempest.σz.*randn(size(tempest.Hz))
+	nothing
 end
 
 end
