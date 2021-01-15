@@ -8,10 +8,10 @@ img =     transD_GP.Img(
           dec              = 2,
           gausskernelwidth = 7)
 ##
-img.σ, ftrain, Xtrain = transD_GP.get_image_data(img,
+transD_GP.get_image_data(img,
                    sdmaxfrac = 0.05,
                    ybreak = 1000,
                    takeevery = 4)
 
-transD_GP.plot_image_data(ftrain, Xtrain, img)
+transD_GP.plot_image_data(img)
 transD_GP.calc_image_RMS(img)

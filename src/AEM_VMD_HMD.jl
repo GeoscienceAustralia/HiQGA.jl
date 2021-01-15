@@ -369,7 +369,7 @@ function getfieldTD!(F::HFieldDHT, z::Array{Float64, 1}, ρ::Array{Float64, 1})
                 if F.getazimH
                     F.HFD_az_interp[:] .= -imag(conj((spl_az_real.(l10w) .+ 1im*spl_az_imag.(l10w)).*H)./w)*2/pi
                     F.HTD_az_interp[itime] = dot(F.HFD_az_interp, Filter_t_cos)/t
-                end        
+                end
             end
         end
     end

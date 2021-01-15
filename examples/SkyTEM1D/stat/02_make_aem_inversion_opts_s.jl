@@ -11,7 +11,7 @@ xall = permutedims(collect(znall))
 xbounds = permutedims([extrema(znall)...])
 updatenonstat = false
 needλ²fromlog = false
-λ, δ = [2], 0.1
+λ, δ = [2], 0.05
 ## Initialize a stationary GP using these options
 Random.seed!(12)
 opt = transD_GP.OptionsStat(nmin = nmin,
@@ -27,6 +27,7 @@ opt = transD_GP.OptionsStat(nmin = nmin,
                         pnorm = pnorm,
                         save_freq = 25,
                         quasimultid = false,
+                        peskycholesky = true,
                         K = K,
                         needλ²fromlog = needλ²fromlog,
                         updatenonstat = updatenonstat

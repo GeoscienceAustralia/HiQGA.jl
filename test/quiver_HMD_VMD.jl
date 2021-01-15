@@ -40,8 +40,8 @@ y_rx = 0.
 rx_roll = 0.
 rx_pitch = 0.
 rx_yaw = 0.
-tx_roll = 180. # GA AEM downward pointing dipole is roll 180
-tx_pitch = 0.
+tx_roll = 0. # GA AEM downward pointing dipole is roll 180
+tx_pitch = 90.
 tx_yaw = 0.
 # model
 zfixed   = [-1e6,   0, 40, 60]

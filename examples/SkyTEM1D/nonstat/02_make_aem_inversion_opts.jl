@@ -3,9 +3,9 @@ using transD_GP, Distributed
 nminlog10λ, nmaxlog10λ = 2, 30
 pnorm = 2.
 Klog10λ = transD_GP.GP.Mat32()
-log10bounds = [0 0.8]
+log10bounds = [-0.2 0.5]
 λlog10λ = [0.05abs(diff([extrema(znall)...])[1])]
-δlog10λ = 0.1
+δlog10λ = 0.06
 demean = false
 sdev_poslog10λ = [0.06abs(diff([extrema(znall)...])[1])]
 sdev_proplog10λ = 0.07*diff(log10bounds, dims=2)[:]
@@ -26,12 +26,13 @@ optlog10λ = transD_GP.OptionsStat(nmin = nminlog10λ,
                         pnorm = pnorm,
                         quasimultid = false,
                         K = Klog10λ,
-                        timesλ = 3.6
+                        timesλ = 3.6,
+                        peskycholesky = true
                         )
 ## make options for the nonstationary actual properties GP
 nmin, nmax = 2, 20
 fbounds = [-0.5 2.5]
-δ = 0.1
+δ = 0.05
 sdev_prop = 0.04*diff(fbounds, dims=2)[:]
 sdev_pos = [0.02abs(diff([extrema(znall)...])[1])]
 demean_ns = true

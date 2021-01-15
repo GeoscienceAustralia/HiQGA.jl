@@ -3,6 +3,7 @@ xall = transD_GP.get_image_prediction_points(img)
 nmin, nmax= 2, 100
 pnorm = 2.
 K = transD_GP.GP.Mat32()
+ftrain = img.d[img.select]
 fbounds = permutedims([extrema(ftrain)...])
 δ = 0.3
 λ = [141,141]
