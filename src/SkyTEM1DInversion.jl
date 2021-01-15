@@ -390,6 +390,7 @@ function makeoperator(fdataname::String;
                        ρfixed   = [1e12],
                        zstart = 0.0,
                        extendfrac = 1.06,
+                       freqlow = 1e-3,
                        dz = 2.,
                        ρbg = 10,
                        nlayers = 40,
@@ -426,6 +427,7 @@ function makeoperator(fdataname::String;
     Flm = AEM_VMD_HMD.HFieldDHT(
                           ntimesperdecade = ntimesperdecade,
                           nfreqsperdecade = nfreqsperdecade,
+                          freqlow = freqlow,
                           lowpassfcs = lowpassfcs,
                           times  = LM_times,
                           ramp   = LM_ramp,
@@ -438,6 +440,7 @@ function makeoperator(fdataname::String;
     Fhm = AEM_VMD_HMD.HFieldDHT(
                           ntimesperdecade = ntimesperdecade,
                           nfreqsperdecade = nfreqsperdecade,
+                          freqlow = freqlow,
                           lowpassfcs = lowpassfcs,
                           times  = HM_times,
                           ramp   = HM_ramp,
