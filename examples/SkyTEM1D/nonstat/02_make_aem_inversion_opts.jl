@@ -7,8 +7,8 @@ log10bounds = [-0.2 0.5]
 λlog10λ = [0.05abs(diff([extrema(znall)...])[1])]
 δlog10λ = 0.06
 demean = false
-sdev_poslog10λ = [0.06abs(diff([extrema(znall)...])[1])]
-sdev_proplog10λ = 0.07*diff(log10bounds, dims=2)[:]
+sdev_poslog10λ = [0.07abs(diff([extrema(znall)...])[1])]
+sdev_proplog10λ = 0.2*diff(log10bounds, dims=2)[:]
 xall = permutedims(collect(znall))
 xbounds = permutedims([extrema(znall)...])
 ## Initialize a lengthscale model using these options
@@ -26,7 +26,7 @@ optlog10λ = transD_GP.OptionsStat(nmin = nminlog10λ,
                         pnorm = pnorm,
                         quasimultid = false,
                         K = Klog10λ,
-                        timesλ = 3.6,
+                        timesλ = 3.7,
                         peskycholesky = true
                         )
 ## make options for the nonstationary actual properties GP

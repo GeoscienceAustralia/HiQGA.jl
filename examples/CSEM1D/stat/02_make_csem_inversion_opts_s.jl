@@ -6,12 +6,12 @@ K = transD_GP.GP.Mat32()
 demean = true
 fbounds = [-0.5 2.3]
 sdev_pos = [0.05abs(diff([extrema(znall)...])[1])]
-sdev_prop = 0.05*diff(fbounds, dims=2)[:]
+sdev_prop = 0.02*diff(fbounds, dims=2)[:]
 xall = permutedims(collect(znall))
 xbounds = permutedims([extrema(znall)...])
 updatenonstat = false
 needλ²fromlog = false
-λ, δ = [2], 0.1
+λ, δ = [2], 0.06
 ## Initialize a stationary GP using these options
 Random.seed!(12)
 opt = transD_GP.OptionsStat(nmin = nmin,
@@ -29,7 +29,8 @@ opt = transD_GP.OptionsStat(nmin = nmin,
                         K = K,
                         timesλ = 3.,
                         needλ²fromlog = needλ²fromlog,
-                        updatenonstat = updatenonstat
+                        updatenonstat = updatenonstat,
+                        peskycholesky = true
                         )
 ## Initialize options for the dummy nonstationary properties GP
 Random.seed!(13)

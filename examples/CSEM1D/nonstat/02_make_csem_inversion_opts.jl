@@ -3,7 +3,7 @@ using transD_GP, Distributed
 nminlog10λ, nmaxlog10λ = 2, 40
 pnorm = 2.
 Klog10λ = transD_GP.GP.Mat32()
-log10bounds = [0 1.5]
+log10bounds = [-0.2 1]
 λlog10λ = [0.07abs(diff([extrema(znall)...])[1])]
 δlog10λ = 0.06
 demean = false
@@ -26,7 +26,7 @@ optlog10λ = transD_GP.OptionsStat(nmin = nminlog10λ,
                         pnorm = pnorm,
                         quasimultid = false,
                         K = Klog10λ,
-                        timesλ = 3.6,
+                        timesλ = 3.7,
                         peskycholesky = true
                         )
 ## make options for the nonstationary actual properties GP
