@@ -595,7 +595,7 @@ function gethimage(M::AbstractArray, opt::Options;
             rhomax = 0.5*log10(rhomax)
         end
     else
-        @assert rhomin < rhomin
+        @assert rhomin < rhomax
     end
     edges = LinRange(rhomin, rhomax, nbins+1)
     himage = zeros(Float64, length(M[1]), nbins)
