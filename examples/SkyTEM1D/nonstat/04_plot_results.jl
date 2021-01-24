@@ -12,6 +12,7 @@ ax[2].plot(xlim(), [χ²/2 , χ²/2], "--", color="gray")
 # posterior
 opt.xall[:] .= zall
 transD_GP.plot_posterior(aem, opt, optlog10λ, burninfrac=0.5,
-    figsize=(7.8,4), cmappdf="inferno", nbins=100, qp1=0.1, qp2=0.9)
+    figsize=(15,4), cmappdf="inferno", nbins=100, qp1=0.1, qp2=0.9, vmaxpc=0.3)
 ax = gcf().axes
-ax[1].step(log10.(ρ[2:end]), z[2:end], alpha=0.4, color="w")
+ax[1].step(log10.(ρ[2:end]), z[2:end], color="w")
+ax[1].step(log10.(ρ[2:end]), z[2:end], color="k", linestyle="--")
