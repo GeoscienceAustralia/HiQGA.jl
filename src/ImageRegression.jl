@@ -2,7 +2,7 @@ module ImageRegression
 import ..AbstractOperator.get_misfit
 using ..AbstractOperator
 using PyPlot, LinearAlgebra, Statistics
-using Random, Images, ImageIO, FileIO, ..CommonToAll 
+using Random, Images, ImageIO, FileIO, ..CommonToAll
 
 import ..Model, ..Options, ..OptionsStat, ..OptionsNonstat
 
@@ -162,7 +162,7 @@ function slice_image_posterior( M::AbstractArray,
             Mslices[i] = m[:,rowcolnum]
         end
     end
-    himage, edges, CI = gethimage(Mslices, opt, burninfrac=0.0, temperaturenum=temperaturenum,
+    himage, edges, CI, = gethimage(Mslices, opt, burninfrac=0.0, temperaturenum=temperaturenum,
                 nbins=nbins, rhomin=rhomin, rhomax=rhomax, qp1=qp1, qp2=qp2,
                 pdfnormalize=pdfnormalize)
 end
