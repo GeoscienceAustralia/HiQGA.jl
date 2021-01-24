@@ -384,12 +384,14 @@ function plot_posterior(operator::Operator1D,
     burninfrac=0.5,
     qp1=0.05,
     qp2=0.95,
+    vmaxpc=0.5,
     cmappdf = "inferno",
-    figsize=(10,5),
+    figsize=(12,5),
     pdfnormalize=false,
     fsize=14)
     if temperaturenum == 1
-        himage_ns, edges_ns, CI_ns = make1Dhist(optns, burninfrac=burninfrac, nbins = nbins, qp1=qp1, qp2=qp2,
+        himage_ns, edges_ns, CI_ns,
+        hdiffimage_ns, diffedges_ns, diffCI_ns = make1Dhist(optns, burninfrac=burninfrac, nbins = nbins, qp1=qp1, qp2=qp2,
                                 pdfnormalize=pdfnormalize, temperaturenum=temperaturenum)
         himage, edges, CI = make1Dhist(opts, burninfrac=burninfrac, nbins = nbins, qp1=qp1, qp2=qp2,
                                 pdfnormalize=pdfnormalize, temperaturenum=temperaturenum)
@@ -397,27 +399,47 @@ function plot_posterior(operator::Operator1D,
         himage, edges, CI, himage_ns, edges_ns, CI_ns = make1Dhist(optns, opts, burninfrac=burninfrac, nbins = nbins, qp1=qp1, qp2=qp2,
                                 pdfnormalize=pdfnormalize, temperaturenum=temperaturenum)
     end
-    f,ax = plt.subplots(1,2, sharey=true, figsize=figsize)
+    f,ax = plt.subplots(1,3, sharey=true, figsize=figsize)
     xall = opts.xall
     xmesh = vcat(xall[1:end-1] - diff(xall[:])/2, xall[end])
     # im1 = ax[1].imshow(himage_ns, extent=[edges_ns[1],edges_ns[end],xall[end],xall[1]], aspect="auto", cmap=cmappdf)
-    im1 = ax[1].pcolormesh(edges_ns[:], xmesh, himage_ns, cmap=cmappdf)
+    vmin, vmax = extrema(himage_ns)
+    vmax = vmin+vmaxpc*(vmax-vmin)
+    im1 = ax[1].pcolormesh(edges_ns[:], xmesh, himage_ns, cmap=cmappdf, vmax=vmax)
     cb1 = colorbar(im1, ax=ax[1])
     cb1.ax.set_xlabel("pdf \nns")
+    propmin = min(minimum(CI_ns), minimum(optns.fbounds))
+    propmax = max(maximum(CI_ns), maximum(optns.fbounds))
+    ax[1].set_xlim(propmin, propmax)
     # ax[1].grid()
     # im2 = ax[2].imshow(himage, extent=[edges[1],edges[end],xall[end],xall[1]], aspect="auto", cmap=cmappdf)
-    im2 = ax[2].pcolormesh(edges[:], xmesh, himage, cmap=cmappdf)
-    ax[2].set_ylim(extrema(xall)...)
-    ax[2].invert_yaxis()
+    vmin, vmax = extrema(hdiffimage_ns)
+    vmax = vmin+vmaxpc*(vmax-vmin)
+    propmax = maximum(diffCI_ns)
+    im2 = ax[2].pcolormesh(diffedges_ns[:], xmesh, hdiffimage_ns, cmap=cmappdf, vmax=vmax)
+    ax[2].set_xlim(0, propmax)
     cb2 = colorbar(im2, ax=ax[2])
-    cb2.ax.set_xlabel("pdf \nstationary")
+    cb2.ax.set_xlabel("abs\n1VD")
+    ax[2].plot(diffCI_ns[:,2], xall[:], linewidth=2, color="g", alpha=0.5)
+    ax[2].plot(diffCI_ns[:,2], xall[:], linewidth=2, color="c", linestyle="--", alpha=0.5)
+    ax[2].set_xlabel("slope")
+
+    propmin = min(minimum(CI), minimum(opts.fbounds))
+    propmax = max(maximum(CI), maximum(opts.fbounds))
+    im3 = ax[3].pcolormesh(edges[:], xmesh, himage, cmap=cmappdf)
+    ax[3].set_ylim(extrema(xall)...)
+    ax[3].set_xlim(propmin, propmax)
+    ax[3].invert_yaxis()
+    cb3 = colorbar(im3, ax=ax[3])
+    cb3.ax.set_xlabel("pdf \nstationary")
+
     ax[1].plot(CI_ns, xall[:], linewidth=2, color="g", alpha=0.5)
     ax[1].plot(CI_ns, xall[:], linewidth=2, color="c", linestyle="--", alpha=0.5)
-    ax[2].plot(CI, xall[:], linewidth=2, color="g", alpha=0.5)
-    ax[2].plot(CI, xall[:], linewidth=2, color="c", linestyle="--", alpha=0.5)
+    ax[3].plot(CI, xall[:], linewidth=2, color="g", alpha=0.5)
+    ax[3].plot(CI, xall[:], linewidth=2, color="c", linestyle="--", alpha=0.5)
     ax[1].set_xlabel(L"\log_{10} \rho")
     ax[1].set_ylabel("depth (m)")
-    ax[2].set_xlabel(L"\log_{10} λ")
+    ax[3].set_xlabel(L"\log_{10} λ")
     nicenup(f, fsize=fsize)
 end
 
@@ -428,27 +450,64 @@ function plot_posterior(operator::Operator1D,
     burninfrac=0.5,
     qp1=0.05,
     qp2=0.95,
+    vmaxpc=0.5,
     cmappdf = "inferno",
     figsize=(5,5),
     pdfnormalize=false,
     fsize=14)
-    himage, edges, CI = make1Dhist(opt, burninfrac=burninfrac, nbins = nbins, qp1=qp1, qp2=qp2,
+    @assert 0<vmaxpc<1
+    himage, edges, CI, hdiffimage, diffedges, diffCI = make1Dhist(opt, burninfrac=burninfrac, nbins = nbins, qp1=qp1, qp2=qp2,
                                     pdfnormalize=pdfnormalize, temperaturenum=temperaturenum)
-    f,ax = plt.subplots(1,1, sharey=true, figsize=figsize)
+    f,ax = plt.subplots(1,2, sharey=true, figsize=figsize)
     xall = opt.xall
     #im1 = ax.imshow(himage, extent=[edges[1],edges[end],xall[end],xall[1]], aspect="auto", cmap=cmappdf)
     #ax.grid()
     xmesh = vcat(xall[1:end-1] - diff(xall[:])/2, xall[end])
-    im1 = ax.pcolormesh(edges[:], xmesh, himage, cmap=cmappdf)
-    ax.set_ylim(extrema(xall)...)
-    ax.invert_yaxis()
-    cb1 = colorbar(im1, ax=ax)
+    vmin, vmax = extrema(himage)
+    vmax = vmin+vmaxpc*(vmax-vmin)
+    im1 = ax[1].pcolormesh(edges[:], xmesh, himage, cmap=cmappdf, vmax=vmax)
+    ax[1].set_ylim(extrema(xall)...)
+    ax[1].invert_yaxis()
+    cb1 = colorbar(im1, ax=ax[1])
     cb1.ax.set_xlabel("pdf \nstationary")
-    ax.plot(CI, xall[:], linewidth=2, color="g", alpha=0.5)
-    ax.plot(CI, xall[:], linewidth=2, color="c", linestyle="--", alpha=0.5)
-    ax.set_xlabel(L"\log_{10} \rho")
-    ax.set_ylabel("depth (m)")
+    ax[1].plot(CI, xall[:], linewidth=2, color="g", alpha=0.5)
+    ax[1].plot(CI, xall[:], linewidth=2, color="c", linestyle="--", alpha=0.5)
+    ax[1].set_xlabel(L"\log_{10} \rho")
+    ax[1].set_ylabel("depth (m)")
+    propmin = min(minimum(CI), minimum(opt.fbounds))
+    propmax = max(maximum(CI), maximum(opt.fbounds))
+    ax[1].set_xlim(propmin, propmax)
+
+    vmin, vmax = extrema(hdiffimage)
+    vmax = vmin+vmaxpc*(vmax-vmin)
+    # propmin = min(minimum(CI)
+    propmax = maximum(diffCI)
+    im2 = ax[2].pcolormesh(diffedges[:], xmesh, hdiffimage, cmap=cmappdf, vmax=vmax)
+    ax[2].set_xlim(0, propmax)
+    cb2 = colorbar(im2, ax=ax[2])
+    cb2.ax.set_xlabel("abs\n1VD")
+    ax[2].plot(diffCI[:,2], xall[:], linewidth=2, color="g", alpha=0.5)
+    ax[2].plot(diffCI[:,2], xall[:], linewidth=2, color="c", linestyle="--", alpha=0.5)
+    ax[2].set_xlabel("slope")
+
     nicenup(f, fsize=fsize)
+end
+
+function firstderiv(x)
+    fd = similar(x)
+    fd[1]        =  x[2]     - x[1]
+    fd[end]      =  x[end]   - x[end-1]
+    fd[2:end-1] .= (x[3:end] - x[1:end-2])/2
+    abs.(fd)
+    # fd
+end
+
+function secondderiv(x)
+    sd = similar(x)
+    sd[1]        = 2x[1] - 5x[2] + 4x[3] - x[4]
+    sd[2:end-1] .= (x[3:end] - x[2:end-1] + x[1:end-2])
+    sd[end]      = 2x[end] - 5x[end-1] + 4x[end-2] - x[end-3]
+    abs.(sd)
 end
 
 function make1Dhist(optns::OptionsNonstat,
@@ -486,7 +545,12 @@ function make1Dhist(opt::Options;
     himage, edges, CI = gethimage(M, opt, burninfrac=burninfrac, temperaturenum=temperaturenum,
                 nbins=nbins, rhomin=rhomin, rhomax=rhomax, qp1=qp1, qp2=qp2,
                 pdfnormalize=pdfnormalize)
-    return himage, edges, CI
+    Mslope = firstderiv.(M)
+    # Mslope = secondderiv.(M)
+    hdiffimage, diffedges, diffCI = gethimage(Mslope, opt, burninfrac=burninfrac, temperaturenum=temperaturenum,
+                nbins=nbins, rhomin=rhomin, rhomax=rhomax, qp1=qp1, qp2=qp2,
+                pdfnormalize=pdfnormalize)
+    return himage, edges, CI, hdiffimage, diffedges, diffCI
 end
 
 function gethimage(M::AbstractArray, opt::Options;
