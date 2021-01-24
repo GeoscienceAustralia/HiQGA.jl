@@ -67,7 +67,7 @@ rmprocs(workers())
 transD_GP.getchi2forall(opt, fsize=8, alpha=0.5)
 transD_GP.getchi2forall(optlog10λ, fsize=8, alpha=0.5)
 transD_GP.plot_posterior(line, opt, optlog10λ,
-    burninfrac=0.5, figsize=(7.5,4), fsize=8, nbins=100)
+    burninfrac=0.5, figsize=(11.5,4), fsize=8, nbins=100)
 ax=gcf().axes
 p = ax[1].scatter(ynoisy, x, c="w", alpha=0.2, s=25)
 ax[1].plot(y, x, "--w", alpha=0.5)
