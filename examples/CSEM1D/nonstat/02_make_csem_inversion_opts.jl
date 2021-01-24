@@ -3,8 +3,8 @@ using transD_GP, Distributed
 nminlog10λ, nmaxlog10λ = 2, 40
 pnorm = 2.
 Klog10λ = transD_GP.GP.Mat32()
-log10bounds = [0 1.5]
-λlog10λ = [0.07abs(diff([extrema(znall)...])[1])]
+log10bounds = [0 1.]
+λlog10λ = [0.07*abs(diff([extrema(znall)...])[1])]
 δlog10λ = 0.1
 demean = false
 sdev_poslog10λ = [0.05abs(diff([extrema(znall)...])[1])]
