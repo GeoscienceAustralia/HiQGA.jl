@@ -1,5 +1,6 @@
 using transD_GP, Distributed
 ## make options for the stationary GP
+fileprefix = "test1_"
 nmin, nmax = 2, 40
 pnorm = 2.
 K = transD_GP.GP.Mat32()
@@ -18,6 +19,7 @@ opt = transD_GP.OptionsStat(nmin = nmin,
                         nmax = nmax,
                         xbounds = xbounds,
                         fbounds = fbounds,
+                        fdataname = fileprefix,
                         xall = xall,
                         λ = λ,
                         δ = δ,
