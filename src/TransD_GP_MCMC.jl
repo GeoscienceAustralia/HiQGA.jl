@@ -35,6 +35,7 @@ mutable struct OptionsStat <: Options
     timesλ              :: Float64
     needλ²fromlog       :: Bool
     updatenonstat       :: Bool
+    updatenuisances     :: Bool
     peskycholesky       :: Bool
 end
 
@@ -63,6 +64,7 @@ function OptionsStat(;
         timesλ             = 1.0,
         needλ²fromlog      = true,
         updatenonstat      = true,
+        updatenuisances    = false,
         peskycholesky      = false,
         )
 
@@ -89,7 +91,8 @@ function OptionsStat(;
         OptionsStat(nmin, nmax, xbounds, fbounds, xall, λ.^2 , δ, demean, sdev_prop, sdev_pos, pnorm,
                 stat_window, dispstatstoscreen, report_freq, save_freq,
                 fdataname, history_mode, costs_filename, fstar_filename, x_ftrain_filename,
-                debug, quasimultid, influenceradius, K, kdtree, balltree, timesλ, needλ²fromlog, updatenonstat, peskycholesky)
+                debug, quasimultid, influenceradius, K, kdtree, balltree, timesλ, needλ²fromlog,
+                updatenonstat, updatenuisances, peskycholesky)
 end
 
 mutable struct OptionsNonstat <: Options
@@ -150,6 +153,23 @@ function OptionsNonstat(opt::OptionsStat;
                 opt.debug, opt.quasimultid, influenceradius, K, opt.kdtree, opt.needλ²fromlog, opt.updatenonstat, opt.peskycholesky)
 end
 
+#not subtyping Options because methods that expect Options are expecting
+#options for a Gaussian process model, not fixed-dimension MCMC
+mutable struct OptionsNuisance
+    sdev           :: Array{Float64,1}
+    bounds         :: Array{Float64,1}
+    nnu            :: Array{Float64,1}
+
+    updatenuisance :: Bool
+    updatenonstat  :: Bool
+    debug          :: Bool
+end
+
+#make an empty nuisance options struct if we're not inverting for them
+OptionsNuisance(updatenonstat=false) =
+    OptionsNuisance([], [], [], false, updatenonstat, false)
+
+#"Model" means a Gaussian-process parametrised function
 abstract type Model end
 
 mutable struct ModelStat <:Model
@@ -180,6 +200,15 @@ mutable struct ModelNonstat <:Model
     Kstar_old     :: Array{Float64, 2}
 end
 
+mutable struct ModelNuisance
+    #"nuisances" are a fixed-dimensional part of the model, with the only
+    #allowed move being a value change. Contrasting with the GP parametrisation
+    #of the main part of the model which allows birth and death of GP nodes
+    nuisance      :: Array{Float64}
+    nidx_mem      :: Int #last nuisance val changed
+    nu_old        :: Float64 #prev val of nidx_mem
+end
+
 mutable struct Stats
     move_tries::Array{Int, 1}
     accepted_moves::Array{Int, 1}
@@ -196,6 +225,11 @@ mutable struct Writepointers
     fp_x_ftrain   :: IOStream
 end
 
+mutable struct Writepointers_nuisance
+    fp_costs      :: IOStream
+    fp_vals       :: IOStream
+end
+
 # Stationary GP functions, i.e., for λ
 function init(opt::OptionsStat)
     n, xtrain, ftrain = initvalues(opt)
@@ -210,6 +244,17 @@ function init(opt::OptionsStat)
     return ModelStat(fstar, xtrain, ftrain, K_y, Kstar, n,
                  [0.0], zeros(Float64, size(opt.xbounds, 1)), 0,
                  zeros(Float64, size(opt.xbounds, 1)))
+end
+
+function init(opt::OptionsNuisance)
+    @info opt
+    if length(opt.bounds) > 0
+        nuisance = opt.bounds[:,1] + diff(opt.bounds, dims = 2)[:].*randn(opt.nnu)
+    else
+        nuisance = []
+    end
+    #TODO load history if specified (like with GP init)
+    return ModelNuisance(nuisance, 0, 0.)
 end
 
 function calcfstar!(fstar::Array{Float64,2}, ftrain::Array{Float64,2},
@@ -726,6 +771,24 @@ function undo_move!(movetype::Int, m::ModelStat, opt::OptionsStat,
     sync_model!(m, opt)
     opt.updatenonstat && sync_model!(mns, optns)
     nothing
+end
+
+function do_move!(mn::ModelNuisance, optn::OptionsNuisance, stat::Stats)
+    priorviolate = false
+    nidx = 1 + Floor(Int, optn.nnu * rand())
+    mn.nidx_mem = nidx
+    mn.nu_old = mn.nuisances[nidx]
+    mn.nuisances[nidx] += optn.sdev[nidx]*randn()
+    if mn.nuisances[nidx] > optn.bounds[nidx,2] || mn.nuisances[nidx] < optn.bounds[nidx,1]
+        priorviolate = true
+    end
+    stat.move_tries[1] += 1
+    return 1, priorviolate
+end
+
+function undo_move!(mn::ModelNuisance)
+    mn.nuisances[mn.nidx_mem] = nu_old
+    mn.nidx_mem = 0 #delete memory so we can't undo twice
 end
 
 function get_acceptance_stats!(isample::Int, opt::Options, stat::Stats)

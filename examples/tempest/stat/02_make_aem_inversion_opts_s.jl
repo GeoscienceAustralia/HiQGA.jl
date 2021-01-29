@@ -45,3 +45,6 @@ optdummy = transD_GP.OptionsNonstat(opt,
                         pnorm = pnorm,
                         K = K
                         )
+
+
+optndum = transD_GP.OptionsNuisance()

@@ -133,6 +133,43 @@ function HFieldDHT(;
             nkᵣeval, interpkᵣ, log10interpkᵣ, log10Filter_base, getradialH, getazimH)
 end
 
+#update geometry and dependent parameters - necessary for adjusting geometry
+#e.g. inverting nuisance parameters
+function update_ZR!(F::HFieldDHT, zTx, zRx, rTx, rRx)
+    if F.rTx != nothing
+        if F.rTx >= F.rRx
+            F.interpkᵣ *= F.rTx
+            F.log10interpkᵣ += F.rTx
+            F.log10Filter_base += F.rTx
+        else
+            F.interpkᵣ *= F.rRx
+            F.log10interpkᵣ += F.rRx
+            F.log10Filter_base += F.rRx
+        end
+    else
+        F.log10Filter_base += F.rRx
+    end
+
+    if rTx != nothing
+        if rTx >= rRx
+            F.interpkᵣ /= rTx
+            F.log10interpkᵣ -= rTx
+            F.log10Filter_base -= rTx
+        else
+            F.interpkᵣ /= rRx
+            F.log10interpkᵣ -= rRx
+            F.log10Filter_base -= rRx
+        end
+    else
+        F.log10Filter_base -= rRx
+    end
+    F.rTx = rTx
+    F.rRx = rRx
+    F.zTx = zTx
+    F.zRx = zRx
+
+end
+
 function preallocate_ω_Hsc(interptimes, lowpassfcs)
     ω   = zeros(length(Filter_t_base), length(interptimes))
     Hsc = zeros(ComplexF64, length(Filter_t_base), length(interptimes))
@@ -369,7 +406,7 @@ function getfieldTD!(F::HFieldDHT, z::Array{Float64, 1}, ρ::Array{Float64, 1})
                 if F.getazimH
                     F.HFD_az_interp[:] .= -imag(conj((spl_az_real.(l10w) .+ 1im*spl_az_imag.(l10w)).*H)./w)*2/pi
                     F.HTD_az_interp[itime] = dot(F.HFD_az_interp, Filter_t_cos)/t
-                end        
+                end
             end
         end
     end

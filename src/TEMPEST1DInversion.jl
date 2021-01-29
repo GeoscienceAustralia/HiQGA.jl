@@ -4,6 +4,7 @@ using ..AbstractOperator, ..AEM_VMD_HMD, Statistics
 using PyPlot, LinearAlgebra, ..CommonToAll, Random, DelimitedFiles
 
 import ..Model, ..Options, ..OptionsStat, ..OptionsNonstat
+import ..ModelNuisance, ..OptionsNuisance
 
 const μ₀ = 4*pi*1e-7
 
@@ -103,6 +104,49 @@ function Bfield(;
 			Rot_rx, x_rx, y_rx, mhat, Hx, Hy, Hz)
 end
 
+#TODO for nuisance moves in an MCMC chain
+function update_geometry(tempest::Bfield, geovec::Array{Float64,1},
+	order_rx = "pry", order_tx = "yrp")
+	length(geovec) == 10 ||
+		throw(DimensionMismatch("TEMPEST geometry set with vector of wrong length."))
+	zTx = geovec[1]
+	zRx = geovec[2]
+	x_rx = geovec[3]
+	y_rx = geovec[4]
+
+	rx_roll = geovec[5]
+	rx_pitch = geovec[6]
+	rx_yaw = geovec[7]
+
+	tx_roll = geovec[8]
+	tx_pitch = geovec[9]
+	tx_yaw = geovec[10]
+
+	#make new rotation matrices
+	Rot_rx = makerotationmatrix(order = order_rx,
+		yaw = rx_yaw, pitch = rx_pitch, roll = rx_roll)
+	Rot_tx = makerotationmatrix(order = order_tx,
+		yaw = tx_yaw, pitch = tx_pitch, roll = tx_roll, doinv=true)
+
+	#do update on internal VMD model
+	update_ZR!(tempest.F, zTx, zRx, nothing, sqrt(x_rx^2 + y_rx^2))
+
+	tempest.x_rx = x_rx
+	tempest.y_rx = y_rx
+	tempest.Rot_rx = Rot_rx
+	tempest.mhat = Rot_tx*[0,0,1]
+
+	tempest.rx_roll = rx_roll
+	tempest.rx_pitch = rx_pitch
+	tempest.rx_yaw = rx_yaw
+
+	tempest.tx_roll = tx_roll
+	tempest.tx_pitch = tx_pitch
+	tempest.tx_yaw = tx_yaw
+
+	nothing
+end
+
 function getfieldTD!(tempest::Bfield, z::Array{Float64, 1}, ρ::Array{Float64, 1})
 	AEM_VMD_HMD.getfieldTD!(tempest.F,  z, ρ)
 	reducegreenstensor!(tempest)
@@ -115,6 +159,13 @@ function getfield!(m::Model, tempest::Bfield)
 	10 .^m.fstar, 1:length(m.fstar))
 	getfieldTD!(tempest, tempest.z, tempest.ρ)
 	nothing
+end
+
+# set the field given a conductivity model (GP parametrisation)
+# and nuisance model (vector)
+function getfield!(m::Model, mn::ModelNuisance, tempest::Bfield)
+	update_geometry!(tempest, mn.nuisance)
+	getfield!(m, tempest)
 end
 
 function reducegreenstensor!(tempest)
@@ -190,6 +241,17 @@ function get_misfit(m::Model, opt::Options, tempest::Bfield)
 	end
 	return chi2by2
 end
+
+function get_misfit(m::Model, mn::ModelNuisance, opt::Union{Options,OptionsNuisance}, tempest::Bfield)
+	chi2by2 = 0.0;
+	if !opt.debug
+		getfield!(m, mn, tempest)
+		chi2by2 = getchi2by2([tempest.Hx; tempest.Hz], [tempest.dataHx; tempest.dataHz],
+		[tempest.σx; tempest.σz], false, tempest.ndatax + tempest.ndataz);
+	end
+	return chi2by2
+end
+
 
 function getchi2by2(fm, d, σ, useML, ndata)
     r = (fm - d)./σ

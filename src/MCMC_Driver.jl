@@ -62,14 +62,22 @@ function Chain(chainprocs::Array{Int, 1};
     chains
 end
 
-function mh_step!(mns::ModelNonstat, m::ModelStat,
-    F::Operator, optns::OptionsNonstat, stat::Stats,
+function mh_step!(mns::ModelNonstat, m::ModelStat, mn::ModelNuisance,
+    F::Operator, optns::OptionsNonstat, opt::OptionsStat, stat::Stats,
     Temp::Float64, movetype::Int, current_misfit::Array{Float64, 1})
 
     if optns.quasimultid
-        new_misfit = get_misfit(mns, optns, movetype, F)
+        if opt.updatenuisances
+            new_misfit = get_misfit(mns, mn, optns, movetype, F)
+        else
+            new_misfit = get_misfit(mns, optns, movetype, F)
+        end
     else
-        new_misfit = get_misfit(mns, optns, F)
+        if opt.updatenuisances
+            new_misfit = get_misfit(mns, mn, optns, F)
+        else
+            new_misfit = get_misfit(mns, optns, F)
+        end
     end
     logalpha = (current_misfit[1] - new_misfit)/Temp
     if log(rand()) < logalpha
@@ -80,21 +88,37 @@ function mh_step!(mns::ModelNonstat, m::ModelStat,
     end
 end
 
-function mh_step!(m::ModelStat, mns::ModelNonstat, F::Operator,
-    opt::OptionsStat, optns::OptionsNonstat,
+function mh_step!(m::ModelStat, mns::ModelNonstat, mn::ModelNuisance,
+    F::Operator, opt::OptionsStat, optns::OptionsNonstat,
     stat::Stats, Temp::Float64, movetype::Int, current_misfit::Array{Float64, 1})
 
     if opt.quasimultid
         if opt.updatenonstat
-            new_misfit = get_misfit(mns, opt, movetype, F)
+            if opt.updatenuisances
+                new_misfit = get_misfit(mns, mn, opt, movetype, F)
+            else
+                new_misfit = get_misfit(mns, opt, movetype, F)
+            end
         else
-            new_misfit = get_misfit(m, opt, movetype, F)
+            if opt.updatenuisances
+                new_misfit = get_misfit(m, mn, opt, movetype, F)
+            else
+                new_misfit = get_misfit(m, opt, movetype, F)
+            end
         end
     else
         if opt.updatenonstat
-            new_misfit = get_misfit(mns, opt, F)
+            if opt.updatenuisances
+                new_misfit = get_misfit(mns, mn, opt, F)
+            else
+                new_misfit = get_misfit(mns, opt, F)
+            end
         else
-            new_misfit = get_misfit(m, opt, F)
+            if opt.updatenuisances
+                new_misfit = get_misfit(m, mn, opt, F)
+            else
+                new_misfit = get_misfit(m, opt, F)
+            end
         end
     end
     logalpha = (current_misfit[1] - new_misfit)/Temp
@@ -106,7 +130,26 @@ function mh_step!(m::ModelStat, mns::ModelNonstat, F::Operator,
     end
 end
 
-function do_mcmc_step(m::ModelStat, mns::ModelNonstat,
+#this only gets called for moves on the nuisance chain
+function mh_step!(mn::ModelNuisance, m::ModelStat, mns::ModelNonstat, F::Operator,
+    optn::OptionsNuisance, statn::Stats,
+    Temp::Float64, current_misfit::Array{Float64,1})
+    if optn.updatenonstat
+        new_misfit = get_misfit(mns, mn, optn, F)
+    else
+        new_misfit = get_misfit(m, mn, optn, F)
+    end
+
+    logalpha = (current_misfit[1] - new_misfit)/Temp
+    if log(rand()) < logalpha
+        current_misfit[1] = new_misfit
+        stat.accepted_moves[movetype] += 1
+    else
+        undo_move!(mn)
+    end
+end
+
+function do_mcmc_step(m::ModelStat, mns::ModelNonstat, mn::ModelNuisance,
     opt::OptionsStat, optns::OptionsNonstat,
     stat::Stats,
     current_misfit::Array{Float64, 1}, F::Operator,
@@ -116,7 +159,7 @@ function do_mcmc_step(m::ModelStat, mns::ModelNonstat,
     movetype, priorviolate = do_move!(m, opt, stat, mns, optns)
 
     if !priorviolate
-        mh_step!(m, mns, F, opt, optns, stat, Temp, movetype, current_misfit)
+        mh_step!(m, mns, mn, F, opt, optns, stat, Temp, movetype, current_misfit)
     end
 
     # acceptance stats
@@ -131,19 +174,20 @@ function do_mcmc_step(m::ModelStat, mns::ModelNonstat,
 end
 
 function do_mcmc_step(m::DArray{ModelStat}, mns::DArray{ModelNonstat},
+    mn::DArray{ModelNuisance},
     opt::DArray{OptionsStat}, optns::DArray{OptionsNonstat},
     stat::DArray{Stats}, current_misfit::DArray{Array{Float64, 1}},
     F::DArray{x}, Temp::Float64, isample::Int,
     wp::DArray{Writepointers}) where x<:Operator
 
-    misfit = do_mcmc_step(localpart(m)[1], localpart(mns)[1], localpart(opt)[1],
-                        localpart(optns)[1], localpart(stat)[1],
-                          localpart(current_misfit)[1], localpart(F)[1],
+    misfit = do_mcmc_step(localpart(m)[1], localpart(mns)[1], localpart(mn)[1],
+        localpart(opt)[1], localpart(optns)[1],
+        localpart(stat)[1], localpart(current_misfit)[1], localpart(F)[1],
                             Temp, isample, localpart(wp)[1])
 
 end
 
-function do_mcmc_step(mns::ModelNonstat, m::ModelStat,
+function do_mcmc_step(mns::ModelNonstat, m::ModelStat, mn::ModelNuisance,
     optns::OptionsNonstat, statns::Stats,
     current_misfit::Array{Float64, 1}, F::Operator,
     Temp::Float64, isample::Int, wp::Writepointers)
@@ -152,7 +196,7 @@ function do_mcmc_step(mns::ModelNonstat, m::ModelStat,
     movetype, priorviolate = do_move!(mns, m, optns, statns)
 
     if !priorviolate
-        mh_step!(mns, m, F, optns, statns, Temp, movetype, current_misfit)
+        mh_step!(mns, m, mn, F, optns, statns, Temp, movetype, current_misfit)
     end
 
     # acceptance stats
@@ -167,16 +211,47 @@ function do_mcmc_step(mns::ModelNonstat, m::ModelStat,
 end
 
 function do_mcmc_step(mns::DArray{ModelNonstat}, m::DArray{ModelStat},
+    mn::DArray{ModelNuisance},
     optns::DArray{OptionsNonstat}, statns::DArray{Stats},
     current_misfit::DArray{Array{Float64, 1}},
     F::DArray{x}, Temp::Float64, isample::Int,
     wpns::DArray{Writepointers}) where x<:Operator
 
-    misfit = do_mcmc_step(localpart(mns)[1], localpart(m)[1], localpart(optns)[1],
-                         localpart(statns)[1],
+    misfit = do_mcmc_step(localpart(mns)[1], localpart(m)[1], localpart(mn)[1],
+                          localpart(optns)[1], localpart(statns)[1],
                           localpart(current_misfit)[1], localpart(F)[1],
                             Temp, isample, localpart(wpns)[1])
 
+end
+
+function do_mcmc_step(mn::ModelNuisance, m::ModelStat, mns::ModelNonstat,
+    optn::OptionsNuisance, statn::Stats, current_misfit::Array{Float64,1},
+    F::Operator, Temp::Float64, isample::Int, wpn::Writepointers_nuisance)
+
+    movetype, priorviolate = do_move!(mn, optn, statn)
+
+    if !priorviolate
+        mh_step!(mn, m, mns, optn, statn, Temp, movetype, current_misfit)
+    end
+
+    get_acceptance_stats!(isample, optn, statn)
+
+    writemodel = false
+    abs(Temp - 1.0) < 1e-12 && (writemodel = true)
+    write_history(isample, optn, mn, current_misfit[1], statn, wpn, Temp, writemodel)
+
+    return current_misfit[1]
+end
+
+function do_mcmc_step(mn::DArray{ModelNuisance}, m::DArray{ModelStat},
+    mns::DArray{ModelNonstat}, optn::DArray{OptionsNuisance}, statn::DArray{Stats},
+    current_misfit::DArray{Array{Float64, 1}},
+    F::DArray{x}, Temp::Float64, isample::Int,
+    wpn::DArray{Writepointers_nuisance}) where x<:Operator
+
+    misfit = do_mcmc_step(localpart(mn)[1], localpart(m)[1], localpart(mns)[1],
+            localpart(optn)[1], localpart(statn)[1], localpart(current_misfit)[1],
+            localpart(F)[1], localpart(Temp)[1], localpart(isample)[1], localpart(wpn)[1])
 end
 
 function close_history(wp::DArray)
@@ -209,9 +284,10 @@ end
 
 function init_chain_darrays(opt_in::OptionsStat,
                             optns_in::OptionsNonstat,
+                            optn_in::OptionsNuisance,
                             F_in::Operator, chains::Array{Chain, 1})
-    m_, mns_, opt_, optns_, F_in_, stat_, statns_, d_in_,
-    current_misfit_, wp_, wpns_  = map(x -> Array{Future, 1}(undef, length(chains)), 1:11)
+    m_, mns_, mn_, opt_, optns_, optn_, F_in_, stat_, statns_, d_in_,
+    current_misfit_, wp_, wpns_  = map(x -> Array{Future, 1}(undef, length(chains)), 1:13)
 
     costs_filename = "misfits_"*opt_in.fdataname
     fstar_filename = "models_"*opt_in.fdataname
@@ -229,10 +305,12 @@ function init_chain_darrays(opt_in::OptionsStat,
 
         opt_[idx]            = @spawnat chain.pid [opt_in]
         optns_[idx]          = @spawnat chain.pid [optns_in]
+        optn_[idx]           = @spawnat chain.pid [optn_in]
 
         m_[idx]                = @spawnat chain.pid [init(opt_in)]
         mns_[idx]              = @spawnat chain.pid [init(optns_in,
                                                             fetch(m_[idx])[1])]
+        mn_[idx]               = @spawnat chain.pid [init(optn_in)]
 
         @sync wp_[idx]             = @spawnat chain.pid [open_history(opt_in)]
         #@info "sending $(optns_in.costs_filename)"
@@ -258,12 +336,13 @@ function init_chain_darrays(opt_in::OptionsStat,
             chains[idx].T = history(opt_in, stat=:T)[end]
         end
     end
-    m, mns, opt, optns, stat, statns, F,
-    current_misfit, wp, wpns = map(x -> DArray(x), (m_, mns_, opt_, optns_,
+    m, mns, mn, opt, optns, optn, stat, statns, F,
+    current_misfit, wp, wpns = map(x -> DArray(x), (m_, mns_, mn_, opt_, optns_, optn_,
                                     stat_, statns_, F_in_, current_misfit_,
                                     wp_, wpns_))
-
-    return m, mns, opt, optns, stat, statns, F, current_misfit,
+#return mn as well (at least, possibly return some "nuisance stat" as well)
+    @info "initialisation complete"
+    return m, mns, mn, opt, optns, optn, stat, statns, F, current_misfit,
             wp, wpns, iterlast
 end
 
@@ -283,6 +362,7 @@ end
 
 function main(opt_in       ::OptionsStat,
               optns_in     ::OptionsNonstat,
+              optn_in      ::OptionsNuisance,
               F_in         ::Operator;
               nsamples     = 4001,
               nchains      = 1,
@@ -291,12 +371,12 @@ function main(opt_in       ::OptionsStat,
 
 
     chains = Chain(nchains, Tmax=Tmax, nchainsatone=nchainsatone)
-    m, mns, opt, optns, stat, statns,
+    m, mns, mn, opt, optns, optn, stat, statns,
     F, current_misfit, wp, wpns, iterlast = init_chain_darrays(opt_in,
-                                                optns_in, F_in, chains)
+                                                optns_in, optn_in, F_in, chains)
 
-    domcmciters(iterlast, nsamples, chains, opt_in, mns, m, optns, opt,
-                statns, stat, current_misfit, F, wpns, wp)
+    domcmciters(iterlast, nsamples, chains, opt_in, mns, m, mn, optns, opt,
+                optn, statns, stat, current_misfit, F, wpns, wp)
 
     close_history(wp)
     close_history(wpns)
@@ -305,6 +385,7 @@ end
 
 function main(opt_in       ::OptionsStat,
               optns_in     ::OptionsNonstat,
+              optn_in      ::OptionsNuisance,
               F_in         ::Operator,
               chainprocs   ::Array{Int, 1};
               nsamples     = 4001,
@@ -314,18 +395,18 @@ function main(opt_in       ::OptionsStat,
     chains = Chain(chainprocs, Tmax=Tmax)
     m, mns, opt, optns, stat, statns,
     F, current_misfit, wp, wpns, iterlast = init_chain_darrays(opt_in,
-                                                optns_in, F_in, chains)
+                                                optns_in, optn_in, F_in, chains)
 
-    domcmciters(iterlast, nsamples, chains, opt_in, mns, m, optns, opt,
-                statns, stat, current_misfit, F, wpns, wp)
+    domcmciters(iterlast, nsamples, chains, opt_in, mns, m, mn, optns, opt,
+                optn, statns, stat, current_misfit, F, wpns, wp)
 
     close_history(wp)
     close_history(wpns)
     nothing
 end
 
-function domcmciters(iterlast, nsamples, chains, opt_in, mns, m, optns, opt,
-            statns, stat, current_misfit, F, wpns, wp)
+function domcmciters(iterlast, nsamples, chains, opt_in, mns, m, mn, optns, opt,
+            optn, statns, stat, current_misfit, F, wpns, wp)
     t2 = time()
     for isample = iterlast+1:iterlast+nsamples
 
@@ -333,14 +414,22 @@ function domcmciters(iterlast, nsamples, chains, opt_in, mns, m, optns, opt,
         if opt_in.updatenonstat
             @sync for(ichain, chain) in enumerate(chains)
                 @async chain.misfit = remotecall_fetch(do_mcmc_step, chain.pid,
-                                                mns, m, optns, statns,
+                                                mns, m, mn, optns, statns,
                                                 current_misfit, F,
                                                 chain.T, isample, wpns)
             end
         end
+        if opt_in.updatenuisances
+            @sync for(ichain, chain) in enumerate(chains)
+                @async chain.misfit = remotecall_fetch(do_mcmc_step, chain.pid,
+                                                mn, m, mns, optn, statn,
+                                                current_misfit, F,
+                                                chain.T, isample, wpn)
+            end
+        end
         @sync for(ichain, chain) in enumerate(chains)
             @async chain.misfit = remotecall_fetch(do_mcmc_step, chain.pid,
-                                            m, mns, opt, optns, stat,
+                                            m, mns, mn, opt, optns, stat,
                                             current_misfit, F,
                                             chain.T, isample, wp)
         end
