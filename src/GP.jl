@@ -10,10 +10,12 @@ abstract type Kernel end
 struct SqEuclidean <: Kernel end
 struct Mat32 <:Kernel end
 struct Mat52 <: Kernel end
+struct OrstUhn <: Kernel end
 
 κ(K::SqEuclidean, d::Real; p::Real=2.0) = exp(-0.5*(d^p))
 κ(K::Mat32, d::Real; p::Real=2.0) = (1.0 + sqrt(3.0) * d) * exp(-sqrt(3.0) * d)
 κ(K::Mat52, d::Real; p::Real=2.0 ) = (1.0 + sqrt(5.0) * d + 5.0 * abs2(d) / 3.0) * exp(-sqrt(5.0) * d)
+κ(K::OrstUhn, d::Real; p::Real=2.0) = exp(-d)
 
 function makekernel(K::Kernel, xtrain::AbstractArray, xtest::AbstractArray,
                     λ²::AbstractArray, p::Real)

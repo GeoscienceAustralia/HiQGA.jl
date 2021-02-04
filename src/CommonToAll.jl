@@ -384,12 +384,13 @@ function plot_posterior(operator::Operator1D,
     burninfrac=0.5,
     qp1=0.05,
     qp2=0.95,
-    vmaxpc=0.5,
+    vmaxpc=1.0,
     cmappdf = "inferno",
     figsize=(12,5),
     pdfnormalize=false,
     fsize=14,
     showlscale1vd=false)
+    @assert 0<vmaxpc<=1
     if temperaturenum == 1
         himage_ns, edges_ns, CI_ns,
         hdiffimage_ns, diffedges_ns, diffCI_ns = make1Dhist(optns, burninfrac=burninfrac, nbins = nbins, qp1=qp1, qp2=qp2,
@@ -464,12 +465,12 @@ function plot_posterior(operator::Operator1D,
     burninfrac=0.5,
     qp1=0.05,
     qp2=0.95,
-    vmaxpc=0.5,
+    vmaxpc=1.0,
     cmappdf = "inferno",
     figsize=(5,5),
     pdfnormalize=false,
     fsize=14)
-    @assert 0<vmaxpc<1
+    @assert 0<vmaxpc<=1
     himage, edges, CI, hdiffimage, diffedges, diffCI = make1Dhist(opt, burninfrac=burninfrac, nbins = nbins, qp1=qp1, qp2=qp2,
                                     pdfnormalize=pdfnormalize, temperaturenum=temperaturenum)
     f,ax = plt.subplots(1,2, sharey=true, figsize=figsize)

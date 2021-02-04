@@ -1,8 +1,9 @@
 using transD_GP, Distributed
 ## make options for the multichannel lengthscale GP
+fileprefix = "OrstUhn_"
+Klog10λ = transD_GP.GP.OrstUhn()
 nminlog10λ, nmaxlog10λ = 2, 30
 pnorm = 2.
-Klog10λ = transD_GP.GP.Mat32()
 log10bounds = [-0.2 0.5]
 λlog10λ = [0.05abs(diff([extrema(znall)...])[1])]
 δlog10λ = 0.06
@@ -17,6 +18,7 @@ optlog10λ = transD_GP.OptionsStat(nmin = nminlog10λ,
                         nmax = nmaxlog10λ,
                         xbounds = xbounds,
                         fbounds = log10bounds,
+                        fdataname = fileprefix,
                         xall = xall,
                         λ = λlog10λ,
                         δ = δlog10λ,
