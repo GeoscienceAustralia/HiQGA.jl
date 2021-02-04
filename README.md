@@ -5,7 +5,7 @@
 This package implements the trans-dimensional Gaussian process algorithm as published in [*Bayesian geophysical inversion with trans-dimensional Gaussian process machine learning*, A. Ray and D. Myer, Geophysical Journal International **217(3)**, 2019](https://doi.org/10.1093/gji/ggz111).
 
 ## Installation
-To install, use Julia's `Pkg` REPL by hitting `]` to enter `pkg.` mode. Then enter the following, at the `pkg>` prompt:
+To install, use Julia's `Pkg` REPL by hitting `]` to enter `pkg>` mode. Then enter the following, at the `pkg>` prompt:
 ```
 pkg> add https://github.com/a2ray/transD_GP.git
 ```
