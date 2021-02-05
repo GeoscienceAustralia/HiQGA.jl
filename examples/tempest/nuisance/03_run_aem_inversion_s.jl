@@ -6,5 +6,5 @@ addprocs(nchains)
 @everywhere using Distributed
 @everywhere using transD_GP
 ## run McMC
-@time transD_GP.main(opt, optdummy, optndum, tempest, Tmax=Tmax, nsamples=nsamples, nchains=nchains, nchainsatone=nchainsatone)
+@time transD_GP.main(opt, optdummy, optn, tempest, Tmax=Tmax, nsamples=nsamples, nchains=nchains, nchainsatone=nchainsatone)
 rmprocs(workers())

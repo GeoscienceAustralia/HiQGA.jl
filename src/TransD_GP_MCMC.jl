@@ -157,17 +157,17 @@ end
 #options for a Gaussian process model, not fixed-dimension MCMC
 mutable struct OptionsNuisance
     sdev           :: Array{Float64,1}
-    bounds         :: Array{Float64,1}
-    nnu            :: Array{Float64,1}
+    bounds         :: Array{Float64,2}
+    nnu            :: Int64
 
     updatenuisance :: Bool
     updatenonstat  :: Bool
     debug          :: Bool
 end
 
-#make an empty nuisance options struct if we're not inverting for them
+#make an empty nuisance options struct
 OptionsNuisance(updatenonstat=false) =
-    OptionsNuisance([], [], [], false, updatenonstat, false)
+    OptionsNuisance([], Array{Float64,2}(undef,0,2), 0, false, updatenonstat, false)
 
 #"Model" means a Gaussian-process parametrised function
 abstract type Model end
@@ -249,7 +249,7 @@ end
 function init(opt::OptionsNuisance)
     @info opt
     if length(opt.bounds) > 0
-        nuisance = opt.bounds[:,1] + diff(opt.bounds, dims = 2)[:].*randn(opt.nnu)
+        nuisance = opt.bounds[:,1] + diff(opt.bounds, dims = 2)[:].*rand(opt.nnu)
     else
         nuisance = []
     end
