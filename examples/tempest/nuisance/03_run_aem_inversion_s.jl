@@ -1,7 +1,8 @@
 ## set up McMC
-nsamples, nchains, nchainsatone = 100001, 4, 1
+nsamples, nchains, nchainsatone = 20001, 4, 1
 Tmax = 2.50
 addprocs(nchains)
+##init packages on workers
 @info "workers are $(workers())"
 @everywhere using Distributed
 @everywhere using transD_GP

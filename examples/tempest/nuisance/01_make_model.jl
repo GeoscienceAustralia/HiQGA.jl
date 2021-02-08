@@ -1,4 +1,5 @@
-using PyPlot, DelimitedFiles, Random, Statistics, Revise, transD_GP
+using Revise
+using PyPlot, DelimitedFiles, Random, Statistics, transD_GP
 
 Random.seed!(23)
 

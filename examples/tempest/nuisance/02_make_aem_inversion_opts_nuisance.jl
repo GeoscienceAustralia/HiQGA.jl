@@ -30,7 +30,8 @@ opt = transD_GP.OptionsStat(nmin = nmin,
                         quasimultid = false,
                         K = K,
                         needλ²fromlog = needλ²fromlog,
-                        updatenonstat = updatenonstat
+                        updatenonstat = updatenonstat,
+                        updatenuisances = true
                         )
 ## Initialize options for the dummy nonstationary properties GP
 Random.seed!(13)
@@ -51,7 +52,7 @@ optdummy = transD_GP.OptionsNonstat(opt,
 #this is achieved with some computational waste by
 #having the fixed parameters set as nuisances with
 #zero-width bounds.
-optn = transD_GP.OptionsNuisance()
+optn = transD_GP.OptionsNuisance(opt)
 
 optn.sdev =
     [

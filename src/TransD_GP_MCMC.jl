@@ -156,18 +156,29 @@ end
 #not subtyping Options because methods that expect Options are expecting
 #options for a Gaussian process model, not fixed-dimension MCMC
 mutable struct OptionsNuisance
-    sdev           :: Array{Float64,1}
-    bounds         :: Array{Float64,2}
-    nnu            :: Int64
+    sdev                   :: Array{Float64,1}
+    bounds                 :: Array{Float64,2}
+    nnu                    :: Int64
 
-    updatenuisance :: Bool
-    updatenonstat  :: Bool
-    debug          :: Bool
+    updatenuisance         :: Bool
+    updatenonstat          :: Bool
+    debug                  :: Bool
+
+    stat_window            :: Int
+    dispstatstoscreen      :: Bool
+
+    report_freq            :: Int
+    save_freq              :: Int
+    history_mode           :: String
+    costs_filename         :: String
+    vals_filename          :: String
 end
 
 #make an empty nuisance options struct
-OptionsNuisance(updatenonstat=false) =
-    OptionsNuisance([], Array{Float64,2}(undef,0,2), 0, false, updatenonstat, false)
+OptionsNuisance(opt::OptionsStat, updatenonstat=false) =
+    OptionsNuisance([], Array{Float64,2}(undef,0,2), 0, false,
+     updatenonstat, false, opt.stat_window, opt.dispstatstoscreen, opt.report_freq, opt.save_freq, opt.history_mode, "misfits_nuisance_"*opt.fdataname*".bin",
+     "values_nuisance_"*opt.fdataname*".bin")
 
 #"Model" means a Gaussian-process parametrised function
 abstract type Model end
@@ -773,25 +784,25 @@ function undo_move!(movetype::Int, m::ModelStat, opt::OptionsStat,
     nothing
 end
 
-function do_move!(mn::ModelNuisance, optn::OptionsNuisance, stat::Stats)
+function do_move!(mn::ModelNuisance, optn::OptionsNuisance, statn::Stats)
     priorviolate = false
-    nidx = 1 + Floor(Int, optn.nnu * rand())
+    nidx = rand(1:optn.nnu)
     mn.nidx_mem = nidx
-    mn.nu_old = mn.nuisances[nidx]
-    mn.nuisances[nidx] += optn.sdev[nidx]*randn()
-    if mn.nuisances[nidx] > optn.bounds[nidx,2] || mn.nuisances[nidx] < optn.bounds[nidx,1]
+    mn.nu_old = mn.nuisance[nidx]
+    mn.nuisance[nidx] += optn.sdev[nidx]*randn()
+    if mn.nuisance[nidx] > optn.bounds[nidx,2] || mn.nuisance[nidx] < optn.bounds[nidx,1]
         priorviolate = true
     end
-    stat.move_tries[1] += 1
+    statn.move_tries[1] += 1
     return 1, priorviolate
 end
 
 function undo_move!(mn::ModelNuisance)
-    mn.nuisances[mn.nidx_mem] = nu_old
+    mn.nuisance[mn.nidx_mem] = mn.nu_old
     mn.nidx_mem = 0 #delete memory so we can't undo twice
 end
 
-function get_acceptance_stats!(isample::Int, opt::Options, stat::Stats)
+function get_acceptance_stats!(isample::Int, opt::Union{Options, OptionsNuisance}, stat::Stats)
     if mod(isample-1, opt.stat_window) == 0
         stat.accept_rate[:] = 100. *stat.accepted_moves./stat.move_tries
         if opt.dispstatstoscreen
@@ -830,6 +841,25 @@ function open_history(opt::Options)
     return Writepointers(fp_costs, fp_fstar, fp_x_ftrain)
 end
 
+#history for nuisance models (which have different internal structure)
+function open_history(optn::OptionsNuisance)
+    if isfile(optn.costs_filename)
+        @assert (optn.history_mode == "a") "$(optn.costs_filename) exists"
+    end
+    if optn.report_freq > 0
+        @info("running nuisance sampler...")
+    end
+    fp_costs = nothing
+    if length(optn.costs_filename) > 0
+        fp_costs = open(optn.costs_filename, optn.history_mode)
+    end
+    fp_vals = nothing
+    if length(optn.vals_filename) > 0
+        fp_vals = open(optn.vals_filename, optn.history_mode)
+    end
+    return Writepointers_nuisance(fp_costs, fp_vals)
+end
+
 function close_history(wp::Writepointers)
     if wp.fp_costs != nothing
         close(wp.fp_costs)
@@ -839,6 +869,16 @@ function close_history(wp::Writepointers)
     end
     if wp.fp_x_ftrain != nothing
         close(wp.fp_x_ftrain)
+    end
+    @info "closed files"
+end
+
+function close_history(wpn::Writepointers_nuisance)
+    if wpn.fp_costs != nothing
+        close(wpn.fp_costs)
+    end
+    if wpn.fp_vals != nothing
+        close(wpn.fp_vals)
     end
     @info "closed files"
 end
@@ -867,6 +907,13 @@ function write_history(isample::Int, opt::Options, m::Model, misfit::Float64,
                        isample, wp.fp_costs, wp.fp_fstar, wp.fp_x_ftrain, T, writemodel)
 end
 
+function write_history(isample::Int, optn::OptionsNuisance, mn::ModelNuisance, misfit::Float64,
+                    statn::Stats, wpn::Writepointers_nuisance, T::Float64, writemodel::Bool)
+
+    write_history(optn, mn.nuisance, misfit, statn.accept_rate[1], isample, wpn.fp_costs,
+                wpn.fp_vals, T, writemodel)
+end
+
 function write_history(opt::Options, fstar::AbstractArray, x_ftrain::AbstractArray, U::Float64, acceptanceRateBirth::Float64,
                     acceptanceRateDeath::Float64, acceptanceRatePosition::Float64, acceptanceRateProperty::Float64, nodes::Int,
                     iter::Int, fp_costs::Union{IOStream, Nothing}, fp_fstar::Union{IOStream, Nothing},
@@ -890,6 +937,25 @@ function write_history(opt::Options, fstar::AbstractArray, x_ftrain::AbstractArr
         end
     end
 end
+
+function write_history(optn::OptionsNuisance, nvals::Array{Float64,1}, misfit::Float64,
+                    acceptanceRate::Float64, iter::Int, fp_costs::Union{IOStream, Nothing},
+                    fp_vals::Union{IOStream, Nothing}, T::Float64, writemodel::Bool)
+    if fp_costs != nothing
+        msg = @sprintf("%d %e %e %e\n", iter, acceptanceRate, misfit, T)
+        write(fp_costs, msg)
+        flush(fp_costs)
+    end
+    if fp_vals != nothing
+        msg = @sprintf("%d", iter)
+        for nval = nvals
+            msg *= @sprintf(" %e", nval)
+        end
+        write(fp_vals, msg)
+        flush(fp_vals)
+    end
+end
+
 
 function history(opt::Options; stat=:U)
     for (statname, el, idx) in ((:iter,                   Int,      1),

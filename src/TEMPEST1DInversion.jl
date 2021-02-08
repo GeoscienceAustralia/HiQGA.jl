@@ -129,7 +129,7 @@ function update_geometry(tempest::Bfield, geovec::Array{Float64,1},
 		yaw = tx_yaw, pitch = tx_pitch, roll = tx_roll, doinv=true)
 
 	#do update on internal VMD model
-	update_ZR!(tempest.F, zTx, zRx, nothing, sqrt(x_rx^2 + y_rx^2))
+	AEM_VMD_HMD.update_ZR!(tempest.F, zTx, zRx, nothing, sqrt(x_rx^2 + y_rx^2))
 
 	tempest.x_rx = x_rx
 	tempest.y_rx = y_rx
@@ -164,7 +164,7 @@ end
 # set the field given a conductivity model (GP parametrisation)
 # and nuisance model (vector)
 function getfield!(m::Model, mn::ModelNuisance, tempest::Bfield)
-	update_geometry!(tempest, mn.nuisance)
+	update_geometry(tempest, mn.nuisance)
 	getfield!(m, tempest)
 end
 

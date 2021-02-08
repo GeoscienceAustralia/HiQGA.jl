@@ -139,29 +139,29 @@ function update_ZR!(F::HFieldDHT, zTx, zRx, rTx, rRx)
     if F.rTx != nothing
         if F.rTx >= F.rRx
             F.interpkᵣ *= F.rTx
-            F.log10interpkᵣ += F.rTx
-            F.log10Filter_base += F.rTx
+            F.log10interpkᵣ .+= log10(F.rTx)
+            F.log10Filter_base .+= log10(F.rTx)
         else
             F.interpkᵣ *= F.rRx
-            F.log10interpkᵣ += F.rRx
-            F.log10Filter_base += F.rRx
+            F.log10interpkᵣ .+= log10(F.rRx)
+            F.log10Filter_base .+= log10(F.rRx)
         end
     else
-        F.log10Filter_base += F.rRx
+        F.log10Filter_base .+= log10(F.rRx)
     end
 
     if rTx != nothing
         if rTx >= rRx
             F.interpkᵣ /= rTx
-            F.log10interpkᵣ -= rTx
-            F.log10Filter_base -= rTx
+            F.log10interpkᵣ .-= log10(rTx)
+            F.log10Filter_base .-= log10(rTx)
         else
             F.interpkᵣ /= rRx
-            F.log10interpkᵣ -= rRx
-            F.log10Filter_base -= rRx
+            F.log10interpkᵣ .-= log10(rRx)
+            F.log10Filter_base .-= log10(rRx)
         end
     else
-        F.log10Filter_base -= rRx
+        F.log10Filter_base .-= log10(rRx)
     end
     F.rTx = rTx
     F.rRx = rRx

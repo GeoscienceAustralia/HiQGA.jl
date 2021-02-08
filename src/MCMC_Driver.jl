@@ -143,7 +143,7 @@ function mh_step!(mn::ModelNuisance, m::ModelStat, mns::ModelNonstat, F::Operato
     logalpha = (current_misfit[1] - new_misfit)/Temp
     if log(rand()) < logalpha
         current_misfit[1] = new_misfit
-        stat.accepted_moves[movetype] += 1
+        statn.accepted_moves[1] += 1
     else
         undo_move!(mn)
     end
@@ -231,7 +231,7 @@ function do_mcmc_step(mn::ModelNuisance, m::ModelStat, mns::ModelNonstat,
     movetype, priorviolate = do_move!(mn, optn, statn)
 
     if !priorviolate
-        mh_step!(mn, m, mns, optn, statn, Temp, movetype, current_misfit)
+        mh_step!(mn, m, mns, F, optn, statn, Temp, current_misfit)
     end
 
     get_acceptance_stats!(isample, optn, statn)
@@ -286,12 +286,13 @@ function init_chain_darrays(opt_in::OptionsStat,
                             optns_in::OptionsNonstat,
                             optn_in::OptionsNuisance,
                             F_in::Operator, chains::Array{Chain, 1})
-    m_, mns_, mn_, opt_, optns_, optn_, F_in_, stat_, statns_, d_in_,
-    current_misfit_, wp_, wpns_  = map(x -> Array{Future, 1}(undef, length(chains)), 1:13)
+    m_, mns_, mn_, opt_, optns_, optn_, F_in_, stat_, statns_, statn_, d_in_,
+    current_misfit_, wp_, wpns_, wpn_  = map(x -> Array{Future, 1}(undef, length(chains)), 1:15)
 
     costs_filename = "misfits_"*opt_in.fdataname
     fstar_filename = "models_"*opt_in.fdataname
     x_ftrain_filename = "points_"*opt_in.fdataname
+    nu_filename = "values_nuisance_"*opt_in.fdataname
 
     iterlast = 0
     @sync for(idx, chain) in enumerate(chains)
@@ -302,6 +303,8 @@ function init_chain_darrays(opt_in::OptionsStat,
         optns_in.fstar_filename    = fstar_filename*"ns_$idx.bin"
         opt_in.x_ftrain_filename   = x_ftrain_filename*"s_$idx.bin"
         optns_in.x_ftrain_filename = x_ftrain_filename*"ns_$idx.bin"
+        optn_in.costs_filename     = costs_filename*"nuisance_$idx.bin"
+        optn_in.vals_filename      = nu_filename*"$idx.bin"
 
         opt_[idx]            = @spawnat chain.pid [opt_in]
         optns_[idx]          = @spawnat chain.pid [optns_in]
@@ -315,9 +318,11 @@ function init_chain_darrays(opt_in::OptionsStat,
         @sync wp_[idx]             = @spawnat chain.pid [open_history(opt_in)]
         #@info "sending $(optns_in.costs_filename)"
         @sync wpns_[idx]           = @spawnat chain.pid [open_history(optns_in)]
+        @sync wpn_[idx]            = @spawnat chain.pid [open_history(optn_in)]
 
         stat_[idx]           = @spawnat chain.pid [Stats()]
         statns_[idx]         = @spawnat chain.pid [Stats()]
+        statn_[idx]          = @spawnat chain.pid [Stats()]
 
         F_in_[idx]           = @spawnat chain.pid [F_in]
         if opt_in.updatenonstat
@@ -336,14 +341,14 @@ function init_chain_darrays(opt_in::OptionsStat,
             chains[idx].T = history(opt_in, stat=:T)[end]
         end
     end
-    m, mns, mn, opt, optns, optn, stat, statns, F,
-    current_misfit, wp, wpns = map(x -> DArray(x), (m_, mns_, mn_, opt_, optns_, optn_,
-                                    stat_, statns_, F_in_, current_misfit_,
-                                    wp_, wpns_))
+    m, mns, mn, opt, optns, optn, stat, statns, statn, F,
+    current_misfit, wp, wpns, wpn = map(x -> DArray(x), (m_, mns_, mn_, opt_, optns_, optn_,
+                                    stat_, statns_, statn_, F_in_, current_misfit_,
+                                    wp_, wpns_, wpn_))
 #return mn as well (at least, possibly return some "nuisance stat" as well)
     @info "initialisation complete"
-    return m, mns, mn, opt, optns, optn, stat, statns, F, current_misfit,
-            wp, wpns, iterlast
+    return m, mns, mn, opt, optns, optn, stat, statns, statn, F, current_misfit,
+            wp, wpns, wpn, iterlast
 end
 
 function swap_temps(chains::Array{Chain, 1})
@@ -371,15 +376,16 @@ function main(opt_in       ::OptionsStat,
 
 
     chains = Chain(nchains, Tmax=Tmax, nchainsatone=nchainsatone)
-    m, mns, mn, opt, optns, optn, stat, statns,
-    F, current_misfit, wp, wpns, iterlast = init_chain_darrays(opt_in,
+    m, mns, mn, opt, optns, optn, stat, statns, statn,
+    F, current_misfit, wp, wpns, wpn, iterlast = init_chain_darrays(opt_in,
                                                 optns_in, optn_in, F_in, chains)
 
     domcmciters(iterlast, nsamples, chains, opt_in, mns, m, mn, optns, opt,
-                optn, statns, stat, current_misfit, F, wpns, wp)
+                optn, statns, stat, statn, current_misfit, F, wpns, wp, wpn)
 
     close_history(wp)
     close_history(wpns)
+    close_history(wpn)
     nothing
 end
 
@@ -393,20 +399,21 @@ function main(opt_in       ::OptionsStat,
               Tmax         = 2.5)
 
     chains = Chain(chainprocs, Tmax=Tmax)
-    m, mns, opt, optns, stat, statns,
-    F, current_misfit, wp, wpns, iterlast = init_chain_darrays(opt_in,
+    m, mns, mn, opt, optns, optn, stat, statns, statn,
+    F, current_misfit, wp, wpns, wpn, iterlast = init_chain_darrays(opt_in,
                                                 optns_in, optn_in, F_in, chains)
 
     domcmciters(iterlast, nsamples, chains, opt_in, mns, m, mn, optns, opt,
-                optn, statns, stat, current_misfit, F, wpns, wp)
+                optn, statns, stat, statn, current_misfit, F, wpns, wp, wpn)
 
     close_history(wp)
     close_history(wpns)
+    close_history(wpn)
     nothing
 end
 
 function domcmciters(iterlast, nsamples, chains, opt_in, mns, m, mn, optns, opt,
-            optn, statns, stat, current_misfit, F, wpns, wp)
+            optn, statns, stat, statn, current_misfit, F, wpns, wp, wpn)
     t2 = time()
     for isample = iterlast+1:iterlast+nsamples
 
