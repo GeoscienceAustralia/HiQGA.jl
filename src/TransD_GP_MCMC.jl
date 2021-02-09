@@ -787,17 +787,22 @@ end
 function do_move!(mn::ModelNuisance, optn::OptionsNuisance, statn::Stats)
     priorviolate = false
     nidx = rand(1:optn.nnu)
-    mn.nidx_mem = nidx
-    mn.nu_old = mn.nuisance[nidx]
-    mn.nuisance[nidx] += optn.sdev[nidx]*randn()
-    if mn.nuisance[nidx] > optn.bounds[nidx,2] || mn.nuisance[nidx] < optn.bounds[nidx,1]
+    new_nval = mn.nuisance[nidx] + optn.sdev[nidx]*randn()
+    if new_nval > optn.bounds[nidx,2] || new_nval < optn.bounds[nidx,1]
+        #model should not be modified if prior is violated
         priorviolate = true
+    else
+        mn.nidx_mem = nidx
+        mn.nu_old = mn.nuisance[nidx]
+        mn.nuisance[nidx] = new_nval
     end
     statn.move_tries[1] += 1
+    # @info mn.nu_old, mn.nuisance[nidx], priorviolate
     return 1, priorviolate
 end
 
 function undo_move!(mn::ModelNuisance)
+    # @info mn.nidx_mem, mn.nu_old, mn.nuisance[mn.nidx_mem]
     mn.nuisance[mn.nidx_mem] = mn.nu_old
     mn.nidx_mem = 0 #delete memory so we can't undo twice
 end
@@ -951,6 +956,7 @@ function write_history(optn::OptionsNuisance, nvals::Array{Float64,1}, misfit::F
         for nval = nvals
             msg *= @sprintf(" %e", nval)
         end
+        msg *= "\n"
         write(fp_vals, msg)
         flush(fp_vals)
     end

@@ -61,7 +61,7 @@ optn.sdev =
         1.0 #x_rx
         0.0 #y_rx
         0.0 #rx_roll
-        0.5 #rx_pitch
+        0.4 #rx_pitch
         0.0 #rx_yaw
         0.0 #tx_roll
         0.0 #tx_pitch
@@ -74,7 +74,7 @@ optn.bounds =
       x_rx - 5.0        x_rx + 5.0
       y_rx              y_rx
       rx_roll           rx_roll
-      rx_pitch - 2.5    rx_pitch + 2.5
+      rx_pitch - 2.0    rx_pitch + 2.0
       rx_yaw            rx_yaw
       tx_roll           tx_roll
       tx_pitch          tx_pitch
