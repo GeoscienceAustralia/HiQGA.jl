@@ -15,6 +15,7 @@ rx_yaw = 0.
 tx_roll = 0.
 tx_pitch = 0.
 tx_yaw = 0.
+addprimary = true
 tempest = transD_GP.TEMPEST1DInversion.Bfield(
   				     ntimesperdecade = ntimesperdecade,
                  nfreqsperdecade = nfreqsperdecade,
@@ -30,7 +31,8 @@ tempest = transD_GP.TEMPEST1DInversion.Bfield(
 					  rx_yaw = rx_yaw,
 					  tx_roll = tx_roll,
 					  tx_pitch = tx_pitch,
-					  tx_yaw = tx_yaw)
+					  tx_yaw = tx_yaw,
+					  addprimary = addprimary)
 # X and Z components in fT from GA-AEM
 ross_primary=[28.5962      -13.689]
 ross_secondary=[
@@ -49,3 +51,7 @@ ross_secondary=[
   0.1682725    -0.3943537
   0.06388109   -0.1749779
   0.02070349   -0.06618546]
+
+  if addprimary
+  	ross_secondary .+= ross_primary
+  end

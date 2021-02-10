@@ -35,6 +35,8 @@ mutable struct Bfield<:Operator1D
 	Hx         :: Array{Float64, 1}
 	Hy         :: Array{Float64, 1}
 	Hz         :: Array{Float64, 1}
+	addprimary :: Bool
+	peakcurrent:: Float64
 end
 
 # If needed to make z axis flip to align with GA-AEM
@@ -72,7 +74,9 @@ function Bfield(;
 			    tx_yaw = 0.,
 				order_tx = "yrp",
 				order_rx = "pry",
-				strictgeometry = true)
+				strictgeometry = true,
+				addprimary = false,
+				peakcurrent = 0.5)
 
 	@assert !isempty(times)
 	@assert(!isempty(ramp))
@@ -101,7 +105,7 @@ function Bfield(;
 	Hx, Hy, Hz = map(x->zeros(size(times)), 1:3)
 	Bfield(F, dataHx, dataHz, useML,σx, σz, z, nfixed, copy(ρ), selectx, selectz,
 			ndatax, ndataz, rx_roll, rx_pitch, rx_yaw, tx_roll, tx_pitch, tx_yaw,
-			Rot_rx, x_rx, y_rx, mhat, Hx, Hy, Hz)
+			Rot_rx, x_rx, y_rx, mhat, Hx, Hy, Hz, addprimary, peakcurrent)
 end
 
 #TODO for nuisance moves in an MCMC chain
@@ -177,18 +181,42 @@ function reducegreenstensor!(tempest)
 	mhat   = tempest.mhat
 	Rot_rx = tempest.Rot_rx
 	Hx, Hy, Hz = tempest.Hx, tempest.Hy, tempest.Hz
+	currentfac = tempest.peakcurrent
 
-	HMDx = [(y^2-x^2)/r^3*J1h + x^2/r^2*J0v,
-		    -2x*y/r^3*J1h     + x*y/r^2*J0v,
+	y2mx2 = y^2-x^2
+	r3    = r^3
+	x2    = x^2
+	r2    = r^2
+	xy    = x*y
+	y2    = y^2
+	z     = tempest.F.zRx - tempest.F.zTx
+	R2    = r2 + z^2
+	fpiR5 = 4pi*sqrt(r2 + z^2)^5
+	xz    = x*z
+	yz    = y*z
+
+	HMDx = [y2mx2/r3*J1h + x2/r2*J0v,
+		    -2xy/r3*J1h  + xy/r2*J0v,
 		    -x/r*J1v                       ]
 
 	HMDy = [HMDx[2],
-	 		(x^2-y^2)/r^3*J1h + y^2/r^2*J0v,
+	 		-y2mx2/r3*J1h + y2/r2*J0v,
 	 		-y/r*J1v		    		   ]
 
 	VMDz = [x/r*J1v,
 			y/r*J1v,
 			J0v                            ]
+
+	if tempest.addprimary
+		HMDxp = [3x2 - R2, 3xy     , 3xz      ]/fpiR5
+		HMDyp = [3xy     , 3y2 - R2, 3yz      ]/fpiR5
+		VMDzp = [3xz     , 3yz     , 3z^2 - R2]/fpiR5
+		for idim in 1:3
+			HMDx[idim] .+= currentfac*HMDxp[idim]
+			HMDy[idim] .+= currentfac*HMDyp[idim]
+			VMDz[idim] .+= currentfac*VMDzp[idim]
+		end
+	end
 
 	Hx[:], Hy[:], Hz[:] = Rot_rx*Roll180*[HMDx HMDy VMDz]*Roll180*mhat
 	nothing
