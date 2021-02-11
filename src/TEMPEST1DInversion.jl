@@ -125,16 +125,15 @@ function update_geometry(tempest::Bfield, geovec::Array{Float64,1},
 	tx_roll = geovec[8]
 	tx_pitch = geovec[9]
 	tx_yaw = geovec[10]
-	
+
 	#make new rotation matrices
 	Rot_rx = makerotationmatrix(order = order_rx,
-		yaw = rx_yaw, pitch = rx_pitch, roll = rx_roll)
+		yaw = rx_yaw, pitch = rx_pitch, roll = rx_roll, doinv=true)
 	Rot_tx = makerotationmatrix(order = order_tx,
-		yaw = tx_yaw, pitch = tx_pitch, roll = tx_roll, doinv=true)
+		yaw = tx_yaw, pitch = tx_pitch, roll = tx_roll)
 
 	#do update on internal VMD model
 	AEM_VMD_HMD.update_ZR!(tempest.F, zTx, zRx, nothing, sqrt(x_rx^2 + y_rx^2))
-
 	tempest.x_rx = x_rx
 	tempest.y_rx = y_rx
 	tempest.Rot_rx = Rot_rx
@@ -293,7 +292,7 @@ end
 function plotmodelfield!(tempest::Bfield, z::Array{Float64,1}, ρ::Array{Float64,1})
 	getfieldTD!(tempest, z, ρ)
 	μ = AEM_VMD_HMD.μ
-	figure(figsize=(8,9))
+	figure(figsize=(8,12))
 	s = subplot(121)
 	s.step(vcat(ρ[2:end],ρ[end]), vcat(z[2:end], z[end]+50))
 	s.set_xscale("log")
@@ -304,7 +303,7 @@ function plotmodelfield!(tempest::Bfield, z::Array{Float64,1}, ρ::Array{Float64
 	xlabel("ρ")
 	ylabel("depth m")
 	grid(true, which="both")
-	s1 = subplot(222)
+	s1 = subplot(122)
 	loglog(tempest.F.times, abs.(μ*tempest.Hz)*1e15, label="Bz", ".-")
 	loglog(tempest.F.times, abs.(μ*tempest.Hx)*1e15, label="Bx", ".-")
 	xlabel("time s")
