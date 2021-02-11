@@ -72,13 +72,12 @@ tempest = transD_GP.TEMPEST1DInversion.Bfield(
 	ρ=ρ
 )
 
-# transD_GP.TEMPEST1DInversion.plotmodelfield!(tempest, z, ρ)
-# transD_GP.TEMPEST1DInversion.getfieldTD!(tempest, z, ρ)
+transD_GP.TEMPEST1DInversion.plotmodelfield!(tempest, z, ρ)
 ## update it
-zTx2 = zTx #+ 20
-zRx2 = zRx #+ 5
-x_rx2 = x_rx #- 10
-y_rx2 = y_rx #- 5
+zTx2 = zTx + 20
+zRx2 = zRx + 5
+x_rx2 = x_rx - 10
+y_rx2 = y_rx - 5
 
 rx_roll2 = rx_roll + 3
 rx_pitch2 = rx_pitch - 10
@@ -106,10 +105,10 @@ tempest2 = transD_GP.TEMPEST1DInversion.Bfield(
 # plot new field
 transD_GP.TEMPEST1DInversion.getfieldTD!(tempest2, z, ρ)
 μ = transD_GP.AEM_VMD_HMD.μ
-figure()
-loglog(tempest2.F.times, abs.(μ*tempest2.Hz)*1e15, label="Bz_new", "*-")
-loglog(tempest2.F.times, abs.(μ*tempest2.Hx)*1e15, label="Bx_new", "*-")
+ax = gcf().axes
+ax[2].loglog(tempest2.F.times, abs.(μ*tempest2.Hz)*1e15, label="Bz_new", "*-")
+ax[2].loglog(tempest2.F.times, abs.(μ*tempest2.Hx)*1e15, label="Bx_new", "*-")
 # plot updated field
-loglog(tempest.F.times, abs.(μ*tempest.Hz)*1e15, label="Bz_up", "D--", alpha=0.7)
-loglog(tempest.F.times, abs.(μ*tempest.Hx)*1e15, label="Bx_up", "D--", alpha=0.7)
-# legend()
+ax[2].loglog(tempest.F.times, abs.(μ*tempest.Hz)*1e15, label="Bz_up", "D--", alpha=0.7)
+ax[2].loglog(tempest.F.times, abs.(μ*tempest.Hx)*1e15, label="Bx_up", "D--", alpha=0.7)
+legend()
