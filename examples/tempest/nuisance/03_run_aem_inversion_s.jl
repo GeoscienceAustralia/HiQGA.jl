@@ -1,5 +1,5 @@
 ## set up McMC
-nsamples, nchains, nchainsatone = 20001, 4, 1
+nsamples, nchains, nchainsatone = 1001, 4, 1
 Tmax = 2.50
 addprocs(nchains)
 ##init packages on workers

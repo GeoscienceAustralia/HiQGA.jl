@@ -1,5 +1,5 @@
 using Printf, LinearAlgebra, Statistics, Distributed, PositiveFactorizations,
-      Distances, NearestNeighbors
+      Distances, NearestNeighbors, DelimitedFiles
 
 using .GP
 
@@ -962,6 +962,16 @@ function write_history(optn::OptionsNuisance, nvals::Array{Float64,1}, misfit::F
     end
 end
 
+function history(optn::OptionsNuisance; stat=:misfit)
+    cols = Dict(:iter => 1, :acceptanceRate => 2,
+                :misfit => 3, :T => 4)
+    colnum = cols[stat]
+    data = readdlm(optn.costs_filename, ' ', Float64)[:,colnum]
+    if stat == :iter
+        data = Int.(data)
+    end
+    return data
+end
 
 function history(opt::Options; stat=:U)
     for (statname, el, idx) in ((:iter,                   Int,      1),

@@ -128,7 +128,7 @@ function update_geometry(tempest::Bfield, geovec::Array{Float64,1},
 
 	#make new rotation matrices
 	Rot_rx = makerotationmatrix(order = order_rx,
-		yaw = rx_yaw, pitch = rx_pitch, roll = rx_roll, doinv=true)
+		yaw = rx_yaw, pitch = rx_pitch, roll = rx_roll, doinv = true)
 	Rot_tx = makerotationmatrix(order = order_tx,
 		yaw = tx_yaw, pitch = tx_pitch, roll = tx_roll)
 
