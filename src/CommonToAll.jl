@@ -1,13 +1,14 @@
 module CommonToAll
 using PyPlot, StatsBase, Statistics, Distances, LinearAlgebra,
-      ..AbstractOperator
+      DelimitedFiles, ..AbstractOperator
 
-import ..Options, ..OptionsStat, ..OptionsNonstat, ..history, ..GP.κ,
-       ..calcfstar!
+import ..Options, ..OptionsStat, ..OptionsNonstat, ..OptionsNuisance,
+       ..history, ..GP.κ, ..calcfstar!
 
 export trimxft, assembleTat1, gettargtemps, checkns, getchi2forall, nicenup,
         plot_posterior, make1Dhist, make1Dhists, setupz, makezρ, plotdepthtransforms,
-        unwrap, getn, geomprogdepth, assemblemodelsatT, getstats, gethimage
+        unwrap, getn, geomprogdepth, assemblemodelsatT, getstats, gethimage,
+        assemblenuisancesatT, makenuisancehists
 
 function trimxft(opt::Options, burninfrac::Float64, temperaturenum::Int)
     x_ft = assembleTat1(opt, :x_ftrain, burninfrac=burninfrac, temperaturenum=temperaturenum)
@@ -117,6 +118,43 @@ function assemblemodelsatT(optns::OptionsNonstat, opts::OptionsStat;
     msatT, mnsatT
 end
 
+function assemblenuisancesatT(optn::OptionsNuisance;
+    burninfrac = 0.5, temperaturenum = -1)
+    @assert temperaturenum != -1 "Please specify temperature idx explicitly"
+    @assert 0.0 <= burninfrac < 1.0
+    Tacrosschains = gettargtemps(optn)
+    #this is probably insanely inefficient
+    #Θ(niters*nchains) to run the unique() call.
+    #however, we need to iterate over the entire array
+    #at some point to build the ensemble so it's
+    #fine. Possible improvement: store temperatures
+    #as the "temperature number" to start with and keep
+    #a separate mapping from temperature index to the float
+    #value. This means our sortedTs is just 1:nchains and
+    #also avoids any issues with equality testing of floats.
+    sortedTs = sort(unique(Tacrosschains))
+    niters = size(Tacrosschains,1)
+    #this will never give a bounds error
+    #because of the assert above
+    firsti = 1 + floor(Int, niters*burninfrac)
+    ttarg = sortedTs[temperaturenum]
+    nmodels = sum(Tacrosschains[firsti:end,:] .== ttarg)
+    topt = deepcopy(optn)
+    vals_filename = "values_nuisance_1.bin"
+    #drop iteration number
+    ndat = readdlm(vals_filename, ' ', Float64)[firsti:end,2:end]
+    mvals = zeros(nmodels,size(ndat,2))
+    mask = Tacrosschains[firsti:end,1] .== ttarg
+    mvals[mask,:] .= ndat[mask,:]
+    for ichain = 2:size(Tacrosschains,2)
+        vals_filename = "values_nuisance_$ichain.bin"
+        ndat = readdlm(vals_filename, ' ', Float64)[firsti:end,2:end]
+        mask = Tacrosschains[firsti:end, ichain] .== ttarg
+        mvals[mask,:] .= ndat[mask,:]
+    end
+    mvals
+end
+
 function getnchains(costs_filename)
 c = 0
     for fname in readdir(pwd())
@@ -143,6 +181,23 @@ function gettargtemps(opt_in::Options)
     for ichain in 1:nchains
         opt.costs_filename = costs_filename*"_$ichain.bin"
         Tacrosschains[:,ichain] = history(opt, stat=:T)
+    end
+    Tacrosschains
+end
+
+function gettargtemps(optn_in::OptionsNuisance)
+    optn = deepcopy(optn_in)
+    costs_filename = "misfits_nuisance"
+    nchains = getnchains(costs_filename)
+    @info "Number of chains is $nchains"
+    optn.costs_filename = costs_filename*"_1.bin"
+    iters = history(optn, stat=:iter)
+    niters = length(iters)
+    @info "MCMC has run for $(iters[end]) iterations"
+    Tacrosschains = zeros(Float64, niters, nchains)
+    for ichain in 1:nchains
+        optn.costs_filename = costs_filename*"_$ichain.bin"
+        Tacrosschains[:,ichain] = history(optn, stat=:T)
     end
     Tacrosschains
 end
@@ -196,6 +251,48 @@ function checkns(optin::Options)
     ns = "ns"
     isns || (ns="s")
     return ns
+end
+
+function getchi2forall(optn_in::OptionsNuisance;
+                       nchains = 1,
+                       figsize = (6,4),
+                       fsize = 8,
+                       alpha = 0.25,
+                       nxticks = 0,
+                       gridon = false)
+    optn = deepcopy(optn_in)
+    costs_filename = "misfits_nuisance"
+    if nchains == 1
+        nchains = getnchains(costs_filename)
+    end
+    optn.costs_filename = costs_filename*"_1.bin"
+    iters = history(optn, stat=:iter)
+    niters = length(iters)
+    Tacrosschains = zeros(Float64, niters, nchains)
+    χ2acrosschains = zeros(Float64, niters, nchains)
+    for chain in 1:nchains
+        optn.costs_filename = costs_filename*"_$(chain).bin"
+        Tacrosschains[:,chain] = history(optn, stat=:T)
+        χ2acrosschains[:,chain] = history(optn, stat=:misfit)
+    end
+    Torder = sort([(i,j) for i=1:niters, j=1:nchains],
+                    by = ix->Tacrosschains[ix...],
+                    dims = 2)
+    χ2sorted = [χ2acrosschains[Torder[i,j]...] for i=1:niters, j=1:nchains]
+    fig, ax = subplots(3,1, sharex=true, figsize=figsize)
+    ax[1].plot(iters, χ2acrosschains, alpha=alpha)
+    ax[1].set_xlim(extrema(iters)...)
+    ax[1].set_ylim(0,100)
+    ax[1].set_title("unsorted χ^2 misfit")
+    ax[2].plot(iters, Tacrosschains, alpha=alpha)
+    ax[2].set_title("temperature")
+    ax[3].plot(iters, χ2sorted, alpha=alpha)
+    ax[3].set_ylim(0,100)
+    ax[3].set_title("sorted χ^2 misfit")
+    ax[3].set_xlabel("iterations")
+
+    nxticks == 0 || ax[3].set_xticks(iters[1]:div(iters[end],nxticks):iters[end])
+    nicenup(fig, fsize = fsize)
 end
 
 function getchi2forall(opt_in::Options;
@@ -449,6 +546,34 @@ function plot_posterior(operator::Operator1D,
     ax.set_xlabel(L"\log_{10} \rho")
     ax.set_ylabel("depth (m)")
     nicenup(f, fsize=fsize)
+end
+
+function plot_posterior(operator::Operator1D,
+                        optn::OptionsNuisance;
+                        temperaturenum = 1,
+                        nbins = 50,
+                        burninfrac=0.5,
+                        figsize=(8,16),
+                        pdfnormalize=false,
+                        fsize=14)
+    hists = makenuisancehists(optn, burninfrac = burninfrac,
+                                     nbins = nbins, temperaturenum = temperaturenum,
+                                     pdfnormalize = pdfnormalize)
+    fig,ax = subplots(length(hists), 1, figsize=figsize)
+    for (i, h) = enumerate(hists)
+        bwidth = diff(h.edges[1])[1]
+        bx = h.edges[1][1:end-1] .+ bwidth/2
+        ax[i].bar(bx,h.weights,width=bwidth)
+    end
+    nicenup(fig, fsize=fsize)
+end
+
+function makenuisancehists(optn::OptionsNuisance; burninfrac = 0.5, nbins = 50,
+    temperaturenum = -1, pdfnormalize = false)
+    @assert temperaturenum != -1 "Please explicitly specify the temperature index"
+    nuisanceatT = assemblenuisancesatT(optn, burninfrac = burninfrac,
+                                    temperaturenum = temperaturenum)
+    mapslices(x -> fit(Histogram, x, nbins=nbins), nuisanceatT, dims=1)
 end
 
 function make1Dhist(optns::OptionsNonstat,
