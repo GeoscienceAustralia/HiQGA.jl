@@ -392,6 +392,7 @@ end
 function convramp!(F::HFieldDHT, splz::CubicSpline, splr::CubicSpline, splaz::CubicSpline)
     fill!(F.dBzdt, 0.)
     F.getradialH && fill!(F.dBrdt, 0.)
+    F.getazimH && fill!(F.dBazdt, 0.)
     for itime = 1:length(F.times)
         for iramp = 1:size(F.ramp,1)-1
             rta, rtb  = F.ramp[iramp,1], F.ramp[iramp+1,1]
