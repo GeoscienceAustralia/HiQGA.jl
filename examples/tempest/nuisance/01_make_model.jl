@@ -56,7 +56,7 @@ times = sqrt.([
 
 ## fill in detail in ohm-m
 ρ[(z.>=zstart) .& (z.<50)] .= 20.
-ρ[(z.>=50) .&(z.<80)] .= 1
+ρ[(z.>=50) .&(z.<80)] .= 1.
 ρ[(z.>=80) .&(z.<100)] .= 20
 ρ[(z.>=100) .&(z.<200)] .= 50
 ρ[(z.>=200) .&(z.<250)] .= 80
@@ -69,9 +69,30 @@ tempest = transD_GP.TEMPEST1DInversion.Bfield(
     tx_roll = tx_roll, tx_pitch = tx_pitch, tx_yaw = tx_yaw,
 	ramp = ramp, times = times,
 	z=z,
-	ρ=ρ
+	ρ=ρ,
+	addprimary = false #this ensures that the geometry update actually changes everything that needs to be
 )
 
-#transD_GP.TEMPEST1DInversion.plotmodelfield!(tempest, z, ρ)
-
-transD_GP.TEMPEST1DInversion.set_noisy_data!(tempest, z, ρ)
+transD_GP.TEMPEST1DInversion.getfieldTD!(tempest, z, ρ)
+#compute noise magnitudes
+σx = 0.05 * abs.(tempest.Hx)
+σz = 0.05 * abs.(tempest.Hz)
+## test noisy data
+# transD_GP.TEMPEST1DInversion.set_noisy_data!(tempest, z, ρ,
+# 	noisefracx=0.05, noisefracz = 0.05)
+#
+# tempest.σz
+# ## plot
+# transD_GP.TEMPEST1DInversion.plotmodelfield!(tempest,z,ρ)
+## create total field operator (required for nuisance inversion)
+tempest = transD_GP.TEMPEST1DInversion.Bfield(
+    zTx = zTx, zRx = zRx, x_rx = x_rx, y_rx = y_rx,
+    rx_roll = rx_roll, rx_pitch = rx_pitch, rx_yaw = rx_yaw,
+    tx_roll = tx_roll, tx_pitch = tx_pitch, tx_yaw = tx_yaw,
+	ramp = ramp, times = times,
+	z=z,
+	ρ=ρ,
+	addprimary = true #this ensures that the geometry update actually changes everything that needs to be
+)
+## compute noisy data to invert
+transD_GP.TEMPEST1DInversion.set_noisy_data!(tempest, z, ρ, σx, σz)

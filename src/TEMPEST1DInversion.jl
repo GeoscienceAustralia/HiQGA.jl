@@ -314,7 +314,7 @@ function plotmodelfield!(tempest::Bfield, z::Array{Float64,1}, ρ::Array{Float64
 end
 
 #for synthetics
-function set_noisy_data!(tempest::Bfield, z::Array{Float64,1}, ρ::Array{Float64,1},
+function set_noisy_data!(tempest::Bfield, z::Array{Float64,1}, ρ::Array{Float64,1};
 	noisefracx = 0.05, noisefracz = 0.05)
 	getfieldTD!(tempest, z, ρ)
 	tempest.σx = noisefracx*abs.(tempest.Hx)
@@ -324,4 +324,13 @@ function set_noisy_data!(tempest::Bfield, z::Array{Float64,1}, ρ::Array{Float64
 	nothing
 end
 
+function set_noisy_data!(tempest::Bfield, z::Array{Float64,1}, ρ::Array{Float64,1},
+	σx, σz)
+	getfieldTD!(tempest, z, ρ)
+	tempest.σx = σx
+	tempest.σz = σz
+	tempest.dataHx = tempest.Hx + σx.*randn(size(σx))
+	tempest.dataHz = tempest.Hz + σz.*randn(size(σz))
+	nothing
+end
 end

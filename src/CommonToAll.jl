@@ -563,7 +563,7 @@ function plot_posterior(operator::Operator1D,
     for (i, h) = enumerate(hists)
         bwidth = diff(h.edges[1])[1]
         bx = h.edges[1][1:end-1] .+ bwidth/2
-        ax[i].bar(bx,h.weights,width=bwidth)
+        ax[i].bar(bx, h.weights, width=bwidth, edgecolor="black")
     end
     nicenup(fig, fsize=fsize)
 end

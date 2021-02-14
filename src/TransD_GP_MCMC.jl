@@ -122,6 +122,7 @@ mutable struct OptionsNonstat <: Options
     kdtree              :: KDTree
     needλ²fromlog       :: Bool
     updatenonstat       :: Bool
+    updatenuisances     :: Bool
     peskycholesky       :: Bool
 end
 
@@ -150,7 +151,8 @@ function OptionsNonstat(opt::OptionsStat;
         OptionsNonstat(nmin, nmax, opt.xbounds, fbounds, opt.xall, δ, demean, sdev_prop, sdev_pos, pnorm,
                 opt.stat_window, opt.dispstatstoscreen, opt.report_freq, opt.save_freq,
                 opt.fdataname, opt.history_mode, opt.costs_filename, opt.fstar_filename, opt.x_ftrain_filename,
-                opt.debug, opt.quasimultid, influenceradius, K, opt.kdtree, opt.needλ²fromlog, opt.updatenonstat, opt.peskycholesky)
+                opt.debug, opt.quasimultid, influenceradius, K, opt.kdtree, opt.needλ²fromlog, opt.updatenonstat,
+                opt.updatenuisances, opt.peskycholesky)
 end
 
 #not subtyping Options because methods that expect Options are expecting
@@ -160,7 +162,7 @@ mutable struct OptionsNuisance
     bounds                 :: Array{Float64,2}
     nnu                    :: Int64
 
-    updatenuisance         :: Bool
+    updatenuisances         :: Bool
     updatenonstat          :: Bool
     debug                  :: Bool
 

@@ -82,6 +82,25 @@ optn.bounds =
     ]
 optn.nnu = 10
 
-optn.updatenuisance = true
+optn.updatenuisances = true
 ##
 optn
+
+
+##debug stuff
+mn = transD_GP.init(optn)
+mstat = transD_GP.init(opt)
+mnstat = transD_GP.init(optdummy, mstat)
+
+##
+initmisfit = transD_GP.get_misfit(mstat, opt, tempest)
+altinit = transD_GP.get_misfit(mstat, mn, opt, tempest)
+
+statn = transD_GP.Stats()
+
+fpc = open("debugcosts.bin", "w")
+fpv = open("debugvals.bin", "w")
+wpn = transD_GP.Writepointers_nuisance(fpc,fpv)
+
+Juno.@enter transD_GP.do_mcmc_step(mn, mstat, mnstat, optn, statn, [initmisfit],
+    tempest, 1.0, 1, wpn)

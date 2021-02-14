@@ -326,13 +326,27 @@ function init_chain_darrays(opt_in::OptionsStat,
 
         F_in_[idx]           = @spawnat chain.pid [F_in]
         if opt_in.updatenonstat
-            current_misfit_[idx] = @spawnat chain.pid [[ get_misfit(fetch(mns_[idx])[1],
+            if opt_in.updatenuisances
+                current_misfit_[idx] = @spawnat chain.pid [[ get_misfit(fetch(mns_[idx])[1],
+                                               fetch(mn_[idx])[1],
                                                fetch(optns_[idx])[1],
                                                fetch(F_in_[idx])[1]) ]]
+            else
+                current_misfit_[idx] = @spawnat chain.pid [[ get_misfit(fetch(mns_[idx])[1],
+                                               fetch(optns_[idx])[1],
+                                               fetch(F_in_[idx])[1]) ]]
+            end
         else
-            current_misfit_[idx] = @spawnat chain.pid [[ get_misfit(fetch(m_[idx])[1],
+            if opt_in.updatenuisances
+                current_misfit_[idx] = @spawnat chain.pid [[ get_misfit(fetch(m_[idx])[1],
+                                               fetch(mn_[idx])[1],
                                                fetch(opt_[idx])[1],
                                                fetch(F_in_[idx])[1]) ]]
+            else
+                current_misfit_[idx] = @spawnat chain.pid [[ get_misfit(fetch(m_[idx])[1],
+                                               fetch(opt_[idx])[1],
+                                               fetch(F_in_[idx])[1]) ]]
+            end
         end
         if opt_in.history_mode=="a"
             if idx == length(chains)
