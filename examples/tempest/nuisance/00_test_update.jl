@@ -24,6 +24,7 @@ rx_yaw = 0.
 tx_roll = 0.
 tx_pitch = 0.
 tx_yaw = 0.
+addprimary = true
 
 #current ramp and gate times
 ramp =  [  # -0.0400066666667    0.5
@@ -69,7 +70,8 @@ tempest = transD_GP.TEMPEST1DInversion.Bfield(
     tx_roll = tx_roll, tx_pitch = tx_pitch, tx_yaw = tx_yaw,
 	ramp = ramp, times = times,
 	z=z,
-	ρ=ρ
+	ρ=ρ,
+	addprimary = addprimary
 )
 
 transD_GP.TEMPEST1DInversion.plotmodelfield!(tempest, z, ρ)
@@ -99,7 +101,8 @@ tempest2 = transD_GP.TEMPEST1DInversion.Bfield(
     tx_roll = tx_roll2, tx_pitch = tx_pitch2, tx_yaw = tx_yaw2,
 	ramp = ramp, times = times,
 	z=z,
-	ρ=ρ
+	ρ=ρ,
+	addprimary = addprimary
 )
 
 # plot new field
@@ -112,3 +115,8 @@ ax[2].loglog(tempest2.F.times, abs.(μ*tempest2.Hx)*1e15, label="Bx_new", "*-")
 ax[2].loglog(tempest.F.times, abs.(μ*tempest.Hz)*1e15, label="Bz_up", "D--", alpha=0.7)
 ax[2].loglog(tempest.F.times, abs.(μ*tempest.Hx)*1e15, label="Bx_up", "D--", alpha=0.7)
 legend()
+
+@testset "checking tempest updates" begin
+	@test norm(tempest.Hz - tempest2.Hz) < 1e-12
+	@test norm(tempest.Hx - tempest2.Hx) < 1e-12
+end	
