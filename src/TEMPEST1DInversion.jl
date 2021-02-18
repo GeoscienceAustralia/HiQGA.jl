@@ -160,7 +160,7 @@ end
 
 #match API for SkyTEM inversion getfield
 function getfield!(m::Model, tempest::Bfield)
-	getfield(m.fstar, tempest)
+	getfield!(m.fstar, tempest)
 	nothing
 end
 function getfield!(m::Array{Float64}, tempest::Bfield)

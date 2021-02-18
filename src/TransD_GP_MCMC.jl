@@ -788,7 +788,14 @@ end
 
 function do_move!(mn::ModelNuisance, optn::OptionsNuisance, statn::Stats)
     priorviolate = false
-    nidx = rand(1:optn.nnu)
+    nidx = 0
+    while true
+        nidx = rand(1:optn.nnu)
+        numin, numax = extrema(optn.bounds[nidx,:])
+        if abs(numin-numax)>1e-12
+             break
+        end
+    end
     new_nval = mn.nuisance[nidx] + optn.sdev[nidx]*randn()
     if new_nval > optn.bounds[nidx,2] || new_nval < optn.bounds[nidx,1]
         #model should not be modified if prior is violated
@@ -948,19 +955,21 @@ end
 function write_history(optn::OptionsNuisance, nvals::Array{Float64,1}, misfit::Float64,
                     acceptanceRate::Float64, iter::Int, fp_costs::Union{IOStream, Nothing},
                     fp_vals::Union{IOStream, Nothing}, T::Float64, writemodel::Bool)
-    if fp_costs != nothing
-        msg = @sprintf("%d %e %e %e\n", iter, acceptanceRate, misfit, T)
-        write(fp_costs, msg)
-        flush(fp_costs)
-    end
-    if fp_vals != nothing
-        msg = @sprintf("%d", iter)
-        for nval = nvals
-            msg *= @sprintf(" %e", nval)
+    if (mod(iter-1, optn.save_freq) == 0 || iter == 1)
+        if fp_costs != nothing
+            msg = @sprintf("%d %e %e %e\n", iter, acceptanceRate, misfit, T)
+            write(fp_costs, msg)
+            flush(fp_costs)
         end
-        msg *= "\n"
-        write(fp_vals, msg)
-        flush(fp_vals)
+        if fp_vals != nothing
+            msg = @sprintf("%d", iter)
+            for nval = nvals
+                msg *= @sprintf(" %e", nval)
+            end
+            msg *= "\n"
+            write(fp_vals, msg)
+            flush(fp_vals)
+        end
     end
 end
 
