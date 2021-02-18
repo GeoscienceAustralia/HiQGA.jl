@@ -44,6 +44,8 @@ const Roll180 = [1. 0. 0.
 				 0 -1  0.
 				 0  0 -1]
 
+const fTinv = 1e15
+
 function Bfield(;
 				dataHx = zeros(0),
 				dataHz = zeros(0),
@@ -158,10 +160,13 @@ end
 
 #match API for SkyTEM inversion getfield
 function getfield!(m::Model, tempest::Bfield)
-	copyto!(tempest.ρ, tempest.nfixed+1:length(tempest.ρ),
-	10 .^m.fstar, 1:length(m.fstar))
-	getfieldTD!(tempest, tempest.z, tempest.ρ)
+	getfield(m.fstar, tempest)
 	nothing
+end
+function getfield!(m::Array{Float64}, tempest::Bfield)
+    copyto!(tempest.ρ, tempest.nfixed+1:length(tempest.ρ), 10 .^m, 1:length(m))
+	getfieldTD!(tempest, tempest.z, tempest.ρ)
+    nothing
 end
 
 # set the field given a conductivity model (GP parametrisation)
@@ -301,12 +306,12 @@ function plotmodelfield!(tempest::Bfield, z::Array{Float64,1}, ρ::Array{Float64
 	ylabel("depth m")
 	grid(true, which="both")
 	s1 = subplot(122)
-	semilogx(tempest.F.times, abs.(μ₀*tempest.Hz)*1e15, label="Bz")
-	semilogx(tempest.F.times, abs.(μ₀*tempest.Hx)*1e15, label="Bx")
+	semilogx(tempest.F.times, abs.(μ₀*tempest.Hz)*fTinv, label="Bz")
+	semilogx(tempest.F.times, abs.(μ₀*tempest.Hx)*fTinv, label="Bx")
 	if !isempty(tempest.σx)
-		errorbar(tempest.F.times, μ₀*abs.(vec(tempest.dataHz))*1e15, yerr = μ₀*2vec(tempest.σz)*1e15,
+		errorbar(tempest.F.times, μ₀*abs.(vec(tempest.dataHz))*fTinv, yerr = μ₀*2vec(tempest.σz)*fTinv,
                          linestyle="none", marker=".", elinewidth=0, capsize=3)
-		errorbar(tempest.F.times, μ₀*abs.(vec(tempest.dataHx))*1e15, yerr = μ₀*2vec(tempest.σx)*1e15,
+		errorbar(tempest.F.times, μ₀*abs.(vec(tempest.dataHx))*fTinv, yerr = μ₀*2vec(tempest.σx)*fTinv,
 						 linestyle="none", marker=".", elinewidth=0, capsize=3)
 	end
 	xlabel("time s")
@@ -317,6 +322,59 @@ function plotmodelfield!(tempest::Bfield, z::Array{Float64,1}, ρ::Array{Float64
 	nicenup(gcf())
 	nothing
 end
+function plotmodelfield!(tempest::Bfield, Ρ::Vector{Array{Float64}};
+                        figsize=(8,5), dz=-1., onesigma=true,
+                        extendfrac=-1., fsize=10, alpha=0.1)
+    @assert all((dz, extendfrac) .> 0)
+    sigma = onesigma ? 1.0 : 2.0
+    f = figure(figsize=figsize)
+    ax = Vector{PyPlot.PyObject}(undef, 3)
+    ax[1] = subplot(121)
+    ρmin, ρmax = extrema(vcat(Ρ...))
+    delρ = ρmax - ρmin
+    ax[1].set_xlim(ρmin-0.1delρ,ρmax+0.1delρ)
+    nfixed, z = tempest.nfixed, tempest.z
+    ax[1].plot([ρmin-0.1delρ,ρmax+0.1delρ], z[nfixed+1]*[1., 1], color="b")
+    ax[2] = subplot(122)
+	times = tempest.F.times
+    Hz, Hx = tempest.Hz, tempest.Hx
+    dataHx, σx = tempest.dataHx, tempest.σx
+	dataHz, σz = tempest.dataHz, tempest.σz
+    ax[2].errorbar(times, μ₀*abs.(dataHz)*fTinv, yerr = μ₀*sigma*σz*fTinv,
+                        linestyle="none", marker=".", elinewidth=0, capsize=3, label="Bz")
+    ax[2].errorbar(times, μ₀*abs.(dataHx)*fTinv, yerr = μ₀*sigma*σx*fTinv,
+                        linestyle="none", marker=".", elinewidth=0, capsize=3, label="Bx")
+    for ρ in Ρ
+        getfield!(ρ, tempest)
+        tempest.Hz[.!tempest.selectz] .= NaN
+        tempest.Hx[.!tempest.selectx] .= NaN
+        ax[1].step(log10.(tempest.ρ[2:end]), tempest.z[2:end], "-k", alpha=alpha)
+        ax[2].semilogx(times,μ₀*abs.(tempest.Hz)*fTinv, "k", alpha=alpha, markersize=2)
+        ax[2].semilogx(times,μ₀*abs.(tempest.Hx)*fTinv, "k", alpha=alpha, markersize=2)
+    end
+    ax[1].grid()
+    ax[1].set_ylabel("Depth m")
+    ax[1].plot(xlim(), z[nfixed+1]*[1, 1], "--k")
+    if dz > 0
+        axn = ax[1].twinx()
+        ax[1].get_shared_y_axes().join(ax[1],axn)
+        yt = ax[1].get_yticks()[ax[1].get_yticks().>=z[nfixed+1]]
+        axn.set_yticks(yt)
+        axn.set_ylim(ax[1].get_ylim()[end:-1:1])
+        axn.set_yticklabels(string.(Int.(round.(getn.(yt .- z[nfixed+1], dz, extendfrac)))))
+    end
+    axn.set_ylabel("Depth index", rotation=-90)
+    ax[1].set_xlabel("Log₁₀ρ")
+    ax[1].set_title("Model")
+    ax[2].set_ylabel(L"B field 10¹⁵")
+    ax[2].set_xlabel("Time (s)")
+    ax[2].set_title("Transient response")
+    ax[2].legend()
+    ax[2].grid()
+    ax[1].invert_xaxis()
+    nicenup(f, fsize=fsize)
+end
+
 
 #for synthetics
 function set_noisy_data!(tempest::Bfield, z::Array{Float64,1}, ρ::Array{Float64,1};
@@ -338,12 +396,39 @@ function set_noisy_data!(tempest::Bfield, z::Array{Float64,1}, ρ::Array{Float64
 end
 
 function set_noisy_data!(tempest::Bfield, z::Array{Float64,1}, ρ::Array{Float64,1},
-	σx, σz)
+	σx, σz;rseed = 123)
+	Random.seed!(rseed)
 	getfieldTD!(tempest, z, ρ)
 	tempest.σx = σx
 	tempest.σz = σz
-	tempest.dataHx = tempest.Hx + σx.*randn(size(σx))
-	tempest.dataHz = tempest.Hz + σz.*randn(size(σz))
+	set_noisy_data(tempest,
+		dataHx = tempest.Hx + σx.*randn(size(σx)),
+		dataHz = tempest.Hz + σz.*randn(size(σz)),
+		σx = σx,
+		σz = σz)
 	nothing
 end
+
+function set_noisy_data(tempest::Bfield;
+						dataHz = zeros(0), dataHx = zeros(0),
+						σz = zeros(0), σx = zeros(0))
+
+    @assert size(σx) == size(dataHx)
+    @assert size(σz) == size(dataHz)
+    ndatax  = sum(.!isnan.(dataHx))
+    ndataz  = sum(.!isnan.(dataHz))
+    selectx = .!isnan.(dataHx)
+    selectz = .!isnan.(dataHz)
+
+	tempest.σx = σx
+	tempest.σz = σz
+	tempest.dataHx = dataHx
+	tempest.dataHz = dataHz
+	tempest.selectx = selectx
+	tempest.selectz = selectz
+	tempest.ndatax = ndatax
+	tempest.ndataz = ndataz
+	nothing
+end
+
 end
