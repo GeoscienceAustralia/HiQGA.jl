@@ -291,12 +291,9 @@ end
 
 function plotmodelfield!(tempest::Bfield, z::Array{Float64,1}, ρ::Array{Float64,1})
 	getfieldTD!(tempest, z, ρ)
-	μ = AEM_VMD_HMD.μ
-	figure(figsize=(8,12))
+	figure(figsize=(8,6))
 	s = subplot(121)
 	s.step(vcat(ρ[2:end],ρ[end]), vcat(z[2:end], z[end]+50))
-	s.set_xscale("log")
-
 	s.set_xscale("log")
 	s.invert_xaxis()
 	s.invert_yaxis()
@@ -304,23 +301,39 @@ function plotmodelfield!(tempest::Bfield, z::Array{Float64,1}, ρ::Array{Float64
 	ylabel("depth m")
 	grid(true, which="both")
 	s1 = subplot(122)
-	loglog(tempest.F.times, abs.(μ*tempest.Hz)*1e15, label="Bz", ".-")
-	loglog(tempest.F.times, abs.(μ*tempest.Hx)*1e15, label="Bx", ".-")
+	semilogx(tempest.F.times, abs.(μ₀*tempest.Hz)*1e15, label="Bz")
+	semilogx(tempest.F.times, abs.(μ₀*tempest.Hx)*1e15, label="Bx")
+	if !isempty(tempest.σx)
+		errorbar(tempest.F.times, μ₀*abs.(vec(tempest.dataHz))*1e15, yerr = μ₀*2vec(tempest.σz)*1e15,
+                         linestyle="none", marker=".", elinewidth=0, capsize=3)
+		errorbar(tempest.F.times, μ₀*abs.(vec(tempest.dataHx))*1e15, yerr = μ₀*2vec(tempest.σx)*1e15,
+						 linestyle="none", marker=".", elinewidth=0, capsize=3)
+	end
 	xlabel("time s")
 	ylabel("B field 10⁻¹⁵ T")
-	# ylim(1e-6, 50)
 	legend()
 	grid(true, which="both")
+	!tempest.addprimary && s1.set_yscale("log")
+	nicenup(gcf())
+	nothing
 end
 
 #for synthetics
 function set_noisy_data!(tempest::Bfield, z::Array{Float64,1}, ρ::Array{Float64,1};
 	noisefracx = 0.05, noisefracz = 0.05)
+	primaryflag = tempest.addprimary
+	if tempest.addprimary
+		# adds noise only proportional to secondary field
+		# when we compute full field next
+		tempest.addprimary = false
+	end
 	getfieldTD!(tempest, z, ρ)
-	tempest.σx = noisefracx*abs.(tempest.Hx)
-	tempest.dataHx = tempest.Hx + tempest.σx.*randn(size(tempest.Hx))
-	tempest.σz = noisefracz*abs.(tempest.Hz)
-	tempest.dataHz = tempest.Hz + tempest.σz.*randn(size(tempest.Hz))
+	σx = noisefracx*abs.(tempest.Hx)
+	σz = noisefracz*abs.(tempest.Hz)
+	# reset the tempest primary field modeling flag to original
+	tempest.addprimary = primaryflag
+	set_noisy_data!(tempest, z, ρ, σx, σz)
+	plotmodelfield!(tempest, z, ρ)
 	nothing
 end
 

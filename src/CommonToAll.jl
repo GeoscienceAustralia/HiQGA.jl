@@ -573,7 +573,18 @@ function makenuisancehists(optn::OptionsNuisance; burninfrac = 0.5, nbins = 50,
     @assert temperaturenum != -1 "Please explicitly specify the temperature index"
     nuisanceatT = assemblenuisancesatT(optn, burninfrac = burninfrac,
                                     temperaturenum = temperaturenum)
-    mapslices(x -> fit(Histogram, x, nbins=nbins), nuisanceatT, dims=1)
+
+    nnu = size(nuisanceatT, 2)
+    h = Vector{Histogram}(undef, nnu)
+    for islice = 1:nnu
+        numin, numax = extrema(optn.bounds[islice,:])
+        # if abs(numin-numax)<1e-12
+        #     continue
+        # end
+        edges = LinRange(numin, numax, nbins+1)
+        h[islice] = fit(Histogram, nuisanceatT[:,islice], edges)
+    end
+    h
 end
 
 function make1Dhist(optns::OptionsNonstat,

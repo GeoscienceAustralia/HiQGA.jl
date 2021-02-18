@@ -1,10 +1,11 @@
 ## set up McMC
-nsamples, nchains, nchainsatone = 2001, 4, 1
-Tmax = 2.50
+nsamples, nchains, nchainsatone = 100001, 8, 1
+Tmax = 3
 addprocs(nchains)
 ##init packages on workers
 @info "workers are $(workers())"
 @everywhere using Distributed
+@everywhere begin using Pkg; Pkg.activate("../../../") end
 @everywhere using transD_GP
 ## run McMC
 @time transD_GP.main(opt, optdummy, optn, tempest, Tmax=Tmax, nsamples=nsamples, nchains=nchains, nchainsatone=nchainsatone)

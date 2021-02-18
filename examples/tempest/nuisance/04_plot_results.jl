@@ -1,4 +1,4 @@
-transD_GP.getchi2forall(optn, nxticks=4, fsize=6)
+transD_GP.getchi2forall(optn)
 gcf()
 ##
 opt.xall[:] .= zall
@@ -8,5 +8,5 @@ step(log10.(ρ[2:end]), z[2:end], color="w", alpha=0.4)
 gcf()
 
 ## nuisance histograms
-transD_GP.plot_posterior(tempest, optn, burninfrac=0.5)
+transD_GP.plot_posterior(tempest, optn, burninfrac=0.5, nbins=100)
 gcf()
