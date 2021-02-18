@@ -805,7 +805,7 @@ function do_move!(mn::ModelNuisance, optn::OptionsNuisance, statn::Stats)
         mn.nu_old = mn.nuisance[nidx]
         mn.nuisance[nidx] = new_nval
     end
-    statn.move_tries[1] += 1
+    statn.move_tries[nidx] += 1
     # @info mn.nu_old, mn.nuisance[nidx], priorviolate
     return 1, priorviolate
 end
@@ -816,7 +816,7 @@ function undo_move!(mn::ModelNuisance)
     mn.nidx_mem = 0 #delete memory so we can't undo twice
 end
 
-function get_acceptance_stats!(isample::Int, opt::Union{Options, OptionsNuisance}, stat::Stats)
+function get_acceptance_stats!(isample::Int, opt::Options, stat::Stats)
     if mod(isample-1, opt.stat_window) == 0
         stat.accept_rate[:] = 100. *stat.accepted_moves./stat.move_tries
         if opt.dispstatstoscreen
@@ -826,6 +826,17 @@ function get_acceptance_stats!(isample::Int, opt::Union{Options, OptionsNuisance
                             stat.accept_rate[3],
                             stat.accept_rate[4])
             @info typeof(opt), msg
+        end
+        fill!(stat.move_tries, 0)
+        fill!(stat.accepted_moves, 0)
+    end
+end
+
+function get_acceptance_stats!(isample::Int, opt::OptionsNuisance, stat::Stats)
+    if mod(isample-1, opt.stat_window) == 0
+        stat.accept_rate[:] = 100. *stat.accepted_moves./stat.move_tries
+        if opt.dispstatstoscreen
+            @info typeof(opt), stat.accept_rate
         end
         fill!(stat.move_tries, 0)
         fill!(stat.accepted_moves, 0)
@@ -924,7 +935,7 @@ end
 function write_history(isample::Int, optn::OptionsNuisance, mn::ModelNuisance, misfit::Float64,
                     statn::Stats, wpn::Writepointers_nuisance, T::Float64, writemodel::Bool)
 
-    write_history(optn, mn.nuisance, misfit, statn.accept_rate[1], isample, wpn.fp_costs,
+    write_history(optn, mn.nuisance, misfit, statn.accept_rate, isample, wpn.fp_costs,
                 wpn.fp_vals, T, writemodel)
 end
 

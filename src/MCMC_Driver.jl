@@ -322,7 +322,7 @@ function init_chain_darrays(opt_in::OptionsStat,
 
         stat_[idx]           = @spawnat chain.pid [Stats()]
         statns_[idx]         = @spawnat chain.pid [Stats()]
-        statn_[idx]          = @spawnat chain.pid [Stats()]
+        statn_[idx]          = @spawnat chain.pid [Stats(nmoves=optn.nnu)]
 
         F_in_[idx]           = @spawnat chain.pid [F_in]
         if opt_in.updatenonstat
