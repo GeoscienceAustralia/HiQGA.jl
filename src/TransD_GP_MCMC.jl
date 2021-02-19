@@ -797,17 +797,18 @@ function do_move!(mn::ModelNuisance, optn::OptionsNuisance, statn::Stats)
         end
     end
     new_nval = mn.nuisance[nidx] + optn.sdev[nidx]*randn()
-    if new_nval > optn.bounds[nidx,2] || new_nval < optn.bounds[nidx,1]
-        #model should not be modified if prior is violated
-        priorviolate = true
-    else
-        mn.nidx_mem = nidx
-        mn.nu_old = mn.nuisance[nidx]
-        mn.nuisance[nidx] = new_nval
+    while (new_nval<optn.bounds[nidx,1]) || (new_nval>optn.bounds[nidx,2])
+        (new_nval<optn.bounds[nidx,1]) && (new_nval = 2*optn.bounds[nidx,1] - new_nval)
+        (new_nval>optn.bounds[nidx,2]) && (new_nval = 2*optn.bounds[nidx,2] - new_nval)
     end
+
+    mn.nidx_mem = nidx
+    mn.nu_old = mn.nuisance[nidx]
+    mn.nuisance[nidx] = new_nval
+    priorviolate = false
     statn.move_tries[nidx] += 1
     # @info mn.nu_old, mn.nuisance[nidx], priorviolate
-    return 1, priorviolate
+    return nidx, priorviolate
 end
 
 function undo_move!(mn::ModelNuisance)
@@ -964,11 +965,12 @@ function write_history(opt::Options, fstar::AbstractArray, x_ftrain::AbstractArr
 end
 
 function write_history(optn::OptionsNuisance, nvals::Array{Float64,1}, misfit::Float64,
-                    acceptanceRate::Float64, iter::Int, fp_costs::Union{IOStream, Nothing},
+                    acceptanceRate::Array{Float64, 1}, iter::Int, fp_costs::Union{IOStream, Nothing},
                     fp_vals::Union{IOStream, Nothing}, T::Float64, writemodel::Bool)
     if (mod(iter-1, optn.save_freq) == 0 || iter == 1)
+        ar = mean(acceptanceRate) # TODO hacky for now, would like all acceptance rates
         if fp_costs != nothing
-            msg = @sprintf("%d %e %e %e\n", iter, acceptanceRate, misfit, T)
+            msg = @sprintf("%d %e %e %e\n", iter, ar, misfit, T)
             write(fp_costs, msg)
             flush(fp_costs)
         end

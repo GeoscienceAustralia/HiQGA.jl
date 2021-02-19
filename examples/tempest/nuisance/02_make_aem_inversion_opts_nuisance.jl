@@ -56,11 +56,11 @@ optn = transD_GP.OptionsNuisance(opt)
 optn.sdev =
     [
         0.0 #zTx
-        1.0 #zRx
-        1.0 #x_rx
+        0.05 #zRx
+        0.05 #x_rx
         0.0 #y_rx
         0.0 #rx_roll
-        0.4 #rx_pitch
+        0.02 #rx_pitch
         0.0 #rx_yaw
         0.0 #tx_roll
         0.0 #tx_pitch

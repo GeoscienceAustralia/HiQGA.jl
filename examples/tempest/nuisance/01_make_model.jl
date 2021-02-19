@@ -1,6 +1,4 @@
 using Revise
-cd(@__DIR__)
-begin using Pkg; Pkg.activate("../../../") end
 using PyPlot, DelimitedFiles, Random, Statistics, transD_GP
 
 Random.seed!(23)

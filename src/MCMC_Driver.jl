@@ -133,7 +133,7 @@ end
 #this only gets called for moves on the nuisance chain
 function mh_step!(mn::ModelNuisance, m::ModelStat, mns::ModelNonstat, F::Operator,
     optn::OptionsNuisance, statn::Stats,
-    Temp::Float64, current_misfit::Array{Float64,1})
+    Temp::Float64, movetype::Int, current_misfit::Array{Float64,1})
     if optn.updatenonstat
         new_misfit = get_misfit(mns, mn, optn, F)
     else
@@ -143,7 +143,7 @@ function mh_step!(mn::ModelNuisance, m::ModelStat, mns::ModelNonstat, F::Operato
     logalpha = (current_misfit[1] - new_misfit)/Temp
     if log(rand()) < logalpha
         current_misfit[1] = new_misfit
-        statn.accepted_moves[1] += 1
+        statn.accepted_moves[movetype] += 1
     else
         undo_move!(mn)
     end
@@ -231,7 +231,7 @@ function do_mcmc_step(mn::ModelNuisance, m::ModelStat, mns::ModelNonstat,
     movetype, priorviolate = do_move!(mn, optn, statn)
 
     if !priorviolate
-        mh_step!(mn, m, mns, F, optn, statn, Temp, current_misfit)
+        mh_step!(mn, m, mns, F, optn, statn, Temp, movetype, current_misfit)
     end
 
     get_acceptance_stats!(isample, optn, statn)
@@ -322,7 +322,7 @@ function init_chain_darrays(opt_in::OptionsStat,
 
         stat_[idx]           = @spawnat chain.pid [Stats()]
         statns_[idx]         = @spawnat chain.pid [Stats()]
-        statn_[idx]          = @spawnat chain.pid [Stats(nmoves=optn.nnu)]
+        statn_[idx]          = @spawnat chain.pid [Stats(nmoves=optn_in.nnu)]
 
         F_in_[idx]           = @spawnat chain.pid [F_in]
         if opt_in.updatenonstat
