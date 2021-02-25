@@ -176,6 +176,13 @@ function getfield!(m::Model, mn::ModelNuisance, tempest::Bfield)
 	getfield!(m, tempest)
 end
 
+function getfield!(m::Array{Float64}, mn::Array{Float64}, tempest::Bfield)
+    copyto!(tempest.ρ, tempest.nfixed+1:length(tempest.ρ), 10 .^m, 1:length(m))
+	update_geometry(tempest, vec(mn))
+	getfieldTD!(tempest, tempest.z, tempest.ρ)
+    nothing
+end
+
 function reducegreenstensor!(tempest)
 	x, y   = tempest.x_rx, tempest.y_rx
 	r      = tempest.F.rRx
@@ -325,6 +332,40 @@ end
 function plotmodelfield!(tempest::Bfield, Ρ::Vector{Array{Float64}};
                         figsize=(8,5), dz=-1., onesigma=true,
                         extendfrac=-1., fsize=10, alpha=0.1)
+	times, f, ax, nfixed, z  = setupaxis(tempest, Ρ, figsize, dz, onesigma,
+                          extendfrac, fsize, alpha)
+    for ρ in Ρ
+        getfield!(ρ, tempest)
+        tempest.Hz[.!tempest.selectz] .= NaN
+        tempest.Hx[.!tempest.selectx] .= NaN
+        ax[1].step(log10.(tempest.ρ[2:end]), tempest.z[2:end], "-k", alpha=alpha)
+        ax[2].semilogx(times,μ₀*abs.(tempest.Hz)*fTinv, "k", alpha=alpha, markersize=2)
+        ax[2].semilogx(times,μ₀*abs.(tempest.Hx)*fTinv, "k", alpha=alpha, markersize=2)
+    end
+	finishaxis(ax, f, z, dz, extendfrac, nfixed, fsize)
+end
+
+function plotmodelfield!(tempest::Bfield, Ρ::Vector{Array{Float64}},
+						mn::Array{Float64,2};
+                        figsize=(8,5), dz=-1., onesigma=true,
+                        extendfrac=-1., fsize=10, alpha=0.1)
+	@assert length(Ρ) == size(mn, 1)				
+	times, f, ax, nfixed, z  = setupaxis(tempest, Ρ, figsize, dz, onesigma,
+                          extendfrac, fsize, alpha)
+    for (i, ρ) in enumerate(Ρ)
+        getfield!(ρ, mn[i,:], tempest)
+        tempest.Hz[.!tempest.selectz] .= NaN
+        tempest.Hx[.!tempest.selectx] .= NaN
+        ax[1].step(log10.(tempest.ρ[2:end]), tempest.z[2:end], "-k", alpha=alpha)
+        ax[2].semilogx(times,μ₀*abs.(tempest.Hz)*fTinv, "k", alpha=alpha, markersize=2)
+        ax[2].semilogx(times,μ₀*abs.(tempest.Hx)*fTinv, "k", alpha=alpha, markersize=2)
+    end
+	finishaxis(ax, f, z, dz, extendfrac, nfixed, fsize)
+end
+
+function setupaxis(tempest::Bfield, Ρ,
+                   figsize, dz, onesigma,
+                   extendfrac, fsize, alpha)
     @assert all((dz, extendfrac) .> 0)
     sigma = onesigma ? 1.0 : 2.0
     f = figure(figsize=figsize)
@@ -344,15 +385,11 @@ function plotmodelfield!(tempest::Bfield, Ρ::Vector{Array{Float64}};
                         linestyle="none", marker=".", elinewidth=0, capsize=3, label="Bz")
     ax[2].errorbar(times, μ₀*abs.(dataHx)*fTinv, yerr = μ₀*sigma*σx*fTinv,
                         linestyle="none", marker=".", elinewidth=0, capsize=3, label="Bx")
-    for ρ in Ρ
-        getfield!(ρ, tempest)
-        tempest.Hz[.!tempest.selectz] .= NaN
-        tempest.Hx[.!tempest.selectx] .= NaN
-        ax[1].step(log10.(tempest.ρ[2:end]), tempest.z[2:end], "-k", alpha=alpha)
-        ax[2].semilogx(times,μ₀*abs.(tempest.Hz)*fTinv, "k", alpha=alpha, markersize=2)
-        ax[2].semilogx(times,μ₀*abs.(tempest.Hx)*fTinv, "k", alpha=alpha, markersize=2)
-    end
-    ax[1].grid()
+	times, f, ax, nfixed, z
+end
+
+function finishaxis(ax, f, z, dz, extendfrac, nfixed, fsize)
+	ax[1].grid()
     ax[1].set_ylabel("Depth m")
     ax[1].plot(xlim(), z[nfixed+1]*[1, 1], "--k")
     if dz > 0
@@ -374,7 +411,6 @@ function plotmodelfield!(tempest::Bfield, Ρ::Vector{Array{Float64}};
     ax[1].invert_xaxis()
     nicenup(f, fsize=fsize)
 end
-
 
 #for synthetics
 function set_noisy_data!(tempest::Bfield, z::Array{Float64,1}, ρ::Array{Float64,1};
