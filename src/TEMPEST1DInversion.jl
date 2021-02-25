@@ -74,8 +74,8 @@ function Bfield(;
 			    tx_roll = 0.,
 			    tx_pitch = 0.,
 			    tx_yaw = 0.,
-				order_tx = "yrp",
-				order_rx = "pry",
+				order_tx = "ypr",
+				order_rx = "ypr",
 				strictgeometry = true,
 				addprimary = false,
 				peakcurrent = 0.5)
@@ -112,7 +112,7 @@ end
 
 #TODO for nuisance moves in an MCMC chain
 function update_geometry(tempest::Bfield, geovec::Array{Float64,1},
-	order_rx = "pry", order_tx = "yrp")
+	order_rx = "ypr", order_tx = "ypr")
 	length(geovec) == 10 ||
 		throw(DimensionMismatch("TEMPEST geometry set with vector of wrong length."))
 	zTx = geovec[1]

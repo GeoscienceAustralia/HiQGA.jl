@@ -1,4 +1,4 @@
-using PyPlot, Revise, transD_GP, Random, Statistics, BenchmarkTools
+using PyPlot, Revise, transD_GP, Random, Statistics
 ## waveform and times
 ramp =  [  # -0.0400066666667    0.5
 			-0.0400000000000    0.0
@@ -70,12 +70,12 @@ for (ifn, fn) in enumerate(fnames)
 	plt.tight_layout()
 end
 ## time many random layers
-doprofile=false
-if doprofile
-	using BenchmarkTools
-	Random.seed!(435)
-	nlayers = 50
-	z = [-1e5, 0, 20, 50 .+ cumsum(15*rand(nlayers-3))...]
-	ρ = [1e13, 10, 1, 10 .^(-0.5 .+ 1.5*rand(nlayers-3))...]
-	@btime transD_GP.TEMPEST1DInversion.getfieldTD!($tempest, $z, $rho)
-end
+# doprofile=false
+# if doprofile
+# 	using BenchmarkTools
+# 	Random.seed!(435)
+# 	nlayers = 50
+# 	z = [-1e5, 0, 20, 50 .+ cumsum(15*rand(nlayers-3))...]
+# 	ρ = [1e13, 10, 1, 10 .^(-0.5 .+ 1.5*rand(nlayers-3))...]
+# 	@btime transD_GP.TEMPEST1DInversion.getfieldTD!($tempest, $z, $rho)
+# end

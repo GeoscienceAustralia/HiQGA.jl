@@ -1,5 +1,5 @@
-using Revise
-using PyPlot, DelimitedFiles, Random, Statistics, transD_GP
+using PyPlot, DelimitedFiles, Random, Statistics, Test, LinearAlgebra
+using Revise, transD_GP
 
 Random.seed!(23)
 
@@ -85,7 +85,7 @@ rx_roll2 = rx_roll + 3
 rx_pitch2 = rx_pitch - 10
 rx_yaw2 = rx_yaw + 3
 
-tx_roll2 = tx_roll - 45
+tx_roll2 = tx_roll - 15
 tx_pitch2 = tx_pitch - 4
 tx_yaw2 = tx_yaw - 3
 geovec = [zTx2, zRx2, x_rx2, y_rx2,
@@ -119,4 +119,4 @@ legend()
 @testset "checking tempest updates" begin
 	@test norm(tempest.Hz - tempest2.Hz) < 1e-12
 	@test norm(tempest.Hx - tempest2.Hx) < 1e-12
-end	
+end
