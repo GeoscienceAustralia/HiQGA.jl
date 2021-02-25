@@ -1,5 +1,4 @@
-using Revise
-using PyPlot, DelimitedFiles, Random, Statistics, transD_GP
+using PyPlot, DelimitedFiles, Random, Statistics, Test, Revise, transD_GP
 
 Random.seed!(23)
 
@@ -68,13 +67,16 @@ tempest = transD_GP.TEMPEST1DInversion.Bfield(
     rx_roll = rx_roll, rx_pitch = rx_pitch, rx_yaw = rx_yaw,
     tx_roll = tx_roll, tx_pitch = tx_pitch, tx_yaw = tx_yaw,
 	ramp = ramp, times = times,
-	order_tx = "ypr",
-	order_rx = "ypr",
 	z=z,
 	ρ=ρ,
 	addprimary = true #this ensures that the geometry update actually changes everything that needs to be
 )
-# plot before adding noise
+# plot before testing
 transD_GP.TEMPEST1DInversion.plotmodelfield!(tempest,z,ρ)
-## compute noisy data to invert
-transD_GP.TEMPEST1DInversion.set_noisy_data!(tempest, z, ρ)
+
+Bx, By, Bz = tempest.Hx[1]*μ*1e15, tempest.Hy[1]*μ*1e15, tempest.Hz[1]*μ*1e15
+@testset "Primary field YPR order checks" begin
+	@test isapprox(Bx, 30.2751, atol=1e-4)
+	@test isapprox(By, -3.7899, atol=1e-4)
+	@test isapprox(Bz, -13.8092, atol=1e-4)
+end

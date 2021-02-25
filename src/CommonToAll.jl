@@ -398,12 +398,12 @@ function unwrap(v, inplace=false)
   return unwrapped
 end
 
-function setupz(zstart, extendfrac;n=100, dz=10, showplot=false)
+function setupz(zstart, extendfrac;n=100, dz=10, showplot=false, atol=1e-12)
     @assert extendfrac>1
     znrange        = 1.0:n
     zboundaries    = [zstart, zstart .+ geomprogdepth.(znrange, dz, extendfrac)...]
     thickness      = dz*(extendfrac).^(znrange .-1)
-    @assert abs(diff(zboundaries)[end] - thickness[end]) < 1e-12
+    @assert isapprox(diff(zboundaries)[end], thickness[end], atol=atol)
     zall           = zboundaries[1:end-1] + thickness/2
     znall          = getn.(zall .- zstart, dz, extendfrac)
     showplot && plotdepthtransforms(zall, znall, zboundaries, thickness)
