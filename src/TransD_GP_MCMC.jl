@@ -174,13 +174,14 @@ mutable struct OptionsNuisance
     history_mode           :: String
     costs_filename         :: String
     vals_filename          :: String
+    fdataname              :: String
 end
 
 #make an empty nuisance options struct
 OptionsNuisance(opt::OptionsStat, updatenonstat=false) =
     OptionsNuisance([], Array{Float64,2}(undef,0,2), 0, false,
      updatenonstat, false, opt.stat_window, opt.dispstatstoscreen, opt.report_freq, opt.save_freq, opt.history_mode, "misfits_nuisance_"*opt.fdataname*".bin",
-     "values_nuisance_"*opt.fdataname*".bin")
+     "values_nuisance_"*opt.fdataname*".bin", opt.fdataname)
 
 #"Model" means a Gaussian-process parametrised function
 abstract type Model end

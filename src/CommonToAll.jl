@@ -140,14 +140,15 @@ function assemblenuisancesatT(optn::OptionsNuisance;
     ttarg = sortedTs[temperaturenum]
     nmodels = sum(Tacrosschains[firsti:end,:] .== ttarg)
     topt = deepcopy(optn)
-    vals_filename = "values_nuisance_1.bin"
+    fdataname = optn.fdataname
+    vals_filename = "values_nuisance_"*fdataname*"1.bin"
     #drop iteration number
     ndat = readdlm(vals_filename, ' ', Float64)[firsti:end,2:end]
     mvals = zeros(nmodels,size(ndat,2))
     mask = Tacrosschains[firsti:end,1] .== ttarg
     mvals[mask,:] .= ndat[mask,:]
     for ichain = 2:size(Tacrosschains,2)
-        vals_filename = "values_nuisance_$ichain.bin"
+        vals_filename = "values_nuisance_"*fdataname*"$ichain.bin"
         ndat = readdlm(vals_filename, ' ', Float64)[firsti:end,2:end]
         mask = Tacrosschains[firsti:end, ichain] .== ttarg
         mvals[mask,:] .= ndat[mask,:]
@@ -187,7 +188,7 @@ end
 
 function gettargtemps(optn_in::OptionsNuisance)
     optn = deepcopy(optn_in)
-    costs_filename = "misfits_nuisance"
+    costs_filename = "misfits_"*optn.fdataname*"nuisance"
     nchains = getnchains(costs_filename)
     @info "Number of chains is $nchains"
     optn.costs_filename = costs_filename*"_1.bin"
@@ -204,17 +205,13 @@ end
 
 function getstats(optin::Options;
                   figsize=(5,6), fontsize=12,
-                  nxticks=5, nyticks=5, alpha=0.6, chains=[-1])
-    if chains[1] == -1
-        nchains = getnchains(costs_filename)
-        chains = 1:nchains
-    else
-        nchains = length(chains)
-    end
-    @info "Number of chains is $nchains"
+                  nxticks=5, nyticks=5, alpha=0.6)
     isns = checkns(optin)
     opt = deepcopy(optin)
     costs_filename = "misfits_"*opt.fdataname*isns
+    nchains = getnchains(costs_filename)
+    chains = 1:nchains
+    @info "Number of chains is $nchains"
     opt.costs_filename    = costs_filename*"_1.bin"
     iters          = history(opt, stat=:iter)
     statnames = [:acceptanceRateBirth, :acceptanceRateDeath,
@@ -261,7 +258,8 @@ function getchi2forall(optn_in::OptionsNuisance;
                        nxticks = 0,
                        gridon = false)
     optn = deepcopy(optn_in)
-    costs_filename = "misfits_nuisance"
+    fdataname = optn.fdataname
+    costs_filename = "misfits_"*fdataname*"nuisance"
     if nchains == 1
         nchains = getnchains(costs_filename)
     end
