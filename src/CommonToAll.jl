@@ -242,6 +242,38 @@ function getstats(optin::Options;
     nicenup(f, fsize=fontsize)
 end
 
+function getstats(optin::OptionsNuisance;
+                  figsize=(5,6), fontsize=12,
+                  nxticks=5, nyticks=5, alpha=0.6)
+    opt = deepcopy(optin)
+    costs_filename = "misfits_"*opt.fdataname*"nuisance"
+    nchains = getnchains(costs_filename)
+    chains = 1:nchains
+    @info "Number of chains is $nchains"
+    opt.costs_filename = costs_filename*"_1.bin"
+    iters          = history(opt, stat=:iter)
+    @info "here"
+    statname = :acceptanceRate
+    f,ax = plt.subplots(1, 1, figsize=figsize)
+    maxar = 0
+    for (ichain, chain) in enumerate(chains)
+        opt.costs_filename = costs_filename*"_$chain.bin"
+        ar = history(opt, stat=statname)
+        mx = maximum(ar[.!isnan.(ar)])
+        mx > maxar && (maxar = mx)
+        ax.plot(iters, ar, alpha=alpha)
+        if ichain == nchains
+            ax.set_ylabel("nuisance acc. %")
+            ax.set_xlabel("mcmc step no.")
+            ax.set_xticks(LinRange(iters[1], iters[end], nxticks))
+            ax.set_xlim(extrema(iters))
+            ax.set_yticks(LinRange(0, maxar, nyticks))
+            ax.set_ylim(0, maxar)
+        end
+    end
+    nicenup(f, fsize=fontsize)
+end
+
 function checkns(optin::Options)
     isns = typeof(optin) == OptionsNonstat
     @info "ns is $isns"

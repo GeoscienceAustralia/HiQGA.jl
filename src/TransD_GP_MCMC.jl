@@ -262,12 +262,17 @@ end
 
 function init(opt::OptionsNuisance)
     @info opt
-    if length(opt.bounds) > 0
-        nuisance = opt.bounds[:,1] + diff(opt.bounds, dims = 2)[:].*rand(opt.nnu)
-    else
-        nuisance = []
+    if opt.history_mode == "w" # fresh start
+        if length(opt.bounds) > 0
+            nuisance = opt.bounds[:,1] + diff(opt.bounds, dims = 2)[:].*rand(opt.nnu)
+        else
+            nuisance = []
+        end
+    else # is a restart
+        # TODO hacky I don't like this
+        @info "reading $(opt.vals_filename)"
+        nuisance = vec(readdlm(opt.vals_filename)[end,2:1+opt.nnu])
     end
-    #TODO load history if specified (like with GP init)
     return ModelNuisance(nuisance, 0, 0.)
 end
 
@@ -837,8 +842,9 @@ end
 function get_acceptance_stats!(isample::Int, opt::OptionsNuisance, stat::Stats)
     if mod(isample-1, opt.stat_window) == 0
         stat.accept_rate[:] = 100. *stat.accepted_moves./stat.move_tries
+        ar = stat.accept_rate
         if opt.dispstatstoscreen
-            @info typeof(opt), stat.accept_rate
+            @info typeof(opt), round.(Int, ar[.!isnan.(ar)])
         end
         fill!(stat.move_tries, 0)
         fill!(stat.accepted_moves, 0)
@@ -898,6 +904,10 @@ function close_history(wp::Writepointers)
         close(wp.fp_x_ftrain)
     end
     @info "closed files"
+end
+
+function setrestartflag(opt)
+    opt.history_mode = "a"
 end
 
 function close_history(wpn::Writepointers_nuisance)
@@ -969,9 +979,9 @@ function write_history(optn::OptionsNuisance, nvals::Array{Float64,1}, misfit::F
                     acceptanceRate::Array{Float64, 1}, iter::Int, fp_costs::Union{IOStream, Nothing},
                     fp_vals::Union{IOStream, Nothing}, T::Float64, writemodel::Bool)
     if (mod(iter-1, optn.save_freq) == 0 || iter == 1)
-        ar = mean(acceptanceRate) # TODO hacky for now, would like all acceptance rates
+        ar = acceptanceRate # TODO hacky for now, would like all acceptance rates
         if fp_costs != nothing
-            msg = @sprintf("%d %e %e %e\n", iter, ar, misfit, T)
+            msg = @sprintf("%d %e %e %e\n", iter, mean(ar[.!isnan.(ar)]), misfit, T)
             write(fp_costs, msg)
             flush(fp_costs)
         end
