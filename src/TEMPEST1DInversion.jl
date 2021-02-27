@@ -349,7 +349,7 @@ function plotmodelfield!(tempest::Bfield, Ρ::Vector{Array{Float64}},
 						mn::Array{Float64,2};
                         figsize=(8,5), dz=-1., onesigma=true,
                         extendfrac=-1., fsize=10, alpha=0.1)
-	@assert length(Ρ) == size(mn, 1)				
+	@assert length(Ρ) == size(mn, 1)
 	times, f, ax, nfixed, z  = setupaxis(tempest, Ρ, figsize, dz, onesigma,
                           extendfrac, fsize, alpha)
     for (i, ρ) in enumerate(Ρ)
@@ -403,7 +403,7 @@ function finishaxis(ax, f, z, dz, extendfrac, nfixed, fsize)
     axn.set_ylabel("Depth index", rotation=-90)
     ax[1].set_xlabel("Log₁₀ρ")
     ax[1].set_title("Model")
-    ax[2].set_ylabel(L"B field 10¹⁵")
+    ax[2].set_ylabel("B field 10¹⁵")
     ax[2].set_xlabel("Time (s)")
     ax[2].set_title("Transient response")
     ax[2].legend()

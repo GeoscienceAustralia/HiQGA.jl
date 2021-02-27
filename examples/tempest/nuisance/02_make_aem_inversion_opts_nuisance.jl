@@ -11,7 +11,7 @@ xbounds = permutedims([extrema(znall)...])
 updatenonstat = false
 needλ²fromlog = false
 λ, δ = [2], 0.1
-
+fdataname = "nutest_"
 ## Initialize a stationary GP using these options
 Random.seed!(12)
 opt = transD_GP.OptionsStat(nmin = nmin,
@@ -21,6 +21,7 @@ opt = transD_GP.OptionsStat(nmin = nmin,
                         xall = xall,
                         λ = λ,
                         δ = δ,
+                        fdataname = fdataname,
                         demean = demean,
                         sdev_prop = sdev_prop,
                         sdev_pos = sdev_pos,

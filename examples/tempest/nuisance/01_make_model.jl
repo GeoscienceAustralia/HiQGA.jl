@@ -15,11 +15,11 @@ z, ρ, nfixed = transD_GP.makezρ(zboundaries; zfixed=zfixed, ρfixed=ρfixed)
 
 ## geometry parameters for tempest
 zTx = -120
-zRx = -80
-x_rx = -115.0
+zRx = -82
+x_rx = -113.0
 y_rx = 0.
 rx_roll = 0.
-rx_pitch = 0.
+rx_pitch = 2.
 rx_yaw = 0.
 tx_roll = 0.
 tx_pitch = 0.
