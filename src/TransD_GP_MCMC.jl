@@ -219,8 +219,7 @@ mutable struct ModelNuisance
     #allowed move being a value change. Contrasting with the GP parametrisation
     #of the main part of the model which allows birth and death of GP nodes
     nuisance      :: Array{Float64}
-    nidx_mem      :: Int #last nuisance val changed
-    nu_old        :: Float64 #prev val of nidx_mem
+    nu_old        :: Array{Float64} #prev val of nidx_mem
 end
 
 mutable struct Stats
@@ -273,7 +272,7 @@ function init(opt::OptionsNuisance)
         @info "reading $(opt.vals_filename)"
         nuisance = vec(readdlm(opt.vals_filename)[end,2:1+opt.nnu])
     end
-    return ModelNuisance(nuisance, 0, 0.)
+    return ModelNuisance(nuisance, copy(nuisance))
 end
 
 function calcfstar!(fstar::Array{Float64,2}, ftrain::Array{Float64,2},
@@ -793,13 +792,13 @@ function undo_move!(movetype::Int, m::ModelStat, opt::OptionsStat,
 end
 
 function do_move!(mn::ModelNuisance, optn::OptionsNuisance, statn::Stats)
-    priorviolate = false
     nidx = 0
     while true
         nidx = rand(1:optn.nnu)
         numin, numax = extrema(optn.bounds[nidx,:])
         if abs(numin-numax)>1e-12
-             break
+            optn.bounds[nidx,:] .= [numin, numax]
+            break
         end
     end
     new_nval = mn.nuisance[nidx] + optn.sdev[nidx]*randn()
@@ -808,19 +807,75 @@ function do_move!(mn::ModelNuisance, optn::OptionsNuisance, statn::Stats)
         (new_nval>optn.bounds[nidx,2]) && (new_nval = 2*optn.bounds[nidx,2] - new_nval)
     end
 
-    mn.nidx_mem = nidx
-    mn.nu_old = mn.nuisance[nidx]
+    mn.nu_old[:] = mn.nuisance
     mn.nuisance[nidx] = new_nval
-    priorviolate = false
     statn.move_tries[nidx] += 1
     # @info mn.nu_old, mn.nuisance[nidx], priorviolate
-    return nidx, priorviolate
+    return nidx, false
 end
+
+function do_move!(mn::ModelNuisance, optn::OptionsNuisance, statn::Stats, W::Array{Float64, 2})
+    idxnotzero = zeros(Int,0)
+    for i = 1:optn.nnu
+        numin, numax = extrema(optn.bounds[i,:])
+        if abs(numin-numax)>1e-12
+             push!(idxnotzero, i)
+        end
+    end
+    newoptn = deepcopy(optn)
+    boundsmean = mean(optn.bounds[idxnotzero,:], dims=2)
+    newbounds = (optn.bounds[idxnotzero,:] .- boundsmean)'*W
+    newoptn.bounds[idxnotzero,:] = newbounds' .+ boundsmean
+    newmn = deepcopy(mn)
+    newnuisance = (mn.nuisance[idxnotzero] - boundsmean)'*W
+    newmn.nuisance[idxnotzero] = newnuisance' + boundsmean
+    # newsdev = (optn.sdev[idxnotzero])'*W
+    # newoptn.sdev[idxnotzero] = abs.(newsdev')
+    nidx, p = do_move!(newmn, newoptn, statn)
+    newmn.nuisance[idxnotzero] -= boundsmean
+    newnuisance = W*newmn.nuisance[idxnotzero] + boundsmean
+    mn.nu_old[:] = mn.nuisance
+    mn.nuisance[idxnotzero] = newnuisance
+    nidx, false
+end
+
+# function do_move!(mn::ModelNuisance, optn::OptionsNuisance, statn::Stats, W::Array{Float64, 2})
+#     idxnotzero = zeros(Int,0)
+#     # find out how many actual nuisances
+#     for i = 1:optn.nnu
+#         numin, numax = extrema(optn.bounds[i,:])
+#         if abs(numin-numax)>1e-12
+#              push!(idxnotzero, i)
+#         end
+#     end
+#     # make backup
+#     mn.nu_old[:] = mn.nuisance
+#     # find mean
+#     boundsmean = mean(optn.bounds[idxnotzero,:], dims=2)
+#     # demean and rotate
+#     mn.nuisance[idxnotzero] = (mn.nuisance[idxnotzero] - boundsmean)'*W
+#     # pick one of the idxnotzero
+#     nidx = rand(idxnotzero)
+#     # perturb this idx
+#     mn.nuisance[nidx] += optn.sdev[nidx]*randn()
+#     # unrotate and add mean back
+#     mn.nuisance[idxnotzero] = W*mn.nuisance[idxnotzero] + boundsmean
+#     # check for prior violation
+#     priorviolate = false
+#     for idx in idxnotzero
+#         if (mn.nuisance[idx]<optn.bounds[idx,1]) || (mn.nuisance[idx]>optn.bounds[idx,2])
+#             # (mn.nuisance[idx]<optn.bounds[idx,1]) && (mn.nuisance[idx] = 2*optn.bounds[idx,1] - mn.nuisance[idx])
+#             # (mn.nuisance[idx]>optn.bounds[idx,2]) && (mn.nuisance[idx] = 2*optn.bounds[idx,2] - mn.nuisance[idx])
+#             priorviolate = true
+#         end
+#     end
+#     statn.move_tries[nidx] += 1
+#     nidx, priorviolate
+# end
 
 function undo_move!(mn::ModelNuisance)
     # @info mn.nidx_mem, mn.nu_old, mn.nuisance[mn.nidx_mem]
-    mn.nuisance[mn.nidx_mem] = mn.nu_old
-    mn.nidx_mem = 0 #delete memory so we can't undo twice
+    mn.nuisance[:] = mn.nu_old
 end
 
 function get_acceptance_stats!(isample::Int, opt::Options, stat::Stats)

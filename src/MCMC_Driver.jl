@@ -227,8 +227,10 @@ end
 function do_mcmc_step(mn::ModelNuisance, m::ModelStat, mns::ModelNonstat,
     optn::OptionsNuisance, statn::Stats, current_misfit::Array{Float64,1},
     F::Operator, Temp::Float64, isample::Int, wpn::Writepointers_nuisance)
-
-    movetype, priorviolate = do_move!(mn, optn, statn)
+    W = [ -0.462375   0.597556  -0.655085
+          -0.759846  -0.647806  -0.054598
+          -0.456994   0.47252    0.75358]
+    movetype, priorviolate = do_move!(mn, optn, statn, W)
 
     if !priorviolate
         mh_step!(mn, m, mns, F, optn, statn, Temp, movetype, current_misfit)
