@@ -1,5 +1,5 @@
 using Printf, LinearAlgebra, Statistics, Distributed, PositiveFactorizations,
-      Distances, NearestNeighbors, DelimitedFiles
+      Distances, NearestNeighbors, DelimitedFiles, StatsBase
 
 using .GP
 
@@ -175,13 +175,52 @@ mutable struct OptionsNuisance
     costs_filename         :: String
     vals_filename          :: String
     fdataname              :: String
+
+    W                      :: Array{Float64, 2}
+    idxnotzero             :: Array{Int, 1}
+    rotatebounds           :: Array{Float64, 2}
+    Xbar                   :: Array{Float64, 1}
 end
 
 #make an empty nuisance options struct
 OptionsNuisance(opt::OptionsStat, updatenonstat=false) =
     OptionsNuisance([], Array{Float64,2}(undef,0,2), 0, false,
-     updatenonstat, false, opt.stat_window, opt.dispstatstoscreen, opt.report_freq, opt.save_freq, opt.history_mode, "misfits_nuisance_"*opt.fdataname*".bin",
-     "values_nuisance_"*opt.fdataname*".bin", opt.fdataname)
+     updatenonstat, opt.debug, opt.stat_window, opt.dispstatstoscreen, opt.report_freq, opt.save_freq, opt.history_mode, "misfits_nuisance_"*opt.fdataname*".bin",
+     "values_nuisance_"*opt.fdataname*".bin", opt.fdataname, [0 0.], [0], [0. 0.], [0.])
+
+function setnucov(optn::OptionsNuisance; C = nothing, nsamples=100_000)
+    idxnotzero = zeros(Int,0)
+    for i = 1:optn.nnu
+        numin, numax = extrema(optn.bounds[i,:])
+        if abs(numin-numax)>1e-12
+             push!(idxnotzero, i)
+        end
+    end
+    optn.idxnotzero = idxnotzero
+
+    nnonzero = length(idxnotzero)
+    W = Matrix(1.0I, nnonzero, nnonzero)
+    if C != nothing
+        W = eigen(C).vectors
+    end
+    optn.W = W
+    X = zeros(nsamples, nnonzero)
+    for (i,idx) in enumerate(idxnotzero)
+        X[:,i] = optn.bounds[idx, 1] .+
+                   diff(optn.bounds[idx,:])[:].*rand(nsamples)
+    end
+    Xbar = mean(optn.bounds[idxnotzero,:], dims=2)
+    optn.Xbar = vec(Xbar)
+    X = X .- Xbar'
+    T = X*W
+
+    rotatebounds = zeros(nnonzero, 2)
+    for i in 1:nnonzero
+        rotatebounds[i,:] .= extrema(T[:,i])
+    end
+    optn.rotatebounds = rotatebounds
+    nothing
+end
 
 #"Model" means a Gaussian-process parametrised function
 abstract type Model end
@@ -815,24 +854,18 @@ function do_move!(mn::ModelNuisance, optn::OptionsNuisance, statn::Stats)
 end
 
 function do_move!(mn::ModelNuisance, optn::OptionsNuisance, statn::Stats, W::Array{Float64, 2})
-    idxnotzero = zeros(Int,0)
-    for i = 1:optn.nnu
-        numin, numax = extrema(optn.bounds[i,:])
-        if abs(numin-numax)>1e-12
-             push!(idxnotzero, i)
-        end
-    end
+    idxnotzero = optn.idxnotzero
+    boundsmean = optn.Xbar
+    W = optn.W
+
     newoptn = deepcopy(optn)
-    boundsmean = mean(optn.bounds[idxnotzero,:], dims=2)
-    newbounds = (optn.bounds[idxnotzero,:] .- boundsmean)'*W
-    newoptn.bounds[idxnotzero,:] = newbounds' .+ boundsmean
+    newoptn.bounds[idxnotzero,:] = optn.rotatebounds
     newmn = deepcopy(mn)
     newnuisance = (mn.nuisance[idxnotzero] - boundsmean)'*W
-    newmn.nuisance[idxnotzero] = newnuisance' + boundsmean
+    newmn.nuisance[idxnotzero] = newnuisance'
     # newsdev = (optn.sdev[idxnotzero])'*W
     # newoptn.sdev[idxnotzero] = abs.(newsdev')
     nidx, p = do_move!(newmn, newoptn, statn)
-    newmn.nuisance[idxnotzero] -= boundsmean
     newnuisance = W*newmn.nuisance[idxnotzero] + boundsmean
     mn.nu_old[:] = mn.nuisance
     mn.nuisance[idxnotzero] = newnuisance
