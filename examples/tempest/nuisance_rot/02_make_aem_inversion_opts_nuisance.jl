@@ -52,23 +52,20 @@ optdummy = transD_GP.OptionsNonstat(opt,
 #this is achieved with some computational waste by
 #having the fixed parameters set as nuisances with
 #zero-width bounds.
-optn = transD_GP.OptionsNuisance(opt)
-
-optn.sdev =
-    [
+optn = transD_GP.OptionsNuisance(opt;
+    sdev = [
         0.0 #zTx
-        0.05 #zRx
-        0.05 #x_rx
+        0.0125 #zRx
+        0.02 #x_rx
         0.0 #y_rx
         0.0 #rx_roll
-        0.02 #rx_pitch
+        0.125 #rx_pitch
         0.0 #rx_yaw
         0.0 #tx_roll
         0.0 #tx_pitch
         0.0 #tx_yaw
-    ]
-optn.bounds =
-    [
+           ],
+    bounds = [
       zTx               zTx
       zRx - 5.0         zRx + 5.0
       x_rx - 5.0        x_rx + 5.0
@@ -79,14 +76,12 @@ optn.bounds =
       tx_roll           tx_roll
       tx_pitch          tx_pitch
       tx_yaw            tx_yaw
-    ]
-optn.nnu = 10
-
-optn.updatenuisances = true
-##
-optn
-
-
+          ],
+    updatenuisances = true,
+    C = [0.160048    0.0131349   -0.183764
+        0.0131349   0.00132317  -0.0154768
+        -0.183764   -0.0154768    0.211669]
+        )
 # ##debug stuff
 # mn = transD_GP.init(optn)
 # mstat = transD_GP.init(opt)
