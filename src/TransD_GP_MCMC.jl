@@ -182,13 +182,23 @@ mutable struct OptionsNuisance
     Xbar                   :: Array{Float64, 1}
 end
 
-#make an empty nuisance options struct
-OptionsNuisance(opt::OptionsStat, updatenonstat=false) =
-    OptionsNuisance([], Array{Float64,2}(undef,0,2), 0, false,
+function OptionsNuisance(opt::OptionsStat;
+        C = nothing, nsamples=100_000, updatenonstat=false,
+        sdev = [0.1, 0.1],
+        bounds = [0 1.; 0 1.],
+        updatenuisances = false)
+
+    @assert all(sdev .>= 0.)
+    @assert all(diff(bounds, dims=2) .>= 0)
+    @assert length(sdev) == size(bounds, 1)
+    nnu = length(sdev)
+
+    # make an empty nuisance options struct
+    optn = OptionsNuisance(sdev, bounds, nnu, updatenuisances,
      updatenonstat, opt.debug, opt.stat_window, opt.dispstatstoscreen, opt.report_freq, opt.save_freq, opt.history_mode, "misfits_nuisance_"*opt.fdataname*".bin",
      "values_nuisance_"*opt.fdataname*".bin", opt.fdataname, [0 0.], [0], [0. 0.], [0.])
 
-function setnucov(optn::OptionsNuisance; C = nothing, nsamples=100_000)
+    # fill remaining fields with sensible default values
     idxnotzero = zeros(Int,0)
     for i = 1:optn.nnu
         numin, numax = extrema(optn.bounds[i,:])
@@ -197,29 +207,35 @@ function setnucov(optn::OptionsNuisance; C = nothing, nsamples=100_000)
         end
     end
     optn.idxnotzero = idxnotzero
-
     nnonzero = length(idxnotzero)
+
+    # Identity rotation matrix if norough covariance estimate provided
     W = Matrix(1.0I, nnonzero, nnonzero)
     if C != nothing
         W = eigen(C).vectors
     end
     optn.W = W
+
+    # Generate random samples from uniform nuisance priors
     X = zeros(nsamples, nnonzero)
     for (i,idx) in enumerate(idxnotzero)
         X[:,i] = optn.bounds[idx, 1] .+
                    diff(optn.bounds[idx,:])[:].*rand(nsamples)
     end
+
+    # Demean them and transform to principal directions
     Xbar = mean(optn.bounds[idxnotzero,:], dims=2)
     optn.Xbar = vec(Xbar)
     X = X .- Xbar'
     T = X*W
 
+    # Find the bounds in rotated space
     rotatebounds = zeros(nnonzero, 2)
     for i in 1:nnonzero
         rotatebounds[i,:] .= extrema(T[:,i])
     end
     optn.rotatebounds = rotatebounds
-    nothing
+    optn
 end
 
 #"Model" means a Gaussian-process parametrised function
@@ -830,16 +846,8 @@ function undo_move!(movetype::Int, m::ModelStat, opt::OptionsStat,
     nothing
 end
 
-function do_move!(mn::ModelNuisance, optn::OptionsNuisance, statn::Stats)
-    nidx = 0
-    while true
-        nidx = rand(1:optn.nnu)
-        numin, numax = extrema(optn.bounds[nidx,:])
-        if abs(numin-numax)>1e-12
-            optn.bounds[nidx,:] .= [numin, numax]
-            break
-        end
-    end
+function do_oneaxis_move!(mn::ModelNuisance, optn::OptionsNuisance, statn::Stats)
+    nidx = rand(optn.idxnotzero)
     new_nval = mn.nuisance[nidx] + optn.sdev[nidx]*randn()
     while (new_nval<optn.bounds[nidx,1]) || (new_nval>optn.bounds[nidx,2])
         (new_nval<optn.bounds[nidx,1]) && (new_nval = 2*optn.bounds[nidx,1] - new_nval)
@@ -849,11 +857,10 @@ function do_move!(mn::ModelNuisance, optn::OptionsNuisance, statn::Stats)
     mn.nu_old[:] = mn.nuisance
     mn.nuisance[nidx] = new_nval
     statn.move_tries[nidx] += 1
-    # @info mn.nu_old, mn.nuisance[nidx], priorviolate
-    return nidx, false
+    return nidx
 end
 
-function do_move!(mn::ModelNuisance, optn::OptionsNuisance, statn::Stats, W::Array{Float64, 2})
+function do_move!(mn::ModelNuisance, optn::OptionsNuisance, statn::Stats)
     idxnotzero = optn.idxnotzero
     boundsmean = optn.Xbar
     W = optn.W
@@ -863,51 +870,14 @@ function do_move!(mn::ModelNuisance, optn::OptionsNuisance, statn::Stats, W::Arr
     newmn = deepcopy(mn)
     newnuisance = (mn.nuisance[idxnotzero] - boundsmean)'*W
     newmn.nuisance[idxnotzero] = newnuisance'
-    # newsdev = (optn.sdev[idxnotzero])'*W
-    # newoptn.sdev[idxnotzero] = abs.(newsdev')
-    nidx, p = do_move!(newmn, newoptn, statn)
+    nidx = do_oneaxis_move!(newmn, newoptn, statn)
     newnuisance = W*newmn.nuisance[idxnotzero] + boundsmean
     mn.nu_old[:] = mn.nuisance
     mn.nuisance[idxnotzero] = newnuisance
-    nidx, false
+    nidx
 end
 
-# function do_move!(mn::ModelNuisance, optn::OptionsNuisance, statn::Stats, W::Array{Float64, 2})
-#     idxnotzero = zeros(Int,0)
-#     # find out how many actual nuisances
-#     for i = 1:optn.nnu
-#         numin, numax = extrema(optn.bounds[i,:])
-#         if abs(numin-numax)>1e-12
-#              push!(idxnotzero, i)
-#         end
-#     end
-#     # make backup
-#     mn.nu_old[:] = mn.nuisance
-#     # find mean
-#     boundsmean = mean(optn.bounds[idxnotzero,:], dims=2)
-#     # demean and rotate
-#     mn.nuisance[idxnotzero] = (mn.nuisance[idxnotzero] - boundsmean)'*W
-#     # pick one of the idxnotzero
-#     nidx = rand(idxnotzero)
-#     # perturb this idx
-#     mn.nuisance[nidx] += optn.sdev[nidx]*randn()
-#     # unrotate and add mean back
-#     mn.nuisance[idxnotzero] = W*mn.nuisance[idxnotzero] + boundsmean
-#     # check for prior violation
-#     priorviolate = false
-#     for idx in idxnotzero
-#         if (mn.nuisance[idx]<optn.bounds[idx,1]) || (mn.nuisance[idx]>optn.bounds[idx,2])
-#             # (mn.nuisance[idx]<optn.bounds[idx,1]) && (mn.nuisance[idx] = 2*optn.bounds[idx,1] - mn.nuisance[idx])
-#             # (mn.nuisance[idx]>optn.bounds[idx,2]) && (mn.nuisance[idx] = 2*optn.bounds[idx,2] - mn.nuisance[idx])
-#             priorviolate = true
-#         end
-#     end
-#     statn.move_tries[nidx] += 1
-#     nidx, priorviolate
-# end
-
 function undo_move!(mn::ModelNuisance)
-    # @info mn.nidx_mem, mn.nu_old, mn.nuisance[mn.nidx_mem]
     mn.nuisance[:] = mn.nu_old
 end
 
