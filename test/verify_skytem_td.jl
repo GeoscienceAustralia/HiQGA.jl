@@ -3,6 +3,7 @@ include("skytem_response.jl")
 ##  modeling parameters
 ntimesperdecade = 10
 nfreqsperdecade = 5
+freqlow = 1e-3
 ## LM operator
 Flm = transD_GP.AEM_VMD_HMD.HFieldDHT(
                       ntimesperdecade = ntimesperdecade,
@@ -13,7 +14,9 @@ Flm = transD_GP.AEM_VMD_HMD.HFieldDHT(
                       zTx    = zTx,
                       rRx    = rRx,
                       rTx    = rTx,
-                      zRx    = zRxLM)
+                      zRx    = zRxLM,
+                      freqlow = freqlow
+                      )
 ## HM operator
 Fhm = transD_GP.AEM_VMD_HMD.HFieldDHT(
                       ntimesperdecade = ntimesperdecade,
@@ -24,7 +27,9 @@ Fhm = transD_GP.AEM_VMD_HMD.HFieldDHT(
                       zTx    = zTx,
                       rRx    = rRx,
                       rTx    = rTx,
-                      zRx    = zRxHM)
+                      zRx    = zRxHM,
+                      freqlow = freqlow
+                      )
 ## get the fields in place
 @time transD_GP.AEM_VMD_HMD.getfieldTD!(Flm, zfixed, rho)
 @time transD_GP.AEM_VMD_HMD.getfieldTD!(Fhm, zfixed, rho)

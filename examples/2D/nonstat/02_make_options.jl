@@ -6,7 +6,7 @@ Klog10λ = transD_GP.GP.Mat32()
 log10bounds = [log10(10) log10(2000); log10(10) log10(2000)]
 δlog10λ = 0.3
 λlog10λ = 0.1*abs.([diff([extrema(xall[1,:])...])[1], diff([extrema(xall[2,:])...])[1]])
-demean = false
+demean = false # essential for length scale change approximations
 sdev_proplog10λ = 0.05*diff(log10bounds, dims=2)[:]
 sdev_poslog10λ = 0.05*abs.([diff([extrema(xall[1,:])...])[1], diff([extrema(xall[2,:])...])[1]])
 ## Initialize a lengthscale model using these options
@@ -28,6 +28,7 @@ optlog10λ = transD_GP.OptionsStat(nmin = nminlog10λ,
                         )
 ## make options for the nonstationary actual properties GP
 nmin, nmax = 2, 100
+ftrain = img.d[img.select]
 fbounds = permutedims([extrema(ftrain)...])
 sdev_prop = 0.05*diff(fbounds, dims=2)[:]
 sdev_pos = 0.05*abs.([diff([extrema(xall[1,:])...])[1], diff([extrema(xall[2,:])...])[1]])

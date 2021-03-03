@@ -1,6 +1,6 @@
 ## make options for the multichannel lengthscale GP
-log10bounds = [-1.7 -0.3]
-δlog10λ = 0.2
+log10bounds = [-1.2 -0.8]
+δlog10λ = 0.05
 nminlog10λ, nmaxlog10λ = 2, 30
 pnorm = 2.
 Klog10λ = transD_GP.GP.Mat32()
@@ -39,7 +39,7 @@ sdev_prop = 0.05*diff(fbounds, dims=2)[:]
 sdev_pos = [0.05abs(diff([extrema(x)...])[1])]
 demean_ns = true
 K = transD_GP.GP.Mat32()
-δ = 0.2
+δ = 0.05
 ## Initialize model for the nonstationary properties GP
 Random.seed!(13)
 opt = transD_GP.OptionsNonstat(optlog10λ,
@@ -54,7 +54,7 @@ opt = transD_GP.OptionsNonstat(optlog10λ,
                         K = K,
                         )
 ## set up McMC
-nsamples, nchains, nchainsatone = 400001, 4, 1
+nsamples, nchains, nchainsatone = 100001, 4, 1
 Tmax = 2.50
 addprocs(nchains)
 @info "workers are $(workers())"
@@ -67,15 +67,16 @@ rmprocs(workers())
 transD_GP.getchi2forall(opt, fsize=8, alpha=0.5)
 transD_GP.getchi2forall(optlog10λ, fsize=8, alpha=0.5)
 transD_GP.plot_posterior(line, opt, optlog10λ,
-    burninfrac=0.25, figsize=(7.5,4), fsize=8, nbins=100)
+    burninfrac=0.5, figsize=(11.5,4), fsize=8, nbins=100)
 ax=gcf().axes
 p = ax[1].scatter(ynoisy, x, c="w", alpha=0.2, s=25)
 ax[1].plot(y, x, "--w", alpha=0.5)
 del = fbounds[2]-fbounds[1]
 ax[1].set_xlim(fbounds[1]-0.05del, fbounds[2]+0.05del,)
 savefig("jump1D_ns.png", dpi=300)
+## zoom in
 ax[1].set_ylim(0.35,0.45)
-p.set_alpha([0.5])
+p.set_alpha(0.5)
 p.set_sizes([35])
 ax[1].invert_yaxis()
 savefig("jump1D_ns_zoom.png", dpi=300)

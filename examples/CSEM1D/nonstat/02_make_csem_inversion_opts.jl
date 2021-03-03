@@ -3,12 +3,12 @@ using transD_GP, Distributed
 nminlog10λ, nmaxlog10λ = 2, 40
 pnorm = 2.
 Klog10λ = transD_GP.GP.Mat32()
-log10bounds = [0 1.5]
-λlog10λ = [0.07abs(diff([extrema(znall)...])[1])]
+log10bounds = [0 1.]
+λlog10λ = [0.07*abs(diff([extrema(znall)...])[1])]
 δlog10λ = 0.1
 demean = false
 sdev_poslog10λ = [0.05abs(diff([extrema(znall)...])[1])]
-sdev_proplog10λ = 0.05*diff(log10bounds, dims=2)[:]
+sdev_proplog10λ = 0.1*diff(log10bounds, dims=2)[:]
 xall = permutedims(collect(znall))
 xbounds = permutedims([extrema(znall)...])
 ## Initialize a lengthscale model using these options
@@ -26,12 +26,13 @@ optlog10λ = transD_GP.OptionsStat(nmin = nminlog10λ,
                         pnorm = pnorm,
                         quasimultid = false,
                         K = Klog10λ,
-                        timesλ = 3.6
+                        timesλ = 3.7,
+                        peskycholesky = true
                         )
 ## make options for the nonstationary actual properties GP
 nmin, nmax = 2, 20
 fbounds = [-0.5 2.3]
-δ = 0.2
+δ = 0.06
 sdev_prop = 0.02*diff(fbounds, dims=2)[:]
 sdev_pos = [0.008abs(diff([extrema(znall)...])[1])]
 demean_ns = true

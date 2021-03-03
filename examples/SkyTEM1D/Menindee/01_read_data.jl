@@ -29,7 +29,7 @@ frame_dz = 23
 LM_Z = [26,42]
 HM_Z = [43,67]
 ##
-using Revise, transD_GP
+using transD_GP
 transD_GP.SkyTEM1DInversion.read_survey_files(fname_dat         = fname_dat,
 						             fname_specs_halt = fname_specs_halt,
 						             LM_Z             = LM_Z,
@@ -57,7 +57,7 @@ sounding = transD_GP.SkyTEM1DInversion.read_survey_files(fname_dat         = fna
 									 linenum          = linenum,
                                      startfrom        = 1,
 									 skipevery        = 5,
-									 dotillsounding   = 200,
+									 dotillsounding   = 36,
 									 makesounding     = true)
 ## MPI checks
 # split into sequential iterations of parallel soundings
@@ -72,4 +72,4 @@ if usempi
 	nsequentialiters = ceil(Int, nsoundings/nparallelsoundings)
 	@info "will require $nsequentialiters iterations of $nparallelsoundings"
 end
-nsamples = 100001
+nsamples = 10001

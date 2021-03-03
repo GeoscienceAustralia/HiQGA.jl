@@ -2,7 +2,7 @@ module ImageRegression
 import ..AbstractOperator.get_misfit
 using ..AbstractOperator
 using PyPlot, LinearAlgebra, Statistics
-using Random, Images, ..CommonToAll
+using Random, Images, ImageIO, FileIO, ..CommonToAll
 
 import ..Model, ..Options, ..OptionsStat, ..OptionsNonstat
 
@@ -21,6 +21,10 @@ mutable struct Img<:Operator2D
     d                 :: Array{Float64, 2}
     useML             :: Bool
     σ                 :: Float64
+    select            :: Array{Bool}
+    N                 :: Int
+    r                 :: Array{Float64, 1}
+    xtrain            :: Array{Float64, 2}
 end
 
 function Img(;
@@ -30,7 +34,12 @@ function Img(;
              dec::Int         = 2,
              gausskernelwidth = 7,
              useML            = false,
-             σ                = 1.0)
+             σ                = 1.0,
+             select           = [true],
+             N                = 1,
+             r                = [-1.],
+             xtrain           = [1 1]
+             )
 
     @assert fractrain > 0 && fractrain < 1
     @assert !(filename == "")
@@ -39,7 +48,7 @@ function Img(;
     f = get_image(filename, gausskernelwidth, dec)
     x = 0:dx:dx*size(f,2)-1
     y = 0:dx:dx*size(f,1)-1
-    Img(filename, x, y, fractrain, dec, gausskernelwidth, f, f, useML, σ)
+    Img(filename, x, y, fractrain, dec, gausskernelwidth, f, f, useML, σ, select, N, r, xtrain)
 end
 
 function get_image(filename::String, gausskernelwidth::Int, dec)
@@ -66,23 +75,25 @@ function get_image_data(img::Img;
     δtry = sdmaxfrac*max(f...)
     Xtrain = zeros(2,0)
     linidx = randperm(length(f))[1:ntrain]
-    lgood = zeros(Int, 0)
     for (i,l) in enumerate(linidx)
         row, col = Tuple(CartesianIndices(f)[l])
         if img.y[row] > ybreak
             noisyd[row, col] = f[row, col] + δtry*randn()
-            push!(lgood, l)
             Xtrain = hcat(Xtrain, [x[col]; y[row]])
         else
             if rem(row, takeevery) == 0 && rem(col, takeevery) == 0
                 noisyd[row, col] = f[row, col] + δtry*randn()
-                push!(lgood, l)
                 Xtrain = hcat(Xtrain, [x[col]; y[row]])
             end
         end
     end
     img.d = noisyd
-    δtry, noisyd[lgood], Xtrain
+    img.σ = δtry
+    img.select = .!isnan.(noisyd[:])
+    img.r = noisyd[img.select]
+    img.xtrain = Xtrain
+    img.N = sum(img.select)
+    nothing
 end
 
 function get_image_prediction_points(img::Img)
@@ -95,9 +106,9 @@ function get_image_prediction_points(img::Img)
     Xall
 end
 
-function plot_image_data(ftrain::Array{Float64, 1}, Xtrain::Array{Float64, 2},
-                   img::Img;  s=3, fsize=12)
+function plot_image_data(img::Img;  s=3, fsize=12)
     f, x, y = img.f, img.x, img.y
+    ftrain, Xtrain = img.d[img.select], img.xtrain
     f1, ax1 = plt.subplots(1,2,figsize=(6.7,2.7), sharex=true, sharey=true)
     im1 = ax1[1].imshow(f, extent=[x[1],x[end],y[end],y[1]])
     cb1 = colorbar(im1, ax=ax1[1])
@@ -110,24 +121,21 @@ function plot_image_data(ftrain::Array{Float64, 1}, Xtrain::Array{Float64, 2},
 end
 
 function calc_image_RMS(img::Img)
-    select = .!isnan.(img.d)
-    r = (img.d[select] - img.f[select])/img.σ
-    n = sum(select)
-    @info "χ^2 error is $(r'*r) for $n points RMS: $(sqrt(r'*r/n))"
+    r = (img.d[img.select] - img.f[img.select])/img.σ
+    @info "χ^2 error is $(r'*r) for $(img.N) points RMS: $(sqrt(norm(r)^2/img.N))"
     nothing
 end
 
 function get_misfit(m::Model, opt::Options, img::Img)
     chi2by2 = 0.0
     if !opt.debug
-        d = img.d
-        select = .!isnan.(d[:])
-        r = m.fstar[select] - d[select]
+        d, r = img.d, img.r
+        select = img.select
+        r .= m.fstar[select] - d[select]
         if img.useML
-            N = sum(select)
-            chi2by2 = 0.5*N*log(norm(r)^2)
+            chi2by2 = 0.5*img.N*log(norm(r)^2)
         else
-            chi2by2 = r'*r/(2img.σ^2)
+            chi2by2 = norm(r)^2/(2img.σ^2)
         end
     end
     return chi2by2
@@ -154,7 +162,7 @@ function slice_image_posterior( M::AbstractArray,
             Mslices[i] = m[:,rowcolnum]
         end
     end
-    himage, edges, CI = gethimage(Mslices, opt, burninfrac=0.0, temperaturenum=temperaturenum,
+    himage, edges, CI, = gethimage(Mslices, opt, burninfrac=0.0, temperaturenum=temperaturenum,
                 nbins=nbins, rhomin=rhomin, rhomax=rhomax, qp1=qp1, qp2=qp2,
                 pdfnormalize=pdfnormalize)
 end

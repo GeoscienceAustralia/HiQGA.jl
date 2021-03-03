@@ -18,6 +18,7 @@ rTx = 12.607
 lowpassfcs = [300000, 450000.0]
 ntimesperdecade = 10
 nfreqsperdecade = 5
+freqlow = 1e-3
 # Note that the receiver depth needs to be in same model layer as transmitter.
 ## LM times and ramp
 LM_times = [
@@ -47,7 +48,8 @@ Flm = transD_GP.AEM_VMD_HMD.HFieldDHT(
                       rRx    = rRx,
                       rTx    = rTx,
                       zRx    = zRx,
-                      modelprimary = true)
+                      freqlow = freqlow
+                      )
 ## HM operator
 Fhm = transD_GP.AEM_VMD_HMD.HFieldDHT(
                       ntimesperdecade = ntimesperdecade,
@@ -60,7 +62,8 @@ Fhm = transD_GP.AEM_VMD_HMD.HFieldDHT(
                       rRx    = rRx,
                       rTx    = rTx,
                       zRx    = zRx,
-                      modelprimary = true)
+                      freqlow = freqlow
+                      )
 ## fill in detail in ohm-m
 ρ[(z.>=zstart) .& (z.<50)] .= 20.
 ρ[(z.>=50) .&(z.<80)] .= 1

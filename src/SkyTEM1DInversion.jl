@@ -257,6 +257,10 @@ function plotmodelfield_skytem!(Flow::AEM_VMD_HMD.HField, Fhigh::AEM_VMD_HMD.HFi
                         ;figsize=(10,5))
     f, ax = plt.subplots(1, 2, figsize=figsize)
     ax[1].step(log10.(ρ[2:end]), z[2:end])
+    ax[1].set_xlabel("log₁₀ρ")
+    ax[2].set_xlabel("time s")
+    ax[1].set_ylabel("depth m")
+    ax[2].set_ylabel("V/Am⁴")
     AEM_VMD_HMD.getfieldTD!(Flow, z, ρ)
     AEM_VMD_HMD.getfieldTD!(Fhigh, z, ρ)
     ax[2].loglog(Flow.times,μ₀*Flow.dBzdt, label="low moment")
@@ -275,7 +279,7 @@ function addnoise_skytem(Flow::AEM_VMD_HMD.HField, Fhigh::AEM_VMD_HMD.HField,
                   dz = -1.,
                   extendfrac = -1.,
                   nfixed = -1,
-                  figsize=(12,4)
+                  figsize=(10,5)
                   )
     @assert all((nfixed, dz, extendfrac) .> 0)
     AEM_VMD_HMD.getfieldTD!(Flow, z, ρ)
@@ -295,7 +299,7 @@ end
 
 function plotmodelfield!(Flow::AEM_VMD_HMD.HField, Fhigh::AEM_VMD_HMD.HField,
                         z, ρ, dlow, dhigh, σlow, σhigh;
-                        figsize=(12,4), nfixed=-1, dz=-1., extendfrac=-1.)
+                        figsize=(10,5), nfixed=-1, dz=-1., extendfrac=-1.)
     # expects data and noise in units of H, i.e. B/μ
     @assert all((nfixed, dz, extendfrac) .> 0)
     f, ax = plt.subplots(1, 2, figsize=figsize)
@@ -319,6 +323,12 @@ function plotmodelfield!(Flow::AEM_VMD_HMD.HField, Fhigh::AEM_VMD_HMD.HField,
                         linestyle="none", marker=".", elinewidth=0, capsize=3)
     ax[1].grid()
     ax[2].grid()
+        ax[1].step(log10.(ρ[2:end]), z[2:end])
+    ax[1].set_xlabel("log₁₀ρ")
+    ax[2].set_xlabel("time s")
+    ax[1].set_ylabel("depth m")
+    ax[2].set_ylabel("V/Am⁴")
+    axn.set_ylabel("index no.")
     nicenup(f)
 end
 
@@ -380,6 +390,7 @@ function makeoperator(fdataname::String;
                        ρfixed   = [1e12],
                        zstart = 0.0,
                        extendfrac = 1.06,
+                       freqlow = 1e-3,
                        dz = 2.,
                        ρbg = 10,
                        nlayers = 40,
@@ -416,6 +427,7 @@ function makeoperator(fdataname::String;
     Flm = AEM_VMD_HMD.HFieldDHT(
                           ntimesperdecade = ntimesperdecade,
                           nfreqsperdecade = nfreqsperdecade,
+                          freqlow = freqlow,
                           lowpassfcs = lowpassfcs,
                           times  = LM_times,
                           ramp   = LM_ramp,
@@ -428,6 +440,7 @@ function makeoperator(fdataname::String;
     Fhm = AEM_VMD_HMD.HFieldDHT(
                           ntimesperdecade = ntimesperdecade,
                           nfreqsperdecade = nfreqsperdecade,
+                          freqlow = freqlow,
                           lowpassfcs = lowpassfcs,
                           times  = HM_times,
                           ramp   = HM_ramp,
