@@ -33,33 +33,18 @@ opt = transD_GP.OptionsStat(nmin = nmin,
                         updatenonstat = updatenonstat,
                         updatenuisances = true
                         )
-## Initialize options for the dummy nonstationary properties GP
-Random.seed!(13)
-optdummy = transD_GP.OptionsNonstat(opt,
-                        nmin = nmin,
-                        nmax = nmax,
-                        fbounds = fbounds,
-                        δ = δ,
-                        demean = demean,
-                        sdev_prop = sdev_prop,
-                        sdev_pos = sdev_pos,
-                        pnorm = pnorm,
-                        K = K
-                        )
-
 ## nuisance options
-#we don't treat *every* geometry param as nuisance.
-#this is achieved with some computational waste by
-#having the fixed parameters set as nuisances with
-#zero-width bounds.
+# we don't treat *every* geometry param as nuisance.
+# this is achieved by having the fixed parameters set as nuisances with
+# zero-width bounds. These values are *fractions*
 optn = transD_GP.OptionsNuisance(opt;
     sdev = [
         0.0 #zTx
-        0.0125 #zRx
-        0.02 #x_rx
+        0.005 #zRx
+        0.005 #x_rx
         0.0 #y_rx
         0.0 #rx_roll
-        0.125 #rx_pitch
+        0.005 #rx_pitch
         0.0 #rx_yaw
         0.0 #tx_roll
         0.0 #tx_pitch
@@ -82,20 +67,3 @@ optn = transD_GP.OptionsNuisance(opt;
         0.0131349   0.00132317  -0.0154768
         -0.183764   -0.0154768    0.211669]
         )
-# ##debug stuff
-# mn = transD_GP.init(optn)
-# mstat = transD_GP.init(opt)
-# mnstat = transD_GP.init(optdummy, mstat)
-#
-# ##
-# initmisfit = transD_GP.get_misfit(mstat, opt, tempest)
-# altinit = transD_GP.get_misfit(mstat, mn, opt, tempest)
-#
-# statn = transD_GP.Stats()
-#
-# fpc = open("debugcosts.bin", "w")
-# fpv = open("debugvals.bin", "w")
-# wpn = transD_GP.Writepointers_nuisance(fpc,fpv)
-#
-# Juno.@enter transD_GP.do_mcmc_step(mn, mstat, mnstat, optn, statn, [initmisfit],
-#     tempest, 1.0, 1, wpn)

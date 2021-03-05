@@ -377,6 +377,9 @@ function swap_temps(chains::Array{Chain, 1})
 
 end
 
+# non pbs: this is for everything nonstationary, stationary and nuisance
+# everyday users should not call this but the
+# versions underneath instead
 function main(opt_in       ::OptionsStat,
               optns_in     ::OptionsNonstat,
               optn_in      ::OptionsNuisance,
@@ -401,6 +404,124 @@ function main(opt_in       ::OptionsStat,
     nothing
 end
 
+# non pbs: this is for stationary only
+function main(opt_in       ::OptionsStat,
+              F_in         ::Operator;
+              nsamples     = 4001,
+              nchains      = 1,
+              nchainsatone = 1,
+              Tmax         = 2.5)
+
+    @assert opt_in.needλ²fromlog == false
+    @assert opt_in.updatenonstat == false
+    updatenuisances = false
+
+    optns_dummy = transD_GP.OptionsNonstat(opt_in,
+            nmin = 2,
+            nmax = 3,
+            fbounds = opt_in.fbounds,
+            δ = opt_in.δ,
+            demean = opt_in.demean,
+            sdev_prop = opt_in.sdev_prop,
+            sdev_pos = opt_in.sdev_pos,
+            pnorm = opt_in.pnorm,
+            K = opt_in.K
+            )
+
+    optn_dummy = OptionsNuisance([0.], [0. 0], 0, updatenuisances,
+     opt_in.updatenonstat, opt_in.debug, opt_in.stat_window, opt_in.dispstatstoscreen,
+     opt_in.report_freq, opt_in.save_freq, opt_in.history_mode, "misfits_nuisance_"*opt_in.fdataname*".bin",
+     "values_nuisance_"*opt_in.fdataname*".bin", opt_in.fdataname, [0 0.], [0], [0. 0.], [0.])
+
+
+    main(opt_in, optns_dummy, optn_dummy, F_in,
+            nsamples     = nsamples,
+            nchains      = nchains,
+            nchainsatone = nchainsatone,
+            Tmax         = Tmax)
+end
+
+# non pbs: this is for stationary and nuisance only
+function main(opt_in       ::OptionsStat,
+              optn_in      ::OptionsNuisance,
+              F_in         ::Operator;
+              nsamples     = 4001,
+              nchains      = 1,
+              nchainsatone = 1,
+              Tmax         = 2.5)
+
+    @assert opt_in.needλ²fromlog == false
+    @assert opt_in.updatenonstat == false
+    @assert optn_in.updatenuisances == true
+
+    optdummy = transD_GP.OptionsNonstat(opt_in,
+            nmin = 2,
+            nmax = 3,
+            fbounds = opt_in.fbounds,
+            δ = opt_in.δ,
+            demean = opt_in.demean,
+            sdev_prop = opt_in.sdev_prop,
+            sdev_pos = opt_in.sdev_pos,
+            pnorm = opt_in.pnorm,
+            K = opt_in.K
+            )
+
+    main(opt_in, optdummy, optn_in, F_in,
+            nsamples     = nsamples,
+            nchains      = nchains,
+            nchainsatone = nchainsatone,
+            Tmax         = Tmax)
+end
+
+# non pbs: this is for stationary and nonstationary only
+function main(opt_in       ::OptionsStat,
+              optns_in     ::OptionsNonstat,
+              F_in         ::Operator;
+              nsamples     = 4001,
+              nchains      = 1,
+              nchainsatone = 1,
+              Tmax         = 2.5)
+
+    @assert opt_in.needλ²fromlog == true
+    @assert opt_in.updatenonstat == true
+    updatenuisances = false
+
+    optdummy = OptionsNuisance([0.], [0. 0], 0, updatenuisances,
+     opt_in.updatenonstat, opt_in.debug, opt_in.stat_window, opt_in.dispstatstoscreen,
+     opt_in.report_freq, opt_in.save_freq, opt_in.history_mode, "misfits_nuisance_"*opt_in.fdataname*".bin",
+     "values_nuisance_"*opt_in.fdataname*".bin", opt_in.fdataname, [0 0.], [0], [0. 0.], [0.])
+
+    main(opt_in, optns_in, optdummy, F_in,
+            nsamples     = nsamples,
+            nchains      = nchains,
+            nchainsatone = nchainsatone,
+            Tmax         = Tmax)
+end
+
+# non pbs: If certainly wanting to do stat, nonstat and nuisance all together
+function main(doall        ::Bool,
+              opt_in       ::OptionsStat,
+              optns_in     ::OptionsNonstat,
+              optn_in      ::OptionsNuisance,
+              F_in         ::Operator;
+              nsamples     = 4001,
+              nchains      = 1,
+              nchainsatone = 1,
+              Tmax         = 2.5)
+    @assert doall == true
+    @assert opt_in.needλ²fromlog == true
+    @assert opt_in.updatenonstat == true
+    @assert optn_in.updatenuisances == true
+
+    main(opt_in, optns_in, optn_in, F_in,
+            nsamples     = nsamples,
+            nchains      = nchains,
+            nchainsatone = nchainsatone,
+            Tmax         = Tmax)
+end
+
+# This is for the cluster,
+# again ordinary users should not use this but versions underneath
 function main(opt_in       ::OptionsStat,
               optns_in     ::OptionsNonstat,
               optn_in      ::OptionsNuisance,
@@ -424,6 +545,119 @@ function main(opt_in       ::OptionsStat,
     nothing
 end
 
+# on cluster: this is for stationary only
+function main(opt_in       ::OptionsStat,
+              F_in         ::Operator,
+              chainprocs   ::Array{Int, 1};
+              nsamples     = 4001,
+              nchainsatone = 1,
+              Tmax         = 2.5)
+
+    @assert opt_in.needλ²fromlog == false
+    @assert opt_in.updatenonstat == false
+    updatenuisances = false
+
+    optns_dummy = transD_GP.OptionsNonstat(opt_in,
+            nmin = 2,
+            nmax = 3,
+            fbounds = opt_in.fbounds,
+            δ = opt_in.δ,
+            demean = opt_in.demean,
+            sdev_prop = opt_in.sdev_prop,
+            sdev_pos = opt_in.sdev_pos,
+            pnorm = opt_in.pnorm,
+            K = opt_in.K
+            )
+
+    optn_dummy = OptionsNuisance([0.], [0. 0], 0, updatenuisances,
+     opt_in.updatenonstat, opt_in.debug, opt_in.stat_window, opt_in.dispstatstoscreen,
+     opt_in.report_freq, opt_in.save_freq, opt_in.history_mode, "misfits_nuisance_"*opt_in.fdataname*".bin",
+     "values_nuisance_"*opt_in.fdataname*".bin", opt_in.fdataname, [0 0.], [0], [0. 0.], [0.])
+
+
+    main(opt_in, optns_dummy, optn_dummy, F_in, chainprocs,
+            nsamples     = nsamples,
+            nchainsatone = nchainsatone,
+            Tmax         = Tmax)
+end
+
+# on cluster: stat + nuisance only
+function main(opt_in       ::OptionsStat,
+              optn_in      ::OptionsNuisance,
+              F_in         ::Operator,
+              chainprocs   ::Array{Int, 1};
+              nsamples     = 4001,
+              nchainsatone = 1,
+              Tmax         = 2.5)
+
+    @assert opt_in.needλ²fromlog == false
+    @assert opt_in.updatenonstat == false
+    @assert optn_in.updatenuisances == true
+
+    optdummy = transD_GP.OptionsNonstat(opt_in,
+            nmin = 2,
+            nmax = 3,
+            fbounds = opt_in.fbounds,
+            δ = opt_in.δ,
+            demean = opt_in.demean,
+            sdev_prop = opt_in.sdev_prop,
+            sdev_pos = opt_in.sdev_pos,
+            pnorm = opt_in.pnorm,
+            K = opt_in.K
+            )
+
+    main(opt_in, optdummy, optn_in, F_in, chainprocs,
+            nsamples     = nsamples,
+            nchainsatone = nchainsatone,
+            Tmax         = Tmax)
+end
+
+# on cluster: stationary and nonstationary only
+function main(opt_in       ::OptionsStat,
+              optns_in     ::OptionsNonstat,
+              F_in         ::Operator,
+              chainprocs   ::Array{Int, 1};
+              nsamples     = 4001,
+              nchainsatone = 1,
+              Tmax         = 2.5)
+
+    @assert opt_in.needλ²fromlog == true
+    @assert opt_in.updatenonstat == true
+    updatenuisances = false
+
+    optdummy = OptionsNuisance([0.], [0. 0], 0, updatenuisances,
+     opt_in.updatenonstat, opt_in.debug, opt_in.stat_window, opt_in.dispstatstoscreen,
+     opt_in.report_freq, opt_in.save_freq, opt_in.history_mode, "misfits_nuisance_"*opt_in.fdataname*".bin",
+     "values_nuisance_"*opt_in.fdataname*".bin", opt_in.fdataname, [0 0.], [0], [0. 0.], [0.])
+
+    main(opt_in, optns_in, optdummy, F_in, chainprocs,
+            nsamples     = nsamples,
+            nchainsatone = nchainsatone,
+            Tmax         = Tmax)
+end
+
+# on cluster: stat, nonstat and nuisance all together
+function main(doall        ::Bool,
+              opt_in       ::OptionsStat,
+              optns_in     ::OptionsNonstat,
+              optn_in      ::OptionsNuisance,
+              F_in         ::Operator,
+              chainprocs   ::Array{Int, 1};
+              nsamples     = 4001,
+              nchainsatone = 1,
+              Tmax         = 2.5)
+    @assert doall == true
+    @assert opt_in.needλ²fromlog == true
+    @assert opt_in.updatenonstat == true
+    @assert optn_in.updatenuisances == true
+
+    main(opt_in, optns_in, optn_in, F_in, chainprocs,
+            nsamples     = nsamples,
+            nchainsatone = nchainsatone,
+            Tmax         = Tmax)
+end
+
+# all main() call this
 function domcmciters(iterlast, nsamples, chains, opt_in, mns, m, mn, optns, opt,
             optn, statns, stat, statn, current_misfit, F, wpns, wp, wpn)
     t2 = time()

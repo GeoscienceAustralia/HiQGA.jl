@@ -33,33 +33,18 @@ opt = transD_GP.OptionsStat(nmin = nmin,
                         updatenonstat = updatenonstat,
                         updatenuisances = true
                         )
-## Initialize options for the dummy nonstationary properties GP
-Random.seed!(13)
-optdummy = transD_GP.OptionsNonstat(opt,
-                        nmin = nmin,
-                        nmax = nmax,
-                        fbounds = fbounds,
-                        δ = δ,
-                        demean = demean,
-                        sdev_prop = sdev_prop,
-                        sdev_pos = sdev_pos,
-                        pnorm = pnorm,
-                        K = K
-                        )
-
 ## nuisance options
-#we don't treat *every* geometry param as nuisance.
-#this is achieved with some computational waste by
-#having the fixed parameters set as nuisances with
-#zero-width bounds.
+# we don't treat *every* geometry param as nuisance.
+# this is achieved by having the fixed parameters set as nuisances with
+# zero-width bounds. These values are *fractions*
 optn = transD_GP.OptionsNuisance(opt;
     sdev = [
         0.0 #zTx
-        0.0125 #zRx
-        0.01 #x_rx
+        0.005 #zRx
+        0.005 #x_rx
         0.0 #y_rx
         0.0 #rx_roll
-        0.0625 #rx_pitch
+        0.005 #rx_pitch
         0.0 #rx_yaw
         0.0 #tx_roll
         0.0 #tx_pitch

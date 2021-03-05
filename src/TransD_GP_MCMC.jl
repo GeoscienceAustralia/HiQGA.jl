@@ -191,6 +191,7 @@ function OptionsNuisance(opt::OptionsStat;
     @assert all(sdev .>= 0.)
     @assert all(diff(bounds, dims=2) .>= 0)
     @assert length(sdev) == size(bounds, 1)
+    @assert all(sdev .< 1.) # is a fraction of the bounds
     nnu = length(sdev)
 
     # make an empty nuisance options struct
@@ -235,6 +236,10 @@ function OptionsNuisance(opt::OptionsStat;
         rotatebounds[i,:] .= extrema(T[:,i])
     end
     optn.rotatebounds = rotatebounds
+
+    # scale the bounds to the sdev fraction
+    optn.sdev[idxnotzero] = optn.sdev[idxnotzero].*
+                            diff(rotatebounds, dims=2)[:]
     optn
 end
 
@@ -315,17 +320,15 @@ function init(opt::OptionsStat)
 end
 
 function init(opt::OptionsNuisance)
-    @info opt
-    if opt.history_mode == "w" # fresh start
-        if length(opt.bounds) > 0
+    nuisance = zeros(0)
+    if opt.nnu > 0 # not a dummy option
+        if opt.history_mode == "w" # fresh start
             nuisance = opt.bounds[:,1] + diff(opt.bounds, dims = 2)[:].*rand(opt.nnu)
-        else
-            nuisance = []
+        else # is a restart
+            # TODO hacky I don't like this
+            @info "reading $(opt.vals_filename)"
+            nuisance = vec(readdlm(opt.vals_filename)[end,2:1+opt.nnu])
         end
-    else # is a restart
-        # TODO hacky I don't like this
-        @info "reading $(opt.vals_filename)"
-        nuisance = vec(readdlm(opt.vals_filename)[end,2:1+opt.nnu])
     end
     return ModelNuisance(nuisance, copy(nuisance))
 end
