@@ -6,7 +6,6 @@ x = readdlm("func2.txt", ',', Float64, '\n')[:,1]
 y = readdlm("func2.txt", ',', Float64, '\n')[:,2]
 σ, fractrain = 0.275, 0.5
 ntrain = round(Int, fractrain*length(y))
-# ynoisy = σ*randn(size(y)) + y
 ynoisy = similar(y) .+ NaN
 linidx = randperm(length(y))[1:ntrain]
 ynoisy[linidx] = y[linidx] + σ*randn(ntrain)

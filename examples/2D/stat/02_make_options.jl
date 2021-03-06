@@ -31,16 +31,3 @@ opt = transD_GP.OptionsStat(nmin = nmin,
                         needλ²fromlog = needλ²fromlog,
                         updatenonstat = updatenonstat
                         )
-## Initialize model for the dummy nonstationary GP
-Random.seed!(13)
-optdummy = transD_GP.OptionsNonstat(opt,
-                        nmin = nmin,
-                        nmax = nmax,
-                        fbounds = fbounds,
-                        δ = δ,
-                        demean = demean,
-                        sdev_prop = sdev_prop,
-                        sdev_pos = sdev_pos,
-                        pnorm = pnorm,
-                        K = K
-                        )

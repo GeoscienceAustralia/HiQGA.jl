@@ -36,28 +36,15 @@ opt = transD_GP.OptionsStat(nmin = nmin,
                         updatenonstat = updatenonstat,
                         peskycholesky = true
                         )
-## Initialize options for the dummy nonstationary properties GP
-Random.seed!(13)
-optdummy = transD_GP.OptionsNonstat(opt,
-                        nmin = nmin,
-                        nmax = nmax,
-                        fbounds = fbounds,
-                        δ = δ,
-                        demean = demean,
-                        sdev_prop = sdev_prop,
-                        sdev_pos = sdev_pos,
-                        pnorm = pnorm,
-                        K = K
-                        )
 ## set up McMC
-nsamples, nchains, nchainsatone = 100001, 4, 1
+nsamples, nchains, nchainsatone = 10001, 4, 1
 Tmax = 2.50
 addprocs(nchains)
 @info "workers are $(workers())"
 @everywhere using Distributed
 @everywhere using transD_GP
 ## run McMC
-@time transD_GP.main(opt, optdummy, line, Tmax=Tmax, nsamples=nsamples, nchains=nchains, nchainsatone=nchainsatone)
+@time transD_GP.main(opt, line, Tmax=Tmax, nsamples=nsamples, nchains=nchains, nchainsatone=nchainsatone)
 rmprocs(workers())
 ## plot
 transD_GP.getchi2forall(opt, fsize=8, alpha=0.5)

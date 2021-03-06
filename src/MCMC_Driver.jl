@@ -63,7 +63,7 @@ function Chain(chainprocs::Array{Int, 1};
 end
 
 function mh_step!(mns::ModelNonstat, m::ModelStat, mn::ModelNuisance,
-    F::Operator, optns::OptionsNonstat, opt::OptionsStat, stat::Stats,
+    F::Operator, optns::OptionsNonstat, stat::Stats,
     Temp::Float64, movetype::Int, current_misfit::Array{Float64, 1})
 
     if optns.quasimultid
@@ -73,7 +73,7 @@ function mh_step!(mns::ModelNonstat, m::ModelStat, mn::ModelNuisance,
             new_misfit = get_misfit(mns, optns, movetype, F)
         end
     else
-        if opt.updatenuisances
+        if optns.updatenuisances
             new_misfit = get_misfit(mns, mn, optns, F)
         else
             new_misfit = get_misfit(mns, optns, F)

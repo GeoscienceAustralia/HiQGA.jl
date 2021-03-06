@@ -5,6 +5,6 @@ addprocs(nchains)
 @info "workers are $(workers())"
 @everywhere using Distributed
 @everywhere using transD_GP
-## run McMCopt.his
-@time transD_GP.main(opt, optdummy, img, Tmax=Tmax, nsamples=nsamples, nchains=nchains, nchainsatone=nchainsatone)
+## run McMC
+@time transD_GP.main(opt, img, Tmax=Tmax, nsamples=nsamples, nchains=nchains, nchainsatone=nchainsatone)
 rmprocs(workers())
