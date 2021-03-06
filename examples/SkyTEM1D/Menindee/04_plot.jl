@@ -20,7 +20,7 @@ function plotposts(idx; computeforward=false, plotposterior=true, nbins=50,
                                showgeomplot = false,
                                plotfield = false)
 
-    opt, optdummy = SkyTEM1DInversion.make_tdgp_statmode_opt(znall = znall,
+    opt = SkyTEM1DInversion.make_tdgp_opt(znall = znall,
                                 fileprefix = sounding[idx].sounding_string,
                                 nmin = nmin,
                                 nmax = nmax,
