@@ -36,7 +36,7 @@ for idx in randperm(length(sounding))[1:nplot]
                                showgeomplot = false,
                                plotfield = true)
 
-        opt, optdummy = transD_GP.SkyTEM1DInversion.make_tdgp_statmode_opt(znall = znall,
+        opt = transD_GP.SkyTEM1DInversion.make_tdgp_opt(znall = znall,
                                 fileprefix = sounding[idx].sounding_string,
                                 nmin = nmin,
                                 nmax = nmax,

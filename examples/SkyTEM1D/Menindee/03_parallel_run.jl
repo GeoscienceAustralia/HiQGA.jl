@@ -25,8 +25,8 @@ for iter = 1:nsequentialiters
                                showgeomplot = false,
                                plotfield = false)
         end
-        r_opt_and_optdummy = @spawnat pids[2] begin
-            transD_GP.SkyTEM1DInversion.make_tdgp_statmode_opt(znall = fetch(r_aem_and_znall)[2],
+        r_opt = @spawnat pids[2] begin
+            transD_GP.SkyTEM1DInversion.make_tdgp_opt(znall = fetch(r_aem_and_znall)[2],
                                 fileprefix = sounding[s].sounding_string,
                                 nmin = nmin,
                                 nmax = nmax,
@@ -41,7 +41,7 @@ for iter = 1:nsequentialiters
                                 )
         end
         @spawnat pids[1] begin
-                    transD_GP.main(fetch(r_opt_and_optdummy)...,
+                    transD_GP.main(fetch(r_opt),
                     fetch(r_aem_and_znall)[1],
                     collect(pids[2:end]),
                     Tmax=Tmax,

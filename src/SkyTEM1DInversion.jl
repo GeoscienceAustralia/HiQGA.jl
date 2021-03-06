@@ -517,7 +517,7 @@ function makeoperator( sounding::SkyTEMsoundingData;
     aem, znall
 end
 
-function make_tdgp_statmode_opt(;
+function make_tdgp_opt(;
                     rseed = nothing,
                     znall = znall,
                     fileprefix = "sounding",
@@ -562,22 +562,7 @@ function make_tdgp_statmode_opt(;
                             updatenonstat = updatenonstat,
                             dispstatstoscreen = false
                             )
-
-    ## Initialize options for the dummy nonstationary properties GP
-    optdummy = OptionsNonstat(opt,
-                            nmin = 2,
-                            nmax = 3,
-                            fbounds = fbounds,
-                            δ = δ,
-                            demean = demean,
-                            sdev_prop = sdev_prop,
-                            sdev_pos = sdev_pos,
-                            pnorm = pnorm,
-                            K = K
-                            )
-
-    opt, optdummy
-
+    opt
 end
 
 
