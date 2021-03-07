@@ -7,7 +7,7 @@
 #PBS -l wd
 #PBS -N juliaAEM
 #PBS -e grid.err
-
+#PBS -l storage=gdata/z67
 cd /scratch/z67/ar/transD_GP/examples/SkyTEM1D/Menindee/
 module load openmpi/3.0.4
 mpirun -np 48 /home/547/ar0754/bin/julia doall.jl >& outfile
