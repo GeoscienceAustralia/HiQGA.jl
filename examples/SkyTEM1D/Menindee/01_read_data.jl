@@ -67,7 +67,7 @@ ppn = 48
 if usempi
 	ncores = nworkers()
 	@assert mod(ncores+1,nchainspersounding+1) == 0
-	@assert mod(ppn, nchainspersounding+1) == 0 
+	@assert mod(ppn, nchainspersounding+1) == 0
 	nparallelsoundings = Int((ncores+1)/(nchainspersounding+1))
 	nsequentialiters = ceil(Int, nsoundings/nparallelsoundings)
 	@info "will require $nsequentialiters iterations of $nparallelsoundings"

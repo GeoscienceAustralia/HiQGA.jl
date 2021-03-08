@@ -88,8 +88,8 @@ function SkyTEMsoundingData(;rRx=-12., zRxLM=12., zTxLM=12.,
     @assert all(diff(HM_times) .>0 )
     @assert all(diff(LM_ramp[:,1]) .>0 )
     @assert all(diff(HM_ramp[:,1]) .>0 )
-    @assert all(LM_noise .>0 )
-    @assert all(HM_noise .>0 )
+    @assert all((LM_noise .>0) .| isnan.(LM_noise))
+    @assert all((HM_noise .>0) .| isnan.(HM_noise))
     @assert length(LM_data) == length(LM_noise)
     @assert length(HM_data) == length(HM_noise)
     SkyTEMsoundingData(sounding_string, X, Y, fid, linenum, rRx, zRxLM, zTxLM, zRxHM, zTxHM, rTx,
@@ -109,6 +109,9 @@ function read_survey_files(;
     frame_dy = -2,
     LM_Z = [-2, -2],
     HM_Z = [-2, -2],
+    LM_σ = [-2, 2],
+    HM_σ = [-2, 2],
+    relerror = false,
     units=1e-12,
     figsize = (9,7),
     makesounding = false,
@@ -126,6 +129,10 @@ function read_survey_files(;
     @assert frame_dy > 0
     @assert all(LM_Z .> 0)
     @assert all(HM_Z .> 0)
+    if relerror
+        @assert all(LM_σ .> 0)
+        @assert all(HM_σ .> 0)
+    end
     @assert X > 0
     @assert Y > 0
     @assert linenum > 0
@@ -142,6 +149,10 @@ function read_survey_files(;
     whichline = soundings[:,linenum]
     d_LM = soundings[:,LM_Z[1]:LM_Z[2]]
     d_HM = soundings[:,HM_Z[1]:HM_Z[2]]
+    if relerror
+        σ_LM = soundings[:,LM_σ[1]:LM_σ[2]]
+        σ_HM = soundings[:,HM_σ[1]:HM_σ[2]]
+    end
     zTx = soundings[:,frame_height]
     zRx = -(zTx + soundings[:,frame_dz])
     zTx = -zTx
@@ -151,10 +162,15 @@ function read_survey_files(;
     include(fname_specs_halt)
     @assert size(d_LM, 2) == length(LM_times)
     @assert size(d_HM, 2) == length(HM_times)
-    @assert size(d_LM, 2) == length(LM_noise)
-    @assert size(d_HM, 2) == length(HM_noise)
-    LM_noise[:] .*= units
-    HM_noise[:] .*= units
+    if !relerror
+        @assert size(d_LM, 2) == length(LM_noise)
+        @assert size(d_HM, 2) == length(HM_noise)
+        LM_noise[:] .*= units
+        HM_noise[:] .*= units
+    else
+        σ_LM[:] .*= units
+        σ_HM[:] .*= units
+    end
     d_LM[:]     .*= units
     d_HM[:]     .*= units
     f = figure(figsize=figsize)
@@ -200,14 +216,18 @@ function read_survey_files(;
         for is in 1:nsoundings
             l, f = Int(whichline[is]), fiducial[is]
             @info "read $is out of $nsoundings"
-            dₗₘ, dₕₘ = vec(d_LM[is,:]), vec(d_HM[is,:])
-            σLM = sqrt.((multnoise*dₗₘ).^2 + LM_noise.^2)
-            σHM = sqrt.((multnoise*dₕₘ).^2 + HM_noise.^2)
+            dlow, dhigh = vec(d_LM[is,:]), vec(d_HM[is,:])
+            if !relerror
+                σLM = sqrt.((multnoise*dlow).^2 + LM_noise.^2)
+                σHM = sqrt.((multnoise*dhigh).^2 + HM_noise.^2)
+            else
+                σLM, σHM = vec(σ_LM[is,:]), vec(σ_HM[is,:])
+            end
             s_array[is] = SkyTEMsoundingData(rRx=rRx[is], zRxLM=zRx[is], zTxLM=zTx[is],
                 zRxHM=zRx[is], zTxHM=zTx[is], rTx=rTx, lowpassfcs=lowpassfcs,
                 LM_times=LM_times, LM_ramp=LM_ramp,
                 HM_times=HM_times, HM_ramp=HM_ramp,
-                LM_noise=σLM, HM_noise=σHM, LM_data=dₗₘ, HM_data=dₕₘ,
+                LM_noise=σLM, HM_noise=σHM, LM_data=dlow, HM_data=dhigh,
                 sounding_string="sounding_$(l)_$f",
                 X=easting[is], Y=northing[is], fid=f,
                 linenum=l)
@@ -217,16 +237,14 @@ function read_survey_files(;
 end
 
 function getfield!(m::Model, aem::dBzdt)
-    copyto!(aem.ρ, aem.nfixed+1:length(aem.ρ), 10 .^m.fstar, 1:length(m.fstar))
-    AEM_VMD_HMD.getfieldTD!(aem.Flow,  aem.z, aem.ρ)
-    AEM_VMD_HMD.getfieldTD!(aem.Fhigh, aem.z, aem.ρ)
+    getfield!(m.fstar, aem)
     nothing
 end
 
 function getfield!(m::Array{Float64}, aem::dBzdt)
     copyto!(aem.ρ, aem.nfixed+1:length(aem.ρ), 10 .^m, 1:length(m))
-    AEM_VMD_HMD.getfieldTD!(aem.Flow,  aem.z, aem.ρ)
-    AEM_VMD_HMD.getfieldTD!(aem.Fhigh, aem.z, aem.ρ)
+    aem.ndatalow>0  && AEM_VMD_HMD.getfieldTD!(aem.Flow,  aem.z, aem.ρ)
+    aem.ndatahigh>0 && AEM_VMD_HMD.getfieldTD!(aem.Fhigh, aem.z, aem.ρ)
     nothing
 end
 
@@ -234,10 +252,10 @@ function get_misfit(m::Model, opt::Options, aem::dBzdt)
     chi2by2 = 0.0
     if !opt.debug
         getfield!(m, aem)
-        chi2by2 += getchi2by2(aem.Flow.dBzdt, aem.dlow,
-                    aem.σlow, aem.selectlow, aem.useML, aem.ndatalow)
-        chi2by2 += getchi2by2(aem.Fhigh.dBzdt, aem.dhigh,
-                    aem.σhigh, aem.selecthigh, aem.useML, aem.ndatahigh)
+        aem.ndatalow>0 && (chi2by2 += getchi2by2(aem.Flow.dBzdt, aem.dlow,
+                    aem.σlow, aem.selectlow, aem.useML, aem.ndatalow))
+        aem.ndatahigh>0 && (chi2by2 += getchi2by2(aem.Fhigh.dBzdt, aem.dhigh,
+                    aem.σhigh, aem.selecthigh, aem.useML, aem.ndatahigh))
     end
     return chi2by2
 end
@@ -313,14 +331,20 @@ function plotmodelfield!(Flow::AEM_VMD_HMD.HField, Fhigh::AEM_VMD_HMD.HField,
         axn.set_ylim(ax[1].get_ylim()[end:-1:1])
         axn.set_yticklabels(string.(Int.(round.(getn.(yt .- z[nfixed+1], dz, extendfrac)))))
     end
-    AEM_VMD_HMD.getfieldTD!(Flow, z, ρ)
-    AEM_VMD_HMD.getfieldTD!(Fhigh, z, ρ)
-    ax[2].loglog(Flow.times,μ₀*Flow.dBzdt, label="low moment")
-    ax[2].loglog(Fhigh.times,μ₀*Fhigh.dBzdt, label="high moment")
-    ax[2].errorbar(Flow.times, μ₀*vec(dlow), yerr = μ₀*2abs.(vec(σlow)),
+    ndatalow   = sum(.!isnan.(dlow))
+    ndatahigh  = sum(.!isnan.(dhigh))
+    if ndatalow>0
+        AEM_VMD_HMD.getfieldTD!(Flow, z, ρ)
+        ax[2].loglog(Flow.times,μ₀*Flow.dBzdt, label="low moment")
+        ax[2].errorbar(Flow.times, μ₀*vec(dlow), yerr = μ₀*2abs.(vec(σlow)),
+                            linestyle="none", marker=".", elinewidth=0, capsize=3)
+    end
+    if ndatahigh>0
+        AEM_VMD_HMD.getfieldTD!(Fhigh, z, ρ)
+        ax[2].loglog(Fhigh.times,μ₀*Fhigh.dBzdt, label="high moment")
+        ax[2].errorbar(Fhigh.times, μ₀*vec(dhigh), yerr = μ₀*2abs.(vec(σhigh)),
                         linestyle="none", marker=".", elinewidth=0, capsize=3)
-    ax[2].errorbar(Fhigh.times, μ₀*vec(dhigh), yerr = μ₀*2abs.(vec(σhigh)),
-                        linestyle="none", marker=".", elinewidth=0, capsize=3)
+    end
     ax[1].grid()
     ax[2].grid()
         ax[1].step(log10.(ρ[2:end]), z[2:end])
@@ -350,17 +374,21 @@ function plotmodelfield!(aem::dBzdt, Ρ::Vector{Array{Float64}};
     dlow, σlow = aem.dlow, aem.σlow
     Fhigh = aem.Fhigh
     dhigh, σhigh = aem.dhigh, aem.σhigh
-    ax[2].errorbar(Flow.times, μ₀*dlow, yerr = μ₀*sigma*abs.(σlow),
+    aem.ndatalow>0 && ax[2].errorbar(Flow.times, μ₀*dlow, yerr = μ₀*sigma*abs.(σlow),
                         linestyle="none", marker=".", elinewidth=0, capsize=3, label="low moment")
-    ax[2].errorbar(Fhigh.times, μ₀*dhigh, yerr = μ₀*sigma*abs.(σhigh),
+    aem.ndatahigh>0 && ax[2].errorbar(Fhigh.times, μ₀*dhigh, yerr = μ₀*sigma*abs.(σhigh),
                         linestyle="none", marker=".", elinewidth=0, capsize=3, label="high moment")
     for ρ in Ρ
-        getfield!(ρ,  aem)
-        Flow.dBzdt[.!aem.selectlow] .= NaN
-        Fhigh.dBzdt[.!aem.selecthigh] .= NaN
         ax[1].step(log10.(aem.ρ[2:end]), aem.z[2:end], "-k", alpha=alpha)
-        ax[2].loglog(Flow.times,μ₀*Flow.dBzdt, "k", alpha=alpha, markersize=2)
-        ax[2].loglog(Fhigh.times,μ₀*Fhigh.dBzdt, "k", alpha=alpha, markersize=2)
+        getfield!(ρ,  aem)
+        if aem.ndatalow>0
+            Flow.dBzdt[.!aem.selectlow] .= NaN
+            ax[2].loglog(Flow.times,μ₀*Flow.dBzdt, "k", alpha=alpha, markersize=2)
+        end
+        if aem.ndatahigh>0
+            Fhigh.dBzdt[.!aem.selecthigh] .= NaN
+            ax[2].loglog(Fhigh.times,μ₀*Fhigh.dBzdt, "k", alpha=alpha, markersize=2)
+        end
     end
     ax[1].grid()
     ax[1].set_ylabel("Depth m")
@@ -383,84 +411,6 @@ function plotmodelfield!(aem::dBzdt, Ρ::Vector{Array{Float64}};
     ax[2].grid()
     ax[1].invert_xaxis()
     nicenup(f, fsize=fsize)
-end
-
-function makeoperator(fdataname::String;
-                       zfixed   = [-1e5],
-                       ρfixed   = [1e12],
-                       zstart = 0.0,
-                       extendfrac = 1.06,
-                       freqlow = 1e-3,
-                       dz = 2.,
-                       ρbg = 10,
-                       nlayers = 40,
-                       ntimesperdecade = 10,
-                       nfreqsperdecade = 5,
-                       showgeomplot = false,
-                       plotfield = false)
-    @assert extendfrac > 1.0
-    @assert dz > 0.0
-    @assert ρbg > 0.0
-    @assert nlayers > 1
-    nmax = nlayers+1
-
-    zall, znall, zboundaries = setupz(zstart, extendfrac, dz=dz, n=nlayers, showplot=showgeomplot)
-    z, ρ, nfixed = makezρ(zboundaries; zfixed=zfixed, ρfixed=ρfixed)
-    ρ[z.>=zstart] .= ρbg
-    ##  geometry and modeling parameters
-    file = matopen(fdataname)
-    rRx = read(file, "rRx")
-    zRxLM = read(file, "LM_zRx")
-    zTxLM = read(file, "LM_zTx")
-    zRxHM = read(file, "HM_zRx")
-    zTxHM = read(file, "HM_zTx")
-    rTx = read(file, "rTxLoop")
-    lowpassfcs = read(file, "lowPassFilters")
-    # Note that the receiver depth needs to be in same model layer as transmitter.
-    ## LM times and ramp
-    LM_times = read(file, "LM_times")[:]
-    LM_ramp = read(file, "LM_ramp")
-    ## HM times and ramp
-    HM_times = read(file, "HM_times")[:]
-    HM_ramp = read(file, "HM_ramp")
-    ## LM operator
-    Flm = AEM_VMD_HMD.HFieldDHT(
-                          ntimesperdecade = ntimesperdecade,
-                          nfreqsperdecade = nfreqsperdecade,
-                          freqlow = freqlow,
-                          lowpassfcs = lowpassfcs,
-                          times  = LM_times,
-                          ramp   = LM_ramp,
-                          nmax   = nmax,
-                          zTx    = zTxLM,
-                          rRx    = rRx,
-                          rTx    = rTx,
-                          zRx    = zRxLM)
-    ## HM operator
-    Fhm = AEM_VMD_HMD.HFieldDHT(
-                          ntimesperdecade = ntimesperdecade,
-                          nfreqsperdecade = nfreqsperdecade,
-                          freqlow = freqlow,
-                          lowpassfcs = lowpassfcs,
-                          times  = HM_times,
-                          ramp   = HM_ramp,
-                          nmax   = nmax,
-                          zTx    = zTxHM,
-                          rRx    = rRx,
-                          rTx    = rTx,
-                          zRx    = zRxHM)
-    ## data and high altitude noise
-    LM_data = read(file, "d_LM")
-    HM_data = read(file, "d_HM")
-    LM_noise = read(file, "sd_LM")
-    HM_noise = read(file, "sd_HM")
-    ## create operator
-    dlow, dhigh, σlow, σhigh = (LM_data, HM_data, LM_noise, HM_noise)./μ₀
-    aem = dBzdt(Flm, Fhm, vec(dlow), vec(dhigh),
-                                      vec(σlow), vec(σhigh), z=z, ρ=ρ, nfixed=nfixed)
-    plotfield && plotmodelfield!(Flm, Fhm, z, ρ, dlow, dhigh, σlow, σhigh;
-                          figsize=(12,4), nfixed=nfixed, dz=dz, extendfrac=extendfrac)
-    aem, znall
 end
 
 function makeoperator( sounding::SkyTEMsoundingData;
