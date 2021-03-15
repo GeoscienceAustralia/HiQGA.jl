@@ -11,7 +11,7 @@ for iter = 1:nsequentialiters
     end
     @sync for (i, s) in enumerate(ss)
         @show pids = (i-1)*nchainspersounding+i:i*(nchainspersounding+1)
-        r_aem_and_znall = @spawnat pids[2] begin
+        r_aem_and_znall = @spawnat pids[1] begin
             transD_GP.SkyTEM1DInversion.makeoperator(sounding[s],
                                zfixed = zfixed,
                                ρfixed = ρfixed,
@@ -25,7 +25,7 @@ for iter = 1:nsequentialiters
                                showgeomplot = false,
                                plotfield = false)
         end
-        r_opt = @spawnat pids[2] begin
+        r_opt = @spawnat pids[1] begin
             transD_GP.SkyTEM1DInversion.make_tdgp_opt(znall = fetch(r_aem_and_znall)[2],
                                 fileprefix = sounding[s].sounding_string,
                                 nmin = nmin,

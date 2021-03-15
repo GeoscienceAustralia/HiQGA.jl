@@ -253,8 +253,8 @@ function do_mcmc_step(mn::DArray{ModelNuisance}, m::DArray{ModelStat},
 end
 
 function close_history(wp::DArray)
-    @sync for (idx, pid) in enumerate(procs(wp))
-        @spawnat pid close_history(wp[idx])
+    for (idx, pid) in enumerate(procs(wp))
+        @sync @spawnat pid close_history(wp[idx])
     end
 end
 
