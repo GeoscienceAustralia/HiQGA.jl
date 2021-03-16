@@ -1,0 +1,60 @@
+DEFN   ST=RECD,RT=COMM;RT:A4;COMMENTS:A80
+DEFN  0 ST=RECD,RT=;Line:i10:NULL=-99999999,NAME=Line Number
+DEFN  1 ST=RECD,RT=;Flight:i4:NULL=-99,NAME=Flight Number
+DEFN  2 ST=RECD,RT=;Fiducial:f8.1:NULL=-999999.9,NAME=Fiducial Number
+DEFN  3 ST=RECD,RT=;Proj_CGG:i7:NULL=-9999,NAME=AIRE Project Number
+DEFN  4 ST=RECD,RT=;Proj_Client:i10:NULL=-99999999,NAME=Client Project Number
+DEFN  5 ST=RECD,RT=;Date:i9:NULL=-9999999,NAME=Date (yyyymmdd)
+DEFN  6 ST=RECD,RT=;Time_Local:F10.1:UNIT=s:NULL=-999999.9,NAME=Local time seconds since midnight
+DEFN  7 ST=RECD,RT=;Time_UTC:F10.1:UNIT=s:NULL=-999999.9,NAME=UTC time seconds since midnight
+DEFN  8 ST=RECD,RT=;GPS_Time:F10.1:UNIT=s:NULL=-999999.9,NAME=GPS seconds of week
+DEFN  9 ST=RECD,RT=;Latitude:f12.7:UNIT=deg:NULL=-99.9999999,NAME=Latitude:DATUM=GDA94
+DEFN 10 ST=RECD,RT=;Longitude:f13.7:UNIT=deg:NULL=-999.9999999,NAME=Longitude:DATUM=GDA94
+DEFN 11 ST=RECD,RT=;Easting:f10.2:UNIT=m:NULL=-99999.99,NAME=Easting:PROJECTION=GDA94/54S
+DEFN 12 ST=RECD,RT=;Northing:f11.2:UNIT=m:NULL=-999999.99,NAME=Northing:PROJECTION=GDA94/54S
+DEFN 13 ST=RECD,RT=;GPS_Elevation:f8.2:UNIT=m:NULL=-999.99,NAME=Final GPS Elevation (GDA94):DATUM=GDA94
+DEFN 14 ST=RECD,RT=;Tx_Elevation:f8.2:UNIT=m:NULL=-999.99,NAME=Final Transmitter Elevation (AHD):DATUM=AHD
+DEFN 15 ST=RECD,RT=;Lidar:f8.2:UNIT=m:NULL=-999.99,NAME=Final Lidar altimeter
+DEFN 16 ST=RECD,RT=;Radalt:f8.2:UNIT=m:NULL=-999.99,NAME=Final Radar altimeter
+DEFN 17 ST=RECD,RT=;DTM:f8.2:UNIT=m:NULL=-999.99,NAME=Final Ground Elevation (AHD):DATUM=AHD
+DEFN 18 ST=RECD,RT=;Tx_Height:f8.2:UNIT=m:NULL=-999.99,NAME=Transmitter height above ground
+DEFN 19 ST=RECD,RT=;Tx_Pitch:f8.2:UNIT=deg:NULL=-999.99,NAME=Transmitter loop pitch nose up positive
+DEFN 20 ST=RECD,RT=;Tx_Roll:f8.2:UNIT=deg:NULL=-999.99,NAME=Transmitter loop roll right-wing down positive
+DEFN 21 ST=RECD,RT=;Tx_Yaw:f8.2:UNIT=deg:NULL=-999.99,NAME=Transmitter loop yaw to the right positive
+DEFN 22 ST=RECD,RT=;Tx_Bearing:f8.2:UNIT=deg:NULL=-999.99,NAME=Transmitter loop bearing
+DEFN 23 ST=RECD,RT=;HSep_Std:f8.2:UNIT=m:NULL=-999.99,NAME=Tx-Rx HPRG corrected nominal horizontal separation
+DEFN 24 ST=RECD,RT=;VSep_Std:f8.2:UNIT=m:NULL=-999.99,NAME=Tx-Rx HPRG corrected nominal vertical separation
+DEFN 25 ST=RECD,RT=;Tx_Height_Std:f8.2:UNIT=m:NULL=-999.99,NAME=Transmitter height above ground Standard
+DEFN 26 ST=RECD,RT=;HSep_PFEst:f8.2:UNIT=m:NULL=-999.99,NAME=Tx-Rx primary field derived horizontal separation
+DEFN 27 ST=RECD,RT=;VSep_PFEst:f8.2:UNIT=m:NULL=-999.99,NAME=Tx-Rx primary field derived vertical separation
+DEFN 28 ST=RECD,RT=;HSep_GPS:f8.2:UNIT=m:NULL=-999.99,NAME=Tx-Rx horizontal GPS separation
+DEFN 29 ST=RECD,RT=;TSep_GPS:f8.2:UNIT=m:NULL=-999.99,NAME=Tx-Rx transverse GPS separation
+DEFN 30 ST=RECD,RT=;VSep_GPS:f8.2:UNIT=m:NULL=-999.99,NAME=Tx-Rx vertical GPS separation
+DEFN 31 ST=RECD,RT=;Rx_Pitch:f8.2:UNIT=deg:NULL=-999.99,NAME=Receiver coil pitch nose up positive
+DEFN 32 ST=RECD,RT=;Rx_Roll:f8.2:UNIT=deg:NULL=-999.99,NAME=Receiver coil roll to the right positive
+DEFN 33 ST=RECD,RT=;Rx_Yaw:f8.2:UNIT=deg:NULL=-999.99,NAME=Receiver coil yaw to the right positive
+DEFN 34 ST=RECD,RT=;Rx_Bearing:f8.2:UNIT=deg:NULL=-999.99,NAME=Receiver bird bearing
+DEFN 35 ST=RECD,RT=;EMX_NonHPRG:15f12.6:UNIT=fT:NULL=-999.999999,NAME=Raw (non-HPRG) EMX Windows
+DEFN 36 ST=RECD,RT=;EMX_HPRG:15f12.6:UNIT=fT:NULL=-999.999999,NAME=Final HPRG Corrected EMX Windows
+DEFN 37 ST=RECD,RT=;X_Sferics:f10.3:NULL=-9999.999,NAME=Sferics - X component
+DEFN 38 ST=RECD,RT=;X_LowFreq:f10.3:NULL=-9999.999,NAME=Low Frequency monitor - X component
+DEFN 39 ST=RECD,RT=;X_Powerline:f10.3:NULL=-9999.999,NAME=Powerline - X component
+DEFN 40 ST=RECD,RT=;X_PrimaryField:f10.6:UNIT=fT:NULL=-9999.99999,NAME=Primary Field - X component
+DEFN 41 ST=RECD,RT=;X_VLF1:f10.3:NULL=-9999.999,NAME=VLF1 18.2kHz - X component
+DEFN 42 ST=RECD,RT=;X_VLF2:f10.3:NULL=-9999.999,NAME=VLF2 19.8kHz - X component
+DEFN 43 ST=RECD,RT=;X_VLF3:f10.3:NULL=-9999.999,NAME=VLF3 21.4kHz - X component
+DEFN 44 ST=RECD,RT=;X_VLF4:f10.3:NULL=-9999.999,NAME=VLF4 22.2kHz - X component
+DEFN 45 ST=RECD,RT=;X_Geofact:f10.6:NULL=-9999.99999,NAME=Geometry factor - X component
+DEFN 46 ST=RECD,RT=;EMZ_NonHPRG:15f12.6:UNIT=fT:NULL=-999.999999,NAME=Raw (non-HPRG) EMZ Windows
+DEFN 47 ST=RECD,RT=;EMZ_HPRG:15f12.6:UNIT=fT:NULL=-999.999999,NAME=Final HPRG Corrected EMZ Windows
+DEFN 48 ST=RECD,RT=;Z_Sferics:f10.3:NULL=-9999.999,NAME=Sferics - Z component
+DEFN 49 ST=RECD,RT=;Z_LowFreq:f10.3:NULL=-9999.999,NAME=Low Frequency monitor - Z component
+DEFN 50 ST=RECD,RT=;Z_Powerline:f10.3:NULL=-9999.999,NAME=Powerline - Z component
+DEFN 51 ST=RECD,RT=;Z_PrimaryField:f10.6:UNIT=fT:NULL=-9999.99999,NAME=Primary Field - Z component
+DEFN 52 ST=RECD,RT=;Z_VLF1:f10.3:NULL=-9999.999,NAME=VLF1 18.2kHz - Z component
+DEFN 53 ST=RECD,RT=;Z_VLF2:f10.3:NULL=-9999.999,NAME=VLF2 19.8kHz - Z component
+DEFN 54 ST=RECD,RT=;Z_VLF3:f10.3:NULL=-9999.999,NAME=VLF3 21.4kHz - Z component
+DEFN 55 ST=RECD,RT=;Z_VLF4:f10.3:NULL=-9999.999,NAME=VLF4 22.2kHz - Z component
+DEFN 56 ST=RECD,RT=;Z_Geofact:f10.6:NULL=-9999.99999,NAME=Geometry factor - Z component
+DEFN 57 ST=RECD,RT=;Ground_Elevation_Lidar:f8.2:UNIT=m:NULL=-999.99,NAME=Ground elevation extracted from airborne lidar survey DEM grid:DATUM=AHD
+DEFN 58 ST=RECD,RT=;END DEFN

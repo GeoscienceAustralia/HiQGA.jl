@@ -467,4 +467,202 @@ function set_noisy_data(tempest::Bfield;
 	nothing
 end
 
+
+mutable struct TempestSoundingData
+    sounding_string :: String
+    X       :: Float64
+    Y       :: Float64
+	Z       :: Float64
+    fid     :: Float64
+    linenum :: Int
+    x_rx    :: Float64
+	y_rx    :: Float64
+	z_rx    :: Float64
+	roll_rx :: Float64
+	pitch_rx:: Float64
+	yaw_rx  :: Float64
+	roll_tx :: Float64
+	pitch_tx:: Float64
+	yaw_tx  :: Float64
+    z_tx    :: Float64
+    times   :: Array{Float64, 1}
+    ramp    :: Array{Float64, 2}
+    σ_x     :: Array{Float64, 1}
+    σ_z     :: Array{Float64, 1}
+    Hx_data :: Array{Float64, 1}
+    Hz_data :: Array{Float64, 1}
+end
+
+
+function read_survey_files(;
+    fname_dat="",
+    fname_specs_halt="",
+    frame_height = -2,
+    frame_dz = -2,
+    frame_dx = -2,
+    frame_dy = -2,
+	Hxp = -1,
+	Hzp = -1,
+    Hxs = [-2, 2],
+    Hzs = [-2, 2],
+    units = 1e-15,
+	yaw_rx = -1,
+	pitch_rx = -1,
+	roll_rx = -1,
+	yaw_tx = -1,
+	pitch_tx = -1,
+	roll_tx = -1,
+    figsize = (16,11),
+    makesounding = false,
+    dotillsounding = nothing,
+    startfrom = 1,
+    skipevery = 1,
+    multnoise = 0.02,
+    X = -1,
+    Y = -1,
+	Z = -1,
+    fid = -1,
+    linenum = -1,
+	fsize = 13)
+
+    @assert frame_height > 0
+    @assert frame_dz > 0
+    @assert frame_dx > 0
+    @assert frame_dy > 0
+    @assert all(Hxs .> 0)
+    @assert all(Hzs .> 0)
+	@assert Hxp > 0
+	@assert Hzp > 0
+    @assert X > 0
+    @assert Y > 0
+	@assert Z > 0
+    @assert linenum > 0
+    @assert fid > 0
+	@assert pitch_rx > 0
+	@assert roll_rx > 0
+	@assert yaw_rx > 0
+	@assert pitch_tx > 0
+	@assert roll_tx > 0
+	@assert yaw_tx > 0
+	@assert 0 < multnoise < 1.0
+
+    @info "reading $fname_dat"
+    if dotillsounding!= nothing
+        soundings = readdlm(fname_dat)[startfrom:skipevery:dotillsounding,:]
+    else
+        soundings = readdlm(fname_dat)[startfrom:skipevery:end,:]
+    end
+    easting = soundings[:,X]
+    northing = soundings[:,Y]
+	topo = soundings[:,Z]
+    fiducial = soundings[:,fid]
+    whichline = soundings[:,linenum]
+
+	d_Hx = soundings[:,Hxs[1]:Hxs[2]] # secondary field
+    d_Hz = soundings[:,Hzs[1]:Hzs[2]] # secondary field
+    σ_Hx = multnoise*d_Hx # noise proportional to 2ndary
+    σ_Hz = multnoise*d_Hz # noise proportional to 2ndary
+	d_Hx .+= soundings[:,Hxp] # add primary field
+	d_Hz .+= soundings[:,Hzp] # add primary field
+
+    z_tx = soundings[:,frame_height]
+    z_rx = -(z_tx + soundings[:,frame_dz]) # Flipping to my earth geometry
+    z_tx = -z_tx # Flipping to my earth geometry
+    x_rx = soundings[:,frame_dx]
+	y_rx = -soundings[:,frame_dy] # Flipping to my earth geometry
+
+	d_pitch_rx = -soundings[:,pitch_rx] # Flipping to GA-AEM geometry
+	d_yaw_rx = -soundings[:,yaw_rx] # Flipping to GA-AEM geometry
+	d_roll_rx = soundings[:,roll_rx]
+
+	d_pitch_tx = -soundings[:,pitch_tx] # Flipping to GA-AEM geometry
+	d_yaw_tx = -soundings[:,yaw_tx] # Flipping to GA-AEM geometry
+	d_roll_tx = soundings[:,roll_tx]
+
+    @info "reading $fname_specs_halt"
+    include(fname_specs_halt)
+    @assert size(d_Hx, 2) == length(times)
+    @assert size(d_Hz, 2) == length(times)
+    @assert size(d_Hx, 2) == length(Hx_add_noise)
+    @assert size(d_Hz, 2) == length(Hz_add_noise)
+    Hx_add_noise[:] .*= units
+    Hz_add_noise[:] .*= units
+    d_Hx[:]     .*= units
+    d_Hz[:]     .*= -units # Flipping the Z component to align with GA_AEM rx
+    f = figure(figsize=figsize)
+    ax = Array{Any, 1}(undef, 4)
+    ax[1] = subplot(2,2,1)
+    nsoundings = size(soundings, 1)
+    plot_dHx = permutedims(d_Hx)
+    # plot_dHx[plot_dHx .<0] .= NaN
+    pcolormesh(1:nsoundings, times, plot_dHx, shading="nearest")
+    xlabel("sounding #")
+    cbHx = colorbar()
+    cbHx.ax.set_xlabel("Bx", fontsize=fsize)
+    ylabel("time s")
+    axHx = ax[1].twiny()
+    axHx.semilogy(Hx_add_noise, times, "-k")
+	axHx.semilogy(Hx_add_noise, times, "--w")
+    axHx.set_xlabel("high alt noise")
+    ax[2] = subplot(2,2,3,sharex=ax[1], sharey=ax[1])
+    plot_dHz = permutedims(d_Hz)
+    # plot_dHz[plot_dHM .<0] .= NaN
+    pcolormesh(1:nsoundings, times, plot_dHz, shading="nearest")
+    xlabel("sounding #")
+    cbHz = colorbar()
+    cbHz.ax.set_xlabel("Bz", fontsize=fsize)
+    ylabel("time s")
+    ax[2].invert_yaxis()
+    axHz = ax[2].twiny()
+    axHz.semilogy(Hz_add_noise, times, "-k")
+	axHz.semilogy(Hz_add_noise, times, "--w")
+    axHz.set_xlabel("high alt noise")
+    ax[3] = subplot(2,2,2, sharex=ax[1])
+	plot(1:nsoundings, z_tx, label="z_tx", "--")
+	plot(1:nsoundings, z_rx, label="z_rx")
+	plot(1:nsoundings, x_rx, label="x_rx")
+	plot(1:nsoundings, y_rx, label="y_rx")
+    legend()
+    xlabel("sounding #")
+    ylabel("earth frame geometry m")
+	ax[3].grid()
+    ax[3].invert_yaxis()
+    ax[4] = subplot(2,2,4, sharex=ax[1])
+    ax[4].plot(1:nsoundings, d_yaw_tx, label="yaw_tx", "--")
+	ax[4].plot(1:nsoundings, d_pitch_tx, label="pitch_tx", "--")
+	ax[4].plot(1:nsoundings, d_roll_tx, label="roll_tx", "--")
+	ax[4].plot(1:nsoundings, d_yaw_rx, label="yaw_rx")
+	ax[4].plot(1:nsoundings, d_pitch_rx, label="pitch_rx")
+	ax[4].plot(1:nsoundings, d_roll_rx, label="roll_rx")
+	ax[4].grid()
+    xlabel("sounding #")
+    ylabel("rotations degrees")
+	legend()
+	nicenup(f, fsize=fsize)
+    # if makesounding
+    #     s_array = Array{SkyTEMsoundingData, 1}(undef, nsoundings)
+    #     for is in 1:nsoundings
+    #         l, f = Int(whichline[is]), fiducial[is]
+    #         @info "read $is out of $nsoundings"
+    #         dlow, dhigh = vec(d_LM[is,:]), vec(d_HM[is,:])
+    #         if !relerror
+    #             σLM = sqrt.((multnoise*dlow).^2 + LM_noise.^2)
+    #             σHM = sqrt.((multnoise*dhigh).^2 + HM_noise.^2)
+    #         else
+    #             σLM, σHM = vec(σ_LM[is,:]), vec(σ_HM[is,:])
+    #         end
+    #         s_array[is] = SkyTEMsoundingData(rRx=rRx[is], zRxLM=zRx[is], zTxLM=zTx[is],
+    #             zRxHM=zRx[is], zTxHM=zTx[is], rTx=rTx, lowpassfcs=lowpassfcs,
+    #             LM_times=LM_times, LM_ramp=LM_ramp,
+    #             HM_times=HM_times, HM_ramp=HM_ramp,
+    #             LM_noise=σLM, HM_noise=σHM, LM_data=dlow, HM_data=dhigh,
+    #             sounding_string="sounding_$(l)_$f",
+    #             X=easting[is], Y=northing[is], fid=f,
+    #             linenum=l)
+    #     end
+    #     return s_array
+    # end
+end
+
+
 end
