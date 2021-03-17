@@ -722,7 +722,7 @@ function make_tdgp_opt(sounding::TempestSoundingData;
                     save_freq = 50,
 					nuisance_sdev   = [0.],
 					nuisance_bounds = [0. 0.],
-					update_nuisances = true,
+					updatenuisances = true,
 					dispstatstoscreen = false
                     )
     sdev_pos = [sdpos*abs(diff([extrema(znall)...])[1])]
@@ -753,6 +753,7 @@ function make_tdgp_opt(sounding::TempestSoundingData;
                             save_freq = save_freq,
                             needλ²fromlog = needλ²fromlog,
                             updatenonstat = updatenonstat,
+							updatenuisances = updatenuisances,
                             dispstatstoscreen = dispstatstoscreen
                             )
 
@@ -771,7 +772,7 @@ function make_tdgp_opt(sounding::TempestSoundingData;
 	optn = OptionsNuisance(opt;
 						sdev = nuisance_sdev,
 						bounds = nuisance_bounds,
-						updatenuisances = update_nuisances)
+						updatenuisances = updatenuisances)
 
     opt, optn
 end

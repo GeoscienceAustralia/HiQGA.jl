@@ -453,6 +453,7 @@ function main(opt_in       ::OptionsStat,
     @assert opt_in.needλ²fromlog == false
     @assert opt_in.updatenonstat == false
     @assert optn_in.updatenuisances == true
+    @assert opt_in.updatenuisances == true
 
     optdummy = transD_GP.OptionsNonstat(opt_in,
             nmin = 2,
@@ -593,6 +594,7 @@ function main(opt_in       ::OptionsStat,
     @assert opt_in.needλ²fromlog == false
     @assert opt_in.updatenonstat == false
     @assert optn_in.updatenuisances == true
+    @assert opt_in.updatenuisances == true
 
     optdummy = transD_GP.OptionsNonstat(opt_in,
             nmin = 2,
