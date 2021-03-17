@@ -437,7 +437,7 @@ function set_noisy_data!(tempest::Bfield, z::Array{Float64,1}, ρ::Array{Float64
 	getfieldTD!(tempest, z, ρ)
 	tempest.σx = σx
 	tempest.σz = σz
-	set_noisy_data(tempest,
+	set_noisy_data!(tempest,
 		dataHx = tempest.Hx + σx.*randn(size(σx)),
 		dataHz = tempest.Hz + σz.*randn(size(σz)),
 		σx = σx,
@@ -445,7 +445,7 @@ function set_noisy_data!(tempest::Bfield, z::Array{Float64,1}, ρ::Array{Float64
 	nothing
 end
 
-function set_noisy_data(tempest::Bfield;
+function set_noisy_data!(tempest::Bfield;
 						dataHz = zeros(0), dataHx = zeros(0),
 						σz = zeros(0), σx = zeros(0))
 
@@ -648,7 +648,7 @@ function read_survey_files(;
             σHx = sqrt.(vec(σ_Hx[is,:].^2) + Hx_add_noise.^2)
             σHz = sqrt.(vec(σ_Hz[is,:].^2) + Hz_add_noise.^2)
             s_array[is] = TempestSoundingData(
-				"sounding_$(l)_$f", easting[is], northing[is],
+				"sounding_$(l)_$fi", easting[is], northing[is],
 				topo[is], fi, l,
 				x_rx[is], y_rx[is], z_rx[is],
                 d_roll_rx[is], d_pitch_rx[is], d_yaw_rx[is],
@@ -660,6 +660,120 @@ function read_survey_files(;
         end
         return s_array
     end
+end
+
+function makeoperator( sounding::TempestSoundingData;
+                       zfixed   = [-1e5],
+                       ρfixed   = [1e12],
+                       zstart = 0.0,
+                       extendfrac = 1.06,
+                       dz = 2.,
+                       ρbg = 10,
+                       nlayers = 40,
+                       ntimesperdecade = 10,
+                       nfreqsperdecade = 5,
+                       showgeomplot = false,
+                       plotfield = false,
+					   addprimary = true)
+    @assert extendfrac > 1.0
+    @assert dz > 0.0
+    @assert ρbg > 0.0
+    @assert nlayers > 1
+    nmax = nlayers+1
+
+    zall, znall, zboundaries = setupz(zstart, extendfrac, dz=dz, n=nlayers, showplot=showgeomplot)
+    z, ρ, nfixed = makezρ(zboundaries; zfixed=zfixed, ρfixed=ρfixed)
+    ρ[z.>=zstart] .= ρbg
+    ## Tempest operator creation from sounding data
+	aem = Bfield(
+    zTx = sounding.z_tx, zRx = sounding.z_rx,
+	x_rx = sounding.x_rx, y_rx = sounding.y_rx,
+    rx_roll = sounding.roll_rx, rx_pitch = sounding.pitch_rx, rx_yaw = sounding.yaw_rx,
+    tx_roll = sounding.roll_tx, tx_pitch = sounding.pitch_tx, tx_yaw = sounding.yaw_tx,
+	ramp = sounding.ramp, times = sounding.times,
+	z=z, ρ=ρ,
+	addprimary = addprimary #this ensures that the geometry update actually changes everything that needs to be
+	)
+
+	set_noisy_data!(aem,
+		dataHx = sounding.Hx_data/μ₀,
+		dataHz = sounding.Hz_data/μ₀,
+		σx = sounding.σ_x/μ₀,
+		σz = sounding.σ_z/μ₀)
+
+	plotfield && plotmodelfield!(aem, z, ρ)
+
+    aem, znall
+end
+function make_tdgp_opt(sounding::TempestSoundingData;
+                    rseed = nothing,
+                    znall = znall,
+                    fileprefix = "sounding",
+                    nmin = 2,
+                    nmax = 40,
+                    K = GP.Mat32(),
+                    demean = true,
+                    sdpos = 0.05,
+                    sdprop = 0.05,
+                    fbounds = [-0.5 2.5],
+                    λ = [2],
+                    δ = 0.1,
+                    pnorm = 2,
+                    save_freq = 50,
+					nuisance_sdev   = [0.],
+					nuisance_bounds = [0. 0.],
+					update_nuisances = true,
+					dispstatstoscreen = false
+                    )
+    sdev_pos = [sdpos*abs(diff([extrema(znall)...])[1])]
+    sdev_prop = sdprop*diff(fbounds, dims=2)[:]
+    xall = permutedims(collect(znall))
+    xbounds = permutedims([extrema(znall)...])
+
+    updatenonstat = false
+    needλ²fromlog = false
+    if rseed != nothing
+        Random.seed!(rseed)
+    end
+
+    opt = OptionsStat(fdataname = fileprefix*"_",
+                            nmin = nmin,
+                            nmax = nmax,
+                            xbounds = xbounds,
+                            fbounds = fbounds,
+                            xall = xall,
+                            λ = λ,
+                            δ = δ,
+                            demean = demean,
+                            sdev_prop = sdev_prop,
+                            sdev_pos = sdev_pos,
+                            pnorm = pnorm,
+                            quasimultid = false,
+                            K = K,
+                            save_freq = save_freq,
+                            needλ²fromlog = needλ²fromlog,
+                            updatenonstat = updatenonstat,
+                            dispstatstoscreen = dispstatstoscreen
+                            )
+
+	nuisance_bounds .+= [
+      sounding.z_tx
+      sounding.z_rx
+      sounding.x_rx
+      sounding.y_rx
+      sounding.roll_rx
+      sounding.pitch_rx
+      sounding.yaw_rx
+      sounding.roll_tx
+      sounding.pitch_tx
+      sounding.yaw_tx]
+
+	optn = OptionsNuisance(opt;
+						sdev = nuisance_sdev,
+						bounds = nuisance_bounds,
+						updatenuisances = update_nuisances)
+
+    opt, optn
 end
 
 
