@@ -1,5 +1,5 @@
 using PyPlot, Revise, transD_GP
-transD_GP.TEMPEST1DInversion.read_survey_files(
+soundings = transD_GP.TEMPEST1DInversion.read_survey_files(
 	fname_dat= "TEMPEST_25Hz_Laura_Menindee_EM_Survey_altitude_lines_lidar_elevation.dat",
 	fname_specs_halt="electronics_halt.jl",
 	frame_height = 19,
@@ -21,4 +21,5 @@ transD_GP.TEMPEST1DInversion.read_survey_files(
 	Y = 13,
 	Z = 16,
 	fid = 3,
-	linenum = 1)
+	linenum = 1,
+	makesounding=true)

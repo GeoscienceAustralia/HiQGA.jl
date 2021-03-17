@@ -467,7 +467,6 @@ function set_noisy_data(tempest::Bfield;
 	nothing
 end
 
-
 mutable struct TempestSoundingData
     sounding_string :: String
     X       :: Float64
@@ -492,7 +491,6 @@ mutable struct TempestSoundingData
     Hx_data :: Array{Float64, 1}
     Hz_data :: Array{Float64, 1}
 end
-
 
 function read_survey_files(;
     fname_dat="",
@@ -639,29 +637,27 @@ function read_survey_files(;
     ylabel("rotations degrees")
 	legend()
 	nicenup(f, fsize=fsize)
-    # if makesounding
-    #     s_array = Array{SkyTEMsoundingData, 1}(undef, nsoundings)
-    #     for is in 1:nsoundings
-    #         l, f = Int(whichline[is]), fiducial[is]
-    #         @info "read $is out of $nsoundings"
-    #         dlow, dhigh = vec(d_LM[is,:]), vec(d_HM[is,:])
-    #         if !relerror
-    #             σLM = sqrt.((multnoise*dlow).^2 + LM_noise.^2)
-    #             σHM = sqrt.((multnoise*dhigh).^2 + HM_noise.^2)
-    #         else
-    #             σLM, σHM = vec(σ_LM[is,:]), vec(σ_HM[is,:])
-    #         end
-    #         s_array[is] = SkyTEMsoundingData(rRx=rRx[is], zRxLM=zRx[is], zTxLM=zTx[is],
-    #             zRxHM=zRx[is], zTxHM=zTx[is], rTx=rTx, lowpassfcs=lowpassfcs,
-    #             LM_times=LM_times, LM_ramp=LM_ramp,
-    #             HM_times=HM_times, HM_ramp=HM_ramp,
-    #             LM_noise=σLM, HM_noise=σHM, LM_data=dlow, HM_data=dhigh,
-    #             sounding_string="sounding_$(l)_$f",
-    #             X=easting[is], Y=northing[is], fid=f,
-    #             linenum=l)
-    #     end
-    #     return s_array
-    # end
+    if makesounding
+        s_array = Array{TempestSoundingData, 1}(undef, nsoundings)
+        for is in 1:nsoundings
+            l, f = Int(whichline[is]), fiducial[is]
+            @info "read $is out of $nsoundings"
+            dHx, dHz = vec(d_Hx[is,:]), vec(d_Hz[is,:])
+            σHx = sqrt.(vec(σ_Hx[is,:].^2) + Hx_add_noise.^2)
+            σHz = sqrt.(vec(σ_Hz[is,:].^2) + Hz_add_noise.^2)
+            s_array[is] = TempestSoundingData(
+				"sounding_$(l)_$f", easting[is], northing[is],
+				topo[is], f, l,
+				x_rx[is], y_rx[is], z_rx[is],
+                d_roll_rx[is], d_pitch_rx[is], d_yaw_rx[is],
+				d_roll_tx[is], d_pitch_tx[is], d_yaw_tx[is],
+				z_tx[is],
+                times, ramp,
+                σHx, σHz, dHx, dHz
+                )
+        end
+        return s_array
+    end
 end
 
 
