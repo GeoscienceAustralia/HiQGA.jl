@@ -583,6 +583,8 @@ function read_survey_files(;
     @assert size(d_Hz, 2) == length(times)
     @assert size(d_Hx, 2) == length(Hx_add_noise)
     @assert size(d_Hz, 2) == length(Hz_add_noise)
+	σ_Hx .*= units
+	σ_Hz .*= units
     Hx_add_noise[:] .*= units
     Hz_add_noise[:] .*= units
     d_Hx[:]     .*= units
@@ -640,14 +642,14 @@ function read_survey_files(;
     if makesounding
         s_array = Array{TempestSoundingData, 1}(undef, nsoundings)
         for is in 1:nsoundings
-            l, f = Int(whichline[is]), fiducial[is]
+            l, fi = Int(whichline[is]), fiducial[is]
             @info "read $is out of $nsoundings"
             dHx, dHz = vec(d_Hx[is,:]), vec(d_Hz[is,:])
             σHx = sqrt.(vec(σ_Hx[is,:].^2) + Hx_add_noise.^2)
             σHz = sqrt.(vec(σ_Hz[is,:].^2) + Hz_add_noise.^2)
             s_array[is] = TempestSoundingData(
 				"sounding_$(l)_$f", easting[is], northing[is],
-				topo[is], f, l,
+				topo[is], fi, l,
 				x_rx[is], y_rx[is], z_rx[is],
                 d_roll_rx[is], d_pitch_rx[is], d_yaw_rx[is],
 				d_roll_tx[is], d_pitch_tx[is], d_yaw_tx[is],
