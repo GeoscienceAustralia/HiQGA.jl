@@ -1,7 +1,7 @@
 ## MPI Init same was as on gadi
 using MPIClusterManagers, Distributed
 import MPI
-usempi = true
+usempi = false
 if usempi
 	MPI.Init()
 	rank = MPI.Comm_rank(MPI.COMM_WORLD)

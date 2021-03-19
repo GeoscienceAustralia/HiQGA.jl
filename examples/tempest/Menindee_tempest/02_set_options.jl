@@ -9,7 +9,7 @@ ntimesperdecade = 10
 nfreqsperdecade = 5
 ## make transD options
 nmin, nmax = 2, 40
-K = transD_GP.GP.Mat32()
+K = transD_GP.GP.OrstUhn()
 demean = true
 fbounds = [-0.5 2.5]
 sdpos = 0.05
@@ -33,11 +33,11 @@ nuisance_sdev = [
            ]
  nuisance_bounds = [
       0.   0.
-     -5.0  5.0
-     -5.0  5.0
+     -3.0  3.0
+     -3.0  3.0
       0.   0.
       0.   0.
-     -2.0  2.0
+     -1.5  1.5
       0.   0.
       0.   0.
       0.   0.
@@ -48,8 +48,7 @@ nuisance_sdev = [
 using Random
 nplot = 2
 nplot = min(nplot, length(sounding))
-idx = 4000
-# for idx in randperm(length(sounding))[1:nplot]
+for idx in randperm(length(sounding))[1:nplot]
         aem, znall = transD_GP.TEMPEST1DInversion.makeoperator(sounding[idx],
                                zfixed = zfixed,
                                ρfixed = ρfixed,
@@ -79,6 +78,6 @@ idx = 4000
                                 nuisance_bounds = nuisance_bounds,
                                 nuisance_sdev = nuisance_sdev,
                                 updatenuisances = updatenuisances,
-                                dispstatstoscreen = true
+                                dispstatstoscreen = false
                                 )
-# end
+end

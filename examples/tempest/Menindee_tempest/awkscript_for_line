@@ -1,0 +1,1 @@
+awk -F " " '{ if ( $1 == 2000001 ) print $0 }' TEMPEST_25Hz_Laura_Menindee_EM_Survey_altitude_lines_lidar_elevation.dat >Line_2000001
