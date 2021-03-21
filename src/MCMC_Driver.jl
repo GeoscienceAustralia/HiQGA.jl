@@ -292,6 +292,10 @@ function init_chain_darrays(opt_in::OptionsStat,
     x_ftrain_filename = "points_"*opt_in.fdataname
     nu_filename = "values_nuisance_"*opt_in.fdataname
 
+    if opt_in.history_mode = "a"
+        setrestartflag.([opt_in, optns_in, optn_in])
+    end
+
     iterlast = 0
     @sync for(idx, chain) in enumerate(chains)
 

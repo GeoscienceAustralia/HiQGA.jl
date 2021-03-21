@@ -481,12 +481,16 @@ function make_tdgp_opt(;
                     λ = [2],
                     δ = 0.1,
                     pnorm = 2,
-                    save_freq = 25
+                    save_freq = 25,
+                    restart = false
                     )
     sdev_pos = [sdpos*abs(diff([extrema(znall)...])[1])]
     sdev_prop = sdprop*diff(fbounds, dims=2)[:]
     xall = permutedims(collect(znall))
     xbounds = permutedims([extrema(znall)...])
+
+    history_mode = "a"
+	restart && (history_mode = "w")
 
     updatenonstat = false
     needλ²fromlog = false
@@ -510,7 +514,8 @@ function make_tdgp_opt(;
                             save_freq = save_freq,
                             needλ²fromlog = needλ²fromlog,
                             updatenonstat = updatenonstat,
-                            dispstatstoscreen = false
+                            dispstatstoscreen = false,
+                            history_mode = history_mode
                             )
     opt
 end

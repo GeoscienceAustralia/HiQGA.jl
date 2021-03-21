@@ -26,7 +26,7 @@ for iter = 1:nsequentialiters
         end
         r_opt_and_optn = @spawnat pids[1] begin
         transD_GP.TEMPEST1DInversion.make_tdgp_opt(sounding[s],
-                                znall = fetch(r_aem_and_znall)[2]
+                                znall = fetch(r_aem_and_znall)[2],
                                 fileprefix = sounding[s].sounding_string,
                                 nmin = nmin,
                                 nmax = nmax,
