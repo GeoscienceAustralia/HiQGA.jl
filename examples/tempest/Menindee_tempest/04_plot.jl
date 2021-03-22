@@ -116,18 +116,48 @@ plotposts(idx, computeforward=true)
 pl = [s[1][1,:] for s in soundingquants]
 pm = [s[1][2,:] for s in soundingquants]
 ph = [s[1][3,:] for s in soundingquants]
-p20 = hcat(pl...)
-p50 = hcat(pm...)
-p80 = hcat(ph...)
+pl = hcat(pl...)
+pm = hcat(pm...)
+ph = hcat(ph...)
 deltaP = abs(maximum(ph)-minimum(pl))
 CI = abs.(ph - pl) # will be different at each pmap depth
 frac = CI/deltaP
-frac_max, frac_min = 0.9, 0.1 # threshholds to set
+frac_max, frac_min = 0.6, 0.1 # threshholds to set
 α = 0 .+ (frac_max .- frac)/(frac_max - frac_min)
 idxshowall = frac .< frac_min
 idxblank = frac .> frac_max
 α[idxshowall] .= 1.0
 α[idxblank] .= 0.
+xx, zz = [x for z in zall, x in X], [z for z in zall, x in X]
+topo = [s.Z for s in sounding]
+zz = topo' .- zz # mAHD
+kdtree = KDTree([xx[:]'; zz[:]'])
+gridx = range(X[1], X[end], length=length(X))
+gridz = reverse(range(extrema(zz)..., step=dz))
+xx, zz = [x for z in gridz, x in gridx], [z for z in gridz, x in gridx]
+idxs, = nn(kdtree, [xx[:]'; zz[:]'])
+img = zeros(size(xx))
+al = zeros(size(xx))
+for i = 1:length(img)
+    img[i] = -pm[idxs[i]]
+    al[i] = α[idxs[i]]
+end
+f = figure(figsize=(9,2))
+img[zz .>topo'] .= NaN
+# first fake mappable
+i = imshow(img, alpha=0.5, cmap="jet", extent=[gridx[1], gridx[end], gridz[end], gridz[1]], aspect="auto")
+# then blank image
+imshow(ones(size(img)), extent=[gridx[1], gridx[end], gridz[end], gridz[1]], aspect="auto", cmap="gray_r")
+# then actual image
+imshow(img, alpha=al, cmap="jet", extent=[gridx[1], gridx[end], gridz[end], gridz[1]],aspect="auto" )
+plot(X, topo, "-k")
+xlabel("Easting m")
+ylabel("mAHD")
+ylim(-200, 152)
+cb = colorbar(mappable=i)
+cb.ax.set_xlabel(L"\log_{10}\sigma", fontsize=12)
+cb.ax.tick_params(labelsize=12)
+transD_GP.CommonToAll.nicenup(f, fsize=12)
 ## now try for the geometries
 p1, p2, p3 = [], [], []
 for s in soundingquants
@@ -139,7 +169,7 @@ end
 p1 = hcat(p1...)
 p2 = hcat(p2...)
 p3 = hcat(p3...)
-f, ax = plt.subplots(3,1, sharex=true, figsize=(12,8))
+f, ax = plt.subplots(3,1, sharex=true, figsize=(10,2.6))
 ax[1].plot(X, p1[1,:])
 ax[1].plot(X, p2[1,:])
 ax[1].plot(X, p3[1,:])
