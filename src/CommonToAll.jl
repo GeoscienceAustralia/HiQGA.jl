@@ -136,7 +136,9 @@ function assemblenuisancesatT(optn::OptionsNuisance;
     niters = size(Tacrosschains,1)
     #this will never give a bounds error
     #because of the assert above
-    firsti = 1 + floor(Int, niters*burninfrac)
+    firsti = round(Int, niters*burninfrac)
+    firsti == 0 && (start = 1)
+    # firsti = 1 + floor(Int, niters*burninfrac)
     ttarg = sortedTs[temperaturenum]
     nmodels = sum(Tacrosschains[firsti:end,:] .== ttarg)
     topt = deepcopy(optn)

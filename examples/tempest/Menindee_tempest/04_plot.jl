@@ -67,11 +67,11 @@ function plotposts(idx; computeforward=false, plotposterior=true, nbins=50,
 end
 plotposts(idx, computeforward=true)
 ## now try to do this for all soundings ...
-quants = [0.2,0.5,0.8]
+quants = [0.1,0.5,0.9]
 soundingquants = [plotposts(i, plotposterior=false, computequants=true, quants=quants) for i in 1:length(sounding)]
 ## plot them
 idx = round(Int, length(sounding)/2)
-X, zrx_given, zrx_given, pitchrx_given = [], [], [], []
+X, zrx_given, xrx_given, pitchrx_given = [], [], [], []
 for s in sounding
     global X, zrx_given, xrx_given, pitchrx_given
     push!(X, s.X)
@@ -81,8 +81,8 @@ for s in sounding
 end
 X0 = X[1] - diff(X)[1]/2
 xaxis = [X0, (X[1:end-1] .+ diff(X)/2)...]
-cmap, vmin, vmax = "plasma", -4, 0.5
-fig, ax = plt.subplots(3,1,sharex=true, sharey=true, figsize=(15,6))
+cmap, vmin, vmax = "jet", -2., log10(2)
+fig, ax = plt.subplots(3,1,sharex=true, sharey=true, figsize=(10,5))
 a = [s[1][2,:] for s in soundingquants]
 b = hcat(a...)
 ax[2].pcolormesh(xaxis, zboundaries, -b, cmap=cmap, vmin=vmin, vmax=vmax)
@@ -103,14 +103,31 @@ ax[3].plot(sounding[idx].X*[1,1], ax[3].get_ylim(), "-w")
 ax[3].plot(sounding[idx].X*[1,1], ax[3].get_ylim(), "--k")
 ax[3].set_title("P $(round((1-quants[3])*100)) conductivity")
 xlabel("Easting m")
-ax[3].invert_yaxis()
-transD_GP.CommonToAll.nicenup(fig)
+ax[3].set_ylim(300, 0)
+transD_GP.CommonToAll.nicenup(fig, fsize=12)
 fig.subplots_adjust(right=0.9)
 cbar_ax = fig.add_axes([0.92, 0.15, 0.025, 0.75])
 cb = fig.colorbar(i, cax=cbar_ax)
 cb.ax.set_xlabel(L"\log_{10}\sigma", fontsize=12)
 cb.ax.tick_params(labelsize=12)
 # savefig("postice.png", dpi=300)
+plotposts(idx, computeforward=true)
+## median and alpha values, WIP for mesh
+pl = [s[1][1,:] for s in soundingquants]
+pm = [s[1][2,:] for s in soundingquants]
+ph = [s[1][3,:] for s in soundingquants]
+p20 = hcat(pl...)
+p50 = hcat(pm...)
+p80 = hcat(ph...)
+deltaP = abs(maximum(ph)-minimum(pl))
+CI = abs.(ph - pl) # will be different at each pmap depth
+frac = CI/deltaP
+frac_max, frac_min = 0.9, 0.1 # threshholds to set
+α = 0 .+ (frac_max .- frac)/(frac_max - frac_min)
+idxshowall = frac .< frac_min
+idxblank = frac .> frac_max
+α[idxshowall] .= 1.0
+α[idxblank] .= 0.
 ## now try for the geometries
 p1, p2, p3 = [], [], []
 for s in soundingquants
@@ -122,19 +139,25 @@ end
 p1 = hcat(p1...)
 p2 = hcat(p2...)
 p3 = hcat(p3...)
-f, ax = plt.subplots(3,1, sharex=true)
+f, ax = plt.subplots(3,1, sharex=true, figsize=(12,8))
 ax[1].plot(X, p1[1,:])
 ax[1].plot(X, p2[1,:])
 ax[1].plot(X, p3[1,:])
-ax[1].plot(X, zrx_given, "--")
+ax[1].plot(X, zrx_given, "--k")
+ax[1].set_ylabel("height m")
 ax[1].set_title("zrx")
 ax[2].plot(X, p1[2,:])
 ax[2].plot(X, p2[2,:])
 ax[2].plot(X, p3[2,:])
-ax[1].plot(X, xrx_given, "--")
+ax[2].plot(X, xrx_given, "--k")
+ax[2].set_ylabel("tx-rx sep m")
 ax[2].set_title("xrx")
 ax[3].plot(X, p1[3,:])
 ax[3].plot(X, p2[3,:])
 ax[3].plot(X, p3[3,:])
-ax[1].plot(X, pitchrx_given, "--")
+ax[3].plot(X, pitchrx_given, "--k")
+ax[3].set_ylabel("degrees")
 ax[3].set_title("pitch_rx")
+ax[3].set_xlabel("Easting m")
+# ax[3].invert_xaxis()
+transD_GP.nicenup(f)
