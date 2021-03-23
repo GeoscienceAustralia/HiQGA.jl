@@ -1,7 +1,7 @@
 ## plot n random soundings and a background response
-using  Random, PyPlot, Statistics
+using  Random, PyPlot, Statistics, NearestNeighbors
 idx = 1
-## make a closure to plot posteriors
+## make a closure to plot posteriors, very hacky
 zall, znall, zboundaries = transD_GP.CommonToAll.setupz(zstart, extendfrac, dz=dz, n=nlayers)
 function plotposts(idx; computeforward=false, plotposterior=true, nbins=50,
                     computequants=false, nforwards=50, burninfrac=0.5, quants=[0.1,0.5,0.9])
@@ -110,7 +110,6 @@ cbar_ax = fig.add_axes([0.92, 0.15, 0.025, 0.75])
 cb = fig.colorbar(i, cax=cbar_ax)
 cb.ax.set_xlabel(L"\log_{10}\sigma", fontsize=12)
 cb.ax.tick_params(labelsize=12)
-# savefig("postice.png", dpi=300)
 plotposts(idx, computeforward=true)
 ## median and alpha values, WIP for mesh
 pl = [s[1][1,:] for s in soundingquants]
@@ -142,7 +141,7 @@ for i = 1:length(img)
     img[i] = -pm[idxs[i]]
     al[i] = α[idxs[i]]
 end
-f = figure(figsize=(9,2))
+f = figure(figsize=(18,2.5))
 img[zz .>topo'] .= NaN
 # first fake mappable
 i = imshow(img, alpha=0.5, cmap="jet", extent=[gridx[1], gridx[end], gridz[end], gridz[1]], aspect="auto")
@@ -153,7 +152,7 @@ imshow(img, alpha=al, cmap="jet", extent=[gridx[1], gridx[end], gridz[end], grid
 plot(X, topo, "-k")
 xlabel("Easting m")
 ylabel("mAHD")
-ylim(-200, 152)
+ylim(-200, 200)
 cb = colorbar(mappable=i)
 cb.ax.set_xlabel(L"\log_{10}\sigma", fontsize=12)
 cb.ax.tick_params(labelsize=12)
