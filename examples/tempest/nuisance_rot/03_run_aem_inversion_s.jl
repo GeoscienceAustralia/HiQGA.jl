@@ -1,6 +1,6 @@
 ## set up McMC
 using Distributed
-nsamples, nchains, nchainsatone = 100001, 7, 1
+nsamples, nchains, nchainsatone = 1001, 7, 1
 Tmax = 2.5
 addprocs(nchains)
 ##init packages on workers
