@@ -516,9 +516,9 @@ function plot_posterior(operator::Operator1D,
     doplot = true)
     @assert 0<vmaxpc<=1
     if temperaturenum == 1
-        himage_ns, edges_ns, CI_ns, meanimage_ns, meandiffimage_ns = make1Dhist(optns, burninfrac=burninfrac, nbins = nbins, qp1=qp1, qp2=qp2,
+        himage_ns, edges_ns, CI_ns, meanimage_ns, meandiffimage_ns, sdslope_ns = make1Dhist(optns, burninfrac=burninfrac, nbins = nbins, qp1=qp1, qp2=qp2,
                                 pdfnormalize=pdfnormalize, temperaturenum=temperaturenum)
-        himage, edges, CI, meanimage, meandiffimage = make1Dhist(opts, burninfrac=burninfrac, nbins = nbins, qp1=qp1, qp2=qp2,
+        himage, edges, CI, meanimage, meandiffimage, sdslope = make1Dhist(opts, burninfrac=burninfrac, nbins = nbins, qp1=qp1, qp2=qp2,
                                 pdfnormalize=pdfnormalize, temperaturenum=temperaturenum, islscale=true)
     else
         himage, edges, CI, himage_ns, edges_ns, CI_ns = make1Dhist(optns, opts, burninfrac=burninfrac, nbins = nbins, qp1=qp1, qp2=qp2,
@@ -535,7 +535,8 @@ function plot_posterior(operator::Operator1D,
     propmin = min(minimum(CI_ns), minimum(optns.fbounds))
     propmax = max(maximum(CI_ns), maximum(optns.fbounds))
     ax[1].set_xlim(propmin, propmax)
-    ax[2].plot(meanimage_ns, xall[:], linewidth=2, color="g", alpha=0.5)
+    ax[2].plot(meandiffimage_ns, xall[:], linewidth=2, color="g", alpha=0.5)
+    ax[2].fill_betweenx(xall[:],meandiffimage_ns[:]-sdslope_ns[:],meandiffimage_ns[:]+sdslope_ns[:],alpha=.5)
     ax[2].set_xlabel("slope")
 
     propmin = min(minimum(CI), minimum(opts.fbounds))
@@ -548,7 +549,8 @@ function plot_posterior(operator::Operator1D,
     cb3.ax.set_xlabel("pdf \nstationary")
 
     if showlscale1vd
-        ax[4].plot(meanimage[:], xall[:], linewidth=2, color="g", alpha=0.5)
+        ax[4].plot(meandiffimage[:], xall[:], linewidth=2, color="g", alpha=0.5)
+        ax[4].fill_betweenx(xall[:], meandiffimage[:]-sdslope[:],meandiffimage[:]+sdslope[:], alpha=.5)
         ax[4].set_xlabel("slope")
     end
 
@@ -580,7 +582,7 @@ function plot_posterior(operator::Operator1D,
     fsize=14,
     doplot = true)
     @assert 0<vmaxpc<=1
-    himage, edges, CI, meanimage, meandiffimage = make1Dhist(opt, burninfrac=burninfrac, nbins = nbins, qp1=qp1, qp2=qp2,
+    himage, edges, CI, meanimage, meandiffimage, sdslope = make1Dhist(opt, burninfrac=burninfrac, nbins = nbins, qp1=qp1, qp2=qp2,
                                     pdfnormalize=pdfnormalize, temperaturenum=temperaturenum)
     f,ax = plt.subplots(1,2, sharey=true, figsize=figsize)
     if doplot
@@ -604,6 +606,7 @@ function plot_posterior(operator::Operator1D,
 
         ax[1].set_xlim(propmin, propmax)
         ax[2].plot(meandiffimage[:], xall[:], linewidth=2, color="k", linestyle="-")
+        ax[2].fill_betweenx(xall[:],meandiffimage[:]-sdslope[:],meandiffimage[:]+sdslope[:],alpha=.5)
         ax[2].set_xlabel("mean slope")
         nicenup(f, fsize=fsize)
     end
@@ -709,11 +712,13 @@ function make1Dhist(opt::Options;
     meanimage = mean(M)
     if islscale
         Mslope = mean(firstderiv.([0.5log10.(m) for m in M]))
+        sdevslope = std(firstderiv.([0.5log10.(m) for m in M]))
     else
         Mslope = mean(firstderiv.(M))
+        sdevslope = std(firstderiv.(M))
     end
     # Mslope = secondderiv.(M)
-    return himage, edges, CI, meanimage, Mslope
+    return himage, edges, CI, meanimage, Mslope, sdevslope
 end
 
 function gethimage(M::AbstractArray, opt::Options;
