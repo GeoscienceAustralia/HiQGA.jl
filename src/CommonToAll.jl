@@ -512,13 +512,13 @@ function plot_posterior(operator::Operator1D,
     figsize=(12,5),
     pdfnormalize=false,
     fsize=14,
-    showlscale1vd=false)
+    showlscale1vd=false,
+    doplot = true)
     @assert 0<vmaxpc<=1
     if temperaturenum == 1
-        himage_ns, edges_ns, CI_ns,
-        hdiffimage_ns, diffedges_ns, diffCI_ns = make1Dhist(optns, burninfrac=burninfrac, nbins = nbins, qp1=qp1, qp2=qp2,
+        himage_ns, edges_ns, CI_ns, meanimage_ns, meandiffimage_ns = make1Dhist(optns, burninfrac=burninfrac, nbins = nbins, qp1=qp1, qp2=qp2,
                                 pdfnormalize=pdfnormalize, temperaturenum=temperaturenum)
-        himage, edges, CI, hdiffimage, diffedges, diffCI = make1Dhist(opts, burninfrac=burninfrac, nbins = nbins, qp1=qp1, qp2=qp2,
+        himage, edges, CI, meanimage, meandiffimage = make1Dhist(opts, burninfrac=burninfrac, nbins = nbins, qp1=qp1, qp2=qp2,
                                 pdfnormalize=pdfnormalize, temperaturenum=temperaturenum, islscale=true)
     else
         himage, edges, CI, himage_ns, edges_ns, CI_ns = make1Dhist(optns, opts, burninfrac=burninfrac, nbins = nbins, qp1=qp1, qp2=qp2,
@@ -527,7 +527,6 @@ function plot_posterior(operator::Operator1D,
     f,ax = plt.subplots(1, 3+convert(Int, showlscale1vd), sharey=true, figsize=figsize)
     xall = opts.xall
     xmesh = vcat(xall[1:end-1] - diff(xall[:])/2, xall[end])
-    # im1 = ax[1].imshow(himage_ns, extent=[edges_ns[1],edges_ns[end],xall[end],xall[1]], aspect="auto", cmap=cmappdf)
     vmin, vmax = extrema(himage_ns)
     vmax = vmin+vmaxpc*(vmax-vmin)
     im1 = ax[1].pcolormesh(edges_ns[:], xmesh, himage_ns, cmap=cmappdf, vmax=vmax)
@@ -536,17 +535,7 @@ function plot_posterior(operator::Operator1D,
     propmin = min(minimum(CI_ns), minimum(optns.fbounds))
     propmax = max(maximum(CI_ns), maximum(optns.fbounds))
     ax[1].set_xlim(propmin, propmax)
-    # ax[1].grid()
-    # im2 = ax[2].imshow(himage, extent=[edges[1],edges[end],xall[end],xall[1]], aspect="auto", cmap=cmappdf)
-    vmin, vmax = extrema(hdiffimage_ns)
-    vmax = vmin+vmaxpc*(vmax-vmin)
-    propmax = maximum(diffCI_ns)
-    im2 = ax[2].pcolormesh(diffedges_ns[:], xmesh, hdiffimage_ns, cmap=cmappdf, vmax=vmax)
-    ax[2].set_xlim(0, propmax)
-    cb2 = colorbar(im2, ax=ax[2])
-    cb2.ax.set_xlabel("pdf\nabs 1VD")
-    ax[2].plot(diffCI_ns[:,2], xall[:], linewidth=2, color="g", alpha=0.5)
-    ax[2].plot(diffCI_ns[:,2], xall[:], linewidth=2, color="c", linestyle="--", alpha=0.5)
+    ax[2].plot(meanimage_ns, xall[:], linewidth=2, color="g", alpha=0.5)
     ax[2].set_xlabel("slope")
 
     propmin = min(minimum(CI), minimum(opts.fbounds))
@@ -559,22 +548,18 @@ function plot_posterior(operator::Operator1D,
     cb3.ax.set_xlabel("pdf \nstationary")
 
     if showlscale1vd
-        vmin, vmax = extrema(hdiffimage)
-        vmax = vmin+vmaxpc*(vmax-vmin)
-        propmax = maximum(diffCI)
-        im4 = ax[4].pcolormesh(diffedges[:], xmesh, hdiffimage_ns, cmap=cmappdf, vmax=vmax)
-        ax[4].set_xlim(0, propmax)
-        cb4 = colorbar(im4, ax=ax[4])
-        cb4.ax.set_xlabel("pdf\nabs 1VD")
-        ax[4].plot(diffCI[:,2], xall[:], linewidth=2, color="g", alpha=0.5)
-        ax[4].plot(diffCI[:,2], xall[:], linewidth=2, color="c", linestyle="--", alpha=0.5)
+        ax[4].plot(meanimage[:], xall[:], linewidth=2, color="g", alpha=0.5)
         ax[4].set_xlabel("slope")
     end
 
     ax[1].plot(CI_ns, xall[:], linewidth=2, color="g", alpha=0.5)
     ax[1].plot(CI_ns, xall[:], linewidth=2, color="c", linestyle="--", alpha=0.5)
+    ax[1].plot(meanimage_ns[:], xall[:], linewidth=2, color="w", alpha=0.5)
+    ax[1].plot(meanimage_ns[:], xall[:], linewidth=2, color="k", linestyle="--", alpha=0.5)
     ax[3].plot(CI, xall[:], linewidth=2, color="g", alpha=0.5)
     ax[3].plot(CI, xall[:], linewidth=2, color="c", linestyle="--", alpha=0.5)
+    ax[3].plot(meanimage[:], xall[:], linewidth=2, color="w", alpha=0.5)
+    ax[3].plot(meanimage[:], xall[:], linewidth=2, color="k", linestyle="--", alpha=0.5)
     ax[1].set_xlabel(L"\log_{10} \rho")
     ax[1].set_ylabel("depth (m)")
     ax[3].set_xlabel(L"\log_{10} λ")
@@ -592,43 +577,37 @@ function plot_posterior(operator::Operator1D,
     cmappdf = "inferno",
     figsize=(5,5),
     pdfnormalize=false,
-    fsize=14)
+    fsize=14,
+    doplot = true)
     @assert 0<vmaxpc<=1
-    himage, edges, CI, hdiffimage, diffedges, diffCI = make1Dhist(opt, burninfrac=burninfrac, nbins = nbins, qp1=qp1, qp2=qp2,
+    himage, edges, CI, meanimage, meandiffimage = make1Dhist(opt, burninfrac=burninfrac, nbins = nbins, qp1=qp1, qp2=qp2,
                                     pdfnormalize=pdfnormalize, temperaturenum=temperaturenum)
     f,ax = plt.subplots(1,2, sharey=true, figsize=figsize)
-    xall = opt.xall
-    #im1 = ax.imshow(himage, extent=[edges[1],edges[end],xall[end],xall[1]], aspect="auto", cmap=cmappdf)
-    #ax.grid()
-    xmesh = vcat(xall[1:end-1] - diff(xall[:])/2, xall[end])
-    vmin, vmax = extrema(himage)
-    vmax = vmin+vmaxpc*(vmax-vmin)
-    im1 = ax[1].pcolormesh(edges[:], xmesh, himage, cmap=cmappdf, vmax=vmax)
-    ax[1].set_ylim(extrema(xall)...)
-    ax[1].invert_yaxis()
-    cb1 = colorbar(im1, ax=ax[1])
-    cb1.ax.set_xlabel("pdf \nstationary")
-    ax[1].plot(CI, xall[:], linewidth=2, color="g", alpha=0.5)
-    ax[1].plot(CI, xall[:], linewidth=2, color="c", linestyle="--", alpha=0.5)
-    ax[1].set_xlabel(L"\log_{10} \rho")
-    ax[1].set_ylabel("depth (m)")
-    propmin = min(minimum(CI), minimum(opt.fbounds))
-    propmax = max(maximum(CI), maximum(opt.fbounds))
-    ax[1].set_xlim(propmin, propmax)
+    if doplot
+        xall = opt.xall
+        xmesh = vcat(xall[1:end-1] - diff(xall[:])/2, xall[end])
+        vmin, vmax = extrema(himage)
+        vmax = vmin+vmaxpc*(vmax-vmin)
+        im1 = ax[1].pcolormesh(edges[:], xmesh, himage, cmap=cmappdf, vmax=vmax)
+        ax[1].set_ylim(extrema(xall)...)
+        ax[1].invert_yaxis()
+        cb1 = colorbar(im1, ax=ax[1])
+        cb1.ax.set_xlabel("pdf \nstationary")
+        ax[1].plot(CI, xall[:], linewidth=2, color="g", alpha=0.5)
+        ax[1].plot(CI, xall[:], linewidth=2, color="c", linestyle="--", alpha=0.5)
+        ax[1].plot(meanimage[:], xall[:], linewidth=2, color="w", alpha=0.5)
+        ax[1].plot(meanimage[:], xall[:], linewidth=2, color="k", linestyle="--", alpha=0.5)
+        ax[1].set_xlabel(L"\log_{10} \rho")
+        ax[1].set_ylabel("depth (m)")
+        propmin = min(minimum(CI), minimum(opt.fbounds))
+        propmax = max(maximum(CI), maximum(opt.fbounds))
 
-    vmin, vmax = extrema(hdiffimage)
-    vmax = vmin+vmaxpc*(vmax-vmin)
-    # propmin = min(minimum(CI)
-    propmax = maximum(diffCI)
-    im2 = ax[2].pcolormesh(diffedges[:], xmesh, hdiffimage, cmap=cmappdf, vmax=vmax)
-    ax[2].set_xlim(0, propmax)
-    cb2 = colorbar(im2, ax=ax[2])
-    cb2.ax.set_xlabel("abs\n1VD")
-    ax[2].plot(diffCI[:,2], xall[:], linewidth=2, color="g", alpha=0.5)
-    ax[2].plot(diffCI[:,2], xall[:], linewidth=2, color="c", linestyle="--", alpha=0.5)
-    ax[2].set_xlabel("slope")
-
-    nicenup(f, fsize=fsize)
+        ax[1].set_xlim(propmin, propmax)
+        ax[2].plot(meandiffimage[:], xall[:], linewidth=2, color="k", linestyle="-")
+        ax[2].set_xlabel("mean slope")
+        nicenup(f, fsize=fsize)
+    end
+    CI, meanimage, meandiffimage
 end
 
 function plot_posterior(operator::Operator1D,
@@ -638,36 +617,40 @@ function plot_posterior(operator::Operator1D,
                         burninfrac=0.5,
                         figsize=(8,16),
                         pdfnormalize=false,
-                        fsize=14)
-    hists = makenuisancehists(optn, burninfrac = burninfrac,
+                        fsize=14,
+                        qp1 = 0.05,
+                        qp2 = 0.95,
+                        doplot=true)
+    hists, CI = makenuisancehists(optn, qp1, qp2, burninfrac = burninfrac,
                                      nbins = nbins, temperaturenum = temperaturenum,
                                      pdfnormalize = pdfnormalize)
-    fig,ax = subplots(length(hists), 1, figsize=figsize)
-    for (i, h) = enumerate(hists)
-        bwidth = diff(h.edges[1])[1]
-        bx = h.edges[1][1:end-1] .+ bwidth/2
-        ax[i].bar(bx, h.weights, width=bwidth, edgecolor="black")
+    if doplot
+        fig,ax = subplots(length(hists), 1, figsize=figsize)
+        for (i, h) = enumerate(hists)
+            bwidth = diff(h.edges[1])[1]
+            bx = h.edges[1][1:end-1] .+ bwidth/2
+            ax[i].bar(bx, h.weights, width=bwidth, edgecolor="black")
+        end
+        nicenup(fig, fsize=fsize)
     end
-    nicenup(fig, fsize=fsize)
+    hists, CI
 end
 
-function makenuisancehists(optn::OptionsNuisance; burninfrac = 0.5, nbins = 50,
+function makenuisancehists(optn::OptionsNuisance, qp1, qp2; burninfrac = 0.5, nbins = 50,
     temperaturenum = -1, pdfnormalize = false)
     @assert temperaturenum != -1 "Please explicitly specify the temperature index"
     nuisanceatT = assemblenuisancesatT(optn, burninfrac = burninfrac,
                                     temperaturenum = temperaturenum)
-
-    nnu = size(nuisanceatT, 2)
+    nnu = length(optn.idxnotzero)
+    CI = zeros(Float64, nnu, 3)
     h = Vector{Histogram}(undef, nnu)
-    for islice = 1:nnu
+    for (i, islice) in enumerate(optn.idxnotzero)
         numin, numax = extrema(optn.bounds[islice,:])
-        # if abs(numin-numax)<1e-12
-        #     continue
-        # end
         edges = LinRange(numin, numax, nbins+1)
-        h[islice] = fit(Histogram, nuisanceatT[:,islice], edges)
+        h[i] = fit(Histogram, nuisanceatT[:,islice], edges)
+        CI[i,:] = quantile(nuisanceatT[:,islice], [qp1, 0.5, qp2])
     end
-    h
+    h, CI
 end
 
 function firstderiv(x)
@@ -723,16 +706,14 @@ function make1Dhist(opt::Options;
     himage, edges, CI = gethimage(M, opt, burninfrac=burninfrac, temperaturenum=temperaturenum,
                 nbins=nbins, rhomin=rhomin, rhomax=rhomax, qp1=qp1, qp2=qp2,
                 pdfnormalize=pdfnormalize)
+    meanimage = mean(M)
     if islscale
-        Mslope = firstderiv.([0.5log10.(m) for m in M])
+        Mslope = mean(firstderiv.([0.5log10.(m) for m in M]))
     else
-        Mslope = firstderiv.(M)
+        Mslope = mean(firstderiv.(M))
     end
     # Mslope = secondderiv.(M)
-    hdiffimage, diffedges, diffCI = gethimage(Mslope, opt, burninfrac=burninfrac, temperaturenum=temperaturenum,
-                nbins=nbins, rhomin=rhomin, rhomax=rhomax, qp1=qp1, qp2=qp2,
-                pdfnormalize=pdfnormalize, islscale=islscale)
-    return himage, edges, CI, hdiffimage, diffedges, diffCI
+    return himage, edges, CI, meanimage, Mslope
 end
 
 function gethimage(M::AbstractArray, opt::Options;
@@ -762,7 +743,7 @@ function gethimage(M::AbstractArray, opt::Options;
     end
     edges = LinRange(rhomin, rhomax, nbins+1)
     himage = zeros(Float64, length(M[1]), nbins)
-    CI = zeros(Float64, length(M[1]), 2)
+    CI = zeros(Float64, length(M[1]), 3)
     for ilayer=1:length(M[1])
         if (typeof(opt) == OptionsStat && opt.needλ²fromlog) && !islscale
             himage[ilayer,:] = fit(Histogram, [0.5log10.(m[ilayer]) for m in M], edges).weights
@@ -772,9 +753,9 @@ function gethimage(M::AbstractArray, opt::Options;
         himage[ilayer,:] = himage[ilayer,:]/sum(himage[ilayer,:])/(diff(edges)[1])
         pdfnormalize && (himage[ilayer,:] = himage[ilayer,:]/maximum(himage[ilayer,:]))
         if (typeof(opt) == OptionsStat && opt.needλ²fromlog) && !islscale
-            CI[ilayer,:] = [quantile([0.5log10.(m[ilayer]) for m in M],(qp1, qp2))...]
+            CI[ilayer,:] = [quantile([0.5log10.(m[ilayer]) for m in M],(qp1, 0.5, qp2))...]
         else
-            CI[ilayer,:] = [quantile([m[ilayer] for m in M],(qp1, qp2))...]
+            CI[ilayer,:] = [quantile([m[ilayer] for m in M],(qp1, 0.5, qp2))...]
         end
     end
     himage, edges, CI
