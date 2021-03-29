@@ -489,8 +489,8 @@ function make_tdgp_opt(;
     xall = permutedims(collect(znall))
     xbounds = permutedims([extrema(znall)...])
 
-    history_mode = "a"
-	restart && (history_mode = "w")
+    history_mode = "w"
+	restart && (history_mode = "a")
 
     updatenonstat = false
     needλ²fromlog = false

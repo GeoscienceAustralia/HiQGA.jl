@@ -584,8 +584,8 @@ function plot_posterior(operator::Operator1D,
     @assert 0<vmaxpc<=1
     himage, edges, CI, meanimage, meandiffimage, sdslope = make1Dhist(opt, burninfrac=burninfrac, nbins = nbins, qp1=qp1, qp2=qp2,
                                     pdfnormalize=pdfnormalize, temperaturenum=temperaturenum)
-    f,ax = plt.subplots(1,2, sharey=true, figsize=figsize)
     if doplot
+        f,ax = plt.subplots(1,2, sharey=true, figsize=figsize)
         xall = opt.xall
         xmesh = vcat(xall[1:end-1] - diff(xall[:])/2, xall[end])
         vmin, vmax = extrema(himage)
@@ -610,7 +610,7 @@ function plot_posterior(operator::Operator1D,
         ax[2].set_xlabel("mean slope")
         nicenup(f, fsize=fsize)
     end
-    CI, meanimage, meandiffimage
+    CI[:,1], CI[:,2], CI[:,3], meanimage, meandiffimage, sdslope
 end
 
 function plot_posterior(operator::Operator1D,
