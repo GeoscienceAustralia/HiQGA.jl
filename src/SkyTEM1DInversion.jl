@@ -1,7 +1,7 @@
 module SkyTEM1DInversion
 import ..AbstractOperator.get_misfit
 # include("AEM_VMD_HMD.jl")
-using ..AbstractOperator, ..AEM_VMD_HMD, Statistics
+using ..AbstractOperator, ..AEM_VMD_HMD, Statistics, Distributed
 using PyPlot, LinearAlgebra, ..CommonToAll, MAT, Random, DelimitedFiles
 
 import ..Model, ..Options, ..OptionsStat, ..OptionsNonstat
@@ -413,7 +413,7 @@ function plotmodelfield!(aem::dBzdt, Ρ::Vector{Array{Float64}};
     nicenup(f, fsize=fsize)
 end
 
-function makeoperator( sounding::SkyTEMsoundingData;
+function makeoperator(sounding::SkyTEMsoundingData;
                        zfixed   = [-1e5],
                        ρfixed   = [1e12],
                        zstart = 0.0,
@@ -519,6 +519,5 @@ function make_tdgp_opt(;
                             )
     opt
 end
-
 
 end
