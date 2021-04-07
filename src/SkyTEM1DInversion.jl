@@ -424,6 +424,7 @@ function makeoperator(sounding::SkyTEMsoundingData;
                        ntimesperdecade = 10,
                        nfreqsperdecade = 5,
                        showgeomplot = false,
+                       useML = false,
                        plotfield = false)
     @assert extendfrac > 1.0
     @assert dz > 0.0
@@ -445,7 +446,8 @@ function makeoperator(sounding::SkyTEMsoundingData;
                           zTx    = sounding.zTxLM,
                           rRx    = sounding.rRx,
                           rTx    = sounding.rTx,
-                          zRx    = sounding.zRxLM)
+                          zRx    = sounding.zRxLM
+                          )
     ## HM operator
     Fhm = AEM_VMD_HMD.HFieldDHT(
                           ntimesperdecade = ntimesperdecade,
@@ -457,11 +459,12 @@ function makeoperator(sounding::SkyTEMsoundingData;
                           zTx    = sounding.zTxHM,
                           rRx    = sounding.rRx,
                           rTx    = sounding.rTx,
-                          zRx    = sounding.zRxHM)
+                          zRx    = sounding.zRxHM
+                          )
     ## create operator
     dlow, dhigh, σlow, σhigh = (sounding.LM_data, sounding.HM_data, sounding.LM_noise, sounding.HM_noise)./μ₀
-    aem = dBzdt(Flm, Fhm, vec(dlow), vec(dhigh),
-                                      vec(σlow), vec(σhigh), z=z, ρ=ρ, nfixed=nfixed)
+    aem = dBzdt(Flm, Fhm, vec(dlow), vec(dhigh), useML=useML,
+                vec(σlow), vec(σhigh), z=z, ρ=ρ, nfixed=nfixed)
     plotfield && plotmodelfield!(Flm, Fhm, z, ρ, dlow, dhigh, σlow, σhigh;
                           figsize=(12,4), nfixed=nfixed, dz=dz, extendfrac=extendfrac)
     aem, znall

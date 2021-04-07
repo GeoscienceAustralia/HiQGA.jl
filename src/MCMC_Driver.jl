@@ -1,5 +1,5 @@
 using Distributed, DistributedArrays,
-     PyPlot, LinearAlgebra, Formatting
+     PyPlot, LinearAlgebra, Formatting, Dates
 
 struct Tpointer
     fp   :: IOStream
@@ -761,7 +761,7 @@ function loopacrosssoundings(soundings::Array{SkyTEM1DInversion.SkyTEMsoundingDa
                                     nchainsatone = nchainsatone)
 
         end # @sync
-        @info "done $iter out of $nsequentialiters"
+        @info "done $iter out of $nsequentialiters at $(Dates.now())"
     end
 
 
