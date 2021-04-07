@@ -1,6 +1,8 @@
 module SkyTEM1DInversion
 import ..AbstractOperator.get_misfit
-# include("AEM_VMD_HMD.jl")
+import ..AbstractOperator.Sounding
+import ..AbstractOperator.makeoperator
+
 using ..AbstractOperator, ..AEM_VMD_HMD, Statistics, Distributed
 using PyPlot, LinearAlgebra, ..CommonToAll, MAT, Random, DelimitedFiles
 
@@ -50,7 +52,7 @@ function dBzdt(Flow       :: AEM_VMD_HMD.HField,
     Flow, Fhigh, z, nfixed, copy(ρ), selectlow, selecthigh, ndatalow, ndatahigh)
 end
 
-mutable struct SkyTEMsoundingData
+mutable struct SkyTEMsoundingData <: Sounding
     sounding_string :: String
     X :: Float64
     Y :: Float64

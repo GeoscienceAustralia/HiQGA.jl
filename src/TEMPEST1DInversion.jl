@@ -1,5 +1,8 @@
 module TEMPEST1DInversion
 import ..AbstractOperator.get_misfit
+import ..AbstractOperator.Sounding
+import ..AbstractOperator.makeoperator
+
 using ..AbstractOperator, ..AEM_VMD_HMD, Statistics
 using PyPlot, LinearAlgebra, ..CommonToAll, Random, DelimitedFiles
 
@@ -467,7 +470,7 @@ function set_noisy_data!(tempest::Bfield;
 	nothing
 end
 
-mutable struct TempestSoundingData
+mutable struct TempestSoundingData <: Sounding
     sounding_string :: String
     X       :: Float64
     Y       :: Float64
