@@ -767,10 +767,9 @@ function loopacrosssoundings(soundings::Array{S, 1}, opt_in::Options;
 end
 
 # there are definitely nuisances, e.g. TEMPEST
-function loopacrosssoundings(soundings::Array{S, 1},
-                            opt_in::Options, optn_in::OptionsNuisance;
-                            nsequentialiters   =-1,
-                            nparallelsoundings =-1,
+function loopacrosssoundings(soundings::Array{S, 1};
+                            nsequentialiters   = -1,
+                            nparallelsoundings = -1,
                             zfixed             = [-1e5],
                             ρfixed             = [1e12],
                             zstart             = 0.0,
@@ -783,7 +782,24 @@ function loopacrosssoundings(soundings::Array{S, 1},
                             Tmax               = -1,
                             nsamples           = -1,
                             nchainsatone       = -1,
-                            nchainspersounding = -1) where S<:Sounding
+                            nchainspersounding = -1,
+                            znall              = [1],
+                            nmin               = 2,
+                            nmax               = 40,
+                            K                  = GP.Mat32(),
+                            demean             = true,
+                            sdpos              = 0.05,
+                            sdprop             = 0.05,
+                            fbounds            = [-0.5 2.5],
+                            λ                  = [2],
+                            δ                  = 0.1,
+                            pnorm              = 2,
+                            save_freq          = 50,
+        					nuisance_sdev      = [0.],
+        					nuisance_bounds    = [0. 0.],
+        					updatenuisances    = true,
+        					dispstatstoscreen  = false,
+        					restart            = false) where S<:Sounding
 
     @assert nsequentialiters  != -1
     @assert nparallelsoundings != -1
@@ -793,8 +809,6 @@ function loopacrosssoundings(soundings::Array{S, 1},
     @assert Tmax != -1
 
     nsoundings = length(soundings)
-    opt  = deepcopy(opt_in)
-    optn = deepcopy(optn_in)
 
     for iter = 1:nsequentialiters
         if iter<nsequentialiters
@@ -808,7 +822,7 @@ function loopacrosssoundings(soundings::Array{S, 1},
             pids = (i-1)*nchainspersounding+i:i*(nchainspersounding+1)
             @info "pids in sounding $s:", pids
 
-            aem, = makeoperator(    soundings[s],
+            aem, znall = makeoperator(    soundings[s],
                                     zfixed = zfixed,
                                     ρfixed = ρfixed,
                                     zstart = zstart,
@@ -819,8 +833,25 @@ function loopacrosssoundings(soundings::Array{S, 1},
                                     ntimesperdecade = ntimesperdecade,
                                     nfreqsperdecade = nfreqsperdecade)
 
-            opt = deepcopy(opt_in)
-            opt.fdataname = soundings[s].sounding_string*"_"
+            opt, optn = transD_GP.make_tdgp_opt(soundings[s],
+                                znall = znall,
+                                fileprefix = soundings[s].sounding_string,
+                                nmin = nmin,
+                                nmax = nmax,
+                                K = K,
+                                demean = demean,
+                                sdpos = sdpos,
+                                sdprop = sdprop,
+                                fbounds = fbounds,
+                                save_freq = save_freq,
+                                λ = λ,
+                                δ = δ,
+                                nuisance_bounds = nuisance_bounds,
+                                nuisance_sdev = nuisance_sdev,
+                                updatenuisances = updatenuisances,
+                                restart = restart,
+                                dispstatstoscreen = dispstatstoscreen
+                                )
 
             @async r_nothing[i] = remotecall_fetch(main, pids[1], opt, optn, aem, collect(pids[2:end]),
                                     Tmax         = Tmax,

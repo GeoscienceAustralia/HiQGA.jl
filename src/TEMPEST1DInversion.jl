@@ -2,6 +2,7 @@ module TEMPEST1DInversion
 import ..AbstractOperator.get_misfit
 import ..AbstractOperator.Sounding
 import ..AbstractOperator.makeoperator
+import ..AbstractOperator.make_tdgp_opt
 
 using ..AbstractOperator, ..AEM_VMD_HMD, Statistics
 using PyPlot, LinearAlgebra, ..CommonToAll, Random, DelimitedFiles
@@ -710,7 +711,7 @@ function makeoperator( sounding::TempestSoundingData;
 end
 function make_tdgp_opt(sounding::TempestSoundingData;
                     rseed = nothing,
-                    znall = znall,
+                    znall = [1],
                     fileprefix = "sounding",
                     nmin = 2,
                     nmax = 40,

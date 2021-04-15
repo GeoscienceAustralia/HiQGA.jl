@@ -13,6 +13,8 @@ abstract type Sounding end
 # these soundings often need to be fed into a function
 # to make a physics operator with the relevant sounding data
 function makeoperator end
+# for nuisances this may change from sounding to sounding
+function make_tdgp_opt end
 
 export Operator, Operator1D, Operator2D
 end

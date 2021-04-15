@@ -2,6 +2,7 @@ import .AbstractOperator.Operator
 import .AbstractOperator.get_misfit
 import .AbstractOperator.Sounding
 import .AbstractOperator.makeoperator
+import .AbstractOperator.make_tdgp_opt
 include("CommonToAll.jl")
 using .CommonToAll
 include("LineRegression.jl")
@@ -18,4 +19,4 @@ include("SkyTEM1DInversion.jl")
 using .SkyTEM1DInversion
 include("TEMPEST1DInversion.jl")
 using .TEMPEST1DInversion
-export Operator, get_misfit, Sounding, makeoperator
+export Operator, get_misfit, Sounding, makeoperator, make_tdgp_opt
