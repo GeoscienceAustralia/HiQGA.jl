@@ -56,6 +56,7 @@ mutable struct SkyTEMsoundingData <: Sounding
     sounding_string :: String
     X :: Float64
     Y :: Float64
+    Z :: Float64
     fid :: Float64
     linenum :: Int
     rRx :: Float64
@@ -80,7 +81,7 @@ function SkyTEMsoundingData(;rRx=-12., zRxLM=12., zTxLM=12.,
                             LM_times=[1., 2.], LM_ramp=[1 2; 3 4],
                             HM_times=[1., 2.], HM_ramp=[1 2; 3 4],
                             LM_noise=[1.], HM_noise=[1.], LM_data=[1.], HM_data=[1.],
-                            sounding_string="sounding", X=nothing, Y=nothing,
+                            sounding_string="sounding", X=nothing, Y=nothing, Z=nothing,
                             linenum=nothing, fid=nothing)
     @assert rRx > 0 && rTx > 0
     @assert zRxLM <0 && zTxLM <0
@@ -94,7 +95,7 @@ function SkyTEMsoundingData(;rRx=-12., zRxLM=12., zTxLM=12.,
     @assert all((HM_noise .>0) .| isnan.(HM_noise))
     @assert length(LM_data) == length(LM_noise)
     @assert length(HM_data) == length(HM_noise)
-    SkyTEMsoundingData(sounding_string, X, Y, fid, linenum, rRx, zRxLM, zTxLM, zRxHM, zTxHM, rTx,
+    SkyTEMsoundingData(sounding_string, X, Y, Z, fid, linenum, rRx, zRxLM, zTxLM, zRxHM, zTxHM, rTx,
     lowpassfcs, LM_times, LM_ramp, HM_times, HM_ramp, LM_noise, HM_noise,
     LM_data, HM_data)
     # @show (sounding_string, rRx, zRxLM, zTxLM, zRxHM, zTxHM, rTx,
@@ -123,6 +124,7 @@ function read_survey_files(;
     multnoise = 0.03,
     X = -1,
     Y = -1,
+    Z = -1,
     fid = -1,
     linenum = -1)
     @assert frame_height > 0
@@ -137,6 +139,7 @@ function read_survey_files(;
     end
     @assert X > 0
     @assert Y > 0
+    @assert Z > 0
     @assert linenum > 0
     @assert fid > 0
     @info "reading $fname_dat"
@@ -147,6 +150,7 @@ function read_survey_files(;
     end
     easting = soundings[:,X]
     northing = soundings[:,Y]
+    topo = soundings[:,Z]
     fiducial = soundings[:,fid]
     whichline = soundings[:,linenum]
     d_LM = soundings[:,LM_Z[1]:LM_Z[2]]
@@ -231,7 +235,7 @@ function read_survey_files(;
                 HM_times=HM_times, HM_ramp=HM_ramp,
                 LM_noise=σLM, HM_noise=σHM, LM_data=dlow, HM_data=dhigh,
                 sounding_string="sounding_$(l)_$f",
-                X=easting[is], Y=northing[is], fid=f,
+                X=easting[is], Y=northing[is], Z=topo[is], fid=f,
                 linenum=l)
         end
         return s_array
