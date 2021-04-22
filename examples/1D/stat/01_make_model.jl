@@ -4,7 +4,7 @@ using PyPlot, Random, Revise, Statistics, LinearAlgebra,
 Random.seed!(200)
 x = readdlm("func2.txt", ',', Float64, '\n')[:,1]
 y = readdlm("func2.txt", ',', Float64, '\n')[:,2]
-σ, fractrain = 0.275, 0.5
+σ, fractrain = [0.275], 0.5
 ntrain = round(Int, fractrain*length(y))
 ynoisy = similar(y) .+ NaN
 linidx = randperm(length(y))[1:ntrain]
