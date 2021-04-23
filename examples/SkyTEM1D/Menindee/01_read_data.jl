@@ -19,7 +19,7 @@ fname_dat = "em_north_line.dat"
 # electronics file
 fname_specs_halt = "electronics_halt.jl"
 # column numbers from hdr file
-X, Y = 12, 13
+X, Y, Z = 12, 13, 15
 fid = 1
 linenum = 2
 frame_height = 9
@@ -40,6 +40,7 @@ transD_GP.SkyTEM1DInversion.read_survey_files(fname_dat         = fname_dat,
 									 frame_dx         = frame_dx,
 									 X                = X,
 									 Y                = Y,
+									 Z                = Z,
 									 fid              = fid,
 									 linenum          = linenum)
 ##

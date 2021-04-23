@@ -297,7 +297,9 @@ end
 
 function addnoise_skytem(Flow::AEM_VMD_HMD.HField, Fhigh::AEM_VMD_HMD.HField,
                   z::Array{Float64, 1}, ρ::Array{Float64, 1};
-                  noisefrac  = 0.05,
+                  halt_LM = nothing,
+                  halt_HM = nothing,
+                  noisefrac  = 0.03,
                   noisefloorlow = μ₀*1e-14,
                   noisefloorhigh = μ₀*1e-14,
                   dz = -1.,
@@ -305,15 +307,25 @@ function addnoise_skytem(Flow::AEM_VMD_HMD.HField, Fhigh::AEM_VMD_HMD.HField,
                   nfixed = -1,
                   figsize=(10,5)
                   )
+    if halt_LM != nothing
+        @assert length(halt_LM) == length(Flow.times)
+    else
+        halt_LM = zeros(length(Flow.times))
+    end
+    if halt_HM != nothing
+        @assert length(halt_HM) == length(Fhigh.times)
+    else
+        halt_HM = zeros(length(Fhigh.times))
+    end
     @assert all((nfixed, dz, extendfrac) .> 0)
     AEM_VMD_HMD.getfieldTD!(Flow, z, ρ)
     AEM_VMD_HMD.getfieldTD!(Fhigh, z, ρ)
-    dlow  = Flow.dBzdt + noisefrac*abs.(Flow.dBzdt).*randn(size(Flow.dBzdt))
-    dhigh = Fhigh.dBzdt + noisefrac*abs.(Fhigh.dBzdt).*randn(size(Fhigh.dBzdt))
+    dlow  = Flow.dBzdt + sqrt.((noisefrac*abs.(Flow.dBzdt)).^2 + (halt_LM/μ₀).^2).*randn(size(Flow.dBzdt))
+    dhigh = Fhigh.dBzdt + sqrt.((noisefrac*abs.(Fhigh.dBzdt)).^2 + (halt_HM/μ₀).^2).*randn(size(Fhigh.dBzdt))
     dlow[abs.(dlow).<noisefloorlow] .= NaN
     dhigh[abs.(dhigh).<noisefloorhigh] .= NaN
-    σlow = noisefrac*abs.(dlow)
-    σhigh = noisefrac*abs.(dhigh)
+    σlow = sqrt.((noisefrac*abs.(dlow)).^2 + (halt_LM/μ₀).^2)
+    σhigh = sqrt.((noisefrac*abs.(dhigh)).^2 + (halt_HM/μ₀).^2)
     plotmodelfield!(Flow, Fhigh, z, ρ, dlow, dhigh, σlow, σhigh,
                                 figsize=figsize, nfixed=nfixed,
                                 dz=dz, extendfrac=extendfrac)
