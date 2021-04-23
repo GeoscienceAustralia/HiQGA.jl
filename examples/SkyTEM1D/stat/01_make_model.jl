@@ -51,9 +51,8 @@ Fhm = transD_GP.AEM_VMD_HMD.HFieldDHT(
 transD_GP.plotmodelfield_skytem!(Flm, Fhm, z, ρ)
 #remember to specify halt noise if it is in pV
 dlow, dhigh, σlow, σhigh = transD_GP.addnoise_skytem(Flm, Fhm,
-                z, ρ, noisefrac=0.05, halt_LM = LM_noise*1e-12, halt_HM = HM_noise*1e-12,
+                z, ρ, noisefrac=0.03, halt_LM = LM_noise*1e-12, halt_HM = HM_noise*1e-12,
                 dz=dz, extendfrac=extendfrac, nfixed=nfixed)
 ## create operator
 dlow, dhigh, σlow, σhigh = (dlow, dhigh, σlow, σhigh)./transD_GP.SkyTEM1DInversion.μ₀
-aem = transD_GP.dBzdt(Flm, Fhm, dlow, dhigh,
-                                  σlow, σhigh, z=z, ρ=ρ, nfixed=nfixed)
+aem = transD_GP.dBzdt(Flm, Fhm, dlow, dhigh, σlow, σhigh, z=z, ρ=ρ, nfixed=nfixed)
