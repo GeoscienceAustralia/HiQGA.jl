@@ -513,7 +513,9 @@ function plot_posterior(operator::Operator1D,
     pdfnormalize=false,
     fsize=14,
     showlscale1vd=false,
-    doplot = true)
+    doplot = true,
+    a = 0.25,
+    lw = 1)
     @assert 0<vmaxpc<=1
     if temperaturenum == 1
         himage_ns, edges_ns, CI_ns, meanimage_ns, meandiffimage_ns, sdslope_ns = make1Dhist(optns, burninfrac=burninfrac, nbins = nbins, qp1=qp1, qp2=qp2,
@@ -535,13 +537,15 @@ function plot_posterior(operator::Operator1D,
     propmin = min(minimum(CI_ns), minimum(optns.fbounds))
     propmax = max(maximum(CI_ns), maximum(optns.fbounds))
     ax[1].set_xlim(propmin, propmax)
-    ax[2].plot(meandiffimage_ns, xall[:], linewidth=2, color="g", alpha=0.5)
-    ax[2].fill_betweenx(xall[:],meandiffimage_ns[:]-sdslope_ns[:],meandiffimage_ns[:]+sdslope_ns[:],alpha=.5)
+    ax[2].fill_betweenx(xall[:],meandiffimage_ns[:]-sdslope_ns[:],meandiffimage_ns[:]+sdslope_ns[:],alpha=a, color="gray")
+    ax[2].plot(meandiffimage_ns, xall[:], linewidth=lw, color="k")
     ax[2].set_xlabel("slope")
 
+    vmin, vmax = extrema(himage)
+    vmax = vmin+vmaxpc*(vmax-vmin)
     propmin = min(minimum(CI), minimum(opts.fbounds))
     propmax = max(maximum(CI), maximum(opts.fbounds))
-    im3 = ax[3].pcolormesh(edges[:], xmesh, himage, cmap=cmappdf)
+    im3 = ax[3].pcolormesh(edges[:], xmesh, himage, cmap=cmappdf, vmax=vmax)
     ax[3].set_ylim(extrema(xall)...)
     ax[3].set_xlim(propmin, propmax)
     ax[3].invert_yaxis()
@@ -554,14 +558,14 @@ function plot_posterior(operator::Operator1D,
         ax[4].set_xlabel("slope")
     end
 
-    ax[1].plot(CI_ns, xall[:], linewidth=2, color="g", alpha=0.5)
-    ax[1].plot(CI_ns, xall[:], linewidth=2, color="c", linestyle="--", alpha=0.5)
-    ax[1].plot(meanimage_ns[:], xall[:], linewidth=2, color="w", alpha=0.5)
-    ax[1].plot(meanimage_ns[:], xall[:], linewidth=2, color="k", linestyle="--", alpha=0.5)
-    ax[3].plot(CI, xall[:], linewidth=2, color="g", alpha=0.5)
-    ax[3].plot(CI, xall[:], linewidth=2, color="c", linestyle="--", alpha=0.5)
-    ax[3].plot(meanimage[:], xall[:], linewidth=2, color="w", alpha=0.5)
-    ax[3].plot(meanimage[:], xall[:], linewidth=2, color="k", linestyle="--", alpha=0.5)
+    ax[1].plot(CI_ns, xall[:], linewidth=lw, color="w", alpha=a)
+    # ax[1].plot(CI_ns, xall[:], linewidth=1, color="c", linestyle="--", alpha=0.5)
+    # ax[1].plot(meanimage_ns[:], xall[:], linewidth=2, color="w", alpha=0.5)
+    # ax[1].plot(meanimage_ns[:], xall[:], linewidth=2, color="k", linestyle="--", alpha=0.5)
+    ax[3].plot(CI, xall[:], linewidth=lw, color="w", alpha=a)
+    # ax[3].plot(CI, xall[:], linewidth=1, color="c", linestyle="--", alpha=0.5)
+    # ax[3].plot(meanimage[:], xall[:], linewidth=2, color="w", alpha=0.5)
+    # ax[3].plot(meanimage[:], xall[:], linewidth=2, color="k", linestyle="--", alpha=0.5)
     ax[1].set_xlabel(L"\log_{10} \rho")
     ax[1].set_ylabel("depth (m)")
     ax[3].set_xlabel(L"\log_{10} λ")
