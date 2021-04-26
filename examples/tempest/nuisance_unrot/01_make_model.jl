@@ -24,36 +24,8 @@ rx_yaw = 0.
 tx_roll = 0.
 tx_pitch = 0.
 tx_yaw = 0.
-
-#current ramp and gate times
-ramp =  [  # -0.0400066666667    0.5
-			-0.0400000000000    0.0
-			-0.0399933333333   -0.5
-			-0.0200066666667   -0.5
-			-0.0200000000000    0.0
-			-0.0199933333333    0.5
-			-0.0000066666667    0.5
-			 0.0000000000000    0.0
-			 0.0000066666667   -0.5]
-
-times = sqrt.([
-0.0000066667*0.0000200000
-0.0000333333*0.0000466667
-0.0000600000*0.0000733333
-0.0000866667*0.0001266667
-0.0001400000*0.0002066667
-0.0002200000*0.0003400000
-0.0003533333*0.0005533333
-0.0005666667*0.0008733333
-0.0008866667*0.0013533333
-0.0013666667*0.0021000000
-0.0021133333*0.0032733333
-0.0032866667*0.0051133333
-0.0051266667*0.0079933333
-0.0080066667*0.0123933333
-0.0124066667*0.0199933333
-])
-
+#E electronics and stuff
+include("electronics_halt.jl")
 ## fill in detail in ohm-m
 ρ[(z.>=zstart) .& (z.<50)] .= 20.
 ρ[(z.>=50) .&(z.<80)] .= 1.
@@ -75,4 +47,7 @@ tempest = transD_GP.TEMPEST1DInversion.Bfield(
 # plot before adding noise
 transD_GP.TEMPEST1DInversion.plotmodelfield!(tempest,z,ρ)
 ## compute noisy data to invert
-transD_GP.TEMPEST1DInversion.set_noisy_data!(tempest, z, ρ)
+# remember noise in electronics_halt.jl are in fT!!
+transD_GP.TEMPEST1DInversion.set_noisy_data!(tempest, z, ρ,
+                        noisefracx = 0.02, noisefracz = 0.02,
+                        halt_X = Hx_add_noise*1e-15, halt_Z = Hz_add_noise*1e-15)

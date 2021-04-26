@@ -418,7 +418,18 @@ end
 
 #for synthetics
 function set_noisy_data!(tempest::Bfield, z::Array{Float64,1}, ρ::Array{Float64,1};
-	noisefracx = 0.05, noisefracz = 0.05)
+	noisefracx = 0.02, noisefracz = 0.02,
+	halt_X = nothing, halt_Z = nothing)
+	if halt_X != nothing
+        @assert length(halt_X) == length(tempest.F.times)
+    else
+        halt_X = zeros(length(tempest.F.times))
+    end
+    if halt_Z != nothing
+        @assert length(halt_Z) == length(tempest.F.times)
+    else
+        halt_Z = zeros(length(tempest.F.times))
+    end
 	primaryflag = tempest.addprimary
 	if tempest.addprimary
 		# adds noise only proportional to secondary field
@@ -426,8 +437,8 @@ function set_noisy_data!(tempest::Bfield, z::Array{Float64,1}, ρ::Array{Float64
 		tempest.addprimary = false
 	end
 	getfieldTD!(tempest, z, ρ)
-	σx = noisefracx*abs.(tempest.Hx)
-	σz = noisefracz*abs.(tempest.Hz)
+	σx = sqrt.((noisefracx*abs.(tempest.Hx)).^2 + (halt_X/μ₀).^2)
+	σz = sqrt.((noisefracz*abs.(tempest.Hz)).^2 + (halt_Z/μ₀).^2)
 	# reset the tempest primary field modeling flag to original
 	tempest.addprimary = primaryflag
 	set_noisy_data!(tempest, z, ρ, σx, σz)
