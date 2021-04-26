@@ -24,7 +24,7 @@ rx_yaw = 0.
 tx_roll = 0.
 tx_pitch = 0.
 tx_yaw = 0.
-#E electronics and stuff
+# electronics and stuff
 include("electronics_halt.jl")
 ## fill in detail in ohm-m
 ρ[(z.>=zstart) .& (z.<50)] .= 20.
