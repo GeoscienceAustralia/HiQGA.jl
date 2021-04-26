@@ -2,15 +2,13 @@ using transD_GP, Distributed
 ## make options for the stationary GP
 nmin, nmax = 2, 40
 pnorm = 2.
-K = transD_GP.GP.Mat32()
+K = transD_GP.GP.OrstUhn()
 demean = true
 fbounds = [-0.5 2.5]
 sdev_pos = [0.05abs(diff([extrema(znall)...])[1])]
 sdev_prop = 0.05diff(fbounds, dims=2)[:]
 xall = permutedims(collect(znall))
 xbounds = permutedims([extrema(znall)...])
-updatenonstat = false
-needλ²fromlog = false
 λ, δ = [2], 0.1
 
 ## Initialize a stationary GP using these options
@@ -29,6 +27,4 @@ opt = transD_GP.OptionsStat(nmin = nmin,
                         save_freq = 25,
                         quasimultid = false,
                         K = K,
-                        needλ²fromlog = needλ²fromlog,
-                        updatenonstat = updatenonstat
                         )
