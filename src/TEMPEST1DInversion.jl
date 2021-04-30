@@ -682,6 +682,7 @@ function makeoperator( sounding::TempestSoundingData;
                        ρfixed   = [1e12],
                        zstart = 0.0,
                        extendfrac = 1.06,
+                       useML = false,
                        dz = 2.,
                        ρbg = 10,
                        nlayers = 40,
@@ -705,7 +706,7 @@ function makeoperator( sounding::TempestSoundingData;
 	x_rx = sounding.x_rx, y_rx = sounding.y_rx,
     rx_roll = sounding.roll_rx, rx_pitch = sounding.pitch_rx, rx_yaw = sounding.yaw_rx,
     tx_roll = sounding.roll_tx, tx_pitch = sounding.pitch_tx, tx_yaw = sounding.yaw_tx,
-	ramp = sounding.ramp, times = sounding.times,
+	ramp = sounding.ramp, times = sounding.times, useML = useML,
 	z=z, ρ=ρ,
 	addprimary = addprimary #this ensures that the geometry update actually changes everything that needs to be
 	)
