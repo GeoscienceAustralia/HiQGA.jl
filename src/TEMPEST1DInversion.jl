@@ -279,8 +279,11 @@ function get_misfit(m::Model, opt::Options, tempest::Bfield)
 	chi2by2 = 0.0;
 	if !opt.debug
 		getfield!(m, tempest)
-		chi2by2 = getchi2by2([tempest.Hx; tempest.Hz], [tempest.dataHx; tempest.dataHz],
-		[tempest.σx;tempest.σz], false, tempest.ndatax + tempest.ndataz);
+		idxx, idxz = tempest.selectx, tempest.selectz
+        chi2by2 = getchi2by2([tempest.Hx[idxx]; tempest.Hz[idxz]],
+                        [tempest.dataHx[idxx]; tempest.dataHz[idxz]],
+                        [tempest.σx[idxx];tempest.σz[idxz]],
+                        tempest.useML, tempest.ndatax + tempest.ndataz)
 	end
 	return chi2by2
 end
@@ -289,8 +292,11 @@ function get_misfit(m::Model, mn::ModelNuisance, opt::Union{Options,OptionsNuisa
 	chi2by2 = 0.0;
 	if !opt.debug
 		getfield!(m, mn, tempest)
-		chi2by2 = getchi2by2([tempest.Hx; tempest.Hz], [tempest.dataHx; tempest.dataHz],
-		[tempest.σx; tempest.σz], tempest.useML, tempest.ndatax + tempest.ndataz);
+		idxx, idxz = tempest.selectx, tempest.selectz
+        chi2by2 = getchi2by2([tempest.Hx[idxx]; tempest.Hz[idxz]],
+                        [tempest.dataHx[idxx]; tempest.dataHz[idxz]],
+                        [tempest.σx[idxx];tempest.σz[idxz]],
+                        tempest.useML, tempest.ndatax + tempest.ndataz)
 	end
 	return chi2by2
 end
@@ -299,7 +305,7 @@ end
 function getchi2by2(fm, d, σ, useML, ndata)
     r = (fm - d)./σ
     if useML
-        chi2by2 = 0.5*ndata*log(norm(r[idx])^2)
+        chi2by2 = 0.5*ndata*log(norm(r)^2)
     else
         chi2by2 = 0.5*norm(r)^2
     end
