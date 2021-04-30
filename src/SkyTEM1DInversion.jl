@@ -270,7 +270,7 @@ function getchi2by2(dBzdt, d, σ, select, useML, ndata)
     r, d, s, idx = dBzdt, d, σ, select
     r .= (r - d)./s
     if useML
-        chi2by2 = 0.5*ndata[ifreq]*log(norm(r[idx])^2)
+        chi2by2 = 0.5*ndata*log(norm(r[idx])^2)
     else
         chi2by2 = 0.5*norm(r[idx])^2
     end

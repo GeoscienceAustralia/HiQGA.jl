@@ -290,7 +290,7 @@ function get_misfit(m::Model, mn::ModelNuisance, opt::Union{Options,OptionsNuisa
 	if !opt.debug
 		getfield!(m, mn, tempest)
 		chi2by2 = getchi2by2([tempest.Hx; tempest.Hz], [tempest.dataHx; tempest.dataHz],
-		[tempest.σx; tempest.σz], false, tempest.ndatax + tempest.ndataz);
+		[tempest.σx; tempest.σz], tempest.useML, tempest.ndatax + tempest.ndataz);
 	end
 	return chi2by2
 end
@@ -299,7 +299,7 @@ end
 function getchi2by2(fm, d, σ, useML, ndata)
     r = (fm - d)./σ
     if useML
-        chi2by2 = 0.5*ndata[ifreq]*log(norm(r[idx])^2)
+        chi2by2 = 0.5*ndata*log(norm(r[idx])^2)
     else
         chi2by2 = 0.5*norm(r)^2
     end
