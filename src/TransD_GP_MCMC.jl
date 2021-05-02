@@ -62,10 +62,10 @@ function OptionsStat(;
         influenceradius    = [-9.9],
         K                  = SqEuclidean(),
         timesλ             = 1.0,
-        needλ²fromlog      = true,
-        updatenonstat      = true,
+        needλ²fromlog      = false,
+        updatenonstat      = false,
         updatenuisances    = false,
-        peskycholesky      = false,
+        peskycholesky      = true,
         )
 
         @assert xall != nothing

@@ -279,8 +279,11 @@ function get_misfit(m::Model, opt::Options, tempest::Bfield)
 	chi2by2 = 0.0;
 	if !opt.debug
 		getfield!(m, tempest)
-		chi2by2 = getchi2by2([tempest.Hx; tempest.Hz], [tempest.dataHx; tempest.dataHz],
-		[tempest.σx;tempest.σz], false, tempest.ndatax + tempest.ndataz);
+		idxx, idxz = tempest.selectx, tempest.selectz
+        chi2by2 = getchi2by2([tempest.Hx[idxx]; tempest.Hz[idxz]],
+                        [tempest.dataHx[idxx]; tempest.dataHz[idxz]],
+                        [tempest.σx[idxx];tempest.σz[idxz]],
+                        tempest.useML, tempest.ndatax + tempest.ndataz)
 	end
 	return chi2by2
 end
@@ -289,8 +292,11 @@ function get_misfit(m::Model, mn::ModelNuisance, opt::Union{Options,OptionsNuisa
 	chi2by2 = 0.0;
 	if !opt.debug
 		getfield!(m, mn, tempest)
-		chi2by2 = getchi2by2([tempest.Hx; tempest.Hz], [tempest.dataHx; tempest.dataHz],
-		[tempest.σx; tempest.σz], false, tempest.ndatax + tempest.ndataz);
+		idxx, idxz = tempest.selectx, tempest.selectz
+        chi2by2 = getchi2by2([tempest.Hx[idxx]; tempest.Hz[idxz]],
+                        [tempest.dataHx[idxx]; tempest.dataHz[idxz]],
+                        [tempest.σx[idxx];tempest.σz[idxz]],
+                        tempest.useML, tempest.ndatax + tempest.ndataz)
 	end
 	return chi2by2
 end
@@ -299,7 +305,7 @@ end
 function getchi2by2(fm, d, σ, useML, ndata)
     r = (fm - d)./σ
     if useML
-        chi2by2 = 0.5*ndata[ifreq]*log(norm(r[idx])^2)
+        chi2by2 = 0.5*ndata*log(norm(r)^2)
     else
         chi2by2 = 0.5*norm(r)^2
     end
@@ -418,7 +424,18 @@ end
 
 #for synthetics
 function set_noisy_data!(tempest::Bfield, z::Array{Float64,1}, ρ::Array{Float64,1};
-	noisefracx = 0.05, noisefracz = 0.05)
+	noisefracx = 0.02, noisefracz = 0.02,
+	halt_X = nothing, halt_Z = nothing)
+	if halt_X != nothing
+        @assert length(halt_X) == length(tempest.F.times)
+    else
+        halt_X = zeros(length(tempest.F.times))
+    end
+    if halt_Z != nothing
+        @assert length(halt_Z) == length(tempest.F.times)
+    else
+        halt_Z = zeros(length(tempest.F.times))
+    end
 	primaryflag = tempest.addprimary
 	if tempest.addprimary
 		# adds noise only proportional to secondary field
@@ -426,8 +443,8 @@ function set_noisy_data!(tempest::Bfield, z::Array{Float64,1}, ρ::Array{Float64
 		tempest.addprimary = false
 	end
 	getfieldTD!(tempest, z, ρ)
-	σx = noisefracx*abs.(tempest.Hx)
-	σz = noisefracz*abs.(tempest.Hz)
+	σx = sqrt.((noisefracx*abs.(tempest.Hx)).^2 + (halt_X/μ₀).^2)
+	σz = sqrt.((noisefracz*abs.(tempest.Hz)).^2 + (halt_Z/μ₀).^2)
 	# reset the tempest primary field modeling flag to original
 	tempest.addprimary = primaryflag
 	set_noisy_data!(tempest, z, ρ, σx, σz)
@@ -671,6 +688,7 @@ function makeoperator( sounding::TempestSoundingData;
                        ρfixed   = [1e12],
                        zstart = 0.0,
                        extendfrac = 1.06,
+                       useML = false,
                        dz = 2.,
                        ρbg = 10,
                        nlayers = 40,
@@ -694,7 +712,7 @@ function makeoperator( sounding::TempestSoundingData;
 	x_rx = sounding.x_rx, y_rx = sounding.y_rx,
     rx_roll = sounding.roll_rx, rx_pitch = sounding.pitch_rx, rx_yaw = sounding.yaw_rx,
     tx_roll = sounding.roll_tx, tx_pitch = sounding.pitch_tx, tx_yaw = sounding.yaw_tx,
-	ramp = sounding.ramp, times = sounding.times,
+	ramp = sounding.ramp, times = sounding.times, useML = useML,
 	z=z, ρ=ρ,
 	addprimary = addprimary #this ensures that the geometry update actually changes everything that needs to be
 	)

@@ -35,6 +35,8 @@ optlog10λ = transD_GP.OptionsStat(nmin = nminlog10λ,
                         pnorm = pnorm,
                         quasimultid = false,
                         K = Klog10λ,
+                        needλ²fromlog = true,
+                        updatenonstat = true,
                         timesλ = 3.6
                         )
 @time  log10λ = transD_GP.init(optlog10λ)

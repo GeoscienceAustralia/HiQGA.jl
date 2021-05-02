@@ -10,9 +10,6 @@ demean = false
 sdev_poslog10λ = [0.01maximum(y), 0.01maximum(x)]
 log10bounds = [-1 -0.69; -1 -0.69]
 δlog10λ = 0.1
-# crucial for stationary only
-updatenonstat = false
-needλ²fromlog = false
 ##
 sdev_proplog10λ = [0.1, 0.1]
 xall = zeros(2,length(x)*length(y))
@@ -40,8 +37,6 @@ optlog10λ = transD_GP.OptionsStat(nmin = nminlog10λ,
                         quasimultid = false,
                         K = Klog10λ,
                         timesλ = 3,
-                        needλ²fromlog = needλ²fromlog,
-                        updatenonstat = updatenonstat
                         )
 @time  log10λ = transD_GP.init(optlog10λ)
 ## make options for the nonstationary GP

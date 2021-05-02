@@ -27,6 +27,8 @@ optlog10λ = transD_GP.OptionsStat(nmin = nminlog10λ,
                         sdev_pos = sdev_poslog10λ,
                         pnorm = pnorm,
                         quasimultid = false,
+                        needλ²fromlog = true,
+                        updatenonstat = true,
                         K = Klog10λ,
                         timesλ = 3.7,
                         peskycholesky = true
@@ -34,11 +36,11 @@ optlog10λ = transD_GP.OptionsStat(nmin = nminlog10λ,
 ## make options for the nonstationary actual properties GP
 nmin, nmax = 2, 20
 fbounds = [-0.5 2.5]
-δ = 0.05
+δ = 0.1
 sdev_prop = 0.04*diff(fbounds, dims=2)[:]
 sdev_pos = [0.02abs(diff([extrema(znall)...])[1])]
 demean_ns = true
-K = transD_GP.GP.Mat32()
+K = transD_GP.GP.OrstUhn()
 ## Initialize model for the nonstationary properties GP
 Random.seed!(13)
 opt = transD_GP.OptionsNonstat(optlog10λ,

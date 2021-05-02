@@ -8,26 +8,31 @@ import ..Model, ..Options
 export Line, makehist
 
 mutable struct Line<:Operator1D
-    d     :: Array{Float64}
-    useML :: Bool
-    σ     :: Array{Float64, 1}
+    d      :: Array{Float64, 1}
+    useML  :: Bool
+    σ      :: Array{Float64, 1}
+    select :: Array{Bool, 1}
 end
 
 function Line(d::Array{Float64, 1} ;useML=false, σ=1.0)
-    Line(d, useML, σ)
+    if isa(σ, Array)
+        @assert length(d) == length(σ)
+    end
+    select = .!isnan.(d[:])
+    Line(d, useML, σ, select)
 end
 
 function get_misfit(m::Model, opt::Options, line::Line)
     chi2by2 = 0.0
     if !opt.debug
-        d = line.d
-        select = .!isnan.(d[:])
-        r = (m.fstar[:][select] - d[select])./line.σ.^2
+        d, σ, select = line.d, line.σ, line.select
+        r = (m.fstar[:][select] - d[select])./σ[select]
+        chi2 = r'*r
         if line.useML
             N = sum(select)
-            chi2by2 = 0.5*N*log(norm(r)^2)
+            chi2by2 = 0.5*N*log(chi2)
         else
-            chi2by2 = 0.5*r'*r
+            chi2by2 = 0.5*chi2
         end
     end
     return chi2by2
