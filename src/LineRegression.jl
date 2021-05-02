@@ -10,13 +10,15 @@ export Line, makehist
 mutable struct Line<:Operator1D
     d      :: Array{Float64, 1}
     useML  :: Bool
-    σ      :: Array{Float64, 1}
+    σ      :: Union{Array{Float64, 1}, Float64}
     select :: Array{Bool, 1}
 end
 
 function Line(d::Array{Float64, 1} ;useML=false, σ=1.0)
     if isa(σ, Array)
         @assert length(d) == length(σ)
+    else
+        σ = σ*ones(length(d))    
     end
     select = .!isnan.(d[:])
     Line(d, useML, σ, select)
