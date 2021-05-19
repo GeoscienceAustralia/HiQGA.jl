@@ -26,6 +26,7 @@ tx_pitch = 0.
 tx_yaw = 0.
 # electronics and stuff
 include("electronics_halt.jl")
+useML = true
 ## fill in detail in ohm-m
 ρ[(z.>=zstart) .& (z.<50)] .= 20.
 ρ[(z.>=50) .&(z.<80)] .= 1.
@@ -42,8 +43,8 @@ tempest = transD_GP.TEMPEST1DInversion.Bfield(
 	ramp = ramp, times = times,
 	z=z,
 	ρ=ρ,
-	addprimary = true #this ensures that the geometry update actually changes everything that needs to be
-)
+	addprimary = true, #this ensures that the geometry update actually changes everything that needs to be
+	useML = useML)
 # plot before adding noise
 transD_GP.TEMPEST1DInversion.plotmodelfield!(tempest,z,ρ)
 ## compute noisy data to invert

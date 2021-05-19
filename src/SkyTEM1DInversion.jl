@@ -541,4 +541,68 @@ function make_tdgp_opt(;
     opt
 end
 
+function makeoperatorandoptions(soundings::Array{SkyTEMsoundingData, 1};
+                        rseed = nothing,
+                        fileprefix = "sounding",
+                        nmin = 2,
+                        nmax = 40,
+                        K = GP.Mat32(),
+                        demean = true,
+                        sdpos = 0.05,
+                        sdprop = 0.05,
+                        fbounds = [-0.5 2.5],
+                        λ = [2],
+                        δ = 0.1,
+                        pnorm = 2,
+                        save_freq = 25,
+                        restart = false,
+                        nplot = 2,
+                        zfixed   = [-1e5],
+                        ρfixed   = [1e12],
+                        zstart = 0.0,
+                        extendfrac = 1.06,
+                        dz = 2.,
+                        ρbg = 10,
+                        nlayers = 40,
+                        ntimesperdecade = 10,
+                        nfreqsperdecade = 5,
+                        showgeomplot = false,
+                        useML = false,
+                        )
+    aem, opt = [], []
+    for idx in randperm(length(soundings))[1:nplot]
+            aem, znall = makeoperator(soundings[idx],
+                        zfixed = zfixed,
+                        ρfixed = ρfixed,
+                        zstart = zstart,
+                        extendfrac = extendfrac,
+                        dz = dz,
+                        ρbg = ρbg,
+                        nlayers = nlayers,
+                        ntimesperdecade = ntimesperdecade,
+                        nfreqsperdecade = nfreqsperdecade,
+                        useML = useML,
+                        showgeomplot = showgeomplot,
+                        plotfield = true)
+
+                    opt = make_tdgp_opt(znall = znall,
+                        fileprefix = soundings[idx].sounding_string,
+                        nmin = nmin,
+                        nmax = nmax,
+                        K = K,
+                        demean = demean,
+                        sdpos = sdpos,
+                        sdprop = sdprop,
+                        fbounds = fbounds,
+                        save_freq = save_freq,
+                        λ = λ,
+                        δ = δ,
+                        restart = restart
+                        )
+    end
+    # returns generically all the required elements in operator
+    # for plotting except sounding_string
+    opt
+end
+
 end

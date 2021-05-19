@@ -2,10 +2,10 @@
 nmin, nmax = 2, 40
 pnorm = 2.
 K = transD_GP.GP.OrstUhn()
-demean = true
+demean = false
 fbounds = [-0.5 2.5]
-sdev_pos = [0.05abs(diff([extrema(znall)...])[1])]
-sdev_prop = 0.05diff(fbounds, dims=2)[:]
+sdev_pos = [0.1abs(diff([extrema(znall)...])[1])]
+sdev_prop = 0.15diff(fbounds, dims=2)[:]
 xall = permutedims(collect(znall))
 xbounds = permutedims([extrema(znall)...])
 λ, δ = [2], 0.1
