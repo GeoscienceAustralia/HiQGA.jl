@@ -37,6 +37,8 @@ mutable struct OptionsStat <: Options
     updatenonstat       :: Bool
     updatenuisances     :: Bool
     peskycholesky       :: Bool
+    dcvalue             :: Array{Float64}
+    sampledc            :: Bool
 end
 
 function OptionsStat(;
@@ -66,6 +68,8 @@ function OptionsStat(;
         updatenonstat      = false,
         updatenuisances    = false,
         peskycholesky      = true,
+        dcvalue            = nothing,
+        sampledc           = false
         )
 
         @assert xall != nothing
@@ -83,6 +87,15 @@ function OptionsStat(;
             @assert length(influenceradius) == size(xall, 1) - 1
         end
         @assert typeof(K) <: GP.Kernel
+        if dcvalue == nothing
+            dcvalue = mean(fbounds, dims=2)
+        else
+            @assert all((dcvalue .- fbounds[:,1]).>0)
+            @assert all((dcvalue .- fbounds[:,2]).<0)
+        end
+        if needλ²fromlog && updatenuisances
+            @assert sampledc == false
+        end
         costs_filename = "misfits_"*fdataname*".bin"
         fstar_filename = "models_"*fdataname*".bin"
         x_ftrain_filename = "points_"*fdataname*".bin"
@@ -92,7 +105,7 @@ function OptionsStat(;
                 stat_window, dispstatstoscreen, report_freq, save_freq,
                 fdataname, history_mode, costs_filename, fstar_filename, x_ftrain_filename,
                 debug, quasimultid, influenceradius, K, kdtree, balltree, timesλ, needλ²fromlog,
-                updatenonstat, updatenuisances, peskycholesky)
+                updatenonstat, updatenuisances, peskycholesky, dcvalue, sampledc)
 end
 
 mutable struct OptionsNonstat <: Options
@@ -124,6 +137,8 @@ mutable struct OptionsNonstat <: Options
     updatenonstat       :: Bool
     updatenuisances     :: Bool
     peskycholesky       :: Bool
+    dcvalue             :: Array{Float64}
+    sampledc            :: Bool
 end
 
 function OptionsNonstat(opt::OptionsStat;
@@ -136,7 +151,9 @@ function OptionsNonstat(opt::OptionsStat;
         sdev_pos           = [0.05;0.05],
         pnorm              = 2,
         influenceradius    = [-9.9],
-        K                  = SqEuclidean()
+        K                  = SqEuclidean(),
+        dcvalue            = nothing,
+        sampledc           = false
         )
 
         @assert all(diff(fbounds, dims=2) .> 0)
@@ -145,6 +162,12 @@ function OptionsNonstat(opt::OptionsStat;
         @assert ndims(sdev_pos) == 1
         @assert length(sdev_pos) == size(opt.xbounds, 1)
         @assert typeof(K) <: GP.Kernel
+        if dcvalue == nothing
+            dcvalue = mean(fbounds, dims=2)
+        else
+            @assert all((dcvalue .- fbounds[:,1]).>0)
+            @assert all((dcvalue .- fbounds[:,2]).<0)
+        end
         costs_filename = "misfits_ns_"*opt.fdataname*".bin"
         fstar_filename = "models_ns_"*opt.fdataname*".bin"
         x_ftrain_filename = "points_ns_"*opt.fdataname*".bin"
@@ -152,7 +175,7 @@ function OptionsNonstat(opt::OptionsStat;
                 opt.stat_window, opt.dispstatstoscreen, opt.report_freq, opt.save_freq,
                 opt.fdataname, opt.history_mode, opt.costs_filename, opt.fstar_filename, opt.x_ftrain_filename,
                 opt.debug, opt.quasimultid, influenceradius, K, opt.kdtree, opt.needλ²fromlog, opt.updatenonstat,
-                opt.updatenuisances, opt.peskycholesky)
+                opt.updatenuisances, opt.peskycholesky, dcvalue, sampledc)
 end
 
 #not subtyping Options because methods that expect Options are expecting
@@ -257,6 +280,7 @@ mutable struct ModelStat <:Model
     xtrain_old    :: Array{Float64}
     iremember     :: Int # stores old changed point index to recover state
     xtrain_focus  :: Array{Float64} # for quasimultid to keep track of
+    dcvalue       :: Array{Float64}
 end
 
 mutable struct ModelNonstat <:Model
@@ -272,6 +296,7 @@ mutable struct ModelNonstat <:Model
     xtrain_focus  :: Array{Float64} # for quasimultid to keep track of
     K_y_old       :: Array{Float64, 2}
     Kstar_old     :: Array{Float64, 2}
+    dcvalue       :: Array{Float64}
 end
 
 mutable struct ModelNuisance
@@ -305,7 +330,7 @@ end
 
 # Stationary GP functions, i.e., for λ
 function init(opt::OptionsStat)
-    n, xtrain, ftrain = initvalues(opt)
+    n, xtrain, ftrain, dcvalue = initvalues(opt)
     K_y = zeros(opt.nmax, opt.nmax)
     map!(x->GP.κ(opt.K, x),K_y,pairwise(WeightedEuclidean(1 ./opt.λ² ), xtrain, dims=2))
     K_y[diagind(K_y)] .+= opt.δ^2
@@ -313,10 +338,10 @@ function init(opt::OptionsStat)
     xtest = opt.xall
     map!(x->GP.κ(opt.K, x),Kstar,pairwise(WeightedEuclidean(1 ./opt.λ² ), xtest, xtrain, dims=2))
     fstar = zeros(size(opt.fbounds, 1), size(opt.xall, 2))
-    calcfstar!(fstar, ftrain, opt, K_y, Kstar, n)
+    calcfstar!(fstar, ftrain, opt, K_y, Kstar, n, dcvalue)
     return ModelStat(fstar, xtrain, ftrain, K_y, Kstar, n,
                  [0.0], zeros(Float64, size(opt.xbounds, 1)), 0,
-                 zeros(Float64, size(opt.xbounds, 1)))
+                 zeros(Float64, size(opt.xbounds, 1)), dcvalue)
 end
 
 function init(opt::OptionsNuisance)
@@ -335,11 +360,15 @@ end
 
 function calcfstar!(fstar::Array{Float64,2}, ftrain::Array{Float64,2},
                     opt::OptionsStat, K_y::Array{Float64,2},
-                    Kstar::Array{Float64, 2}, n::Int)
+                    Kstar::Array{Float64, 2}, n::Int, dcvalue::Array{Float64})
     if opt.demean && n>1
         mf = mean(ftrain[:,1:n], dims=2)
     else
-        mf = mean(opt.fbounds, dims=2)
+        if opt.sampledc
+            mf = dcvalue # from what is stored in model and passed to it
+        else
+            mf = opt.dcvalue # supplied by user or mid point of prior range by default
+        end
     end
     rhs = ftrain[:,1:n] .- mf
     ky = @view K_y[1:n,1:n]
@@ -364,6 +393,7 @@ function initvalues(opt::Options)
         n = opt.nmin
         xtrain[:,1:n] = opt.xbounds[:,1] .+ diff(opt.xbounds, dims=2).*rand(size(opt.xbounds, 1), n)
         ftrain[:,1:n] = opt.fbounds[:,1] .+ diff(opt.fbounds, dims=2).*rand(size(opt.fbounds, 1), n)
+        dcvalue       = opt.fbounds[:,1] .+ diff(opt.fbounds, dims=2).*rand(size(opt.fbounds, 1), 1)
     else # restart
         @info "opening $(opt.x_ftrain_filename)"
         n = history(opt, stat=:nodes)[end]
@@ -371,7 +401,7 @@ function initvalues(opt::Options)
         xtrain[:,1:n] = xft[1:size(opt.xall, 1), 1:n]
         ftrain[:,1:n] = xft[size(opt.xall, 1)+1:end, 1:n]
     end
-    n, xtrain, ftrain
+    n, xtrain, ftrain, dcvalue
 end
 
 function updatenskernels!(opt::OptionsStat, m::ModelStat, ipoint::Union{Int, Array{Int, 1}},
@@ -431,7 +461,7 @@ function birth!(m::ModelStat, opt::OptionsStat,
     map!(x->GP.κ(opt.K, x),K_yv,colwise(WeightedEuclidean(1 ./opt.λ² ), xtrain[:,n+1], xtrain[:,1:n+1]))
     K_y[1:n+1,n+1] = K_y[n+1,1:n+1]
     K_y[n+1,n+1] = K_y[n+1,n+1] + opt.δ^2
-    calcfstar!(m.fstar, m.ftrain, opt, K_y, Kstar, n+1)
+    calcfstar!(m.fstar, m.ftrain, opt, K_y, Kstar, n+1, m.dcvalue)
     m.n = n+1
     # updating the nonstationary kernels now
     opt.updatenonstat && updatenskernels!(opt, m, n+1, optns, mns, doall=doall)
@@ -461,7 +491,7 @@ function death!(m::ModelStat, opt::OptionsStat,
     K_y[ipoint,1:n], K_y[n,1:n] = K_y[n,1:n], K_y[ipoint,1:n]
     K_y[1:n-1,ipoint] = K_y[ipoint,1:n-1]
     K_y[ipoint,ipoint] = 1.0 + opt.δ^2
-    calcfstar!(m.fstar, m.ftrain, opt, K_y, Kstar, n-1)
+    calcfstar!(m.fstar, m.ftrain, opt, K_y, Kstar, n-1, m.dcvalue)
     m.n = n-1
     # updating the nonstationary kernels now
     opt.updatenonstat && updatenskernels!(opt, m, n, optns, mns, doall=doall)
@@ -500,7 +530,7 @@ function property_change!(m::ModelStat, opt::OptionsStat,
                 (ftrain[i,ipoint]>opt.fbounds[i,2]) && (ftrain[i,ipoint] = 2*opt.fbounds[i,2] - ftrain[i,ipoint])
         end
     end
-    calcfstar!(m.fstar, m.ftrain, opt, K_y, Kstar, n)
+    calcfstar!(m.fstar, m.ftrain, opt, K_y, Kstar, n, m.dcvalue)
     # updating the nonstationary kernels now
     opt.updatenonstat && updatenskernels!(opt, m, ipoint, optns, mns, doall=doall)
     nothing
@@ -539,7 +569,7 @@ function position_change!(m::ModelStat, opt::OptionsStat,
     map!(x->GP.κ(opt.K, x),K_yv,colwise(WeightedEuclidean(1 ./opt.λ² ), xtrain[:,ipoint], xtrain[:,1:n]))
     K_y[1:n,ipoint] = K_y[ipoint,1:n]
     K_y[ipoint,ipoint] = K_y[ipoint,ipoint] + opt.δ^2
-    calcfstar!(m.fstar, m.ftrain, opt, K_y, Kstar, n)
+    calcfstar!(m.fstar, m.ftrain, opt, K_y, Kstar, n, m.dcvalue)
     # updating the nonstationary kernels now
     opt.updatenonstat && updatenskernels!(opt, m, ipoint, optns, mns, doall=doall, isposchange=true)
     nothing
@@ -575,7 +605,7 @@ function init(opt::OptionsNonstat, m::ModelStat)
     donotinit = !opt.needλ²fromlog && !opt.updatenonstat
     if !donotinit
         λ² = m.fstar
-        n, xtrain, ftrain = initvalues(opt)
+        n, xtrain, ftrain, dcvalue = initvalues(opt)
         K_y = zeros(opt.nmax, opt.nmax)
         idxs = gettrainidx(opt.kdtree, xtrain, n)
         ky = view(K_y, 1:n, 1:n)
@@ -586,25 +616,29 @@ function init(opt::OptionsNonstat, m::ModelStat)
         ks = view(Kstar, :, 1:n)
         GP.pairwise(ks, opt.K, xtrain[:,1:n], xtest, λ²[:,idxs], λ²)
         fstar = zeros(size(opt.xall, 2), size(opt.fbounds, 1))
-        calcfstar!(fstar, ftrain, opt, K_y, Kstar, n)
+        calcfstar!(fstar, ftrain, opt, K_y, Kstar, n, dcvalue)
         return ModelNonstat(fstar, xtrain, ftrain, K_y, Kstar, n,
                  [0.0], zeros(Float64, size(opt.xbounds, 1)), 0, zeros(Float64, size(opt.xbounds, 1)),
-                 copy(K_y), copy(Kstar))
+                 copy(K_y), copy(Kstar), dcvalue)
     else
         dummy2d = [0.0 0.0]
         return ModelNonstat(dummy2d, dummy2d, dummy2d, dummy2d, dummy2d, 0,
                  dummy2d, dummy2d, 0, dummy2d,
-                 dummy2d, dummy2d)
+                 dummy2d, dummy2d, dummy2d)
     end
 end
 
 function calcfstar!(fstar::Array{Float64,2}, ftrain::Array{Float64,2},
                     opt::OptionsNonstat, K_y::Array{Float64,2},
-                    Kstar::Array{Float64, 2}, n::Int)
+                    Kstar::Array{Float64, 2}, n::Int, dcvalue::Array{Float64})
     if opt.demean && n>1
         mf = mean(ftrain[:,1:n], dims=2)
     else
-        mf = mean(opt.fbounds, dims=2)
+        if opt.sampledc
+            mf = dcvalue # from what is stored in model and passed to it
+        else
+            mf = opt.dcvalue # supplied by user or mid point of prior range by default
+        end
     end
     rhs = ftrain[:,1:n] .- mf
     ky = view(K_y, 1:n, 1:n)
@@ -634,7 +668,7 @@ function birth!(m::ModelNonstat, opt::OptionsNonstat, l::ModelStat)
     end
     K_y[1:n+1,n+1] = K_y[n+1,1:n+1]
     K_y[n+1,n+1] = K_y[n+1,n+1] + opt.δ^2
-    calcfstar!(m.fstar, m.ftrain, opt, K_y, Kstar, n+1)
+    calcfstar!(m.fstar, m.ftrain, opt, K_y, Kstar, n+1, m.dcvalue)
     m.n = n+1
     nothing
 end
@@ -655,7 +689,7 @@ function death!(m::ModelNonstat, opt::OptionsNonstat)
     K_y[ipoint,1:n], K_y[n,1:n] = K_y[n,1:n], K_y[ipoint,1:n]
     K_y[1:n-1,ipoint] = K_y[ipoint,1:n-1]
     K_y[ipoint,ipoint] = 1.0 + opt.δ^2
-    calcfstar!(m.fstar, m.ftrain, opt, K_y, Kstar, n-1)
+    calcfstar!(m.fstar, m.ftrain, opt, K_y, Kstar, n-1, m.dcvalue)
     m.n = n-1
     nothing
 end
@@ -684,7 +718,7 @@ function property_change!(m::ModelNonstat, opt::OptionsNonstat)
                 (ftrain[i,ipoint]>opt.fbounds[i,2]) && (ftrain[i,ipoint] = 2*opt.fbounds[i,2] - ftrain[i,ipoint])
         end
     end
-    calcfstar!(m.fstar, m.ftrain, opt, K_y, Kstar, n)
+    calcfstar!(m.fstar, m.ftrain, opt, K_y, Kstar, n, m.dcvalue)
     nothing
 end
 
@@ -718,7 +752,7 @@ function position_change!(m::ModelNonstat, opt::OptionsNonstat, l::ModelStat)
     end
     K_y[1:n,ipoint] = K_y[ipoint,1:n]
     K_y[ipoint,ipoint] = K_y[ipoint,ipoint] + opt.δ^2
-    calcfstar!(m.fstar, m.ftrain, opt, K_y, Kstar, n)
+    calcfstar!(m.fstar, m.ftrain, opt, K_y, Kstar, n, m.dcvalue)
     nothing
 end
 
@@ -742,7 +776,7 @@ end
 
 function sync_model!(m::Model, opt::Options)
     ftrain, K_y, Kstar, n = m.ftrain, m.K_y, m.Kstar, m.n
-    calcfstar!(m.fstar, m.ftrain, opt, K_y, Kstar, n)
+    calcfstar!(m.fstar, m.ftrain, opt, K_y, Kstar, n, m.dcvalue)
     nothing
 end
 
