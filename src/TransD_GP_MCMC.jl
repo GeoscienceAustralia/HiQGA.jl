@@ -896,17 +896,17 @@ function do_move!(m::ModelStat, opt::OptionsStat, stat::Stats,
             priorviolate = true
         end
         movetype = 1
-    elseif cumprob[2]
+    elseif unifrand<cumprob[2]
         if m.n>opt.nmin
             death!(m, opt, mns, optns)
         else
             priorviolate = true
         end
         movetype = 2
-    elseif cumprob[3]
+    elseif unifrand<cumprob[3]
         position_change!(m, opt, mns, optns)
         movetype = 3
-    elseif cumprob[4]
+    elseif unifrand<cumprob[4]
         property_change!(m, opt, mns, optns)
         movetype = 4
     else
