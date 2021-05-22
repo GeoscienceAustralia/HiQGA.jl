@@ -498,6 +498,8 @@ function make_tdgp_opt(;
                     demean = true,
                     sdpos = 0.05,
                     sdprop = 0.05,
+                    sddc = 0.008,
+                    sampledc = false,
                     fbounds = [-0.5 2.5],
                     λ = [2],
                     δ = 0.1,
@@ -507,6 +509,7 @@ function make_tdgp_opt(;
                     )
     sdev_pos = [sdpos*abs(diff([extrema(znall)...])[1])]
     sdev_prop = sdprop*diff(fbounds, dims=2)[:]
+    sdev_dc = sddc*diff(fbounds, dims=2)[:]
     xall = permutedims(collect(znall))
     xbounds = permutedims([extrema(znall)...])
 
@@ -529,6 +532,8 @@ function make_tdgp_opt(;
                             demean = demean,
                             sdev_prop = sdev_prop,
                             sdev_pos = sdev_pos,
+                            sdev_dc = sdev_dc,
+                            sampledc = sampledc,
                             pnorm = pnorm,
                             quasimultid = false,
                             K = K,
@@ -550,6 +555,8 @@ function makeoperatorandoptions(soundings::Array{SkyTEMsoundingData, 1};
                         demean = true,
                         sdpos = 0.05,
                         sdprop = 0.05,
+                        sddc = 0.008,
+                        sampledc = false,
                         fbounds = [-0.5 2.5],
                         λ = [2],
                         δ = 0.1,
@@ -593,6 +600,8 @@ function makeoperatorandoptions(soundings::Array{SkyTEMsoundingData, 1};
                         demean = demean,
                         sdpos = sdpos,
                         sdprop = sdprop,
+                        sddc = sddc,
+                        sampledc = sampledc,
                         fbounds = fbounds,
                         save_freq = save_freq,
                         λ = λ,
