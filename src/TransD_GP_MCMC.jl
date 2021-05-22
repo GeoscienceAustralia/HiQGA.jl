@@ -93,7 +93,7 @@ function OptionsStat(;
             @assert all((dcvalue .- fbounds[:,1]).>0)
             @assert all((dcvalue .- fbounds[:,2]).<0)
         end
-        if needλ²fromlog && updatenuisances
+        if needλ²fromlog && updatenonstat
             @assert sampledc == false
         end
         costs_filename = "misfits_"*fdataname*".bin"
