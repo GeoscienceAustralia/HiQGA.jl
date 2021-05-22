@@ -16,6 +16,7 @@ mutable struct OptionsStat <: Options
     demean              :: Bool
     sdev_prop           :: Array{Float64, 1}
     sdev_pos            :: Array{Float64, 1}
+    sdev_dc             :: Array{Float64, 1}
     pnorm               :: Float64
     stat_window         :: Int
     dispstatstoscreen   :: Bool
@@ -52,6 +53,7 @@ function OptionsStat(;
         demean             = true,
         sdev_prop          = [0.01],
         sdev_pos           = [0.05;0.05],
+        sdev_dc            = nothing,
         pnorm              = 2,
         stat_window        = 100,
         dispstatstoscreen  = true,
@@ -80,6 +82,11 @@ function OptionsStat(;
         @assert ndims(sdev_pos) == 1
         @assert length(sdev_pos) == size(xbounds, 1)
         @assert length(λ) == size(xbounds, 1)
+        if sdev_dc == nothing
+            sdev_dc = copy(sdev_prop)
+        else
+            @assert length(sdev_dc) == size(fbounds, 1)
+        end
         @assert ndims(λ) == 1
         @assert quasimultid != "" "specify true or false explicitly"
         if quasimultid
@@ -101,7 +108,7 @@ function OptionsStat(;
         x_ftrain_filename = "points_"*fdataname*".bin"
         kdtree = KDTree(xall)
         balltree = BallTree(xall./λ)
-        OptionsStat(nmin, nmax, xbounds, fbounds, xall, λ.^2 , δ, demean, sdev_prop, sdev_pos, pnorm,
+        OptionsStat(nmin, nmax, xbounds, fbounds, xall, λ.^2 , δ, demean, sdev_prop, sdev_pos, sdev_dc, pnorm,
                 stat_window, dispstatstoscreen, report_freq, save_freq,
                 fdataname, history_mode, costs_filename, fstar_filename, x_ftrain_filename,
                 debug, quasimultid, influenceradius, K, kdtree, balltree, timesλ, needλ²fromlog,
@@ -118,6 +125,7 @@ mutable struct OptionsNonstat <: Options
     demean              :: Bool
     sdev_prop           :: Array{Float64, 1}
     sdev_pos            :: Array{Float64, 1}
+    sdev_dc             :: Array{Float64, 1}
     pnorm               :: Float64
     stat_window         :: Int
     dispstatstoscreen   :: Bool
@@ -149,6 +157,7 @@ function OptionsNonstat(opt::OptionsStat;
         demean             = true,
         sdev_prop          = [0.01],
         sdev_pos           = [0.05;0.05],
+        sdev_dc            = nothing,
         pnorm              = 2,
         influenceradius    = [-9.9],
         K                  = SqEuclidean(),
@@ -161,6 +170,11 @@ function OptionsNonstat(opt::OptionsStat;
         @assert length(sdev_prop) == size(fbounds, 1)
         @assert ndims(sdev_pos) == 1
         @assert length(sdev_pos) == size(opt.xbounds, 1)
+        if sdev_dc == nothing
+            sdev_dc = copy(sdev_prop)
+        else
+            @assert length(sdev_dc) == size(fbounds, 1)
+        end
         @assert typeof(K) <: GP.Kernel
         if dcvalue == nothing
             dcvalue = mean(fbounds, dims=2)
@@ -171,7 +185,7 @@ function OptionsNonstat(opt::OptionsStat;
         costs_filename = "misfits_ns_"*opt.fdataname*".bin"
         fstar_filename = "models_ns_"*opt.fdataname*".bin"
         x_ftrain_filename = "points_ns_"*opt.fdataname*".bin"
-        OptionsNonstat(nmin, nmax, opt.xbounds, fbounds, opt.xall, δ, demean, sdev_prop, sdev_pos, pnorm,
+        OptionsNonstat(nmin, nmax, opt.xbounds, fbounds, opt.xall, δ, demean, sdev_prop, sdev_pos, sdev_dc, pnorm,
                 opt.stat_window, opt.dispstatstoscreen, opt.report_freq, opt.save_freq,
                 opt.fdataname, opt.history_mode, opt.costs_filename, opt.fstar_filename, opt.x_ftrain_filename,
                 opt.debug, opt.quasimultid, influenceradius, K, opt.kdtree, opt.needλ²fromlog, opt.updatenonstat,
@@ -185,7 +199,7 @@ mutable struct OptionsNuisance
     bounds                 :: Array{Float64,2}
     nnu                    :: Int64
 
-    updatenuisances         :: Bool
+    updatenuisances        :: Bool
     updatenonstat          :: Bool
     debug                  :: Bool
 
@@ -281,6 +295,7 @@ mutable struct ModelStat <:Model
     iremember     :: Int # stores old changed point index to recover state
     xtrain_focus  :: Array{Float64} # for quasimultid to keep track of
     dcvalue       :: Array{Float64}
+    dcvalue_old   :: Array{Float64}
 end
 
 mutable struct ModelNonstat <:Model
@@ -297,6 +312,7 @@ mutable struct ModelNonstat <:Model
     K_y_old       :: Array{Float64, 2}
     Kstar_old     :: Array{Float64, 2}
     dcvalue       :: Array{Float64}
+    dcvalue_old   :: Array{Float64}
 end
 
 mutable struct ModelNuisance
@@ -313,7 +329,7 @@ mutable struct Stats
     accept_rate::Array{Float64, 1}
 end
 
-function Stats(;nmoves=4)
+function Stats(;nmoves=5)
     Stats(zeros(Int, nmoves), zeros(Int, nmoves), zeros(Float64, nmoves))
 end
 
@@ -341,7 +357,7 @@ function init(opt::OptionsStat)
     calcfstar!(fstar, ftrain, opt, K_y, Kstar, n, dcvalue)
     return ModelStat(fstar, xtrain, ftrain, K_y, Kstar, n,
                  [0.0], zeros(Float64, size(opt.xbounds, 1)), 0,
-                 zeros(Float64, size(opt.xbounds, 1)), dcvalue)
+                 zeros(Float64, size(opt.xbounds, 1)), dcvalue, copy(dcvalue))
 end
 
 function init(opt::OptionsNuisance)
@@ -595,6 +611,24 @@ function undo_position_change!(m::ModelStat, opt::OptionsStat, mns::ModelNonstat
     nothing
 end
 
+function dc_change!(m::Model, opt::Options)
+    ftrain, K_y, Kstar, n, dcvalue = m.ftrain, m.K_y, m. Kstar, m.n, m.dcvalue
+    copy!(m.dcvalue_old, dcvalue)
+    dcvalue .= m.dcvalue_old .+ opt.sdev_dc.*randn(size(opt.fbounds, 1))
+    for i in eachindex(dcvalue)
+        while (dcvalue[i]<opt.fbounds[i,1]) || (dcvalue[i]>opt.fbounds[i,2])
+                (dcvalue[i]<opt.fbounds[i,1]) && (dcvalue[i] = 2*opt.fbounds[i,1] - dcvalue[i])
+                (dcvalue[i]>opt.fbounds[i,2]) && (dcvalue[i] = 2*opt.fbounds[i,2] - dcvalue[i])
+        end
+    end
+    calcfstar!(m.fstar, m.ftrain, opt, K_y, Kstar, n, m.dcvalue)
+end
+
+function undo_dc_change!(m::Model, opt::Options)
+    m.dcvalue .= m.dcvalue_old
+    nothing
+end
+
 # Non stationary GP functions, i.e., for mns.fstar
 function gettrainidx(kdtree::KDTree, xtrain::Array{Float64, 2}, n::Int)
     idxs,  = knn(kdtree, xtrain[:,1:n], 1)
@@ -619,12 +653,12 @@ function init(opt::OptionsNonstat, m::ModelStat)
         calcfstar!(fstar, ftrain, opt, K_y, Kstar, n, dcvalue)
         return ModelNonstat(fstar, xtrain, ftrain, K_y, Kstar, n,
                  [0.0], zeros(Float64, size(opt.xbounds, 1)), 0, zeros(Float64, size(opt.xbounds, 1)),
-                 copy(K_y), copy(Kstar), dcvalue)
+                 copy(K_y), copy(Kstar), dcvalue, copy(dcvalue))
     else
         dummy2d = [0.0 0.0]
         return ModelNonstat(dummy2d, dummy2d, dummy2d, dummy2d, dummy2d, 0,
                  dummy2d, dummy2d, 0, dummy2d,
-                 dummy2d, dummy2d, dummy2d)
+                 dummy2d, dummy2d, dummy2d, dummy2d)
     end
 end
 
@@ -797,28 +831,35 @@ function testupdate(opt::OptionsStat, m::ModelStat)
 end
 
 function do_move!(mns::ModelNonstat, m::ModelStat, optns::OptionsNonstat, statns::Stats)
+    cumprob = [0.20, 0.40, 0.60, 0.8] # if sampledc and 5 total noves
+    if !opt.sampledc
+        cumprob +=  [0.05, 0.10, 0.15, 0.2] # add these if no sampledc, 4 total moves
+    end
     unifrand = rand()
     movetype, priorviolate = 0, false
-    if unifrand<0.25
+    if unifrand<cumprob[1]
         if mns.n<optns.nmax
             birth!(mns, optns, m)
         else
             priorviolate = true
         end
         movetype = 1
-    elseif unifrand<0.5
+    elseif unifrand<cumprob[2]
         if mns.n>optns.nmin
             death!(mns, optns)
         else
             priorviolate = true
         end
         movetype = 2
-    elseif unifrand<0.75
+    elseif unifrand<cumprob[3]
         position_change!(mns, optns, m)
         movetype = 3
-    else
+    elseif unifrand<cumprob[4]
         property_change!(mns, optns)
         movetype = 4
+    else
+        dc_change!(mns, optns)
+        movetype = 5
     end
     statns.move_tries[movetype] += 1
     return movetype, priorviolate
@@ -831,8 +872,10 @@ function undo_move!(movetype::Int, mns::ModelNonstat, optns::OptionsNonstat, m::
         undo_death!(mns, optns)
     elseif movetype == 3
         undo_position_change!(mns, optns, m)
-    else
+    elseif movetype == 4
         undo_property_change!(mns)
+    else
+        undo_dc_change!(mns)
     end
     sync_model!(mns, optns)
     nothing
@@ -840,28 +883,35 @@ end
 
 function do_move!(m::ModelStat, opt::OptionsStat, stat::Stats,
                   mns::ModelNonstat, optns::OptionsNonstat)
+    cumprob = [0.20, 0.40, 0.60, 0.8] # if sampledc and 5 total noves
+    if !opt.sampledc
+        cumprob +=  [0.05, 0.10, 0.15, 0.2] # add these if no sampledc, 4 total moves
+    end
     unifrand = rand()
     movetype, priorviolate = 0, false
-    if unifrand<0.25
+    if unifrand<cumprob[1]
         if m.n<opt.nmax
             birth!(m, opt, mns, optns)
         else
             priorviolate = true
         end
         movetype = 1
-    elseif unifrand<0.5
+    elseif cumprob[2]
         if m.n>opt.nmin
             death!(m, opt, mns, optns)
         else
             priorviolate = true
         end
         movetype = 2
-    elseif unifrand<0.75
+    elseif cumprob[3]
         position_change!(m, opt, mns, optns)
         movetype = 3
-    else
+    elseif cumprob[4]
         property_change!(m, opt, mns, optns)
         movetype = 4
+    else
+        dc_change(m, opt)
+        movetype = 5
     end
     stat.move_tries[movetype] += 1
     return movetype, priorviolate
@@ -875,8 +925,10 @@ function undo_move!(movetype::Int, m::ModelStat, opt::OptionsStat,
         undo_death!(m, opt, mns)
     elseif movetype == 3
         undo_position_change!(m, opt, mns)
-    else
+    elseif movetype == 4
         undo_property_change!(m, opt, mns)
+    else
+        undo_dc_change(m, opt)
     end
     sync_model!(m, opt)
     opt.updatenonstat && sync_model!(mns, optns)
@@ -922,11 +974,12 @@ function get_acceptance_stats!(isample::Int, opt::Options, stat::Stats)
     if mod(isample-1, opt.stat_window) == 0
         stat.accept_rate[:] = 100. *stat.accepted_moves./stat.move_tries
         if opt.dispstatstoscreen
-            msg = @sprintf("Acceptance rates Birth %5.2f Death %5.2f Position %5.2f Property %5.2f",
+            msg = @sprintf("ARs Birth %5.2f Death %5.2f Position %5.2f Property %5.2f DC %5.2f",
                             stat.accept_rate[1],
                             stat.accept_rate[2],
                             stat.accept_rate[3],
-                            stat.accept_rate[4])
+                            stat.accept_rate[4],
+                            stat.accept_rate[5])
             @info typeof(opt), msg
         end
         fill!(stat.move_tries, 0)
@@ -1035,7 +1088,7 @@ end
 function write_history(isample::Int, opt::Options, m::Model, misfit::Float64,
                         stat::Stats, wp::Writepointers, T::Float64, writemodel::Bool)
     write_history(opt, m.fstar, [m.xtrain; m.ftrain], misfit, stat.accept_rate[1],
-                        stat.accept_rate[2], stat.accept_rate[3], stat.accept_rate[4], m.n,
+                        stat.accept_rate[2], stat.accept_rate[3], stat.accept_rate[4], stat.accept_rate[5], m.n,
                        isample, wp.fp_costs, wp.fp_fstar, wp.fp_x_ftrain, T, writemodel)
 end
 
@@ -1047,13 +1100,13 @@ function write_history(isample::Int, optn::OptionsNuisance, mn::ModelNuisance, m
 end
 
 function write_history(opt::Options, fstar::AbstractArray, x_ftrain::AbstractArray, U::Float64, acceptanceRateBirth::Float64,
-                    acceptanceRateDeath::Float64, acceptanceRatePosition::Float64, acceptanceRateProperty::Float64, nodes::Int,
+                    acceptanceRateDeath::Float64, acceptanceRatePosition::Float64, acceptanceRateProperty::Float64, ARdc, nodes::Int,
                     iter::Int, fp_costs::Union{IOStream, Nothing}, fp_fstar::Union{IOStream, Nothing},
                     fp_x_ftrain::Union{IOStream, Nothing}, T::Float64, writemodel::Bool)
     if (mod(iter-1, opt.save_freq) == 0 || iter == 1)
         if fp_costs != nothing
-            msg = @sprintf("%d %e %e %e %e %d %e %e\n", iter, acceptanceRateBirth, acceptanceRateDeath,
-                                        acceptanceRatePosition, acceptanceRateProperty, nodes, U, T)
+            msg = @sprintf("%d %e %e %e %e %e %d %e %e\n", iter, acceptanceRateBirth, acceptanceRateDeath,
+                                        acceptanceRatePosition, acceptanceRateProperty, ARdc, nodes, U, T)
             write(fp_costs, msg)
             flush(fp_costs)
         end
@@ -1109,9 +1162,10 @@ function history(opt::Options; stat=:U)
                                 (:acceptanceRateDeath,    Float64,  3),
                                 (:acceptanceRatePosition, Float64,  4),
                                 (:acceptanceRateProperty, Float64,  5),
-                                (:nodes,                  Int,      6),
-                                (:U,                      Float64,  7),
-                                (:T,                      Float64,  8))
+                                (:acceptanceRateDC,       Float64,  6),
+                                (:nodes,                  Int,      7),
+                                (:U,                      Float64,  8),
+                                (:T,                      Float64,  9))
 
         if stat == statname
             if length(opt.costs_filename) == 0
