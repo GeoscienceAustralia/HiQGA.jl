@@ -102,6 +102,10 @@ function OptionsStat(;
         end
         if needλ²fromlog && updatenonstat
             @assert sampledc == false
+            @assert demean == false
+        end
+        if sampledc == true
+            @assert demean == false
         end
         costs_filename = "misfits_"*fdataname*".bin"
         fstar_filename = "models_"*fdataname*".bin"
@@ -181,6 +185,9 @@ function OptionsNonstat(opt::OptionsStat;
         else
             @assert all((dcvalue .- fbounds[:,1]).>0)
             @assert all((dcvalue .- fbounds[:,2]).<0)
+        end
+        if sampledc == true
+            @assert demean == false
         end
         costs_filename = "misfits_ns_"*opt.fdataname*".bin"
         fstar_filename = "models_ns_"*opt.fdataname*".bin"
@@ -910,7 +917,7 @@ function do_move!(m::ModelStat, opt::OptionsStat, stat::Stats,
         property_change!(m, opt, mns, optns)
         movetype = 4
     else
-        dc_change(m, opt)
+        dc_change!(m, opt)
         movetype = 5
     end
     stat.move_tries[movetype] += 1
@@ -928,7 +935,7 @@ function undo_move!(movetype::Int, m::ModelStat, opt::OptionsStat,
     elseif movetype == 4
         undo_property_change!(m, opt, mns)
     else
-        undo_dc_change(m, opt)
+        undo_dc_change!(m, opt)
     end
     sync_model!(m, opt)
     opt.updatenonstat && sync_model!(mns, optns)
