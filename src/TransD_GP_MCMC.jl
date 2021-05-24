@@ -421,6 +421,7 @@ function initvalues(opt::Options)
         @info "opening $(opt.x_ftrain_filename)"
         n = history(opt, stat=:nodes)[end]
         xft = history(opt, stat=:x_ftrain)[end]
+        dcvalue = history(opt, stat=:dcvalue)[end,:]
         xtrain[:,1:n] = xft[1:size(opt.xall, 1), 1:n]
         ftrain[:,1:n] = xft[size(opt.xall, 1)+1:end, 1:n]
     end
@@ -1094,7 +1095,7 @@ end
 
 function write_history(isample::Int, opt::Options, m::Model, misfit::Float64,
                         stat::Stats, wp::Writepointers, T::Float64, writemodel::Bool)
-    write_history(opt, m.fstar, [m.xtrain; m.ftrain], misfit, stat.accept_rate[1],
+    write_history(opt, m.fstar, [m.xtrain; m.ftrain], m.dcvalue, misfit, stat.accept_rate[1],
                         stat.accept_rate[2], stat.accept_rate[3], stat.accept_rate[4], stat.accept_rate[5], m.n,
                        isample, wp.fp_costs, wp.fp_fstar, wp.fp_x_ftrain, T, writemodel)
 end
@@ -1106,14 +1107,18 @@ function write_history(isample::Int, optn::OptionsNuisance, mn::ModelNuisance, m
                 wpn.fp_vals, T, writemodel)
 end
 
-function write_history(opt::Options, fstar::AbstractArray, x_ftrain::AbstractArray, U::Float64, acceptanceRateBirth::Float64,
+function write_history(opt::Options, fstar::AbstractArray, x_ftrain::AbstractArray, dcvalue::AbstractArray, U::Float64, acceptanceRateBirth::Float64,
                     acceptanceRateDeath::Float64, acceptanceRatePosition::Float64, acceptanceRateProperty::Float64, ARdc, nodes::Int,
                     iter::Int, fp_costs::Union{IOStream, Nothing}, fp_fstar::Union{IOStream, Nothing},
                     fp_x_ftrain::Union{IOStream, Nothing}, T::Float64, writemodel::Bool)
     if (mod(iter-1, opt.save_freq) == 0 || iter == 1)
         if fp_costs != nothing
-            msg = @sprintf("%d %e %e %e %e %e %d %e %e\n", iter, acceptanceRateBirth, acceptanceRateDeath,
+            msg = @sprintf("%d %e %e %e %e %e %d %e %e", iter, acceptanceRateBirth, acceptanceRateDeath,
                                         acceptanceRatePosition, acceptanceRateProperty, ARdc, nodes, U, T)
+            for dc in dcvalue # saves dcvalue vector after last cost in msg above on same line
+                msg *= @sprintf(" %e", dc)
+            end
+            msg *= "\n"
             write(fp_costs, msg)
             flush(fp_costs)
         end
@@ -1164,6 +1169,7 @@ function history(optn::OptionsNuisance; stat=:misfit)
 end
 
 function history(opt::Options; stat=:U)
+    idxlast = 0
     for (statname, el, idx) in ((:iter,                   Int,      1),
                                 (:acceptanceRateBirth,    Float64,  2),
                                 (:acceptanceRateDeath,    Float64,  3),
@@ -1190,6 +1196,10 @@ function history(opt::Options; stat=:U)
             end
             return X
         end
+        idxlast = idx # here only if noe of the statnames in statname are met
+    end
+    if stat == :dcvalue # assumes dcvalue is stored last after all the regular costs
+        return readdlm(opt.costs_filename)[:,idxlast+1:end]
     end
     if stat == :fstar
         if length(opt.fstar_filename) == 0
