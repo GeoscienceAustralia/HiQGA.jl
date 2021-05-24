@@ -1139,9 +1139,13 @@ function write_history(optn::OptionsNuisance, nvals::Array{Float64,1}, misfit::F
                     acceptanceRate::Array{Float64, 1}, iter::Int, fp_costs::Union{IOStream, Nothing},
                     fp_vals::Union{IOStream, Nothing}, T::Float64, writemodel::Bool)
     if (mod(iter-1, optn.save_freq) == 0 || iter == 1)
-        ar = acceptanceRate # TODO hacky for now, would like all acceptance rates
+        ars = acceptanceRate # TODO hacky for now, would like all acceptance rates
         if fp_costs != nothing
-            msg = @sprintf("%d %e %e %e\n", iter, mean(ar[.!isnan.(ar)]), misfit, T)
+            msg = @sprintf("%d %e %e", iter, misfit, T)
+            for ar in ars
+                msg *= @sprintf(" %e", ar)
+            end
+            msg *= "\n"
             write(fp_costs, msg)
             flush(fp_costs)
         end
@@ -1158,12 +1162,20 @@ function write_history(optn::OptionsNuisance, nvals::Array{Float64,1}, misfit::F
 end
 
 function history(optn::OptionsNuisance; stat=:misfit)
-    cols = Dict(:iter => 1, :acceptanceRate => 2,
-                :misfit => 3, :T => 4)
-    colnum = cols[stat]
-    data = readdlm(optn.costs_filename, ' ', Float64)[:,colnum]
+    idxlast = 0
+    for (statname, idx) in ((:iter,   1),
+                            (:misfit, 2),
+                            (:T,      3))
+        if stat == statname
+            data = readdlm(optn.costs_filename, ' ', Float64)[:,idx]
+        end
+        idxlast = idx
+    end
     if stat == :iter
         data = Int.(data)
+    end
+    if stat == :acceptanceRate
+        data = readdlm(optn.costs_filename, ' ', Float64)[:,idxlast+1:end]
     end
     return data
 end

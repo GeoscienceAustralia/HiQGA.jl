@@ -255,16 +255,24 @@ function getstats(optin::OptionsNuisance;
     opt.costs_filename = costs_filename*"_1.bin"
     iters          = history(opt, stat=:iter)
     statname = :acceptanceRate
-    f,ax = plt.subplots(1, 1, figsize=figsize)
+    f,ax = plt.subplots(length(optin.idxnotzero), 1, sharex=true, sharey=true, figsize=figsize)
+    maxar = 0
     for (ichain, chain) in enumerate(chains)
         opt.costs_filename = costs_filename*"_$chain.bin"
-        ar = history(opt, stat=statname)
-        ax.plot(iters, ar, alpha=alpha)
-        if ichain == nchains
-            ax.set_ylabel("nuisance acc. %")
-            ax.set_xlabel("mcmc step no.")
-            ax.set_xticks(LinRange(iters[1], iters[end], nxticks))
-            ax.set_xlim(extrema(iters))
+        ar = history(opt, stat=statname)[:,optin.idxnotzero]
+        for (i, idx) in enumerate(optin.idxnotzero)
+            mx = maximum(ar[.!isnan.(ar)])
+            mx > maxar && (maxar = mx)
+            ax[i].plot(iters, ar[:,i], alpha=alpha)
+            if ichain == nchains
+                ax[i].set_title("Nuisance #$idx")
+                ax[i].set_ylabel("acc. %")
+                if i == length(optin.idxnotzero)
+                    ax[i].set_xlabel("mcmc step no.")
+                    ax[i].set_xticks(LinRange(iters[1], iters[end], nxticks))
+                    ax[i].set_xlim(extrema(iters))
+                end
+            end
         end
     end
     nicenup(f, fsize=fontsize)
