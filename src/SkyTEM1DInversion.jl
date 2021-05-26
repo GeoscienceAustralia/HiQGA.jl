@@ -279,6 +279,8 @@ end
 function plotmodelfield_skytem!(Flow::AEM_VMD_HMD.HField, Fhigh::AEM_VMD_HMD.HField,
                          z::Array{Float64, 1}, ρ::Array{Float64, 1}
                         ;figsize=(10,5))
+    plotwaveformgates(timesLM=Flow.times,  rampLM=Flow.ramp,
+                      timesHM=Fhigh.times, rampHM=Fhigh.ramp)
     f, ax = plt.subplots(1, 2, figsize=figsize)
     ax[1].step(log10.(ρ[2:end]), z[2:end])
     ax[1].set_xlabel("log₁₀ρ")
@@ -483,9 +485,50 @@ function makeoperator(sounding::SkyTEMsoundingData;
     dlow, dhigh, σlow, σhigh = (sounding.LM_data, sounding.HM_data, sounding.LM_noise, sounding.HM_noise)./μ₀
     aem = dBzdt(Flm, Fhm, vec(dlow), vec(dhigh), useML=useML,
                 vec(σlow), vec(σhigh), z=z, ρ=ρ, nfixed=nfixed)
-    plotfield && plotmodelfield!(Flm, Fhm, z, ρ, dlow, dhigh, σlow, σhigh;
+    if plotfield
+        plotwaveformgates(aem)
+        plotmodelfield!(Flm, Fhm, z, ρ, dlow, dhigh, σlow, σhigh;
                           figsize=(12,4), nfixed=nfixed, dz=dz, extendfrac=extendfrac)
+    end
     aem, znall
+end
+
+function plotwaveformgates(aem::dBzdt; figsize=(10,5))
+    plotwaveformgates(timesLM=aem.Flow.times,  rampLM=aem.Flow.ramp,
+                      timesHM=aem.Fhigh.times, rampHM=aem.Fhigh.ramp)
+end
+
+function plotwaveformgates(;timesLM=nothing, rampLM=nothing,
+                            timesHM=nothing, rampHM=nothing,
+                            figsize=(10,5))
+    @assert timesLM != nothing
+    @assert timesHM != nothing
+    @assert rampLM != nothing
+    @assert rampHM != nothing
+
+    f = figure(figsize=figsize)
+    s1 = subplot(121)
+    plot(rampLM[:,1], rampLM[:,2], "-or")
+    stem(timesLM, ones(length(timesLM)))
+    ylabel("Amplitude")
+    xlabel("time s")
+    title("LM linear time")
+    s2 = subplot(122, sharey=s1)
+    plot(rampHM[:,1], rampHM[:,2], "-or")
+    stem(timesHM, ones(length(timesHM)))
+    ylabel("Amplitude")
+    xlabel("time s")
+    title("HM linear time")
+    # s3 = subplot(222)
+    # loglog(rampLM[:,1], rampLM[:,2], "-or")
+    # stem(timesLM, ones(length(timesLM)))
+    # title("LM log time")
+    # s4 = subplot(224, sharex=s3, sharey=s3)
+    # loglog(rampHM[:,1], rampHM[:,2], "-or")
+    # stem(timesHM, ones(length(timesHM)))
+    # xlabel("time s")
+    # title("HM log time")
+    nicenup(f, fsize=12)
 end
 
 function make_tdgp_opt(;
