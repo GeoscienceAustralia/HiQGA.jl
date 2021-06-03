@@ -808,46 +808,72 @@ function makesummarygrid(soundings, pl, pm, ph, ρmean, vdmean, vddev, zall, dz;
     phgrid, plgrid, pmgrid, σmeangrid, ∇zmeangrid, ∇zsdgrid, gridx, gridz, topofine, R, Z
 end
 
-function plotsummarygrids1(phgrid, plgrid, pmgrid, gridx, gridz, topofine, R, Z, χ²mean, χ²sd, lname; qp1=0.05, qp2=0.95,
+function plotsummarygrids1(meangrid, phgrid, plgrid, pmgrid, gridx, gridz, topofine, R, Z, χ²mean, χ²sd, lname; qp1=0.05, qp2=0.95,
                         figsize=(10,10), fontsize=12, cmap="viridis", vmin=-2, vmax=0.5, Eislast=true, Nislast=true,
-                        topowidth=2, idx=nothing)
+                        topowidth=2, idx=nothing, omitconvergence=false)
     f = figure(figsize=figsize)
-    f.suptitle(lname, fontsize=fontsize)
-    s1 = subplot(411)
-    plot(R, χ²mean)
-    fill_between(R, vec(χ²mean-χ²sd), vec(χ²mean+χ²sd), alpha=0.5)
-    title("Data misfit")
-    ylabel(L"ϕ_d")
-    s2 = subplot(412, sharex=s1)
+    dr = diff(gridx)[1]
+    f.suptitle(lname*" Δx=$dr m", fontsize=fontsize)
+    nrows = omitconvergence ? 4 : 5
+    icol = 1
+    s = Array{Any, 1}(undef, nrows)
+    if !omitconvergence
+        s[icol] = subplot(nrows, 1, icol)
+        plot(R, χ²mean)
+        plot(R, ones(length(R)), "--k")
+        fill_between(R, vec(χ²mean-χ²sd), vec(χ²mean+χ²sd), alpha=0.5)
+        title("Data misfit")
+        ylabel(L"ϕ_d")
+        icol += 1
+    end
+    s[icol] = omitconvergence ? subplot(nrows, 1, icol) : subplot(nrows, 1, icol, sharex=s[icol-1])
     imshow(plgrid, cmap=cmap, aspect="auto", vmax=vmax, vmin = vmin,
                 extent=[gridx[1], gridx[end], gridz[end], gridz[1]])
     plot(gridx, topofine, linewidth=topowidth, "-k")
-    idx == nothing || plotprofile(s2, idx, Z, R)
+    idx == nothing || plotprofile(s[icol], idx, Z, R)
     title("Percentile $(round(Int, 100*qp1)) conductivity")
     ylabel("Height m")
-    s3 = subplot(413, sharex=s2, sharey=s2)
+    icol += 1
+    s[icol] = subplot(nrows, 1, icol, sharex=s[icol-1], sharey=s[icol-1])
     imshow(pmgrid, cmap=cmap, aspect="auto", vmax=vmax, vmin = vmin,
                 extent=[gridx[1], gridx[end], gridz[end], gridz[1]])
     plot(gridx, topofine, linewidth=topowidth, "-k")
     title("Percentile 50 conductivity")
+    idx == nothing || plotprofile(s[icol], idx, Z, R)
     ylabel("Height m")
-    idx == nothing || plotprofile(s3, idx, Z, R)
-    s4 = subplot(414, sharex=s2, sharey=s2)
+    icol += 1
+    s[icol] = subplot(nrows, 1, icol, sharex=s[icol-1], sharey=s[icol-1])
+    imshow(meangrid, cmap=cmap, aspect="auto", vmax=vmax, vmin = vmin,
+                extent=[gridx[1], gridx[end], gridz[end], gridz[1]])
+    plot(gridx, topofine, linewidth=topowidth, "-k")
+    title("Mean conductivity")
+    ylabel("Height m")
+    idx == nothing || plotprofile(s[icol], idx, Z, R)
+    icol +=1
+    s[icol] = subplot(nrows, 1, icol, sharex=s[icol-1], sharey=s[icol-1])
     imlast = imshow(phgrid, cmap=cmap, aspect="auto", vmax=vmax, vmin = vmin,
                 extent=[gridx[1], gridx[end], gridz[end], gridz[1]])
     plot(gridx, topofine, linewidth=topowidth, "-k")
     xlabel("Line distance m")
     title("Percentile $(round(Int, 100*qp2)) conductivity")
     ylabel("Height m")
-    idx == nothing || plotprofile(s4, idx, Z, R)
+    idx == nothing || plotprofile(s[icol], idx, Z, R)
     xlim(extrema(gridx))
+    map(x->x.tick_params(labelbottom=false), s[1:end-1])
+    map(x->x.grid(), s)
     nicenup(f, fsize=fontsize)
-    Eislast ? s2.text(gridx[1], gridz[end], "W", backgroundcolor="w") : s2.text(gridx[1], gridz[end], "E", backgroundcolor="w")
-    Nislast ? s2.text(gridx[end], gridz[end], "N", backgroundcolor="w") : s2.text(gridx[end], gridz[end], "S", backgroundcolor="w")
+    plotNEWSlabels(Eislast, Nislast, gridx, gridz, s)
     f.subplots_adjust(bottom=0.125)
     cbar_ax = f.add_axes([0.125, 0.05, 0.75, 0.01])
     cb = f.colorbar(imlast, cax=cbar_ax, orientation="horizontal")
     cb.ax.set_xlabel("Log₁₀ S/m")
+end
+
+function plotNEWSlabels(Eislast, Nislast, gridx, gridz, axarray)
+    for s in axarray
+        Eislast ? s.text(gridx[1], gridz[end], "W", backgroundcolor="w") : s.text(gridx[1], gridz[end], "E", backgroundcolor="w")
+        Nislast ? s.text(gridx[end], gridz[end], "N", backgroundcolor="w") : s.text(gridx[end], gridz[end], "S", backgroundcolor="w")
+    end
 end
 
 function plotsummarygrids2(σmeangrid, ∇zmeangrid, ∇zsdgrid, cigrid, gridx, gridz, topofine, lname;
@@ -862,7 +888,7 @@ function plotsummarygrids2(σmeangrid, ∇zmeangrid, ∇zsdgrid, cigrid, gridx, 
     ylabel("Height m")
     colorbar()
     s2 = subplot(412, sharex=s1)
-    imshow(cigrid, cmap=cmap, aspect="auto",
+    imshow(abs.(cigrid), cmap=cmap, aspect="auto",
                 extent=[gridx[1], gridx[end], gridz[end], gridz[1]])
     plot(gridx, topofine, linewidth=topowidth, "-k")
     title("CI: $(round(Int, 100*(qp2-qp1))) conductivity")
@@ -903,13 +929,15 @@ function summaryimages(soundings::Array{SkyTEMsoundingData, 1}, opt::Options;
                         dz = -1,
                         dr = 10,
                         nlayers = -1,
-                        fontsize = 11,
+                        fontsize = 10,
                         vmin = -2,
                         vmax = 0.5,
                         cmap="viridis",
                         figsize=(6,10),
                         topowidth=2,
                         idx = nothing,
+                        showderivs = false,
+                        omitconvergence = false
                         )
 
     pl, pm, ph, ρmean, vdmean, vddev, χ²mean, χ²sd, zall = summarypost(soundings, opt,
@@ -925,13 +953,15 @@ function summaryimages(soundings::Array{SkyTEMsoundingData, 1}, opt::Options;
 
     lname = "Line $(soundings[1].linenum)"
     Eislast, Nislast = whichislast(soundings)
-    plotsummarygrids1(phgrid, plgrid, pmgrid, gridx, gridz, topofine, R, Z, χ²mean, χ²sd, lname, qp1=qp1, qp2=qp2,
+    plotsummarygrids1(σmeangrid, phgrid, plgrid, pmgrid, gridx, gridz, topofine, R, Z, χ²mean, χ²sd, lname, qp1=qp1, qp2=qp2,
                         figsize=figsize, fontsize=fontsize, cmap=cmap, vmin=vmin, vmax=vmax, Eislast=Eislast,
-                        Nislast=Nislast, topowidth=topowidth, idx=idx)
-    cigrid = phgrid - plgrid
-    plotsummarygrids2(σmeangrid, ∇zmeangrid, ∇zsdgrid, cigrid, gridx, gridz, topofine, lname, qp1=qp1, qp2=qp2,
+                        Nislast=Nislast, topowidth=topowidth, idx=idx, omitconvergence=omitconvergence)
+    if showderivs
+        cigrid = phgrid - plgrid
+        plotsummarygrids2(σmeangrid, ∇zmeangrid, ∇zsdgrid, cigrid, gridx, gridz, topofine, lname, qp1=qp1, qp2=qp2,
                         figsize=figsize, fontsize=fontsize, cmap=cmap, vmin=vmin, vmax=vmax, topowidth=topowidth,
-                        Eislast=Eislast, Nislast=Nislast,)
+                        Eislast=Eislast, Nislast=Nislast)
+    end
 end
 
 # plot multiple grids with supplied labels
