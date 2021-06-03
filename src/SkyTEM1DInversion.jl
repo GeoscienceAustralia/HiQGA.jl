@@ -787,6 +787,15 @@ function makegrid(vals::AbstractArray, soundings::Array{SkyTEMsoundingData, 1};
     img, gridr, gridz, topofine, R
 end
 
+function whichislast(soundings::AbstractArray)
+    X = [s.X for s in soundings]
+    Y = [s.Y for s in soundings]
+    Eislast, Nislast = true, true
+    X[1]>X[end] && (Eislast = false)
+    Y[1]>Y[end] && (Nislast = false)
+    Eislast, Nislast
+end
+
 function makesummarygrid(soundings, pl, pm, ph, ρmean, vdmean, vddev, zall, dz; dr=10)
     # first flip ρ to σ and so pl and ph are interchanged
     phgrid, gridx, gridz, topofine, R = makegrid(-pl, soundings, zall=zall, dz=dz, dr=dr)
@@ -799,10 +808,11 @@ function makesummarygrid(soundings, pl, pm, ph, ρmean, vdmean, vddev, zall, dz;
     phgrid, plgrid, pmgrid, σmeangrid, ∇zmeangrid, ∇zsdgrid, gridx, gridz, topofine, R, Z
 end
 
-function plotsummarygrids1(phgrid, plgrid, pmgrid, gridx, gridz, topofine, R, Z, χ²mean, χ²sd; qp1=0.05, qp2=0.95,
-                        figsize=(10,10), fontsize=12, cmap="viridis", vmin=-2, vmax=0.5,
+function plotsummarygrids1(phgrid, plgrid, pmgrid, gridx, gridz, topofine, R, Z, χ²mean, χ²sd, lname; qp1=0.05, qp2=0.95,
+                        figsize=(10,10), fontsize=12, cmap="viridis", vmin=-2, vmax=0.5, Eislast=true, Nislast=true,
                         topowidth=2, idx=nothing)
     f = figure(figsize=figsize)
+    f.suptitle(lname, fontsize=fontsize)
     s1 = subplot(411)
     plot(R, χ²mean)
     fill_between(R, vec(χ²mean-χ²sd), vec(χ²mean+χ²sd), alpha=0.5)
@@ -832,16 +842,19 @@ function plotsummarygrids1(phgrid, plgrid, pmgrid, gridx, gridz, topofine, R, Z,
     idx == nothing || plotprofile(s4, idx, Z, R)
     xlim(extrema(gridx))
     nicenup(f, fsize=fontsize)
+    Eislast ? s2.text(gridx[1], gridz[end], "W", backgroundcolor="w") : s2.text(gridx[1], gridz[end], "E", backgroundcolor="w")
+    Nislast ? s2.text(gridx[end], gridz[end], "N", backgroundcolor="w") : s2.text(gridx[end], gridz[end], "S", backgroundcolor="w")
     f.subplots_adjust(bottom=0.125)
     cbar_ax = f.add_axes([0.125, 0.05, 0.75, 0.01])
     cb = f.colorbar(imlast, cax=cbar_ax, orientation="horizontal")
-    cb.ax.set_xlabel("Log₁₀ Ωm")
+    cb.ax.set_xlabel("Log₁₀ S/m")
 end
 
-function plotsummarygrids2(σmeangrid, ∇zmeangrid, ∇zsdgrid, cigrid, gridx, gridz, topofine;
-        qp1=0.05, qp2=0.95,
+function plotsummarygrids2(σmeangrid, ∇zmeangrid, ∇zsdgrid, cigrid, gridx, gridz, topofine, lname;
+        qp1=0.05, qp2=0.95, Eislast=true, Nislast=true,
         figsize=(10,10), fontsize=12, cmap="viridis", vmin=-2, vmax=0.5, topowidth=2)
     f = figure(figsize=figsize)
+    f.suptitle(lname, fontsize=fontsize)
     s1 = subplot(411)
     imshow(σmeangrid, cmap=cmap, aspect="auto", vmax=vmax, vmin = vmin,
                 extent=[gridx[1], gridx[end], gridz[end], gridz[1]])
@@ -910,12 +923,15 @@ function summaryimages(soundings::Array{SkyTEMsoundingData, 1}, opt::Options;
     ∇zsdgrid, gridx, gridz, topofine, R, Z = makesummarygrid(soundings, pl, pm, ph, ρmean,
                                                             vdmean, vddev, zall, dz, dr=dr)
 
-    plotsummarygrids1(phgrid, plgrid, pmgrid, gridx, gridz, topofine, R, Z, χ²mean, χ²sd; qp1=qp1, qp2=qp2,
-                        figsize=figsize, fontsize=fontsize, cmap=cmap, vmin=vmin, vmax=vmax,
-                        topowidth=topowidth, idx=idx)
+    lname = "Line $(soundings[1].linenum)"
+    Eislast, Nislast = whichislast(soundings)
+    plotsummarygrids1(phgrid, plgrid, pmgrid, gridx, gridz, topofine, R, Z, χ²mean, χ²sd, lname, qp1=qp1, qp2=qp2,
+                        figsize=figsize, fontsize=fontsize, cmap=cmap, vmin=vmin, vmax=vmax, Eislast=Eislast,
+                        Nislast=Nislast, topowidth=topowidth, idx=idx)
     cigrid = phgrid - plgrid
-    plotsummarygrids2(σmeangrid, ∇zmeangrid, ∇zsdgrid, cigrid, gridx, gridz, topofine, qp1=qp1, qp2=qp2,
-                        figsize=figsize, fontsize=fontsize, cmap=cmap, vmin=vmin, vmax=vmax, topowidth=topowidth)
+    plotsummarygrids2(σmeangrid, ∇zmeangrid, ∇zsdgrid, cigrid, gridx, gridz, topofine, lname, qp1=qp1, qp2=qp2,
+                        figsize=figsize, fontsize=fontsize, cmap=cmap, vmin=vmin, vmax=vmax, topowidth=topowidth,
+                        Eislast=Eislast, Nislast=Nislast,)
 end
 
 # plot multiple grids with supplied labels
