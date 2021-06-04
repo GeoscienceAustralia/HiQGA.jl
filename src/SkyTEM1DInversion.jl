@@ -813,7 +813,7 @@ function plotsummarygrids1(meangrid, phgrid, plgrid, pmgrid, gridx, gridz, topof
                         topowidth=2, idx=nothing, omitconvergence=false)
     f = figure(figsize=figsize)
     dr = diff(gridx)[1]
-    f.suptitle(lname*" Δx=$dr m", fontsize=fontsize)
+    f.suptitle(lname*" Δx=$dr m, Fids: $(length*(R))", fontsize=fontsize)
     nrows = omitconvergence ? 4 : 5
     icol = 1
     s = Array{Any, 1}(undef, nrows)
