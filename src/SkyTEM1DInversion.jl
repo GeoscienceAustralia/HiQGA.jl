@@ -3,7 +3,7 @@ import ..AbstractOperator.get_misfit
 import ..AbstractOperator.Sounding
 import ..AbstractOperator.makeoperator
 
-using ..AbstractOperator, ..AEM_VMD_HMD, Statistics, Distributed
+using ..AbstractOperator, ..AEM_VMD_HMD, Statistics, Distributed, NearestNeighbors
 using PyPlot, LinearAlgebra, ..CommonToAll, MAT, Random, DelimitedFiles
 
 import ..Model, ..Options, ..OptionsStat, ..OptionsNonstat
@@ -279,6 +279,8 @@ end
 function plotmodelfield_skytem!(Flow::AEM_VMD_HMD.HField, Fhigh::AEM_VMD_HMD.HField,
                          z::Array{Float64, 1}, ρ::Array{Float64, 1}
                         ;figsize=(10,5))
+    plotwaveformgates(timesLM=Flow.times,  rampLM=Flow.ramp,
+                      timesHM=Fhigh.times, rampHM=Fhigh.ramp)
     f, ax = plt.subplots(1, 2, figsize=figsize)
     ax[1].step(log10.(ρ[2:end]), z[2:end])
     ax[1].set_xlabel("log₁₀ρ")
@@ -483,9 +485,50 @@ function makeoperator(sounding::SkyTEMsoundingData;
     dlow, dhigh, σlow, σhigh = (sounding.LM_data, sounding.HM_data, sounding.LM_noise, sounding.HM_noise)./μ₀
     aem = dBzdt(Flm, Fhm, vec(dlow), vec(dhigh), useML=useML,
                 vec(σlow), vec(σhigh), z=z, ρ=ρ, nfixed=nfixed)
-    plotfield && plotmodelfield!(Flm, Fhm, z, ρ, dlow, dhigh, σlow, σhigh;
+    if plotfield
+        plotwaveformgates(aem)
+        plotmodelfield!(Flm, Fhm, z, ρ, dlow, dhigh, σlow, σhigh;
                           figsize=(12,4), nfixed=nfixed, dz=dz, extendfrac=extendfrac)
+    end
     aem, znall
+end
+
+function plotwaveformgates(aem::dBzdt; figsize=(10,5))
+    plotwaveformgates(timesLM=aem.Flow.times,  rampLM=aem.Flow.ramp,
+                      timesHM=aem.Fhigh.times, rampHM=aem.Fhigh.ramp)
+end
+
+function plotwaveformgates(;timesLM=nothing, rampLM=nothing,
+                            timesHM=nothing, rampHM=nothing,
+                            figsize=(10,5))
+    @assert timesLM != nothing
+    @assert timesHM != nothing
+    @assert rampLM != nothing
+    @assert rampHM != nothing
+
+    f = figure(figsize=figsize)
+    s1 = subplot(121)
+    plot(rampLM[:,1]*1e6, rampLM[:,2], "-or")
+    stem(timesLM*1e6, ones(length(timesLM)))
+    ylabel("Amplitude")
+    xlabel("time μs")
+    title("LM linear time")
+    s2 = subplot(122, sharey=s1)
+    plot(rampHM[:,1]*1e3, rampHM[:,2], "-or")
+    stem(timesHM*1e3, ones(length(timesHM)))
+    ylabel("Amplitude")
+    xlabel("time ms")
+    title("HM linear time")
+    # s3 = subplot(222)
+    # loglog(rampLM[:,1], rampLM[:,2], "-or")
+    # stem(timesLM, ones(length(timesLM)))
+    # title("LM log time")
+    # s4 = subplot(224, sharex=s3, sharey=s3)
+    # loglog(rampHM[:,1], rampHM[:,2], "-or")
+    # stem(timesHM, ones(length(timesHM)))
+    # xlabel("time s")
+    # title("HM log time")
+    nicenup(f, fsize=12)
 end
 
 function make_tdgp_opt(;
@@ -498,6 +541,8 @@ function make_tdgp_opt(;
                     demean = true,
                     sdpos = 0.05,
                     sdprop = 0.05,
+                    sddc = 0.008,
+                    sampledc = false,
                     fbounds = [-0.5 2.5],
                     λ = [2],
                     δ = 0.1,
@@ -507,6 +552,7 @@ function make_tdgp_opt(;
                     )
     sdev_pos = [sdpos*abs(diff([extrema(znall)...])[1])]
     sdev_prop = sdprop*diff(fbounds, dims=2)[:]
+    sdev_dc = sddc*diff(fbounds, dims=2)[:]
     xall = permutedims(collect(znall))
     xbounds = permutedims([extrema(znall)...])
 
@@ -529,6 +575,8 @@ function make_tdgp_opt(;
                             demean = demean,
                             sdev_prop = sdev_prop,
                             sdev_pos = sdev_pos,
+                            sdev_dc = sdev_dc,
+                            sampledc = sampledc,
                             pnorm = pnorm,
                             quasimultid = false,
                             K = K,
@@ -550,6 +598,8 @@ function makeoperatorandoptions(soundings::Array{SkyTEMsoundingData, 1};
                         demean = true,
                         sdpos = 0.05,
                         sdprop = 0.05,
+                        sddc = 0.008,
+                        sampledc = false,
                         fbounds = [-0.5 2.5],
                         λ = [2],
                         δ = 0.1,
@@ -593,6 +643,8 @@ function makeoperatorandoptions(soundings::Array{SkyTEMsoundingData, 1};
                         demean = demean,
                         sdpos = sdpos,
                         sdprop = sdprop,
+                        sddc = sddc,
+                        sampledc = sampledc,
                         fbounds = fbounds,
                         save_freq = save_freq,
                         λ = λ,
@@ -603,6 +655,330 @@ function makeoperatorandoptions(soundings::Array{SkyTEMsoundingData, 1};
     # returns generically all the required elements in operator
     # for plotting except sounding_string
     opt
+end
+
+function summarypost(soundings::Array{SkyTEMsoundingData, 1}, opt::Options;
+            qp1=0.05,
+            qp2=0.95,
+            burninfrac=0.5,
+            zstart = 0.0,
+            extendfrac = -1,
+            dz = -1,
+            nlayers = -1,
+            nbins=100,
+            plotposterior=false,
+            computeforwards=false,
+            nforwards=100,
+            idxcompute=[1])
+
+    @assert extendfrac > 1.0
+    @assert dz > 0.0
+    @assert nlayers > 1
+    zall, = setupz(zstart, extendfrac, dz=dz, n=nlayers)
+
+    linename = "_line_$(soundings[1].linenum)_summary.txt"
+    fnames = ["rho_low", "rho_mid", "rho_hi", "rho_avg",
+              "ddz_mean", "ddz_sdev", "phid_mean", "phid_sdev"].*linename
+    if isfile(fnames[1])
+        @warn fnames[1]*" exists, reading stored values"
+        pl, pm, ph, ρmean,
+        vdmean, vddev, χ²mean, χ²sd, = map(x->readdlm(x), fnames)
+    else
+        # this is a dummy operator for plotting
+        aem, = makeoperator(soundings[1])
+        # now get the posterior marginals
+        opt.xall[:] .= zall
+        pl, pm, ph, ρmean, vdmean, vddev = map(x->zeros(length(zall), length(soundings)), 1:6)
+        χ²mean, χ²sd = zeros(length(soundings)), zeros(length(soundings))
+        for idx = 1:length(soundings)
+            @info "$idx out of $(length(soundings))\n"
+            opt.fdataname = soundings[idx].sounding_string*"_"
+            opt.xall[:] .= zall
+            pl[:,idx], pm[:,idx], ph[:,idx], ρmean[:,idx],
+            vdmean[:,idx], vddev[:,idx] = CommonToAll.plot_posterior(aem, opt, burninfrac=burninfrac,
+                                                    qp1=qp1, qp2=qp2,
+                                                    nbins=nbins, doplot=false)
+            χ² = 2*CommonToAll.assembleTat1(opt, :U, temperaturenum=1, burninfrac=burninfrac)
+            ndata = sum(.!isnan.(soundings[idx].LM_data)) +
+                    sum(.!isnan.(soundings[idx].HM_data))
+            χ²mean[idx] = mean(χ²)/ndata
+            χ²sd[idx]   = std(χ²)/ndata
+
+        end
+        for (fname, vals) in Dict(zip(fnames, [pl, pm, ph, ρmean, vdmean, vddev, χ²mean, χ²sd]))
+            writedlm(fname, vals)
+        end
+    end
+    pl, pm, ph, ρmean, vdmean, vddev, χ²mean, χ²sd, zall
+end
+
+function plotindividualsoundings(soundings::Array{SkyTEMsoundingData, 1}, opt::Options;
+    burninfrac=0.5,
+    nbins=100,
+    figsize  = (12,6),
+    zfixed   = [-1e5],
+    ρfixed   = [1e12],
+    zstart = 0.0,
+    extendfrac = 1.06,
+    dz = 2.,
+    ρbg = 10,
+    nlayers = 40,
+    ntimesperdecade = 10,
+    nfreqsperdecade = 5,
+    computeforwards = false,
+    nforwards = 100,
+    idxcompute = [1])
+    zall, = setupz(zstart, extendfrac, dz=dz, n=nlayers)
+    opt.xall[:] .= zall
+    for idx = 1:length(soundings)
+        if in(idx, idxcompute)
+            @info "Sounding number: $idx"
+            opt.fdataname = soundings[idx].sounding_string*"_"
+            aem, znall = makeoperator(soundings[idx],
+                zfixed = zfixed,
+                ρfixed = ρfixed,
+                zstart = zstart,
+                extendfrac = extendfrac,
+                dz = dz,
+                ρbg = ρbg,
+                nlayers = nlayers,
+                ntimesperdecade = ntimesperdecade,
+                nfreqsperdecade = nfreqsperdecade)
+            getchi2forall(opt, alpha=0.8)
+            CommonToAll.getstats(opt)
+            plot_posterior(aem, opt, burninfrac=burninfrac, nbins=nbins, figsize=figsize)
+            ax = gcf().axes
+            ax[1].invert_xaxis()
+            if computeforwards
+                M = assembleTat1(opt, :fstar, temperaturenum=1, burninfrac=burninfrac)
+                Random.seed!(10)
+                plotmodelfield!(aem, M[randperm(length(M))[1:nforwards]],
+                dz=dz, extendfrac=extendfrac, onesigma=false, alpha=0.05)
+            end
+        end
+    end
+end
+
+
+function makegrid(vals::AbstractArray, soundings::Array{SkyTEMsoundingData, 1};
+    dr=10, zall=[NaN], dz=-1)
+    @assert all(.!isnan.(zall))
+    @assert dz>0
+    X = [s.X for s in soundings]
+    Y = [s.Y for s in soundings]
+    x0, y0 = X[1], Y[1]
+    R  = sqrt.((X .- x0).^2 + (Y .- y0).^2)
+    rr, zz = [r for z in zall, r in R], [z for z in zall, r in R]
+    topo = [s.Z for s in soundings]
+    zz = topo' .- zz # mAHD
+    kdtree = KDTree([rr[:]'; zz[:]'])
+    gridr = range(R[1], R[end], step=dr)
+    gridz = reverse(range(extrema(zz)..., step=dz))
+    rr, zz = [r for z in gridz, r in gridr], [z for z in gridz, r in gridr]
+    idxs, = nn(kdtree, [rr[:]'; zz[:]'])
+    img = zeros(size(rr))
+    for i = 1:length(img)
+        img[i] = vals[idxs[i]]
+    end
+    kdtree = KDTree(R[:]')
+    idxs, = nn(kdtree, gridr[:]')
+    topofine = [topo[idxs[i]] for i = 1:length(gridr)]
+    img[zz .>topofine'] .= NaN
+    img, gridr, gridz, topofine, R
+end
+
+function whichislast(soundings::AbstractArray)
+    X = [s.X for s in soundings]
+    Y = [s.Y for s in soundings]
+    Eislast, Nislast = true, true
+    X[1]>X[end] && (Eislast = false)
+    Y[1]>Y[end] && (Nislast = false)
+    Eislast, Nislast
+end
+
+function makesummarygrid(soundings, pl, pm, ph, ρmean, vdmean, vddev, zall, dz; dr=10)
+    # first flip ρ to σ and so pl and ph are interchanged
+    phgrid, gridx, gridz, topofine, R = makegrid(-pl, soundings, zall=zall, dz=dz, dr=dr)
+    plgrid,                           = makegrid(-ph, soundings, zall=zall, dz=dz, dr=dr)
+    pmgrid,                           = makegrid(-pm, soundings, zall=zall, dz=dz, dr=dr)
+    σmeangrid,                        = makegrid(-ρmean, soundings, zall=zall, dz=dz, dr=dr)
+    ∇zmeangrid,                       = makegrid(vdmean, soundings, zall=zall, dz=dz, dr=dr)
+    ∇zsdgrid,                         = makegrid(vddev, soundings, zall=zall, dz=dz, dr=dr)
+    Z = [s.Z for s in soundings]
+    phgrid, plgrid, pmgrid, σmeangrid, ∇zmeangrid, ∇zsdgrid, gridx, gridz, topofine, R, Z
+end
+
+function plotsummarygrids1(meangrid, phgrid, plgrid, pmgrid, gridx, gridz, topofine, R, Z, χ²mean, χ²sd, lname; qp1=0.05, qp2=0.95,
+                        figsize=(10,10), fontsize=12, cmap="viridis", vmin=-2, vmax=0.5, Eislast=true, Nislast=true,
+                        topowidth=2, idx=nothing, omitconvergence=false)
+    f = figure(figsize=figsize)
+    dr = diff(gridx)[1]
+    f.suptitle(lname*" Δx=$dr m, Fids: $(length(R))", fontsize=fontsize)
+    nrows = omitconvergence ? 4 : 5
+    icol = 1
+    s = Array{Any, 1}(undef, nrows)
+    if !omitconvergence
+        s[icol] = subplot(nrows, 1, icol)
+        plot(R, χ²mean)
+        plot(R, ones(length(R)), "--k")
+        fill_between(R, vec(χ²mean-χ²sd), vec(χ²mean+χ²sd), alpha=0.5)
+        title("Data misfit")
+        ylabel(L"ϕ_d")
+        icol += 1
+    end
+    s[icol] = omitconvergence ? subplot(nrows, 1, icol) : subplot(nrows, 1, icol, sharex=s[icol-1])
+    imshow(plgrid, cmap=cmap, aspect="auto", vmax=vmax, vmin = vmin,
+                extent=[gridx[1], gridx[end], gridz[end], gridz[1]])
+    plot(gridx, topofine, linewidth=topowidth, "-k")
+    idx == nothing || plotprofile(s[icol], idx, Z, R)
+    title("Percentile $(round(Int, 100*qp1)) conductivity")
+    ylabel("Height m")
+    icol += 1
+    s[icol] = subplot(nrows, 1, icol, sharex=s[icol-1], sharey=s[icol-1])
+    imshow(pmgrid, cmap=cmap, aspect="auto", vmax=vmax, vmin = vmin,
+                extent=[gridx[1], gridx[end], gridz[end], gridz[1]])
+    plot(gridx, topofine, linewidth=topowidth, "-k")
+    title("Percentile 50 conductivity")
+    idx == nothing || plotprofile(s[icol], idx, Z, R)
+    ylabel("Height m")
+    icol += 1
+    s[icol] = subplot(nrows, 1, icol, sharex=s[icol-1], sharey=s[icol-1])
+    imshow(meangrid, cmap=cmap, aspect="auto", vmax=vmax, vmin = vmin,
+                extent=[gridx[1], gridx[end], gridz[end], gridz[1]])
+    plot(gridx, topofine, linewidth=topowidth, "-k")
+    title("Mean conductivity")
+    ylabel("Height m")
+    idx == nothing || plotprofile(s[icol], idx, Z, R)
+    icol +=1
+    s[icol] = subplot(nrows, 1, icol, sharex=s[icol-1], sharey=s[icol-1])
+    imlast = imshow(phgrid, cmap=cmap, aspect="auto", vmax=vmax, vmin = vmin,
+                extent=[gridx[1], gridx[end], gridz[end], gridz[1]])
+    plot(gridx, topofine, linewidth=topowidth, "-k")
+    xlabel("Line distance m")
+    title("Percentile $(round(Int, 100*qp2)) conductivity")
+    ylabel("Height m")
+    idx == nothing || plotprofile(s[icol], idx, Z, R)
+    xlim(extrema(gridx))
+    map(x->x.tick_params(labelbottom=false), s[1:end-1])
+    map(x->x.grid(), s)
+    nicenup(f, fsize=fontsize)
+    plotNEWSlabels(Eislast, Nislast, gridx, gridz, s)
+    f.subplots_adjust(bottom=0.125)
+    cbar_ax = f.add_axes([0.125, 0.05, 0.75, 0.01])
+    cb = f.colorbar(imlast, cax=cbar_ax, orientation="horizontal")
+    cb.ax.set_xlabel("Log₁₀ S/m")
+end
+
+function plotNEWSlabels(Eislast, Nislast, gridx, gridz, axarray)
+    for s in axarray
+        Eislast ? s.text(gridx[1], gridz[end], "W", backgroundcolor="w") : s.text(gridx[1], gridz[end], "E", backgroundcolor="w")
+        Nislast ? s.text(gridx[end], gridz[end], "N", backgroundcolor="w") : s.text(gridx[end], gridz[end], "S", backgroundcolor="w")
+    end
+end
+
+function plotsummarygrids2(σmeangrid, ∇zmeangrid, ∇zsdgrid, cigrid, gridx, gridz, topofine, lname;
+        qp1=0.05, qp2=0.95, Eislast=true, Nislast=true,
+        figsize=(10,10), fontsize=12, cmap="viridis", vmin=-2, vmax=0.5, topowidth=2)
+    f = figure(figsize=figsize)
+    f.suptitle(lname, fontsize=fontsize)
+    s1 = subplot(411)
+    imshow(σmeangrid, cmap=cmap, aspect="auto", vmax=vmax, vmin = vmin,
+                extent=[gridx[1], gridx[end], gridz[end], gridz[1]])
+    title("Mean conductivity")
+    ylabel("Height m")
+    colorbar()
+    s2 = subplot(412, sharex=s1)
+    imshow(abs.(cigrid), cmap=cmap, aspect="auto",
+                extent=[gridx[1], gridx[end], gridz[end], gridz[1]])
+    plot(gridx, topofine, linewidth=topowidth, "-k")
+    title("CI: $(round(Int, 100*(qp2-qp1))) conductivity")
+    ylabel("Height m")
+    colorbar()
+    s3 = subplot(413, sharex=s2, sharey=s2)
+    imshow(∇zmeangrid, cmap=cmap, aspect="auto",
+                extent=[gridx[1], gridx[end], gridz[end], gridz[1]])
+    plot(gridx, topofine, linewidth=topowidth, "-k")
+    title("Mean conductivity vertical derivative")
+    ylabel("Height m")
+    colorbar()
+    s4 = subplot(414, sharex=s2, sharey=s2)
+    imlast = imshow(∇zsdgrid, cmap=cmap, aspect="auto",
+                extent=[gridx[1], gridx[end], gridz[end], gridz[1]])
+    plot(gridx, topofine, linewidth=topowidth, "-k")
+    xlabel("Line distance m")
+    title("Std dev of conductivity vertical derivative")
+    ylabel("Height m")
+    colorbar()
+    xlim(extrema(gridx))
+    nicenup(f, fsize=fontsize)
+end
+
+function plotprofile(ax, idxs, Z, R)
+    for idx in idxs
+        ax.plot(R[idx]*[1,1], [ax.get_ylim()[1], Z[idx]], "-w")
+        ax.plot(R[idx]*[1,1], [ax.get_ylim()[1], Z[idx]], "--k")
+    end
+end
+
+function summaryimages(soundings::Array{SkyTEMsoundingData, 1}, opt::Options;
+                        qp1=0.05,
+                        qp2=0.95,
+                        burninfrac=0.5,
+                        zstart = 0.0,
+                        extendfrac = -1,
+                        dz = -1,
+                        dr = 10,
+                        nlayers = -1,
+                        fontsize = 10,
+                        vmin = -2,
+                        vmax = 0.5,
+                        cmap="viridis",
+                        figsize=(6,10),
+                        topowidth=2,
+                        idx = nothing,
+                        showderivs = false,
+                        omitconvergence = false
+                        )
+
+    pl, pm, ph, ρmean, vdmean, vddev, χ²mean, χ²sd, zall = summarypost(soundings, opt,
+                                                                    zstart=zstart,
+                                                                    dz=dz,
+                                                                    extendfrac=extendfrac,
+                                                                    nlayers=nlayers,
+                                                                    burninfrac=burninfrac)
+
+    phgrid, plgrid, pmgrid, σmeangrid, ∇zmeangrid,
+    ∇zsdgrid, gridx, gridz, topofine, R, Z = makesummarygrid(soundings, pl, pm, ph, ρmean,
+                                                            vdmean, vddev, zall, dz, dr=dr)
+
+    lname = "Line $(soundings[1].linenum)"
+    Eislast, Nislast = whichislast(soundings)
+    plotsummarygrids1(σmeangrid, phgrid, plgrid, pmgrid, gridx, gridz, topofine, R, Z, χ²mean, χ²sd, lname, qp1=qp1, qp2=qp2,
+                        figsize=figsize, fontsize=fontsize, cmap=cmap, vmin=vmin, vmax=vmax, Eislast=Eislast,
+                        Nislast=Nislast, topowidth=topowidth, idx=idx, omitconvergence=omitconvergence)
+    if showderivs
+        cigrid = phgrid - plgrid
+        plotsummarygrids2(σmeangrid, ∇zmeangrid, ∇zsdgrid, cigrid, gridx, gridz, topofine, lname, qp1=qp1, qp2=qp2,
+                        figsize=figsize, fontsize=fontsize, cmap=cmap, vmin=vmin, vmax=vmax, topowidth=topowidth,
+                        Eislast=Eislast, Nislast=Nislast)
+    end
+end
+
+# plot multiple grids with supplied labels
+function plotgrids()
+    f, ax = plt.subplots(size(grids, 1), 1, figsize=figsize,
+                        sharex=true, sharey=true, squeeze=false)
+    for (i, g) in enumerate(grids)
+        ax[i].imshow(g, cmap=cmap, aspect="auto", alpha=α, vmax=vmax, vmin = vmin,
+                extent=[gridx[1], gridx[end], gridz[end], gridz[1]])
+        colorbar(img, ax=ax[i])
+        titles == nothing || ax[i].set_title(titles[i])
+        idx  == nothing || plotprofile.(ax[i], idx)
+        elev == nothing || plot(gridx, elev, "-k")
+        ylabels == nothing || ax[i].set_ylabel(ylabels[i])
+    end
+    ax[end].set_xlabel("Easting m")
+    transD_GP.CommonToAll.nicenup(f, fsize=fsize)
 end
 
 end
