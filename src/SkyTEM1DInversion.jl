@@ -665,11 +665,7 @@ function summarypost(soundings::Array{SkyTEMsoundingData, 1}, opt::Options;
             extendfrac = -1,
             dz = -1,
             nlayers = -1,
-            nbins=100,
-            plotposterior=false,
-            computeforwards=false,
-            nforwards=100,
-            idxcompute=[1])
+            useML=false)
 
     @assert extendfrac > 1.0
     @assert dz > 0.0
@@ -697,13 +693,13 @@ function summarypost(soundings::Array{SkyTEMsoundingData, 1}, opt::Options;
             pl[:,idx], pm[:,idx], ph[:,idx], ρmean[:,idx],
             vdmean[:,idx], vddev[:,idx] = CommonToAll.plot_posterior(aem, opt, burninfrac=burninfrac,
                                                     qp1=qp1, qp2=qp2,
-                                                    nbins=nbins, doplot=false)
+                                                    doplot=false)
             χ² = 2*CommonToAll.assembleTat1(opt, :U, temperaturenum=1, burninfrac=burninfrac)
             ndata = sum(.!isnan.(soundings[idx].LM_data)) +
                     sum(.!isnan.(soundings[idx].HM_data))
             χ²mean[idx] = mean(χ²)/ndata
             χ²sd[idx]   = std(χ²)/ndata
-
+            useML && (χ²mean[idx] -= log(ndata))
         end
         for (fname, vals) in Dict(zip(fnames, [pl, pm, ph, ρmean, vdmean, vddev, χ²mean, χ²sd]))
             writedlm(fname, vals)
@@ -810,7 +806,7 @@ end
 
 function plotsummarygrids1(meangrid, phgrid, plgrid, pmgrid, gridx, gridz, topofine, R, Z, χ²mean, χ²sd, lname; qp1=0.05, qp2=0.95,
                         figsize=(10,10), fontsize=12, cmap="viridis", vmin=-2, vmax=0.5, Eislast=true, Nislast=true,
-                        topowidth=2, idx=nothing, omitconvergence=false)
+                        topowidth=2, idx=nothing, omitconvergence=false, useML=false)
     f = figure(figsize=figsize)
     dr = diff(gridx)[1]
     f.suptitle(lname*" Δx=$dr m, Fids: $(length(R))", fontsize=fontsize)
@@ -819,11 +815,18 @@ function plotsummarygrids1(meangrid, phgrid, plgrid, pmgrid, gridx, gridz, topof
     s = Array{Any, 1}(undef, nrows)
     if !omitconvergence
         s[icol] = subplot(nrows, 1, icol)
-        plot(R, χ²mean)
-        plot(R, ones(length(R)), "--k")
-        fill_between(R, vec(χ²mean-χ²sd), vec(χ²mean+χ²sd), alpha=0.5)
-        title("Data misfit")
-        ylabel(L"ϕ_d")
+        if useML
+            plot(R, 10 .^(χ²mean/log10(exp(1.))))
+            semilogy(R, ones(length(R)), "--k")
+            ylabel("variance factor")
+            title("Max likelihood variance adjustment")
+        else
+            plot(R, χ²mean)
+            plot(R, ones(length(R)), "--k")
+            fill_between(R, vec(χ²mean-χ²sd), vec(χ²mean+χ²sd), alpha=0.5)
+            ylabel(L"ϕ_d")
+            title("Data misfit")
+        end
         icol += 1
     end
     s[icol] = omitconvergence ? subplot(nrows, 1, icol) : subplot(nrows, 1, icol, sharex=s[icol-1])
@@ -937,7 +940,8 @@ function summaryimages(soundings::Array{SkyTEMsoundingData, 1}, opt::Options;
                         topowidth=2,
                         idx = nothing,
                         showderivs = false,
-                        omitconvergence = false
+                        omitconvergence = false,
+                        useML = false
                         )
 
     pl, pm, ph, ρmean, vdmean, vddev, χ²mean, χ²sd, zall = summarypost(soundings, opt,
@@ -945,7 +949,7 @@ function summaryimages(soundings::Array{SkyTEMsoundingData, 1}, opt::Options;
                                                                     dz=dz,
                                                                     extendfrac=extendfrac,
                                                                     nlayers=nlayers,
-                                                                    burninfrac=burninfrac)
+                                                                    burninfrac=burninfrac, useML=useML)
 
     phgrid, plgrid, pmgrid, σmeangrid, ∇zmeangrid,
     ∇zsdgrid, gridx, gridz, topofine, R, Z = makesummarygrid(soundings, pl, pm, ph, ρmean,
@@ -955,7 +959,7 @@ function summaryimages(soundings::Array{SkyTEMsoundingData, 1}, opt::Options;
     Eislast, Nislast = whichislast(soundings)
     plotsummarygrids1(σmeangrid, phgrid, plgrid, pmgrid, gridx, gridz, topofine, R, Z, χ²mean, χ²sd, lname, qp1=qp1, qp2=qp2,
                         figsize=figsize, fontsize=fontsize, cmap=cmap, vmin=vmin, vmax=vmax, Eislast=Eislast,
-                        Nislast=Nislast, topowidth=topowidth, idx=idx, omitconvergence=omitconvergence)
+                        Nislast=Nislast, topowidth=topowidth, idx=idx, omitconvergence=omitconvergence, useML=useML)
     if showderivs
         cigrid = phgrid - plgrid
         plotsummarygrids2(σmeangrid, ∇zmeangrid, ∇zsdgrid, cigrid, gridx, gridz, topofine, lname, qp1=qp1, qp2=qp2,
