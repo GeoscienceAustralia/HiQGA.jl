@@ -399,7 +399,6 @@ function plotmodelfield!(aem::dBzdt, Ρ::Vector{Array{Float64}};
     aem.ndatahigh>0 && ax[2].errorbar(Fhigh.times, μ₀*dhigh, yerr = μ₀*sigma*abs.(σhigh),
                         linestyle="none", marker=".", elinewidth=0, capsize=3, label="high moment")
     for ρ in Ρ
-        ax[1].step(log10.(aem.ρ[2:end]), aem.z[2:end], "-k", alpha=alpha)
         getfield!(ρ,  aem)
         if aem.ndatalow>0
             Flow.dBzdt[.!aem.selectlow] .= NaN
@@ -409,6 +408,7 @@ function plotmodelfield!(aem::dBzdt, Ρ::Vector{Array{Float64}};
             Fhigh.dBzdt[.!aem.selecthigh] .= NaN
             ax[2].loglog(Fhigh.times,μ₀*Fhigh.dBzdt, "k", alpha=alpha, markersize=2)
         end
+        ax[1].step(log10.(aem.ρ[2:end]), aem.z[2:end], "-k", alpha=alpha)
     end
     ax[1].grid()
     ax[1].set_ylabel("Depth m")
