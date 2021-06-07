@@ -816,7 +816,7 @@ function plotsummarygrids1(meangrid, phgrid, plgrid, pmgrid, gridx, gridz, topof
     if !omitconvergence
         s[icol] = subplot(nrows, 1, icol)
         if useML
-            plot(R, 10 .^(χ²mean/log10(exp(1.))))
+            plot(R, exp.(χ²mean))
             semilogy(R, ones(length(R)), "--k")
             ylabel("variance factor")
             title("Max likelihood variance adjustment")
