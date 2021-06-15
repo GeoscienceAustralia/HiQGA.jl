@@ -445,6 +445,7 @@ function makeoperator(sounding::SkyTEMsoundingData;
                        nfreqsperdecade = 5,
                        showgeomplot = false,
                        useML = false,
+                       modelprimary = false,
                        plotfield = false)
     @assert extendfrac > 1.0
     @assert dz > 0.0
@@ -466,7 +467,8 @@ function makeoperator(sounding::SkyTEMsoundingData;
                           zTx    = sounding.zTxLM,
                           rRx    = sounding.rRx,
                           rTx    = sounding.rTx,
-                          zRx    = sounding.zRxLM
+                          zRx    = sounding.zRxLM,
+                          modelprimary = modelprimary
                           )
     ## HM operator
     Fhm = AEM_VMD_HMD.HFieldDHT(
@@ -479,7 +481,8 @@ function makeoperator(sounding::SkyTEMsoundingData;
                           zTx    = sounding.zTxHM,
                           rRx    = sounding.rRx,
                           rTx    = sounding.rTx,
-                          zRx    = sounding.zRxHM
+                          zRx    = sounding.zRxHM,
+                          modelprimary = modelprimary
                           )
     ## create operator
     dlow, dhigh, σlow, σhigh = (sounding.LM_data, sounding.HM_data, sounding.LM_noise, sounding.HM_noise)./μ₀
@@ -618,8 +621,12 @@ function makeoperatorandoptions(soundings::Array{SkyTEMsoundingData, 1};
                         nfreqsperdecade = 5,
                         showgeomplot = false,
                         useML = false,
+                        modelprimary = false
                         )
     aem, opt = [], []
+    if rseed != nothing
+        Random.seed!(rseed)
+    end
     for idx in randperm(length(soundings))[1:nplot]
             aem, znall = makeoperator(soundings[idx],
                         zfixed = zfixed,
@@ -633,6 +640,7 @@ function makeoperatorandoptions(soundings::Array{SkyTEMsoundingData, 1};
                         nfreqsperdecade = nfreqsperdecade,
                         useML = useML,
                         showgeomplot = showgeomplot,
+                        modelprimary = modelprimary,
                         plotfield = true)
 
                     opt = make_tdgp_opt(znall = znall,
@@ -723,6 +731,7 @@ function plotindividualsoundings(soundings::Array{SkyTEMsoundingData, 1}, opt::O
     nfreqsperdecade = 5,
     computeforwards = false,
     nforwards = 100,
+    modelprimary = false,
     idxcompute = [1])
     zall, = setupz(zstart, extendfrac, dz=dz, n=nlayers)
     opt.xall[:] .= zall
@@ -739,7 +748,8 @@ function plotindividualsoundings(soundings::Array{SkyTEMsoundingData, 1}, opt::O
                 ρbg = ρbg,
                 nlayers = nlayers,
                 ntimesperdecade = ntimesperdecade,
-                nfreqsperdecade = nfreqsperdecade)
+                nfreqsperdecade = nfreqsperdecade,
+                modelprimary = modelprimary)
             getchi2forall(opt, alpha=0.8)
             CommonToAll.getstats(opt)
             plot_posterior(aem, opt, burninfrac=burninfrac, nbins=nbins, figsize=figsize)

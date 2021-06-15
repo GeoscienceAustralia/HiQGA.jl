@@ -221,7 +221,7 @@ end
 function getCurlyR(Rs_d::ComplexF64, pz::ComplexF64,
                   zR::Float64, z::SubArray{Float64, 1}, iTxLayer::Int, ω::Float64,
                   useprimary::Float64)
-
+                  
     if (zR>=0)
         e_to_the_iwpzzr               = exp( im*ω*pz*zR)
         e_to_the_iwpz_2znext_minus_zr = exp( im*ω*pz*(2*z[iTxLayer+1] - zR))

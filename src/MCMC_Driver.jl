@@ -719,6 +719,7 @@ function loopacrosssoundings(soundings::Array{S, 1}, opt_in::Options;
                             Tmax               = -1,
                             nsamples           = -1,
                             nchainsatone       = -1,
+                            modelprimary       = false,
                             nchainspersounding = -1) where S<:Sounding
 
     @assert nsequentialiters  != -1
@@ -752,6 +753,7 @@ function loopacrosssoundings(soundings::Array{S, 1}, opt_in::Options;
                                     ρbg = ρbg,
                                     useML = useML,
                                     nlayers = nlayers,
+                                    modelprimary = modelprimary,
                                     ntimesperdecade = ntimesperdecade,
                                     nfreqsperdecade = nfreqsperdecade)
 
