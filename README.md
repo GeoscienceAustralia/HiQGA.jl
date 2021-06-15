@@ -6,7 +6,7 @@ This package implements both the nested (2-layer) and vanilla trans-dimensional 
 - [*Bayesian inversion using nested trans-dimensional Gaussian processes*, A. Ray, Geophysical Journal International, **226(1)**, 2021](https://doi.org/10.1093/gji/ggab114).
 - [*Bayesian geophysical inversion with trans-dimensional Gaussian process machine learning*, A. Ray and D. Myer, Geophysical Journal International **217(3)**, 2019](https://doi.org/10.1093/gji/ggz111).
 
-Readily usable geophysical forward operators are to do with CSEM and AEM physics, **for which the time domain AEM codes are fairly production-ready**.
+Readily usable geophysical forward operators are to do with CSEM and AEM physics (references underneath), **for which the time domain AEM codes are fairly production-ready**.
 
 ## Installation
 To install, in a perfect world we'd use Julia's `Pkg` REPL by hitting `]` to enter `pkg>` mode. Then enter the following, at the `pkg>` prompt:
@@ -37,3 +37,9 @@ You'll have to run `ssh-agent` as shown above for the installation, but instead 
 ```
 pkg> update transD_GP
 ```
+
+### References for AEM and CSEM physics 
+
+- [Blatter, D., Key, K., Ray, A., Foley, N., Tulaczyk, S., & Auken, E. (2018). Trans-dimensional Bayesian inversion of airborne transient EM data from Taylor Glacier, Antarctica. Geophysical Journal International, 214(3)](https://doi.org/10.1093/gji/ggy255)
+
+- [Ray, A., & Key, K. (2012). Bayesian inversion of marine CSEM data with a trans-dimensional self parametrizing algorithm. Geophysical Journal International, 191(3), 1135-1151.](https://doi.org/10.1111/j.1365-246X.2012.05677.x)
