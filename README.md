@@ -35,4 +35,5 @@ Some example scripts have as a dependency [Revise.jl](https://github.com/timholy
 ## Updating
 You'll have to run `ssh-agent` as shown above for the installation, but instead of adding the package again in `pkg>`, you would simply do at the `pkg>` prompt
 ```
-`pkg> update transD_GP`
+pkg> update transD_GP
+```
