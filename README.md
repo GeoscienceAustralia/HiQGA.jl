@@ -25,7 +25,7 @@ at the REPL you go to `Pkg` mode by hitting `]` and then at the `pkg>` prompt:
 ```
 pkg> add git@github.com:a2ray/transD_GP.git
 ```
-If you get an error message saying the public key wasn't found, well, you'd have to add the public key `id_ed25519.pub` residing on GitHub in the `.ssh` directory as well. Don't ever share your private key!!! All this pain will disappear and the perfect world instructions will apply if we make the repository public. We're almost, but not quite ready to do that yet.
+If you get an error message saying the public key wasn't found, well, you'll have to add the public key `id_ed25519.pub` residing on GitHub into the abovementioned `.ssh` directory as well. Don't ever share your private key!!! All this pain will disappear and the perfect world instructions will apply if we make the repository public. We're almost, but not quite ready to do that yet.
 
 ## Usage
 Examples of how to use the package can be found in the `examples` directory. The Markov Chain Monte Carlo sampler is configured to support parallel tempering on multiple CPUs - some of the examples accomplish this with Julia's built-in multiprocessing, and others use MPI in order to support inversions on HPC clusters that don't work with Julia's default SSH-based multiprocessing. The MPI examples require [MPI.jl](https://github.com/JuliaParallel/MPI.jl) and [MPIClusterManagers.jl](https://github.com/JuliaParallel/MPIClusterManagers.jl/), which are not installed as dependencies for this package, so you will need to ensure they are installed and configured correctly to run these examples. Please note that MPIClusterManagers.jl has issues with Julia <1.4.2, so please ensure you are using an up-to-date Julia version. 
