@@ -816,7 +816,8 @@ end
 
 function plotsummarygrids1(meangrid, phgrid, plgrid, pmgrid, gridx, gridz, topofine, R, Z, χ²mean, χ²sd, lname; qp1=0.05, qp2=0.95,
                         figsize=(10,10), fontsize=12, cmap="viridis", vmin=-2, vmax=0.5, Eislast=true, Nislast=true,
-                        topowidth=2, idx=nothing, omitconvergence=false, useML=false)
+                        topowidth=2, idx=nothing, omitconvergence=false, useML=false, preferEright=false, preferNright=false,
+                        saveplot=false)
     f = figure(figsize=figsize)
     dr = diff(gridx)[1]
     f.suptitle(lname*" Δx=$dr m, Fids: $(length(R))", fontsize=fontsize)
@@ -880,6 +881,9 @@ function plotsummarygrids1(meangrid, phgrid, plgrid, pmgrid, gridx, gridz, topof
     cbar_ax = f.add_axes([0.125, 0.05, 0.75, 0.01])
     cb = f.colorbar(imlast, cax=cbar_ax, orientation="horizontal")
     cb.ax.set_xlabel("Log₁₀ S/m")
+    (preferNright && !Nislast) && s[end].invert_xaxis()
+    (preferEright && !Eislast) && s[end].invert_xaxis()
+    saveplot && savefig(lname*".png", dpi=300)
 end
 
 function plotNEWSlabels(Eislast, Nislast, gridx, gridz, axarray)
@@ -951,9 +955,12 @@ function summaryimages(soundings::Array{SkyTEMsoundingData, 1}, opt::Options;
                         idx = nothing,
                         showderivs = false,
                         omitconvergence = false,
-                        useML = false
+                        useML = false,
+                        preferEright = false,
+                        preferNright = false,
+                        saveplot = false,
                         )
-
+    @assert !(preferNright && preferEright) # can't prefer both labels to the right
     pl, pm, ph, ρmean, vdmean, vddev, χ²mean, χ²sd, zall = summarypost(soundings, opt,
                                                                     zstart=zstart,
                                                                     dz=dz,
@@ -969,7 +976,8 @@ function summaryimages(soundings::Array{SkyTEMsoundingData, 1}, opt::Options;
     Eislast, Nislast = whichislast(soundings)
     plotsummarygrids1(σmeangrid, phgrid, plgrid, pmgrid, gridx, gridz, topofine, R, Z, χ²mean, χ²sd, lname, qp1=qp1, qp2=qp2,
                         figsize=figsize, fontsize=fontsize, cmap=cmap, vmin=vmin, vmax=vmax, Eislast=Eislast,
-                        Nislast=Nislast, topowidth=topowidth, idx=idx, omitconvergence=omitconvergence, useML=useML)
+                        Nislast=Nislast, topowidth=topowidth, idx=idx, omitconvergence=omitconvergence, useML=useML,
+                        preferEright=preferEright, preferNright=preferNright, saveplot=saveplot)
     if showderivs
         cigrid = phgrid - plgrid
         plotsummarygrids2(σmeangrid, ∇zmeangrid, ∇zsdgrid, cigrid, gridx, gridz, topofine, lname, qp1=qp1, qp2=qp2,
