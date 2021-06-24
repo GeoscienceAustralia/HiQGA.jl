@@ -632,7 +632,7 @@ function dc_change!(m::Model, opt::Options)
     calcfstar!(m.fstar, m.ftrain, opt, K_y, Kstar, n, m.dcvalue)
 end
 
-function undo_dc_change!(m::Model, opt::Options)
+function undo_dc_change!(m::Model)
     m.dcvalue .= m.dcvalue_old
     nothing
 end
@@ -936,7 +936,7 @@ function undo_move!(movetype::Int, m::ModelStat, opt::OptionsStat,
     elseif movetype == 4
         undo_property_change!(m, opt, mns)
     else
-        undo_dc_change!(m, opt)
+        undo_dc_change!(m)
     end
     sync_model!(m, opt)
     opt.updatenonstat && sync_model!(mns, optns)
