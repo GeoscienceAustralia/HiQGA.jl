@@ -536,7 +536,8 @@ function plot_posterior(operator::Operator1D,
     end
     f,ax = plt.subplots(1, 3+convert(Int, showlscale1vd), sharey=true, figsize=figsize)
     xall = opts.xall
-    xmesh = vcat(xall[1:end-1] - diff(xall[:])/2, xall[end])
+    diffs = diff(xall[:])
+    xmesh = vcat(xall[1:end-1] - diffs/2, xall[end]-diffs[end]/2, xall[end])
     vmin, vmax = extrema(himage_ns)
     vmax = vmin+vmaxpc*(vmax-vmin)
     im1 = ax[1].pcolormesh(edges_ns[:], xmesh, himage_ns, cmap=cmappdf, vmax=vmax)
@@ -599,7 +600,8 @@ function plot_posterior(operator::Operator1D,
     if doplot
         f,ax = plt.subplots(1,2, sharey=true, figsize=figsize)
         xall = opt.xall
-        xmesh = vcat(xall[1:end-1] - diff(xall[:])/2, xall[end])
+        diffs = diff(xall[:])
+        xmesh = vcat(xall[1:end-1] - diffs/2, xall[end]-diffs[end]/2, xall[end])
         vmin, vmax = extrema(himage)
         vmax = vmin+vmaxpc*(vmax-vmin)
         im1 = ax[1].pcolormesh(edges[:], xmesh, himage, cmap=cmappdf, vmax=vmax)

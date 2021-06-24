@@ -840,7 +840,7 @@ end
 
 function do_move!(mns::ModelNonstat, m::ModelStat, optns::OptionsNonstat, statns::Stats)
     cumprob = [0.20, 0.40, 0.60, 0.8] # if sampledc and 5 total noves
-    if !opt.sampledc
+    if !optns.sampledc
         cumprob +=  [0.05, 0.10, 0.15, 0.2] # add these if no sampledc, 4 total moves
     end
     unifrand = rand()
