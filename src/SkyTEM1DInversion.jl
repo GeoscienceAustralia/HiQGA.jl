@@ -986,6 +986,32 @@ function summaryimages(soundings::Array{SkyTEMsoundingData, 1}, opt::Options;
     end
 end
 
+function makexyzrho(soundings, zall)
+    linename = "_line_$(soundings[1].linenum)_summary.txt"
+    fnames = ["rho_low", "rho_mid", "rho_hi", "rho_avg"].*linename
+    dlow, dmid, dhigh, davg = map(x->readdlm(x), fnames)
+    ndepths = length(zall)
+    for (i, d) in enumerate([dlow, dmid, dhigh, davg])
+        @assert ndims(d) == 2
+        @assert size(d, 2) == length(soundings)
+        @assert size(d, 1) == ndepths
+        xyzrho = makearray(soundings, d, zall)
+        writedlm(fnames[i][1:end-4]*"_xyzrho.txt", xyzrho)
+    end
+end
+
+function makearray(soundings, d, zall)
+    outarray = zeros(length(d), 4)
+    ndepths = length(zall)
+        for (i, s) in enumerate(soundings)
+            z = s.Z .- zall # convert depths to mAHD
+            x, y = s.X, s.Y
+            idx = (i-1)*ndepths+1:i*ndepths
+            outarray[idx,:] = [[x y].*ones(ndepths) z d[:,i]]
+        end
+    outarray
+end
+
 # plot multiple grids with supplied labels
 function plotgrids()
     f, ax = plt.subplots(size(grids, 1), 1, figsize=figsize,
