@@ -709,8 +709,14 @@ function summarypost(soundings::Array{SkyTEMsoundingData, 1}, opt::Options;
             χ²sd[idx]   = std(χ²)/ndata
             useML && (χ²mean[idx] -= log(ndata))
         end
+        # write in grid format
         for (fname, vals) in Dict(zip(fnames, [pl, pm, ph, ρmean, vdmean, vddev, χ²mean, χ²sd]))
             writedlm(fname, vals)
+        end
+        # write in x, y, z, rho format
+        for (i, d) in enumerate([pl, pm, ph, ρmean])
+            xyzrho = makearray(soundings, d, zall)
+            writedlm(fnames[i][1:end-4]*"_xyzrho.txt", xyzrho)
         end
     end
     pl, pm, ph, ρmean, vdmean, vddev, χ²mean, χ²sd, zall
