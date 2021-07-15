@@ -7,6 +7,8 @@ include("CommonToAll.jl")
 using .CommonToAll
 include("LineRegression.jl")
 using .LineRegression
+include("SurfaceRegression.jl")
+using .SurfaceRegression
 include("CSEM1DEr.jl") # add this before using HED for CSEM
 using .CSEM1DEr
 include("CSEM1DInversion.jl")
