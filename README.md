@@ -38,6 +38,12 @@ You'll have to run `ssh-agent` as shown above for the installation, but instead 
 pkg> update transD_GP
 ```
 
+## Developing transD_GP
+```
+pkg>dev git@github.com:a2ray/transD_GP.git
+```
+All the `ssh-keys` jazz above still holds. It will download to your `JULIA_PKG_DEVDIR`. [Here's a gist](https://gist.github.com/a2ray/8c2c55c25fee6647501b403886bbe64d) on adding your own module.
+
 ### References for AEM and CSEM physics 
 
 - [Blatter, D., Key, K., Ray, A., Foley, N., Tulaczyk, S., & Auken, E. (2018). Trans-dimensional Bayesian inversion of airborne transient EM data from Taylor Glacier, Antarctica. Geophysical Journal International, 214(3)](https://doi.org/10.1093/gji/ggy255)
