@@ -41,6 +41,10 @@ function get_misfit(m::Model, opt::Options, surface::Surface)
     return chi2by2
 end
 
+mutable struct  SurfaceWithDifferentData
+
+end    
+
 function slice_image_posterior( M::AbstractArray, opt::Options, roworcol::Symbol;
                                 rowcolnum = 1,
                                 nbins = 50,

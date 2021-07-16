@@ -5,7 +5,11 @@ import .AbstractOperator.makeoperator
 import .AbstractOperator.make_tdgp_opt
 include("CommonToAll.jl")
 using .CommonToAll
-include("LineRegression.jl")
+include("FooPhysics.jl") # example for API
+using. FooPhysics # example for API
+include("FooPhysicsInversion.jl") # example for API
+using .FooPhysicsInversion # example for API
+include("LineRegression.jl") 
 using .LineRegression
 include("SurfaceRegression.jl")
 using .SurfaceRegression

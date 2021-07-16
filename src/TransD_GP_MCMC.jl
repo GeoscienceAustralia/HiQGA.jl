@@ -65,7 +65,7 @@ function OptionsStat(;
         quasimultid        = "",
         influenceradius    = [-9.9],
         K                  = SqEuclidean(),
-        timesλ             = 1.0,
+        timesλ             = 3.7,
         needλ²fromlog      = false,
         updatenonstat      = false,
         updatenuisances    = false,
