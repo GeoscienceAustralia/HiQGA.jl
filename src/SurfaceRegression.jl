@@ -5,7 +5,7 @@ using PyPlot, LinearAlgebra, StatsBase
 
 import ..Model, ..Options, ..OptionsStat, ..OptionsNonstat
 
-export Surface
+export Surface, SurfaceWithDifferentData
 
 mutable struct Surface <: Operator2D
     d      :: Array{Float64}
@@ -41,9 +41,17 @@ function get_misfit(m::Model, opt::Options, surface::Surface)
     return chi2by2
 end
 
-mutable struct  SurfaceWithDifferentData
-
+mutable struct SurfaceWithDifferentData <: Operator2D
+    surfaces :: Array{Surface, 1}
 end    
+
+function get_misfit(m::Model, opt::Options, surface::SurfaceWithDifferentData)
+    chi2by2 = 0.0
+    for s in surface.surfaces
+        chi2by2 += get_misfit(m, opt, s)
+    end    
+    return chi2by2
+end
 
 function slice_image_posterior( M::AbstractArray, opt::Options, roworcol::Symbol;
                                 rowcolnum = 1,
