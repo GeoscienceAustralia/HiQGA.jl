@@ -1,4 +1,4 @@
-using PyPlot, Revise, transD_GP, DelimitedFiles, Random
+using PyPlot, Revise, transD_GP, DelimitedFiles, Random, BenchmarkTools
 ## set geometry
 rMin = 100 #m
 rMax = 20000  #m
@@ -14,7 +14,7 @@ TxDip=20.
 # model
 zfixed   = [-1e6,    0,      1000,   2000, 2100]
 rhofixed = [1e13,    0.3,    1,      100,  1]
-## set operator
+## set operator with lagged convolution
 F = transD_GP.CSEM1DEr.RadialErLagged(zTx    = [zTx],
                       rRx    = rRx,
                       freqs  = freqs,
@@ -28,13 +28,20 @@ rxno = 1
 txno = 1
 Ek = transD_GP.CSEM1DEr.getCSEM1DKernelsEr!(F, krho, freqs[1], zfixed, rhofixed, rxno, txno)
 ## timing
-ntimes = 1000
-t = time()
-for i = 1:ntimes
-    transD_GP.CSEM1DEr.getfield!(F, zfixed, rhofixed)
-end
-t = time() - t
-@info "timing is $(t/ntimes) s"
+@info "Lagged convolution time"
+transD_GP.CSEM1DEr.getfield!(F, zfixed, rhofixed)
+@btime transD_GP.CSEM1DEr.getfield!($F, $zfixed, $rhofixed)
+# Discrete Hankel Tx
+G = transD_GP.CSEM1DEr.RadialErDHT(rRx  = F.rRx,
+                          freqs  = F.freqs,
+                          zRx    = F.zRx[1]*ones(length(F.rRx)),
+                          RxAzim = RxAzim*ones(length(F.rRx)),
+                          zTx    = F.zTx[1]*ones(length(F.rRx)),
+                          TxDip  = TxDip*ones(length(F.rRx))
+                          )
+@info "Vanilla DHT time"
+transD_GP.CSEM1DEr.getfield!(G, zfixed, rhofixed)
+@btime transD_GP.CSEM1DEr.getfield!($G, $z, $ρ)
 ## plot
 figure()
 subplot(121)
@@ -44,10 +51,10 @@ ylim(1000, 3700)
 grid()
 gca().invert_yaxis()
 subplot(122)
-semilogy(rRx, abs.(F.Er), label="julia")
-# Erm = readdlm("can_test_mat.txt",',',Complex{Float64})
-include("csem_Er_test.jl")
-semilogy(rRx, abs.(Erm), "--", label="mat")
+semilogy(rRx, abs.(F.Er), label="julia lagged HT")
+semilogy(rRx, abs.(G.Er), label="julia vanilla DHT")
+include("csem_Er_response.jl")
+semilogy(rRx, abs.(Erm), "--", label="matlab 2012 code")
 grid()
 legend()
 ## random, many layers
@@ -60,19 +67,8 @@ subplot(121)
 step(log10.(ρ[2:end]), z[2:end])
 xlim(1,2.5 )
 grid(); gca().invert_yaxis()
-t = time()
-for i = 1:ntimes
-    transD_GP.CSEM1DEr.getfield!(F, z, ρ)
-end
-t = time() - t
-@info "timing is $(t/ntimes) s"
+@info "timing for $nlayers layers"
+transD_GP.CSEM1DEr.getfield!(F, z, ρ)
+@btime transD_GP.CSEM1DEr.getfield!($F, $z, $ρ)
 subplot(122)
 semilogy(rRx, abs.(F.Er), label="julia")
-## Discrete Hankel Tx
-G = transD_GP.CSEM1DEr.RadialErDHT(rRx  = F.rRx,
-                          freqs  = F.freqs,
-                          zRx    = F.zRx[1]*ones(length(F.rRx)),
-                          RxAzim = RxAzim*ones(length(F.rRx)),
-                          zTx    = F.zTx[1]*ones(length(F.rRx)),
-                          TxDip  = TxDip*ones(length(F.rRx))
-                          )
