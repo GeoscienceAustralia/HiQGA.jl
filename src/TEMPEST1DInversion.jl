@@ -734,7 +734,9 @@ function make_tdgp_opt(sounding::TempestSoundingData;
                     nmin = 2,
                     nmax = 40,
                     K = GP.Mat32(),
-                    demean = true,
+                    demean = false,
+                    sampledc = true,
+                    sddc = 0.01,
                     sdpos = 0.05,
                     sdprop = 0.05,
                     fbounds = [-0.5 2.5],
@@ -745,9 +747,11 @@ function make_tdgp_opt(sounding::TempestSoundingData;
 					nuisance_sdev   = [0.],
 					nuisance_bounds = [0. 0.],
 					updatenuisances = true,
+                    C = nothing,
 					dispstatstoscreen = false,
 					restart = false
                     )
+    sdev_dc = sddc*diff(fbounds, dims=2)[:]
     sdev_pos = [sdpos*abs(diff([extrema(znall)...])[1])]
     sdev_prop = sdprop*diff(fbounds, dims=2)[:]
     xall = permutedims(collect(znall))
@@ -771,6 +775,8 @@ function make_tdgp_opt(sounding::TempestSoundingData;
                             λ = λ,
                             δ = δ,
                             demean = demean,
+                            sampledc = sampledc,
+                            sdev_dc = sdev_dc,
                             sdev_prop = sdev_prop,
                             sdev_pos = sdev_pos,
                             pnorm = pnorm,
@@ -798,11 +804,86 @@ function make_tdgp_opt(sounding::TempestSoundingData;
 
 	optn = OptionsNuisance(opt;
                         sdev = copy(nuisance_sdev),
-						bounds = bounds,
+						bounds = bounds, C = C,
 						updatenuisances = updatenuisances)
 
     opt, optn
 end
 
+function makeoperatorandoptions(soundings::Array{TempestSoundingData, 1};
+                                                    nplot = 2,
+                                                    zfixed   = [-1e5],
+                                                    ρfixed   = [1e12],
+                                                    zstart = 0.0,
+                                                    extendfrac = 1.06,
+                                                    useML = false,
+                                                    dz = 2.,
+                                                    ρbg = 10,
+                                                    nlayers = 40,
+                                                    ntimesperdecade = 10,
+                                                    nfreqsperdecade = 5,
+                                                    showgeomplot = false,
+                                                    plotfield = true,
+                                                    addprimary = true,
+                                                    rseed = nothing,
+                                                    znall = [1],
+                                                    fileprefix = "sounding",
+                                                    nmin = 2,
+                                                    nmax = 40,
+                                                    K = GP.Mat32(),
+                                                    demean = false,
+                                                    sampledc = true,
+                                                    sddc = 0.01,
+                                                    sdpos = 0.05,
+                                                    sdprop = 0.05,
+                                                    fbounds = [-0.5 2.5],
+                                                    λ = [2],
+                                                    δ = 0.1,
+                                                    pnorm = 2,
+                                                    save_freq = 50,
+                                                    nuisance_sdev   = [0.],
+                                                    nuisance_bounds = [0. 0.],
+                                                    C = nothing,
+                                                    updatenuisances = true,
+                                                    dispstatstoscreen = false,
+                                                    restart = false)
+    for idx in randperm(length(soundings))[1:nplot]
+            aem, znall = makeoperator(soundings[idx],
+                                   zfixed = zfixed,
+                                   ρfixed = ρfixed,
+                                   zstart = zstart,
+                                   extendfrac = extendfrac,
+                                   dz = dz,
+                                   ρbg = ρbg,
+                                   nlayers = nlayers,
+                                   ntimesperdecade = ntimesperdecade,
+                                   nfreqsperdecade = nfreqsperdecade,
+                                   showgeomplot = showgeomplot,
+                                   plotfield = plotfield)
+    
+            opt, optn = make_tdgp_opt(soundings[idx],
+                                    znall = znall,
+                                    fileprefix = soundings[idx].sounding_string,
+                                    nmin = nmin,
+                                    nmax = nmax,
+                                    K = K,
+                                    demean = demean,
+                                    sampledc = sampledc,
+                                    sddc = sddc,
+                                    sdpos = sdpos,
+                                    sdprop = sdprop,
+                                    fbounds = fbounds,
+                                    save_freq = save_freq,
+                                    λ = λ,
+                                    δ = δ,
+                                    nuisance_bounds = nuisance_bounds,
+                                    nuisance_sdev = nuisance_sdev,
+                                    updatenuisances = updatenuisances,
+                                    C = C,
+                                    dispstatstoscreen = dispstatstoscreen
+                                    )
+    end    
+
+end
 
 end

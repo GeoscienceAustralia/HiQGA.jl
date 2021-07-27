@@ -7,3 +7,4 @@
 *.tar.gz
 *._*
 Manifest.toml
+.vscode
