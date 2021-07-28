@@ -787,11 +787,12 @@ function loopacrosssoundings(soundings::Array{S, 1};
                                 nsamples           = -1,
                                 nchainsatone       = -1,
                                 nchainspersounding = -1,
-                                znall              = [1],
                                 nmin               = 2,
                                 nmax               = 40,
                                 K                  = GP.Mat32(),
                                 demean             = true,
+                                sampledc           = true,
+                                sddc               = 0.01,
                                 sdpos              = 0.05,
                                 sdprop             = 0.05,
                                 fbounds            = [-0.5 2.5],
@@ -804,7 +805,8 @@ function loopacrosssoundings(soundings::Array{S, 1};
                                 updatenuisances    = true,
                                 dispstatstoscreen  = false,
                                 useML              = false,
-                                restart            = false) where S<:Sounding
+                                restart            = false,
+                                C                  = nothing) where S<:Sounding
 
     @assert nsequentialiters  != -1
     @assert nparallelsoundings != -1
@@ -846,6 +848,8 @@ function loopacrosssoundings(soundings::Array{S, 1};
                                 nmax = nmax,
                                 K = K,
                                 demean = demean,
+                                sampledc = sampledc,
+                                sddc = sddc,
                                 sdpos = sdpos,
                                 sdprop = sdprop,
                                 fbounds = fbounds,
@@ -855,6 +859,7 @@ function loopacrosssoundings(soundings::Array{S, 1};
                                 nuisance_bounds = nuisance_bounds,
                                 nuisance_sdev = nuisance_sdev,
                                 updatenuisances = updatenuisances,
+                                C = C,
                                 restart = restart,
                                 dispstatstoscreen = dispstatstoscreen
                                 )

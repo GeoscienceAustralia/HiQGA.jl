@@ -734,7 +734,9 @@ function make_tdgp_opt(sounding::TempestSoundingData;
                     nmin = 2,
                     nmax = 40,
                     K = GP.Mat32(),
-                    demean = true,
+                    demean = false,
+                    sampledc = true,
+                    sddc = 0.01,
                     sdpos = 0.05,
                     sdprop = 0.05,
                     fbounds = [-0.5 2.5],
@@ -745,9 +747,11 @@ function make_tdgp_opt(sounding::TempestSoundingData;
 					nuisance_sdev   = [0.],
 					nuisance_bounds = [0. 0.],
 					updatenuisances = true,
+                    C = nothing,
 					dispstatstoscreen = false,
 					restart = false
                     )
+    sdev_dc = sddc*diff(fbounds, dims=2)[:]
     sdev_pos = [sdpos*abs(diff([extrema(znall)...])[1])]
     sdev_prop = sdprop*diff(fbounds, dims=2)[:]
     xall = permutedims(collect(znall))
@@ -771,6 +775,8 @@ function make_tdgp_opt(sounding::TempestSoundingData;
                             λ = λ,
                             δ = δ,
                             demean = demean,
+                            sampledc = sampledc,
+                            sdev_dc = sdev_dc,
                             sdev_prop = sdev_prop,
                             sdev_pos = sdev_pos,
                             pnorm = pnorm,
@@ -798,11 +804,172 @@ function make_tdgp_opt(sounding::TempestSoundingData;
 
 	optn = OptionsNuisance(opt;
                         sdev = copy(nuisance_sdev),
-						bounds = bounds,
+						bounds = bounds, C = C,
 						updatenuisances = updatenuisances)
 
     opt, optn
 end
 
+function makeoperatorandoptions(soundings::Array{TempestSoundingData, 1};
+                                                    nplot = 2,
+                                                    zfixed   = [-1e5],
+                                                    ρfixed   = [1e12],
+                                                    zstart = 0.0,
+                                                    extendfrac = 1.06,
+                                                    useML = false,
+                                                    dz = 2.,
+                                                    ρbg = 10,
+                                                    nlayers = 40,
+                                                    ntimesperdecade = 10,
+                                                    nfreqsperdecade = 5,
+                                                    showgeomplot = false,
+                                                    plotfield = true,
+                                                    addprimary = true,
+                                                    rseed = nothing,
+                                                    znall = [1],
+                                                    fileprefix = "sounding",
+                                                    nmin = 2,
+                                                    nmax = 40,
+                                                    K = GP.Mat32(),
+                                                    demean = false,
+                                                    sampledc = true,
+                                                    sddc = 0.01,
+                                                    sdpos = 0.05,
+                                                    sdprop = 0.05,
+                                                    fbounds = [-0.5 2.5],
+                                                    λ = [2],
+                                                    δ = 0.1,
+                                                    pnorm = 2,
+                                                    save_freq = 50,
+                                                    nuisance_sdev   = [0.],
+                                                    nuisance_bounds = [0. 0.],
+                                                    C = nothing,
+                                                    updatenuisances = true,
+                                                    dispstatstoscreen = false,
+                                                    restart = false)
+    for idx in randperm(length(soundings))[1:nplot]
+            aem, znall = makeoperator(soundings[idx],
+                                   zfixed = zfixed,
+                                   ρfixed = ρfixed,
+                                   zstart = zstart,
+                                   extendfrac = extendfrac,
+                                   dz = dz,
+                                   ρbg = ρbg,
+                                   nlayers = nlayers,
+                                   ntimesperdecade = ntimesperdecade,
+                                   nfreqsperdecade = nfreqsperdecade,
+                                   showgeomplot = showgeomplot,
+                                   plotfield = plotfield)
+    
+            opt, optn = make_tdgp_opt(soundings[idx],
+                                    znall = znall,
+                                    fileprefix = soundings[idx].sounding_string,
+                                    nmin = nmin,
+                                    nmax = nmax,
+                                    K = K,
+                                    demean = demean,
+                                    sampledc = sampledc,
+                                    sddc = sddc,
+                                    sdpos = sdpos,
+                                    sdprop = sdprop,
+                                    fbounds = fbounds,
+                                    save_freq = save_freq,
+                                    λ = λ,
+                                    δ = δ,
+                                    nuisance_bounds = nuisance_bounds,
+                                    nuisance_sdev = nuisance_sdev,
+                                    updatenuisances = updatenuisances,
+                                    C = C,
+                                    dispstatstoscreen = dispstatstoscreen
+                                    )
+    end    
+
+end
+
+function summarypost(soundings::Array{TempestSoundingData, 1}, opt::Options;
+        qp1=0.05,
+        qp2=0.95,
+        burninfrac=0.5,
+        zstart = 0.0,
+        extendfrac = -1,
+        dz = -1,
+        nlayers = -1,
+        useML=false)
+
+    @assert extendfrac > 1.0
+    @assert dz > 0.0
+    @assert nlayers > 1
+    zall, znall, = setupz(zstart, extendfrac, dz=dz, n=nlayers)
+
+    linename = "_line_$(soundings[1].linenum)_summary.txt"
+    fnames = ["rho_low", "rho_mid", "rho_hi", "rho_avg",
+        "ddz_mean", "ddz_sdev", "phid_mean", "phid_sdev",
+        "nu_low", "nu_mid", "nu_high"].*linename
+    if isfile(fnames[1])
+        @warn fnames[1]*" exists, reading stored values"
+        pl, pm, ph, ρmean,
+        vdmean, vddev, χ²mean, χ²sd, 
+        nulow, numid, nuhigh = map(x->readdlm(x), fnames)
+    else
+        # this is a dummy operator for plotting
+        aem, = makeoperator(soundings[1])
+        # now get the posterior marginals
+        opt, optn = transD_GP.TEMPEST1DInversion.make_tdgp_opt(soundings[1],
+            znall = znall,
+            fileprefix = soundings[1].sounding_string,
+            nmin = nmin,
+            nmax = nmax,
+            K = K,
+            demean = demean,
+            sdpos = sdpos,
+            sdprop = sdprop,
+            fbounds = fbounds,
+            save_freq = save_freq,
+            λ = λ,
+            δ = δ,
+            nuisance_bounds = nuisance_bounds,
+            nuisance_sdev = nuisance_sdev,
+            updatenuisances = updatenuisances,
+            dispstatstoscreen = false,
+            useML = useML
+        )
+        opt.xall[:] .= zall
+        pl, pm, ph, ρmean, vdmean, vddev = map(x->zeros(length(zall), length(soundings)), 1:6)
+        χ²mean, χ²sd = zeros(length(soundings)), zeros(length(soundings))
+        nulow, numid, nuhigh = map(x->zeros(length(optn.idxnotzero), length(soundings)), 1:3)
+        for idx = 1:length(soundings)
+            @info "$idx out of $(length(soundings))\n"
+            opt.fdataname = soundings[idx].sounding_string*"_"
+            opt.xall[:] .= zall
+            pl[:,idx], pm[:,idx], ph[:,idx], ρmean[:,idx],
+            vdmean[:,idx], vddev[:,idx] = CommonToAll.plot_posterior(aem, opt, burninfrac=burninfrac,
+                                                    qp1=qp1, qp2=qp2,
+                                                    doplot=false)
+            h, nuquants = transD_GP.plot_posterior(aem, optn, burninfrac=burninfrac, nbins=nbins, doplot=false)
+            nulow[:, idx]  .= nuquants[:, 1]
+            numid[:, idx]  .= nuquants[:, 2]
+            nuhigh[:, idx] .= nuquants[:, 3]
+            χ² = 2*CommonToAll.assembleTat1(opt, :U, temperaturenum=1, burninfrac=burninfrac)
+            ndata = sum(.!isnan.(soundings[idx].Hx_data)) +
+                    sum(.!isnan.(soundings[idx].Hz_data))
+            χ²mean[idx] = mean(χ²)/ndata
+            χ²sd[idx]   = std(χ²)/ndata
+            if useML 
+                χ²mean[idx] -= log(ndata)
+                χ²sd[idx]   -= log(ndata) # I think, need to check
+            end    
+        end
+        # write in grid format
+        for (fname, vals) in Dict(zip(fnames, [pl, pm, ph, ρmean, vdmean, vddev, χ²mean, χ²sd, nulow, numid, nuhigh]))
+            writedlm(fname, vals)
+        end
+        # write in x, y, z, rho format
+        for (i, d) in enumerate([pl, pm, ph, ρmean])
+            xyzrho = makearray(soundings, d, zall)
+            writedlm(fnames[i][1:end-4]*"_xyzrho.txt", xyzrho)
+        end
+    end
+    pl, pm, ph, ρmean, vdmean, vddev, χ²mean, χ²sd, zall, nulow, numid, nuhigh
+end
 
 end
