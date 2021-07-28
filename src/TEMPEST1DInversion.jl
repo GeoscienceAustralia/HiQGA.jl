@@ -886,4 +886,90 @@ function makeoperatorandoptions(soundings::Array{TempestSoundingData, 1};
 
 end
 
+function summarypost(soundings::Array{TempestSoundingData, 1}, opt::Options;
+        qp1=0.05,
+        qp2=0.95,
+        burninfrac=0.5,
+        zstart = 0.0,
+        extendfrac = -1,
+        dz = -1,
+        nlayers = -1,
+        useML=false)
+
+    @assert extendfrac > 1.0
+    @assert dz > 0.0
+    @assert nlayers > 1
+    zall, znall, = setupz(zstart, extendfrac, dz=dz, n=nlayers)
+
+    linename = "_line_$(soundings[1].linenum)_summary.txt"
+    fnames = ["rho_low", "rho_mid", "rho_hi", "rho_avg",
+        "ddz_mean", "ddz_sdev", "phid_mean", "phid_sdev",
+        "nu_low", "nu_mid", "nu_high"].*linename
+    if isfile(fnames[1])
+        @warn fnames[1]*" exists, reading stored values"
+        pl, pm, ph, ρmean,
+        vdmean, vddev, χ²mean, χ²sd, 
+        nulow, numid, nuhigh = map(x->readdlm(x), fnames)
+    else
+        # this is a dummy operator for plotting
+        aem, = makeoperator(soundings[1])
+        # now get the posterior marginals
+        opt, optn = transD_GP.TEMPEST1DInversion.make_tdgp_opt(soundings[1],
+            znall = znall,
+            fileprefix = soundings[1].sounding_string,
+            nmin = nmin,
+            nmax = nmax,
+            K = K,
+            demean = demean,
+            sdpos = sdpos,
+            sdprop = sdprop,
+            fbounds = fbounds,
+            save_freq = save_freq,
+            λ = λ,
+            δ = δ,
+            nuisance_bounds = nuisance_bounds,
+            nuisance_sdev = nuisance_sdev,
+            updatenuisances = updatenuisances,
+            dispstatstoscreen = false,
+            useML = useML
+        )
+        opt.xall[:] .= zall
+        pl, pm, ph, ρmean, vdmean, vddev = map(x->zeros(length(zall), length(soundings)), 1:6)
+        χ²mean, χ²sd = zeros(length(soundings)), zeros(length(soundings))
+        nulow, numid, nuhigh = map(x->zeros(length(optn.idxnotzero), length(soundings)), 1:3)
+        for idx = 1:length(soundings)
+            @info "$idx out of $(length(soundings))\n"
+            opt.fdataname = soundings[idx].sounding_string*"_"
+            opt.xall[:] .= zall
+            pl[:,idx], pm[:,idx], ph[:,idx], ρmean[:,idx],
+            vdmean[:,idx], vddev[:,idx] = CommonToAll.plot_posterior(aem, opt, burninfrac=burninfrac,
+                                                    qp1=qp1, qp2=qp2,
+                                                    doplot=false)
+            h, nuquants = transD_GP.plot_posterior(aem, optn, burninfrac=burninfrac, nbins=nbins, doplot=false)
+            nulow[:, idx]  .= nuquants[:, 1]
+            numid[:, idx]  .= nuquants[:, 2]
+            nuhigh[:, idx] .= nuquants[:, 3]
+            χ² = 2*CommonToAll.assembleTat1(opt, :U, temperaturenum=1, burninfrac=burninfrac)
+            ndata = sum(.!isnan.(soundings[idx].Hx_data)) +
+                    sum(.!isnan.(soundings[idx].Hz_data))
+            χ²mean[idx] = mean(χ²)/ndata
+            χ²sd[idx]   = std(χ²)/ndata
+            if useML 
+                χ²mean[idx] -= log(ndata)
+                χ²sd[idx]   -= log(ndata) # I think, need to check
+            end    
+        end
+        # write in grid format
+        for (fname, vals) in Dict(zip(fnames, [pl, pm, ph, ρmean, vdmean, vddev, χ²mean, χ²sd, nulow, numid, nuhigh]))
+            writedlm(fname, vals)
+        end
+        # write in x, y, z, rho format
+        for (i, d) in enumerate([pl, pm, ph, ρmean])
+            xyzrho = makearray(soundings, d, zall)
+            writedlm(fnames[i][1:end-4]*"_xyzrho.txt", xyzrho)
+        end
+    end
+    pl, pm, ph, ρmean, vdmean, vddev, χ²mean, χ²sd, zall, nulow, numid, nuhigh
+end
+
 end
