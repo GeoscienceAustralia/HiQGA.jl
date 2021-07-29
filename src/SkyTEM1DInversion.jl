@@ -771,55 +771,6 @@ function plotindividualsoundings(soundings::Array{SkyTEMsoundingData, 1}, opt::O
     end
 end
 
-
-function makegrid(vals::AbstractArray, soundings::Array{SkyTEMsoundingData, 1};
-    dr=10, zall=[NaN], dz=-1)
-    @assert all(.!isnan.(zall))
-    @assert dz>0
-    X = [s.X for s in soundings]
-    Y = [s.Y for s in soundings]
-    x0, y0 = X[1], Y[1]
-    R  = sqrt.((X .- x0).^2 + (Y .- y0).^2)
-    rr, zz = [r for z in zall, r in R], [z for z in zall, r in R]
-    topo = [s.Z for s in soundings]
-    zz = topo' .- zz # mAHD
-    kdtree = KDTree([rr[:]'; zz[:]'])
-    gridr = range(R[1], R[end], step=dr)
-    gridz = reverse(range(extrema(zz)..., step=dz))
-    rr, zz = [r for z in gridz, r in gridr], [z for z in gridz, r in gridr]
-    idxs, = nn(kdtree, [rr[:]'; zz[:]'])
-    img = zeros(size(rr))
-    for i = 1:length(img)
-        img[i] = vals[idxs[i]]
-    end
-    kdtree = KDTree(R[:]')
-    idxs, = nn(kdtree, gridr[:]')
-    topofine = [topo[idxs[i]] for i = 1:length(gridr)]
-    img[zz .>topofine'] .= NaN
-    img, gridr, gridz, topofine, R
-end
-
-function whichislast(soundings::AbstractArray)
-    X = [s.X for s in soundings]
-    Y = [s.Y for s in soundings]
-    Eislast, Nislast = true, true
-    X[1]>X[end] && (Eislast = false)
-    Y[1]>Y[end] && (Nislast = false)
-    Eislast, Nislast
-end
-
-function makesummarygrid(soundings, pl, pm, ph, ρmean, vdmean, vddev, zall, dz; dr=10)
-    # first flip ρ to σ and so pl and ph are interchanged
-    phgrid, gridx, gridz, topofine, R = makegrid(-pl, soundings, zall=zall, dz=dz, dr=dr)
-    plgrid,                           = makegrid(-ph, soundings, zall=zall, dz=dz, dr=dr)
-    pmgrid,                           = makegrid(-pm, soundings, zall=zall, dz=dz, dr=dr)
-    σmeangrid,                        = makegrid(-ρmean, soundings, zall=zall, dz=dz, dr=dr)
-    ∇zmeangrid,                       = makegrid(vdmean, soundings, zall=zall, dz=dz, dr=dr)
-    ∇zsdgrid,                         = makegrid(vddev, soundings, zall=zall, dz=dz, dr=dr)
-    Z = [s.Z for s in soundings]
-    phgrid, plgrid, pmgrid, σmeangrid, ∇zmeangrid, ∇zsdgrid, gridx, gridz, topofine, R, Z
-end
-
 function plotsummarygrids1(meangrid, phgrid, plgrid, pmgrid, gridx, gridz, topofine, R, Z, χ²mean, χ²sd, lname; qp1=0.05, qp2=0.95,
                         figsize=(10,10), fontsize=12, cmap="viridis", vmin=-2, vmax=0.5, Eislast=true, Nislast=true,
                         topowidth=2, idx=nothing, omitconvergence=false, useML=false, preferEright=false, preferNright=false,
@@ -892,13 +843,6 @@ function plotsummarygrids1(meangrid, phgrid, plgrid, pmgrid, gridx, gridz, topof
     saveplot && savefig(lname*".png", dpi=300)
 end
 
-function plotNEWSlabels(Eislast, Nislast, gridx, gridz, axarray)
-    for s in axarray
-        Eislast ? s.text(gridx[1], gridz[end], "W", backgroundcolor="w") : s.text(gridx[1], gridz[end], "E", backgroundcolor="w")
-        Nislast ? s.text(gridx[end], gridz[end], "N", backgroundcolor="w") : s.text(gridx[end], gridz[end], "S", backgroundcolor="w")
-    end
-end
-
 function plotsummarygrids2(σmeangrid, ∇zmeangrid, ∇zsdgrid, cigrid, gridx, gridz, topofine, lname;
         qp1=0.05, qp2=0.95, Eislast=true, Nislast=true,
         figsize=(10,10), fontsize=12, cmap="viridis", vmin=-2, vmax=0.5, topowidth=2)
@@ -934,13 +878,6 @@ function plotsummarygrids2(σmeangrid, ∇zmeangrid, ∇zsdgrid, cigrid, gridx, 
     colorbar()
     xlim(extrema(gridx))
     nicenup(f, fsize=fontsize)
-end
-
-function plotprofile(ax, idxs, Z, R)
-    for idx in idxs
-        ax.plot(R[idx]*[1,1], [ax.get_ylim()[1], Z[idx]], "-w")
-        ax.plot(R[idx]*[1,1], [ax.get_ylim()[1], Z[idx]], "--k")
-    end
 end
 
 function summaryimages(soundings::Array{SkyTEMsoundingData, 1}, opt::Options;
@@ -990,32 +927,6 @@ function summaryimages(soundings::Array{SkyTEMsoundingData, 1}, opt::Options;
                         figsize=figsize, fontsize=fontsize, cmap=cmap, vmin=vmin, vmax=vmax, topowidth=topowidth,
                         Eislast=Eislast, Nislast=Nislast)
     end
-end
-
-function makexyzrho(soundings, zall)
-    linename = "_line_$(soundings[1].linenum)_summary.txt"
-    fnames = ["rho_low", "rho_mid", "rho_hi", "rho_avg"].*linename
-    dlow, dmid, dhigh, davg = map(x->readdlm(x), fnames)
-    ndepths = length(zall)
-    for (i, d) in enumerate([dlow, dmid, dhigh, davg])
-        @assert ndims(d) == 2
-        @assert size(d, 2) == length(soundings)
-        @assert size(d, 1) == ndepths
-        xyzrho = makearray(soundings, d, zall)
-        writedlm(fnames[i][1:end-4]*"_xyzrho.txt", xyzrho)
-    end
-end
-
-function makearray(soundings, d, zall)
-    outarray = zeros(length(d), 4)
-    ndepths = length(zall)
-        for (i, s) in enumerate(soundings)
-            z = s.Z .- zall # convert depths to mAHD
-            x, y = s.X, s.Y
-            idx = (i-1)*ndepths+1:i*ndepths
-            outarray[idx,:] = [[x y].*ones(ndepths) z d[:,i]]
-        end
-    outarray
 end
 
 # plot multiple grids with supplied labels

@@ -824,10 +824,6 @@ function makeoperatorandoptions(soundings::Array{TempestSoundingData, 1};
                                                     nfreqsperdecade = 5,
                                                     showgeomplot = false,
                                                     plotfield = true,
-                                                    addprimary = true,
-                                                    rseed = nothing,
-                                                    znall = [1],
-                                                    fileprefix = "sounding",
                                                     nmin = 2,
                                                     nmax = 40,
                                                     K = GP.Mat32(),
@@ -839,14 +835,13 @@ function makeoperatorandoptions(soundings::Array{TempestSoundingData, 1};
                                                     fbounds = [-0.5 2.5],
                                                     λ = [2],
                                                     δ = 0.1,
-                                                    pnorm = 2,
                                                     save_freq = 50,
                                                     nuisance_sdev   = [0.],
                                                     nuisance_bounds = [0. 0.],
                                                     C = nothing,
                                                     updatenuisances = true,
                                                     dispstatstoscreen = false,
-                                                    restart = false)
+                                                    )
     for idx in randperm(length(soundings))[1:nplot]
             aem, znall = makeoperator(soundings[idx],
                                    zfixed = zfixed,
@@ -886,15 +881,30 @@ function makeoperatorandoptions(soundings::Array{TempestSoundingData, 1};
 
 end
 
-function summarypost(soundings::Array{TempestSoundingData, 1}, opt::Options;
+function summarypost(soundings::Array{TempestSoundingData, 1};
         qp1=0.05,
         qp2=0.95,
         burninfrac=0.5,
         zstart = 0.0,
-        extendfrac = -1,
-        dz = -1,
-        nlayers = -1,
-        useML=false)
+        extendfrac = 1.06,
+        useML = false,
+        dz = 2.,
+        nlayers = 40,
+        nmin = 2,
+        nmax = 40,
+        K = GP.Mat32(),
+        demean = false,
+        sampledc = true,
+        sddc = 0.01,
+        sdpos = 0.05,
+        sdprop = 0.05,
+        fbounds = [-0.5 2.5],
+        λ = [2],
+        δ = 0.1,
+        save_freq = 50,
+        nuisance_sdev   = [0.],
+        nuisance_bounds = [0. 0.],
+        updatenuisances = true)
 
     @assert extendfrac > 1.0
     @assert dz > 0.0
@@ -921,6 +931,8 @@ function summarypost(soundings::Array{TempestSoundingData, 1}, opt::Options;
             nmax = nmax,
             K = K,
             demean = demean,
+            sampledc = sampledc,
+            sddc = sddc,
             sdpos = sdpos,
             sdprop = sdprop,
             fbounds = fbounds,
@@ -970,6 +982,200 @@ function summarypost(soundings::Array{TempestSoundingData, 1}, opt::Options;
         end
     end
     pl, pm, ph, ρmean, vdmean, vddev, χ²mean, χ²sd, zall, nulow, numid, nuhigh
+end
+
+function plotsummarygrids1(meangrid, phgrid, plgrid, pmgrid, gridx, gridz, topofine, R, Z, χ²mean, χ²sd, lname; qp1=0.05, qp2=0.95,
+    figsize=(10,10), fontsize=12, cmap="viridis", vmin=-2, vmax=0.5, Eislast=true, Nislast=true,
+    topowidth=2, idx=nothing, omitconvergence=false, useML=false, preferEright=false, preferNright=false,
+    saveplot=false)
+
+    f = figure(figsize=figsize)
+    dr = diff(gridx)[1]
+    f.suptitle(lname*" Δx=$dr m, Fids: $(length(R))", fontsize=fontsize)
+    nrows = omitconvergence ? 4 : 5
+    icol = 1
+    s = Array{Any, 1}(undef, nrows)
+    if !omitconvergence
+    s[icol] = subplot(nrows, 1, icol)
+    if useML
+    plot(R, exp.(χ²mean))
+    semilogy(R, ones(length(R)), "--k")
+    ylabel("variance factor")
+    title("Max likelihood variance adjustment")
+    else
+    plot(R, χ²mean)
+    plot(R, ones(length(R)), "--k")
+    fill_between(R, vec(χ²mean-χ²sd), vec(χ²mean+χ²sd), alpha=0.5)
+    ylabel(L"ϕ_d")
+    title("Data misfit")
+    end
+    icol += 1
+    end
+    s[icol] = omitconvergence ? subplot(nrows, 1, icol) : subplot(nrows, 1, icol, sharex=s[icol-1])
+    imshow(plgrid, cmap=cmap, aspect="auto", vmax=vmax, vmin = vmin,
+    extent=[gridx[1], gridx[end], gridz[end], gridz[1]])
+    plot(gridx, topofine, linewidth=topowidth, "-k")
+    idx == nothing || plotprofile(s[icol], idx, Z, R)
+    title("Percentile $(round(Int, 100*qp1)) conductivity")
+    ylabel("Height m")
+    icol += 1
+    s[icol] = subplot(nrows, 1, icol, sharex=s[icol-1], sharey=s[icol-1])
+    imshow(pmgrid, cmap=cmap, aspect="auto", vmax=vmax, vmin = vmin,
+    extent=[gridx[1], gridx[end], gridz[end], gridz[1]])
+    plot(gridx, topofine, linewidth=topowidth, "-k")
+    title("Percentile 50 conductivity")
+    idx == nothing || plotprofile(s[icol], idx, Z, R)
+    ylabel("Height m")
+    icol += 1
+    s[icol] = subplot(nrows, 1, icol, sharex=s[icol-1], sharey=s[icol-1])
+    imshow(meangrid, cmap=cmap, aspect="auto", vmax=vmax, vmin = vmin,
+    extent=[gridx[1], gridx[end], gridz[end], gridz[1]])
+    plot(gridx, topofine, linewidth=topowidth, "-k")
+    title("Mean conductivity")
+    ylabel("Height m")
+    idx == nothing || plotprofile(s[icol], idx, Z, R)
+    icol +=1
+    s[icol] = subplot(nrows, 1, icol, sharex=s[icol-1], sharey=s[icol-1])
+    imlast = imshow(phgrid, cmap=cmap, aspect="auto", vmax=vmax, vmin = vmin,
+    extent=[gridx[1], gridx[end], gridz[end], gridz[1]])
+    plot(gridx, topofine, linewidth=topowidth, "-k")
+    xlabel("Line distance m")
+    title("Percentile $(round(Int, 100*qp2)) conductivity")
+    ylabel("Height m")
+    idx == nothing || plotprofile(s[icol], idx, Z, R)
+    xlim(extrema(gridx))
+    map(x->x.tick_params(labelbottom=false), s[1:end-1])
+    map(x->x.grid(), s)
+    nicenup(f, fsize=fontsize)
+    plotNEWSlabels(Eislast, Nislast, gridx, gridz, s)
+    f.subplots_adjust(bottom=0.125)
+    cbar_ax = f.add_axes([0.125, 0.05, 0.75, 0.01])
+    cb = f.colorbar(imlast, cax=cbar_ax, orientation="horizontal")
+    cb.ax.set_xlabel("Log₁₀ S/m")
+    (preferNright && !Nislast) && s[end].invert_xaxis()
+    (preferEright && !Eislast) && s[end].invert_xaxis()
+    saveplot && savefig(lname*".png", dpi=300)
+end
+
+function plotsummarygrids2(σmeangrid, ∇zmeangrid, ∇zsdgrid, cigrid, gridx, gridz, topofine, lname;
+    qp1=0.05, qp2=0.95, Eislast=true, Nislast=true,
+    figsize=(10,10), fontsize=12, cmap="viridis", vmin=-2, vmax=0.5, topowidth=2)
+
+    f = figure(figsize=figsize)
+    f.suptitle(lname, fontsize=fontsize)
+    s1 = subplot(411)
+    imshow(σmeangrid, cmap=cmap, aspect="auto", vmax=vmax, vmin = vmin,
+                extent=[gridx[1], gridx[end], gridz[end], gridz[1]])
+    title("Mean conductivity")
+    ylabel("Height m")
+    colorbar()
+    s2 = subplot(412, sharex=s1)
+    imshow(abs.(cigrid), cmap=cmap, aspect="auto",
+                extent=[gridx[1], gridx[end], gridz[end], gridz[1]])
+    plot(gridx, topofine, linewidth=topowidth, "-k")
+    title("CI: $(round(Int, 100*(qp2-qp1))) conductivity")
+    ylabel("Height m")
+    colorbar()
+    s3 = subplot(413, sharex=s2, sharey=s2)
+    imshow(∇zmeangrid, cmap=cmap, aspect="auto",
+                extent=[gridx[1], gridx[end], gridz[end], gridz[1]])
+    plot(gridx, topofine, linewidth=topowidth, "-k")
+    title("Mean conductivity vertical derivative")
+    ylabel("Height m")
+    colorbar()
+    s4 = subplot(414, sharex=s2, sharey=s2)
+    imlast = imshow(∇zsdgrid, cmap=cmap, aspect="auto",
+                extent=[gridx[1], gridx[end], gridz[end], gridz[1]])
+    plot(gridx, topofine, linewidth=topowidth, "-k")
+    xlabel("Line distance m")
+    title("Std dev of conductivity vertical derivative")
+    ylabel("Height m")
+    colorbar()
+    xlim(extrema(gridx))
+    nicenup(f, fsize=fontsize)
+end
+
+function summaryimages(soundings::Array{TempestSoundingData, 1};
+                        qp1=0.05,
+                        qp2=0.95,
+                        burninfrac=0.5,
+                        zstart = 0.0,
+                        extendfrac = 1.06,
+                        useML = false,
+                        dz = 2.,
+                        nlayers = 40,
+                        nmin = 2,
+                        nmax = 40,
+                        K = GP.Mat32(),
+                        demean = false,
+                        sampledc = true,
+                        sddc = 0.01,
+                        sdpos = 0.05,
+                        sdprop = 0.05,
+                        fbounds = [-0.5 2.5],
+                        λ = [2],
+                        δ = 0.1,
+                        save_freq = 50,
+                        nuisance_sdev   = [0.],
+                        nuisance_bounds = [0. 0.],
+                        updatenuisances = true,
+                        dr = 10,
+                        fontsize = 10,
+                        vmin = -2,
+                        vmax = 0.5,
+                        cmap="viridis",
+                        figsize=(6,10),
+                        topowidth=2,
+                        idx = nothing,
+                        showderivs = false,
+                        omitconvergence = false,
+                        preferEright = false,
+                        preferNright = false,
+                        saveplot = false,
+    )
+    @assert !(preferNright && preferEright) # can't prefer both labels to the right
+    pl, pm, ph, ρmean, vdmean, vddev, χ²mean, χ²sd, zall, 
+    nulow, numid, nuhigh = summarypost(soundings,
+                                        qp1 = qp1,
+                                        qp2 = qp2,
+                                        burninfrac = burninfrac,
+                                        zstart = zstart,
+                                        extendfrac = extendfrac,
+                                        useML = useML,
+                                        dz = dz,
+                                        nlayers = nlayers,
+                                        nmin = nmin,
+                                        nmax = nmax,
+                                        K = K,
+                                        demean = demean,
+                                        sampledc = sampledc,
+                                        sddc = sddc,
+                                        sdpos = sdpos,
+                                        sdprop = sdprop,
+                                        fbounds = fbounds,
+                                        λ = λ,
+                                        δ = δ,
+                                        save_freq = save_freq,
+                                        nuisance_sdev   = nuisance_sdev,
+                                        nuisance_bounds = nuisance_bounds,
+                                        updatenuisances = updatenuisances)
+
+    phgrid, plgrid, pmgrid, σmeangrid, ∇zmeangrid,
+    ∇zsdgrid, gridx, gridz, topofine, R, Z = makesummarygrid(soundings, pl, pm, ph, ρmean,
+                                            vdmean, vddev, zall, dz, dr=dr)
+
+    lname = "Line $(soundings[1].linenum)"
+    Eislast, Nislast = whichislast(soundings)
+    plotsummarygrids1(σmeangrid, phgrid, plgrid, pmgrid, gridx, gridz, topofine, R, Z, χ²mean, χ²sd, lname, qp1=qp1, qp2=qp2,
+        figsize=figsize, fontsize=fontsize, cmap=cmap, vmin=vmin, vmax=vmax, Eislast=Eislast,
+        Nislast=Nislast, topowidth=topowidth, idx=idx, omitconvergence=omitconvergence, useML=useML,
+        preferEright=preferEright, preferNright=preferNright, saveplot=saveplot)
+    if showderivs
+    cigrid = phgrid - plgrid
+    plotsummarygrids2(σmeangrid, ∇zmeangrid, ∇zsdgrid, cigrid, gridx, gridz, topofine, lname, qp1=qp1, qp2=qp2,
+        figsize=figsize, fontsize=fontsize, cmap=cmap, vmin=vmin, vmax=vmax, topowidth=topowidth,
+        Eislast=Eislast, Nislast=Nislast)
+    end
 end
 
 end

@@ -3,12 +3,13 @@ using PyPlot, StatsBase, Statistics, Distances, LinearAlgebra,
       DelimitedFiles, ..AbstractOperator
 
 import ..Options, ..OptionsStat, ..OptionsNonstat, ..OptionsNuisance,
-       ..history, ..GP.κ, ..calcfstar!
+       ..history, ..GP.κ, ..calcfstar!, ..AbstractOperator.Sounding
 
 export trimxft, assembleTat1, gettargtemps, checkns, getchi2forall, nicenup,
         plot_posterior, make1Dhist, make1Dhists, setupz, makezρ, plotdepthtransforms,
         unwrap, getn, geomprogdepth, assemblemodelsatT, getstats, gethimage,
-        assemblenuisancesatT, makenuisancehists
+        assemblenuisancesatT, makenuisancehists, 
+        makegrid, whichislast, makesummarygrid, makearray, plotNEWSlabels, plotprofile
 
 function trimxft(opt::Options, burninfrac::Float64, temperaturenum::Int)
     x_ft = assembleTat1(opt, :x_ftrain, burninfrac=burninfrac, temperaturenum=temperaturenum)
@@ -780,50 +781,93 @@ function gethimage(M::AbstractArray, opt::Options;
     himage, edges, CI
 end
 
-function make1Dhists(opt_in::Options, burninfrac::Real;
-                        kfigsize=(8,8),
-                        nxbins=50,
-                        nftbins=50,
-                        qp1=0.01,
-                        qp2=0.99,
-                        temperaturenum=1)
-    f2, ax2 = plt.subplots(2,2, figsize=kfigsize)
-    x, ft, n = trimxft(opt_in, burninfrac, temperaturenum)
-    edgesx = LinRange(opt_in.xbounds[1], opt_in.xbounds[2], nxbins+1)
-    edgesrho = LinRange(opt_in.fbounds[1], opt_in.fbounds[2], nftbins+1)
-    h = fit(Histogram, (x[:], ft[:]), (edgesx, edgesrho)).weights
-    vmin, vmax = quantile(h[:], (qp1, qp2))
-    im3 = ax2[1].imshow(h, extent=[edgesrho[1],edgesrho[end],edgesx[end],edgesx[1]], aspect="auto", vmin=vmin, vmax=vmax)
-    ax2[1].set_ylabel("depth m")
-    ax2[1].set_xlabel(L"\log_{10}\rho")
-    rhist = sum(h,dims=1)[:]
-    rhist = rhist/sum(rhist)/diff(edgesrho)[1]
-    ax2[2].bar(0.5*(edgesrho[2:end]+edgesrho[1:end-1]), rhist, width=diff(edgesrho)[1])
-    ax2[2].plot([edgesrho[1], edgesrho[end]], 1/(opt_in.fbounds[end]-opt_in.fbounds[1])*[1,1],"--k")
-    ax2[2].set_ylim(0, 3*maximum(rhist))
-    ax2[2].set_xlabel(L"\log_{10}\rho")
-    ax2[2].set_ylabel("pdf")
-    xhist = sum(h,dims=2)[:]
-    xhist = xhist/sum(xhist)/diff(edgesx)[1]
-    ax2[3].barh(0.5*(edgesx[2:end]+edgesx[1:end-1]), xhist, height=diff(edgesx)[1])
-    ax2[3].plot(1/(opt_in.xbounds[end]-opt_in.xbounds[1])*[1,1], [edgesx[1], edgesx[end]],"--k")
-    ax2[3].set_xlim(0, 3*maximum(xhist))
-    ax2[3].set_ylim(ax2[1].get_ylim())
-    ax2[3].set_ylabel("depth m")
-    ax2[3].set_xlabel("pdf")
-    # ax2[3][:xaxis][:set_label_position]("top")
-    ax2[2].get_shared_y_axes().join(ax2[1], ax2[3])
-    ax2[2].get_shared_x_axes().join(ax2[1], ax2[2])
-    ax2[2].set_xlim(ax2[1].get_xlim())
-    k = fit(Histogram, n, (opt_in.nmin-0.5:opt_in.nmax+0.5)).weights
-    k = k/sum(k)
-    @show mean(k)
-    ax2[4].bar(opt_in.nmin:opt_in.nmax, k, width=1)
-    ax2[4].plot([opt_in.nmin, opt_in.nmax],1/(opt_in.nmax-opt_in.nmin+1)*[1,1],"--k")
-    ax2[4].set_xlabel("# training points")
-    ax2[4].set_ylim(0, 3*max(k...))
-    ax2[4].set_ylabel("pdf")
-    ax2[4].set_xlim(opt_in.nmin, opt_in.nmax)
+# plotting codes for 2D sections in AEM
+function makegrid(vals::AbstractArray, soundings::Array{Sounding, 1};
+    dr=10, zall=[NaN], dz=-1)
+    @assert all(.!isnan.(zall))
+    @assert dz>0
+    X = [s.X for s in soundings]
+    Y = [s.Y for s in soundings]
+    x0, y0 = X[1], Y[1]
+    R  = sqrt.((X .- x0).^2 + (Y .- y0).^2)
+    rr, zz = [r for z in zall, r in R], [z for z in zall, r in R]
+    topo = [s.Z for s in soundings]
+    zz = topo' .- zz # mAHD
+    kdtree = KDTree([rr[:]'; zz[:]'])
+    gridr = range(R[1], R[end], step=dr)
+    gridz = reverse(range(extrema(zz)..., step=dz))
+    rr, zz = [r for z in gridz, r in gridr], [z for z in gridz, r in gridr]
+    idxs, = nn(kdtree, [rr[:]'; zz[:]'])
+    img = zeros(size(rr))
+    for i = 1:length(img)
+        img[i] = vals[idxs[i]]
+    end
+    kdtree = KDTree(R[:]')
+    idxs, = nn(kdtree, gridr[:]')
+    topofine = [topo[idxs[i]] for i = 1:length(gridr)]
+    img[zz .>topofine'] .= NaN
+    img, gridr, gridz, topofine, R
+end
+
+function whichislast(soundings::AbstractArray)
+    X = [s.X for s in soundings]
+    Y = [s.Y for s in soundings]
+    Eislast, Nislast = true, true
+    X[1]>X[end] && (Eislast = false)
+    Y[1]>Y[end] && (Nislast = false)
+    Eislast, Nislast
+end
+
+function makesummarygrid(soundings, pl, pm, ph, ρmean, vdmean, vddev, zall, dz; dr=10)
+    # first flip ρ to σ and so pl and ph are interchanged
+    phgrid, gridx, gridz, topofine, R = makegrid(-pl, soundings, zall=zall, dz=dz, dr=dr)
+    plgrid,                           = makegrid(-ph, soundings, zall=zall, dz=dz, dr=dr)
+    pmgrid,                           = makegrid(-pm, soundings, zall=zall, dz=dz, dr=dr)
+    σmeangrid,                        = makegrid(-ρmean, soundings, zall=zall, dz=dz, dr=dr)
+    ∇zmeangrid,                       = makegrid(vdmean, soundings, zall=zall, dz=dz, dr=dr)
+    ∇zsdgrid,                         = makegrid(vddev, soundings, zall=zall, dz=dz, dr=dr)
+    Z = [s.Z for s in soundings]
+    phgrid, plgrid, pmgrid, σmeangrid, ∇zmeangrid, ∇zsdgrid, gridx, gridz, topofine, R, Z
+end
+
+function makexyzrho(soundings, zall)
+    linename = "_line_$(soundings[1].linenum)_summary.txt"
+    fnames = ["rho_low", "rho_mid", "rho_hi", "rho_avg"].*linename
+    dlow, dmid, dhigh, davg = map(x->readdlm(x), fnames)
+    ndepths = length(zall)
+    for (i, d) in enumerate([dlow, dmid, dhigh, davg])
+        @assert ndims(d) == 2
+        @assert size(d, 2) == length(soundings)
+        @assert size(d, 1) == ndepths
+        xyzrho = makearray(soundings, d, zall)
+        writedlm(fnames[i][1:end-4]*"_xyzrho.txt", xyzrho)
+    end
+end
+
+function makearray(soundings, d, zall)
+    outarray = zeros(length(d), 4)
+    ndepths = length(zall)
+        for (i, s) in enumerate(soundings)
+            z = s.Z .- zall # convert depths to mAHD
+            x, y = s.X, s.Y
+            idx = (i-1)*ndepths+1:i*ndepths
+            outarray[idx,:] = [[x y].*ones(ndepths) z d[:,i]]
+        end
+    outarray
+end
+
+function plotNEWSlabels(Eislast, Nislast, gridx, gridz, axarray)
+    for s in axarray
+        Eislast ? s.text(gridx[1], gridz[end], "W", backgroundcolor="w") : s.text(gridx[1], gridz[end], "E", backgroundcolor="w")
+        Nislast ? s.text(gridx[end], gridz[end], "N", backgroundcolor="w") : s.text(gridx[end], gridz[end], "S", backgroundcolor="w")
+    end
+end
+
+function plotprofile(ax, idxs, Z, R)
+    for idx in idxs
+        ax.plot(R[idx]*[1,1], [ax.get_ylim()[1], Z[idx]], "-w")
+        ax.plot(R[idx]*[1,1], [ax.get_ylim()[1], Z[idx]], "--k")
+    end
 end
 
 end

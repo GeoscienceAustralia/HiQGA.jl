@@ -23,7 +23,7 @@ soundings = transD_GP.TEMPEST1DInversion.read_survey_files(
 	Z = 18,
 	fid = 3,
 	startfrom = 1,
-	skipevery = 5,
+	skipevery = 2,
 	linenum = 1,
 	makesounding=true)
 
