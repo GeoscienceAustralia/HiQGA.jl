@@ -3,7 +3,7 @@ import ..AbstractOperator.get_misfit
 import ..AbstractOperator.Sounding
 import ..AbstractOperator.makeoperator
 
-using ..AbstractOperator, ..AEM_VMD_HMD, Statistics, Distributed, NearestNeighbors
+using ..AbstractOperator, ..AEM_VMD_HMD, Statistics, Distributed
 using PyPlot, LinearAlgebra, ..CommonToAll, MAT, Random, DelimitedFiles
 
 import ..Model, ..Options, ..OptionsStat, ..OptionsNonstat

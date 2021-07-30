@@ -840,7 +840,7 @@ function makeoperatorandoptions(soundings::Array{TempestSoundingData, 1};
                                                     nuisance_bounds = [0. 0.],
                                                     C = nothing,
                                                     updatenuisances = true,
-                                                    dispstatstoscreen = false,
+                                                    dispstatstoscreen = false
                                                     )
     for idx in randperm(length(soundings))[1:nplot]
             aem, znall = makeoperator(soundings[idx],
@@ -854,7 +854,8 @@ function makeoperatorandoptions(soundings::Array{TempestSoundingData, 1};
                                    ntimesperdecade = ntimesperdecade,
                                    nfreqsperdecade = nfreqsperdecade,
                                    showgeomplot = showgeomplot,
-                                   plotfield = plotfield)
+                                   plotfield = plotfield,
+                                   useML = useML)
     
             opt, optn = make_tdgp_opt(soundings[idx],
                                     znall = znall,
@@ -924,7 +925,7 @@ function summarypost(soundings::Array{TempestSoundingData, 1};
         # this is a dummy operator for plotting
         aem, = makeoperator(soundings[1])
         # now get the posterior marginals
-        opt, optn = transD_GP.TEMPEST1DInversion.make_tdgp_opt(soundings[1],
+        opt, optn = make_tdgp_opt(soundings[1],
             znall = znall,
             fileprefix = soundings[1].sounding_string,
             nmin = nmin,
@@ -942,8 +943,7 @@ function summarypost(soundings::Array{TempestSoundingData, 1};
             nuisance_bounds = nuisance_bounds,
             nuisance_sdev = nuisance_sdev,
             updatenuisances = updatenuisances,
-            dispstatstoscreen = false,
-            useML = useML
+            dispstatstoscreen = false
         )
         opt.xall[:] .= zall
         pl, pm, ph, ρmean, vdmean, vddev = map(x->zeros(length(zall), length(soundings)), 1:6)
@@ -957,7 +957,7 @@ function summarypost(soundings::Array{TempestSoundingData, 1};
             vdmean[:,idx], vddev[:,idx] = CommonToAll.plot_posterior(aem, opt, burninfrac=burninfrac,
                                                     qp1=qp1, qp2=qp2,
                                                     doplot=false)
-            h, nuquants = transD_GP.plot_posterior(aem, optn, burninfrac=burninfrac, nbins=nbins, doplot=false)
+            h, nuquants = plot_posterior(aem, optn, burninfrac=burninfrac, doplot=false)
             nulow[:, idx]  .= nuquants[:, 1]
             numid[:, idx]  .= nuquants[:, 2]
             nuhigh[:, idx] .= nuquants[:, 3]

@@ -1,6 +1,6 @@
 module CommonToAll
 using PyPlot, StatsBase, Statistics, Distances, LinearAlgebra,
-      DelimitedFiles, ..AbstractOperator
+      DelimitedFiles, ..AbstractOperator, NearestNeighbors
 
 import ..Options, ..OptionsStat, ..OptionsNonstat, ..OptionsNuisance,
        ..history, ..GP.κ, ..calcfstar!, ..AbstractOperator.Sounding
@@ -782,9 +782,9 @@ function gethimage(M::AbstractArray, opt::Options;
 end
 
 # plotting codes for 2D sections in AEM
-function makegrid(vals::AbstractArray, soundings::Array{Sounding, 1};
-    dr=10, zall=[NaN], dz=-1)
-    @assert all(.!isnan.(zall))
+function makegrid(vals::AbstractArray, soundings::Array{S, 1};
+    dr=10, zall=[NaN], dz=-1) where S<:Sounding
+    @assert all(.!isnan.(zall)) 
     @assert dz>0
     X = [s.X for s in soundings]
     Y = [s.Y for s in soundings]
