@@ -34,6 +34,6 @@ transD_GP.TEMPEST1DInversion.summaryimages(soundings,
                             omitconvergence = false,
                             preferEright = false,
                             preferNright = false,
-                            saveplot = true
-
-)
+                            saveplot = true,
+                            labelnu = ["zRx m", "xRx m", "pitch "*L"^\circ"] 
+                        )

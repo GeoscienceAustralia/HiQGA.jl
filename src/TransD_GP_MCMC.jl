@@ -251,7 +251,7 @@ function OptionsNuisance(opt::OptionsStat;
              push!(idxnotzero, i)
         end
     end
-    optn.idxnotzero = idxnotzero
+    optn.idxnotzero = findidxnotzero(optn.nnu, optn.bounds)
     nnonzero = length(idxnotzero)
 
     # Identity rotation matrix if norough covariance estimate provided
@@ -285,6 +285,17 @@ function OptionsNuisance(opt::OptionsStat;
     optn.sdev[idxnotzero] = optn.sdev[idxnotzero].*
                             diff(rotatebounds, dims=2)[:]
     optn
+end
+
+function findidxnotzero(nnu, bounds)
+    idxnotzero = zeros(Int,0)
+    for i = 1:nnu
+        numin, numax = extrema(bounds[i,:])
+        if abs(numin-numax)>1e-12
+            push!(idxnotzero, i)
+        end
+    end
+    idxnotzero
 end
 
 #"Model" means a Gaussian-process parametrised function

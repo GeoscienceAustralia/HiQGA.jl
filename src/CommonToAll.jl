@@ -9,7 +9,8 @@ export trimxft, assembleTat1, gettargtemps, checkns, getchi2forall, nicenup,
         plot_posterior, make1Dhist, make1Dhists, setupz, makezρ, plotdepthtransforms,
         unwrap, getn, geomprogdepth, assemblemodelsatT, getstats, gethimage,
         assemblenuisancesatT, makenuisancehists, 
-        makegrid, whichislast, makesummarygrid, makearray, plotNEWSlabels, plotprofile
+        makegrid, whichislast, makesummarygrid, makearray, plotNEWSlabels, 
+        plotprofile, gridpoints
 
 function trimxft(opt::Options, burninfrac::Float64, temperaturenum::Int)
     x_ft = assembleTat1(opt, :x_ftrain, burninfrac=burninfrac, temperaturenum=temperaturenum)
@@ -802,12 +803,28 @@ function makegrid(vals::AbstractArray, soundings::Array{S, 1};
     for i = 1:length(img)
         img[i] = vals[idxs[i]]
     end
-    kdtree = KDTree(R[:]')
-    idxs, = nn(kdtree, gridr[:]')
-    topofine = [topo[idxs[i]] for i = 1:length(gridr)]
+    topofine = gridpoints(R, gridr, topo)
     img[zz .>topofine'] .= NaN
     img, gridr, gridz, topofine, R
 end
+
+function gridpoints(R, gridr, points::Array{Float64, 1})
+    @assert length(R) == length(points)
+    kdtree = KDTree(R[:]')
+    idxs, = nn(kdtree, gridr[:]')
+    pointsgrid = [points[idxs[i]] for i = 1:length(gridr)]
+end
+
+function gridpoints(R, gridr, points::Array{Float64, 2})
+    nsound = length(R)
+    nprops = size(points, 1)
+    @assert nsound == size(points, 2)
+    pointsgrid = zeros(length(gridr), nprops)
+    for i = 1:nprops
+        pointsgrid[:,i] = gridpoints(R, gridr, vec(points[i,:]))
+    end
+    pointsgrid    
+end    
 
 function whichislast(soundings::AbstractArray)
     X = [s.X for s in soundings]

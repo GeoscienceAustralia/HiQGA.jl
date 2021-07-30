@@ -8,7 +8,7 @@ using ..AbstractOperator, ..AEM_VMD_HMD, Statistics
 using PyPlot, LinearAlgebra, ..CommonToAll, Random, DelimitedFiles
 
 import ..Model, ..Options, ..OptionsStat, ..OptionsNonstat
-import ..ModelNuisance, ..OptionsNuisance
+import ..ModelNuisance, ..OptionsNuisance, ..findidxnotzero
 
 const μ₀ = 4*pi*1e-7
 
@@ -916,43 +916,66 @@ function summarypost(soundings::Array{TempestSoundingData, 1};
     fnames = ["rho_low", "rho_mid", "rho_hi", "rho_avg",
         "ddz_mean", "ddz_sdev", "phid_mean", "phid_sdev",
         "nu_low", "nu_mid", "nu_high"].*linename
+
+    idxnotzero = findidxnotzero(length(nuisance_sdev), nuisance_bounds)
+    nunominal = zeros(length(idxnotzero), length(soundings))
     if isfile(fnames[1])
         @warn fnames[1]*" exists, reading stored values"
         pl, pm, ph, ρmean,
         vdmean, vddev, χ²mean, χ²sd, 
         nulow, numid, nuhigh = map(x->readdlm(x), fnames)
+        for idx = 1:length(soundings)
+            opt, optn = make_tdgp_opt(soundings[idx],
+                                        znall = znall,
+                                        fileprefix = soundings[idx].sounding_string,
+                                        nmin = nmin,
+                                        nmax = nmax,
+                                        K = K,
+                                        demean = demean,
+                                        sampledc = sampledc,
+                                        sddc = sddc,
+                                        sdpos = sdpos,
+                                        sdprop = sdprop,
+                                        fbounds = fbounds,
+                                        save_freq = save_freq,
+                                        λ = λ,
+                                        δ = δ,
+                                        nuisance_bounds = nuisance_bounds,
+                                        nuisance_sdev = nuisance_sdev,
+                                        updatenuisances = updatenuisances
+                                        )
+            nunominal[:,idx] = mean(optn.bounds[idxnotzero,:], dims=2)                          
+        end                                 
     else
         # this is a dummy operator for plotting
         aem, = makeoperator(soundings[1])
-        # now get the posterior marginals
-        opt, optn = make_tdgp_opt(soundings[1],
-            znall = znall,
-            fileprefix = soundings[1].sounding_string,
-            nmin = nmin,
-            nmax = nmax,
-            K = K,
-            demean = demean,
-            sampledc = sampledc,
-            sddc = sddc,
-            sdpos = sdpos,
-            sdprop = sdprop,
-            fbounds = fbounds,
-            save_freq = save_freq,
-            λ = λ,
-            δ = δ,
-            nuisance_bounds = nuisance_bounds,
-            nuisance_sdev = nuisance_sdev,
-            updatenuisances = updatenuisances,
-            dispstatstoscreen = false
-        )
-        opt.xall[:] .= zall
         pl, pm, ph, ρmean, vdmean, vddev = map(x->zeros(length(zall), length(soundings)), 1:6)
         χ²mean, χ²sd = zeros(length(soundings)), zeros(length(soundings))
-        nulow, numid, nuhigh = map(x->zeros(length(optn.idxnotzero), length(soundings)), 1:3)
+        nulow, numid, nuhigh  = map(x->zeros(length(idxnotzero), length(soundings)), 1:3)
         for idx = 1:length(soundings)
-            @info "$idx out of $(length(soundings))\n"
-            opt.fdataname = soundings[idx].sounding_string*"_"
+            opt, optn = make_tdgp_opt(soundings[idx],
+                                        znall = znall,
+                                        fileprefix = soundings[idx].sounding_string,
+                                        nmin = nmin,
+                                        nmax = nmax,
+                                        K = K,
+                                        demean = demean,
+                                        sampledc = sampledc,
+                                        sddc = sddc,
+                                        sdpos = sdpos,
+                                        sdprop = sdprop,
+                                        fbounds = fbounds,
+                                        save_freq = save_freq,
+                                        λ = λ,
+                                        δ = δ,
+                                        nuisance_bounds = nuisance_bounds,
+                                        nuisance_sdev = nuisance_sdev,
+                                        updatenuisances = updatenuisances,
+                                        dispstatstoscreen = false)
             opt.xall[:] .= zall
+            @info "$idx out of $(length(soundings))\n"
+            opt.xall[:] .= zall
+            nunominal[:,idx] = mean(optn.bounds[idxnotzero,:], dims=2)
             pl[:,idx], pm[:,idx], ph[:,idx], ρmean[:,idx],
             vdmean[:,idx], vddev[:,idx] = CommonToAll.plot_posterior(aem, opt, burninfrac=burninfrac,
                                                     qp1=qp1, qp2=qp2,
@@ -981,7 +1004,7 @@ function summarypost(soundings::Array{TempestSoundingData, 1};
             writedlm(fnames[i][1:end-4]*"_xyzrho.txt", xyzrho)
         end
     end
-    pl, pm, ph, ρmean, vdmean, vddev, χ²mean, χ²sd, zall, nulow, numid, nuhigh
+    pl, pm, ph, ρmean, vdmean, vddev, χ²mean, χ²sd, zall, nulow, numid, nuhigh, nunominal
 end
 
 function plotsummarygrids1(meangrid, phgrid, plgrid, pmgrid, gridx, gridz, topofine, R, Z, χ²mean, χ²sd, lname; qp1=0.05, qp2=0.95,
@@ -996,20 +1019,20 @@ function plotsummarygrids1(meangrid, phgrid, plgrid, pmgrid, gridx, gridz, topof
     icol = 1
     s = Array{Any, 1}(undef, nrows)
     if !omitconvergence
-    s[icol] = subplot(nrows, 1, icol)
-    if useML
-    plot(R, exp.(χ²mean))
-    semilogy(R, ones(length(R)), "--k")
-    ylabel("variance factor")
-    title("Max likelihood variance adjustment")
-    else
-    plot(R, χ²mean)
-    plot(R, ones(length(R)), "--k")
-    fill_between(R, vec(χ²mean-χ²sd), vec(χ²mean+χ²sd), alpha=0.5)
-    ylabel(L"ϕ_d")
-    title("Data misfit")
-    end
-    icol += 1
+        s[icol] = subplot(nrows, 1, icol)
+        if useML
+            plot(R, exp.(χ²mean))
+            semilogy(R, ones(length(R)), "--k")
+            ylabel("variance factor")
+            title("Max likelihood variance adjustment")
+        else
+            plot(R, χ²mean)
+            plot(R, ones(length(R)), "--k")
+            fill_between(R, vec(χ²mean-χ²sd), vec(χ²mean+χ²sd), alpha=0.5)
+            ylabel(L"ϕ_d")
+            title("Data misfit")
+        end
+        icol += 1
     end
     s[icol] = omitconvergence ? subplot(nrows, 1, icol) : subplot(nrows, 1, icol, sharex=s[icol-1])
     imshow(plgrid, cmap=cmap, aspect="auto", vmax=vmax, vmin = vmin,
@@ -1047,7 +1070,7 @@ function plotsummarygrids1(meangrid, phgrid, plgrid, pmgrid, gridx, gridz, topof
     map(x->x.tick_params(labelbottom=false), s[1:end-1])
     map(x->x.grid(), s)
     nicenup(f, fsize=fontsize)
-    plotNEWSlabels(Eislast, Nislast, gridx, gridz, s)
+    plotNEWSlabels(Eislast, Nislast, gridx, gridz, s[(omitconvergence ? 1 : 2 ): end])
     f.subplots_adjust(bottom=0.125)
     cbar_ax = f.add_axes([0.125, 0.05, 0.75, 0.01])
     cb = f.colorbar(imlast, cax=cbar_ax, orientation="horizontal")
@@ -1095,6 +1118,87 @@ function plotsummarygrids2(σmeangrid, ∇zmeangrid, ∇zsdgrid, cigrid, gridx, 
     nicenup(f, fsize=fontsize)
 end
 
+function plotsummarygrids3(nuhigh, nulow, numid, phgrid, plgrid, pmgrid, gridx, gridz, topofine, R, Z, χ²mean, χ²sd, lname, nunominal, numsize=2; qp1=0.05, qp2=0.95,
+    figsize=(10,10), fontsize=12, cmap="viridis", vmin=-2, vmax=0.5, Eislast=true, Nislast=true,
+    topowidth=2, idx=nothing, useML=false, preferEright=false, preferNright=false, labelnu=[""],
+    saveplot=false)
+    
+    # get the finely interpolated nuisances
+    # nuhighfine, nulowfine, numidfine = map(X->gridpoints(R, gridx, X), [nuhigh, nulow, numid])
+
+    f = figure(figsize=figsize)
+    dr = diff(gridx)[1]
+    f.suptitle(lname*" Δx=$dr m, Fids: $(length(R))", fontsize=fontsize)
+    nrows = 4 + size(nulow, 1) # add the number of nuisances == no. of rows in nuhigh
+    icol = 1
+    s = Array{Any, 1}(undef, nrows)
+    s[icol] = subplot(nrows, 1, icol)
+    if useML
+        plot(R, exp.(χ²mean))
+        semilogy(R, ones(length(R)), "--k")
+        ylabel("variance factor")
+        title("Max likelihood noise variance adjustment")
+    else
+        plot(R, χ²mean)
+        plot(R, ones(length(R)), "--k")
+        fill_between(R, vec(χ²mean-χ²sd), vec(χ²mean+χ²sd), alpha=0.5)
+        ylabel(L"ϕ_d")
+        title("Data misfit")
+    end
+    icol += 1
+    icol = plotnuquant(nulow, numid, nuhigh, nunominal, s, R, icol, nrows, numsize, labelnu)
+    s[icol] = subplot(nrows, 1, icol, sharex=s[icol-1])
+    imshow(plgrid, cmap=cmap, aspect="auto", vmax=vmax, vmin = vmin,
+    extent=[gridx[1], gridx[end], gridz[end], gridz[1]])
+    plot(gridx, topofine, linewidth=topowidth, "-k")
+    idx == nothing || plotprofile(s[icol], idx, Z, R)
+    title("Percentile $(round(Int, 100*qp1)) conductivity")
+    ylabel("Height m")
+    icol += 1
+    s[icol] = subplot(nrows, 1, icol, sharex=s[icol-1], sharey=s[icol-1])
+    imshow(pmgrid, cmap=cmap, aspect="auto", vmax=vmax, vmin = vmin,
+    extent=[gridx[1], gridx[end], gridz[end], gridz[1]])
+    plot(gridx, topofine, linewidth=topowidth, "-k")
+    title("Percentile 50 conductivity")
+    idx == nothing || plotprofile(s[icol], idx, Z, R)
+    ylabel("Height m")
+    icol += 1
+    s[icol] = subplot(nrows, 1, icol, sharex=s[icol-1], sharey=s[icol-1])
+    imlast = imshow(phgrid, cmap=cmap, aspect="auto", vmax=vmax, vmin = vmin,
+    extent=[gridx[1], gridx[end], gridz[end], gridz[1]])
+    plot(gridx, topofine, linewidth=topowidth, "-k")
+    xlabel("Line distance m")
+    title("Percentile $(round(Int, 100*qp2)) conductivity")
+    ylabel("Height m")
+    idx == nothing || plotprofile(s[icol], idx, Z, R)
+    xlim(extrema(gridx))
+    map(x->x.tick_params(labelbottom=false), s[1:end-1])
+    map(x->x.grid(), s)
+    nicenup(f, fsize=fontsize)
+    plotNEWSlabels(Eislast, Nislast, gridx, gridz, s[size(nulow, 1)+1:end])
+    f.subplots_adjust(bottom=0.125)
+    cbar_ax = f.add_axes([0.125, 0.05, 0.75, 0.01])
+    cb = f.colorbar(imlast, cax=cbar_ax, orientation="horizontal")
+    cb.ax.set_xlabel("Log₁₀ S/m")
+    (preferNright && !Nislast) && s[end].invert_xaxis()
+    (preferEright && !Eislast) && s[end].invert_xaxis()
+    saveplot && savefig(lname*".png", dpi=300)
+end
+
+function plotnuquant(nqlow, nqmid, nqhigh, nunominal, s, gridx, icol, nrows, ms=2, labelnu=[""])
+    nnu = size(nqlow, 1)
+    labelnu[1] == "" || @assert length(labelnu) == nnu
+    for inu = 1:nnu
+        s[icol] = subplot(nrows, 1, icol, sharex=s[icol-1])
+        s[icol].fill_between(gridx, nqlow[inu,:], nqhigh[inu,:], alpha=0.5)
+        s[icol].plot(gridx, nqmid[inu,:])
+        s[icol].plot(gridx, nunominal[inu,:], "o", markersize=ms)
+        labelnu[1] == "" || s[icol].set_title(labelnu[inu])
+        icol += 1
+    end
+    icol    
+end   
+
 function summaryimages(soundings::Array{TempestSoundingData, 1};
                         qp1=0.05,
                         qp2=0.95,
@@ -1132,10 +1236,12 @@ function summaryimages(soundings::Array{TempestSoundingData, 1};
                         preferEright = false,
                         preferNright = false,
                         saveplot = false,
-    )
+                        numsize=1,
+                        labelnu = [""]
+                        )
     @assert !(preferNright && preferEright) # can't prefer both labels to the right
     pl, pm, ph, ρmean, vdmean, vddev, χ²mean, χ²sd, zall, 
-    nulow, numid, nuhigh = summarypost(soundings,
+    nulow, numid, nuhigh, nunominal = summarypost(soundings,
                                         qp1 = qp1,
                                         qp2 = qp2,
                                         burninfrac = burninfrac,
@@ -1170,6 +1276,12 @@ function summaryimages(soundings::Array{TempestSoundingData, 1};
         figsize=figsize, fontsize=fontsize, cmap=cmap, vmin=vmin, vmax=vmax, Eislast=Eislast,
         Nislast=Nislast, topowidth=topowidth, idx=idx, omitconvergence=omitconvergence, useML=useML,
         preferEright=preferEright, preferNright=preferNright, saveplot=saveplot)
+
+    plotsummarygrids3(nuhigh, nulow, numid, phgrid, plgrid, pmgrid, gridx, gridz, topofine, R, Z, χ²mean, χ²sd, lname, nunominal, numsize, labelnu=labelnu, qp1=qp1, qp2=qp2,
+    figsize=figsize, fontsize=fontsize, cmap=cmap, vmin=vmin, vmax=vmax, Eislast=Eislast,
+    Nislast=Nislast, topowidth=topowidth, idx=idx, useML=useML,
+    preferEright=preferEright, preferNright=preferNright, saveplot=saveplot)
+
     if showderivs
     cigrid = phgrid - plgrid
     plotsummarygrids2(σmeangrid, ∇zmeangrid, ∇zsdgrid, cigrid, gridx, gridz, topofine, lname, qp1=qp1, qp2=qp2,
