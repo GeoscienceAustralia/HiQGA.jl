@@ -1,7 +1,15 @@
+
+idxplot = 1:50:length(soundings)
+burninfrac = 0.5
+nbins = 100
+computeforwards, nforwards = true, 100
+interpolatedr = 10
+vmax, vmin = .- extrema(fbounds)
+## get the summary images of resistivity and nuisances over the profile
 transD_GP.TEMPEST1DInversion.summaryimages(soundings, 
                             qp1=0.05,
                             qp2=0.95,
-                            burninfrac=0.5,
+                            burninfrac = burninfrac,
                             zstart = zstart,
                             extendfrac = extendfrac,
                             dz = dz,
@@ -22,14 +30,14 @@ transD_GP.TEMPEST1DInversion.summaryimages(soundings,
                             nuisance_sdev   = nuisance_sdev,
                             nuisance_bounds = nuisance_bounds,
                             updatenuisances = updatenuisances,
-                            dr = 10,
+                            dr = interpolatedr,
                             fontsize = 10,
-                            vmin = -3,
-                            vmax = 1,
-                            cmap="jet",
+                            vmin = vmin,
+                            vmax = vmax,
+                            cmap="viridis",
                             figsize=(8,10),
                             topowidth=1,
-                            idx = nothing,
+                            idx = idxplot,
                             showderivs = false,
                             omitconvergence = false,
                             preferEright = false,
@@ -37,3 +45,29 @@ transD_GP.TEMPEST1DInversion.summaryimages(soundings,
                             saveplot = true,
                             labelnu = ["zRx m", "xRx m", "pitch "*L"^\circ"] 
                         )
+
+## now plot individual soundings in in idxplot
+transD_GP.TEMPEST1DInversion.plotindividualsoundings(soundings,
+                        burninfrac = burninfrac,
+                        zstart = zstart,
+                        extendfrac = extendfrac,
+                        dz = dz,
+                        nlayers = nlayers,
+                        nmin = nmin,
+                        nmax = nmax,
+                        K = K,
+                        fbounds = fbounds,
+                        λ = λ,
+                        δ = δ,
+                        nuisance_sdev   = nuisance_sdev,
+                        nuisance_bounds = nuisance_bounds,
+                        updatenuisances = updatenuisances,
+                        nbins = nbins,
+                        figsize  = (12,6),
+                        zfixed   = zfixed,
+                        ρfixed   = ρfixed,
+                        ntimesperdecade = ntimesperdecade,
+                        nfreqsperdecade = nfreqsperdecade,
+                        computeforwards = computeforwards,
+                        nforwards = nforwards,
+                        idxcompute = idxplot)

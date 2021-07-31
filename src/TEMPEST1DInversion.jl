@@ -1290,4 +1290,86 @@ function summaryimages(soundings::Array{TempestSoundingData, 1};
     end
 end
 
+function plotindividualsoundings(soundings::Array{TempestSoundingData, 1};
+                        burninfrac=0.5,
+                        zstart = 0.0,
+                        extendfrac = 1.06,
+                        dz = 2.,
+                        nlayers = 40,
+                        nmin = 2,
+                        nmax = 40,
+                        K = GP.Mat32(),
+                        demean = false,
+                        sampledc = true,
+                        sddc = 0.01,
+                        sdpos = 0.05,
+                        sdprop = 0.05,
+                        fbounds = [-0.5 2.5],
+                        λ = [2],
+                        δ = 0.1,
+                        save_freq = 50,
+                        nuisance_sdev   = [0.],
+                        nuisance_bounds = [0. 0.],
+                        updatenuisances = true,
+                        nbins=100,
+                        figsize  = (12,6),
+                        zfixed   = [-1e5],
+                        ρfixed   = [1e12],
+                        ntimesperdecade = 10,
+                        nfreqsperdecade = 5,
+                        computeforwards = false,
+                        nforwards = 100,
+                      idxcompute = [1])
+    for idx = 1:length(soundings)
+        if in(idx, idxcompute)
+            @info "Sounding number: $idx"
+            aem, znall = makeoperator(soundings[idx],
+                zfixed = zfixed,
+                ρfixed = ρfixed,
+                zstart = zstart,
+                extendfrac = extendfrac,
+                dz = dz,
+                nlayers = nlayers,
+                ntimesperdecade = ntimesperdecade,
+                nfreqsperdecade = nfreqsperdecade)
+            opt, optn = make_tdgp_opt(soundings[idx],
+                                        znall = znall,
+                                        fileprefix = soundings[idx].sounding_string,
+                                        nmin = nmin,
+                                        nmax = nmax,
+                                        K = K,
+                                        demean = demean,
+                                        sampledc = sampledc,
+                                        sddc = sddc,
+                                        sdpos = sdpos,
+                                        sdprop = sdprop,
+                                        fbounds = fbounds,
+                                        save_freq = save_freq,
+                                        λ = λ,
+                                        δ = δ,
+                                        nuisance_bounds = nuisance_bounds,
+                                        nuisance_sdev = nuisance_sdev,
+                                        updatenuisances = updatenuisances,
+                                        dispstatstoscreen = false)
+            zall, znall, = setupz(zstart, extendfrac, dz=dz, n=nlayers)    
+            opt.xall[:] .= zall       
+            getchi2forall(opt, alpha=0.8) # chi2 errors
+            CommonToAll.getstats(opt) # ARs for GP model
+            CommonToAll.getstats(optn) # ARs for nuisances
+            plot_posterior(aem, opt, burninfrac=burninfrac, nbins=nbins, figsize=figsize) # GP models
+            ax = gcf().axes
+            ax[1].invert_xaxis()
+            plot_posterior(aem, optn, burninfrac=burninfrac, nbins=nbins, figsize=figsize) # nuisances
+            if computeforwards
+                m = assembleTat1(opt, :fstar, temperaturenum=1, burninfrac=burninfrac)
+                mn = CommonToAll.assemblenuisancesatT(optn, temperaturenum=1, burninfrac=burninfrac)
+                Random.seed!(10)
+                plotmodelfield!(aem, m[randperm(length(m))[1:nforwards]],
+                                                          mn[randperm(length(m))[1:nforwards],:],
+                                                          dz=dz, extendfrac=extendfrac)
+            end
+        end
+    end
+end
+
 end
