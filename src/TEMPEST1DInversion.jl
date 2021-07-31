@@ -513,6 +513,22 @@ mutable struct TempestSoundingData <: Sounding
     Hz_data :: Array{Float64, 1}
 end
 
+function getnufromsounding(t::TempestSoundingData)
+    # 1 zTx
+    # 2 zRx
+    # 3 x_rx
+    # 4 y_rx
+    # 5 rx_roll
+    # 6 rx_pitch
+    # 7 rx_yaw
+    # 8 tx_roll
+    # 9 tx_pitch
+    # 10 tx_yaw
+    return [t.z_tx, t.z_rx, t.x_rx, t.y_rx, t.roll_rx, t.pitch_rx, t.yaw_rx, 
+            t.roll_tx, t.pitch_tx, t.yaw_tx]
+end   
+
+
 function read_survey_files(;
     fname_dat="",
     fname_specs_halt="",
@@ -925,26 +941,7 @@ function summarypost(soundings::Array{TempestSoundingData, 1};
         vdmean, vddev, χ²mean, χ²sd, 
         nulow, numid, nuhigh = map(x->readdlm(x), fnames)
         for idx = 1:length(soundings)
-            opt, optn = make_tdgp_opt(soundings[idx],
-                                        znall = znall,
-                                        fileprefix = soundings[idx].sounding_string,
-                                        nmin = nmin,
-                                        nmax = nmax,
-                                        K = K,
-                                        demean = demean,
-                                        sampledc = sampledc,
-                                        sddc = sddc,
-                                        sdpos = sdpos,
-                                        sdprop = sdprop,
-                                        fbounds = fbounds,
-                                        save_freq = save_freq,
-                                        λ = λ,
-                                        δ = δ,
-                                        nuisance_bounds = nuisance_bounds,
-                                        nuisance_sdev = nuisance_sdev,
-                                        updatenuisances = updatenuisances
-                                        )
-            nunominal[:,idx] = mean(optn.bounds[idxnotzero,:], dims=2)                          
+            nunominal[:,idx] = getnufromsounding(soundings[idx])[idxnotzero]
         end                                 
     else
         # this is a dummy operator for plotting
