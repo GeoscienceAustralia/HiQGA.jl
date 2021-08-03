@@ -1,21 +1,6 @@
-## MPI Init same was as on gadi
-using MPIClusterManagers, Distributed
-import MPI
-usempi = true
-if usempi
-	MPI.Init()
-	rank = MPI.Comm_rank(MPI.COMM_WORLD)
-	size = MPI.Comm_size(MPI.COMM_WORLD)
-	if rank == 0
-	    @info "size is $size"
-	end
-	manager = MPIClusterManagers.start_main_loop(MPI_TRANSPORT_ALL)
-	@info "there are $(nworkers()) workers"
-	@everywhere @info gethostname()
-end
 ## info to read data
 # datafile
-fname_dat = "em_north_line.dat"
+fname_dat = "coincidewithtempest.dat"
 # electronics file
 fname_specs_halt = "electronics_halt.jl"
 # column numbers from hdr file
@@ -28,9 +13,11 @@ frame_dy = 22
 frame_dz = 23
 LM_Z = [26,42]
 HM_Z = [43,67]
+relerror = false
+units = 1e-12
 ##
 using transD_GP
-transD_GP.SkyTEM1DInversion.read_survey_files(fname_dat         = fname_dat,
+soundings = transD_GP.SkyTEM1DInversion.read_survey_files(fname_dat = fname_dat,
 						             fname_specs_halt = fname_specs_halt,
 						             LM_Z             = LM_Z,
 									 HM_Z             = HM_Z,
@@ -40,37 +27,12 @@ transD_GP.SkyTEM1DInversion.read_survey_files(fname_dat         = fname_dat,
 									 frame_dx         = frame_dx,
 									 X                = X,
 									 Y                = Y,
-									 Z                = Z,
-									 fid              = fid,
-									 linenum          = linenum)
-##
-sounding = transD_GP.SkyTEM1DInversion.read_survey_files(fname_dat         = fname_dat,
-						             fname_specs_halt = fname_specs_halt,
-						             LM_Z             = LM_Z,
-									 HM_Z             = HM_Z,
-									 frame_height     = frame_height,
-									 frame_dz         = frame_dz,
-									 frame_dy         = frame_dy,
-									 frame_dx         = frame_dx,
-									 X                = X,
-									 Y                = Y,
+									 Z                = Z,     
 									 fid              = fid,
 									 linenum          = linenum,
                                      startfrom        = 1,
-									 skipevery        = 5,
-									 dotillsounding   = 36,
+									 skipevery        = 2,
+									 dotillsounding   = nothing,
+									 relerror         = relerror,
+									 units            = units,     
 									 makesounding     = true)
-## MPI checks
-# split into sequential iterations of parallel soundings
-nsoundings = length(sounding)
-nchainspersounding = 5
-ppn = 48
-if usempi
-	ncores = nworkers()
-	@assert mod(ncores+1,nchainspersounding+1) == 0
-	@assert mod(ppn, nchainspersounding+1) == 0
-	nparallelsoundings = Int((ncores+1)/(nchainspersounding+1))
-	nsequentialiters = ceil(Int, nsoundings/nparallelsoundings)
-	@info "will require $nsequentialiters iterations of $nparallelsoundings"
-end
-nsamples = 10001

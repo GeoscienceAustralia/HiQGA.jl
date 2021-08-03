@@ -1,52 +1,59 @@
-## same for all soundings
+## same for all soundingss
+nsamples = 200001
+nchainspersounding = 5
+ppn = 48
+@assert mod(ppn, nchainspersounding+1) == 0
 zfixed   = [-1e5]
 ρfixed   = [1e12]
 zstart = 0.0
-extendfrac, dz = 1.06, 2.
-nlayers = 40
-ρbg = 10.
+showgeomplot = false
+extendfrac, dz = 1.06, 1.25
+nlayers = 52
+ρbg = 5.
 ntimesperdecade = 10
 nfreqsperdecade = 5
+useML = true
 ## make transD options
 nmin, nmax = 2, 40
-K = transD_GP.GP.Mat32()
-demean = true
-fbounds = [-0.5 2.5]
+K = transD_GP.GP.OrstUhn()
+demean = false
+sampledc = true
+fbounds = [-1 3.0]
 sdpos = 0.05
 sdprop = 0.05
+sddc = 0.01
 λ, δ = [2], 0.1
-save_freq = 25
+save_freq = 100
 Tmax = 2.50
 nchainsatone = 1
 ## plot n random soundings and a background response
 using Random
 nplot = 2
-nplot = min(nplot, length(sounding))
-for idx in randperm(length(sounding))[1:nplot]
-        aem, znall = transD_GP.SkyTEM1DInversion.makeoperator(sounding[idx],
-                               zfixed = zfixed,
-                               ρfixed = ρfixed,
-                               zstart = zstart,
-                               extendfrac = extendfrac,
-                               dz = dz,
-                               ρbg = ρbg,
-                               nlayers = nlayers,
-                               ntimesperdecade = ntimesperdecade,
-                               nfreqsperdecade = nfreqsperdecade,
-                               showgeomplot = false,
-                               plotfield = true)
-
-        opt = transD_GP.SkyTEM1DInversion.make_tdgp_opt(znall = znall,
-                                fileprefix = sounding[idx].sounding_string,
-                                nmin = nmin,
-                                nmax = nmax,
-                                K = K,
-                                demean = demean,
-                                sdpos = sdpos,
-                                sdprop = sdprop,
-                                fbounds = fbounds,
-                                save_freq = save_freq,
-                                λ = λ,
-                                δ = δ,
-                                )
-end
+nplot = min(nplot, length(soundings))
+opt = transD_GP.SkyTEM1DInversion.makeoperatorandoptions(
+                            rseed = 2,
+                            soundings,
+                            zfixed = zfixed,
+                            ρfixed = ρfixed,
+                            zstart = zstart,
+                            extendfrac = extendfrac,
+                            dz = dz,
+                            ρbg = ρbg,
+                            nlayers = nlayers,
+                            ntimesperdecade = ntimesperdecade,
+                            nfreqsperdecade = nfreqsperdecade,
+                            useML = useML,
+                            nmin = nmin,
+                            nmax = nmax,
+                            K = K,
+                            demean = demean,
+                            sdpos = sdpos,
+                            sdprop = sdprop,
+                            sddc = sddc,
+                            sampledc = sampledc,
+                            fbounds = fbounds,
+                            save_freq = save_freq,
+                            showgeomplot = showgeomplot,
+                            λ = λ,
+                            δ = δ
+)
