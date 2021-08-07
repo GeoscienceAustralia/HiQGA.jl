@@ -307,7 +307,8 @@ function addnoise_skytem(Flow::AEM_VMD_HMD.HField, Fhigh::AEM_VMD_HMD.HField,
                   dz = -1.,
                   extendfrac = -1.,
                   nfixed = -1,
-                  figsize=(10,5)
+                  figsize=(10,5),
+                  rseed=42
                   )
     if halt_LM != nothing
         @assert length(halt_LM) == length(Flow.times)
@@ -320,6 +321,7 @@ function addnoise_skytem(Flow::AEM_VMD_HMD.HField, Fhigh::AEM_VMD_HMD.HField,
         halt_HM = zeros(length(Fhigh.times))
     end
     @assert all((nfixed, dz, extendfrac) .> 0)
+    Random.seed!(rseed)
     AEM_VMD_HMD.getfieldTD!(Flow, z, ρ)
     AEM_VMD_HMD.getfieldTD!(Fhigh, z, ρ)
     dlow  = Flow.dBzdt + sqrt.((noisefrac*abs.(Flow.dBzdt)).^2 + (halt_LM/μ₀).^2).*randn(size(Flow.dBzdt))

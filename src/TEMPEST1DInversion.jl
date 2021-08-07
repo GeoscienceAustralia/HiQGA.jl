@@ -1179,7 +1179,7 @@ function plotsummarygrids3(nuhigh, nulow, numid, phgrid, plgrid, pmgrid, gridx, 
     cb.ax.set_xlabel("Log₁₀ S/m")
     (preferNright && !Nislast) && s[end].invert_xaxis()
     (preferEright && !Eislast) && s[end].invert_xaxis()
-    saveplot && savefig(lname*".png", dpi=300)
+    saveplot && savefig(lname*"_with_nu.png", dpi=300)
 end
 
 function plotnuquant(nqlow, nqmid, nqhigh, nunominal, s, gridx, icol, nrows, ms=2, labelnu=[""])

@@ -4,11 +4,11 @@ using PyPlot, DelimitedFiles, Random, Statistics, Revise,
 Random.seed!(23)
 zfixed   = [-1e5]
 ρfixed   = [1e12]
-nmax = 100
+nmax = 200
 # Note that the receiver and transmitter need to be in layer 1
 zstart = 0.0
-extendfrac, dz = 1.06, 2.
-zall, znall, zboundaries = transD_GP.setupz(zstart, extendfrac, dz=dz, n=40, showplot=true)
+extendfrac, dz = 1.03, 1.5
+zall, znall, zboundaries = transD_GP.setupz(zstart, extendfrac, dz=dz, n=65, showplot=true)
 z, ρ, nfixed = transD_GP.makezρ(zboundaries; zfixed=zfixed, ρfixed=ρfixed)
 ##  geometry and modeling parameters
 rRx = 13.
@@ -47,12 +47,19 @@ Fhm = transD_GP.AEM_VMD_HMD.HFieldDHT(
 ρ[(z.>=100) .&(z.<200)] .= 50
 ρ[(z.>=200) .&(z.<250)] .= 80
 ρ[(z.>=250)]            .= 150
-## add noise
+# add jitter to model in log10 domain
+Random.seed!(11)
+ρ = 10 .^(0.1*randn(length(ρ)) + log10.(ρ))
+## add noise to data
 transD_GP.plotmodelfield_skytem!(Flm, Fhm, z, ρ)
 #remember to specify halt noise if it is in pV
 dlow, dhigh, σlow, σhigh = transD_GP.addnoise_skytem(Flm, Fhm,
                 z, ρ, noisefrac=0.03, halt_LM = LM_noise*1e-12, halt_HM = HM_noise*1e-12,
                 dz=dz, extendfrac=extendfrac, nfixed=nfixed)
 ## create operator
+# but with a coarser grid
+extendfrac, dz = 1.06, 1.15
+zall, znall, zboundaries = transD_GP.setupz(zstart, extendfrac, dz=dz, n=50, showplot=true)
+zgrid, ρgrid, nfixed = transD_GP.makezρ(zboundaries; zfixed=zfixed, ρfixed=ρfixed)
 dlow, dhigh, σlow, σhigh = (dlow, dhigh, σlow, σhigh)./transD_GP.SkyTEM1DInversion.μ₀
-aem = transD_GP.dBzdt(Flm, Fhm, dlow, dhigh, σlow, σhigh, z=z, ρ=ρ, nfixed=nfixed)
+aem = transD_GP.dBzdt(Flm, Fhm, dlow, dhigh, σlow, σhigh, z=zgrid, ρ=ρgrid, nfixed=nfixed)
