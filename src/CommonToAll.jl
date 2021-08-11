@@ -143,19 +143,20 @@ function assemblenuisancesatT(optn::OptionsNuisance;
     # firsti = 1 + floor(Int, niters*burninfrac)
     ttarg = sortedTs[temperaturenum]
     nmodels = sum(Tacrosschains[firsti:end,:] .== ttarg)
-    topt = deepcopy(optn)
     fdataname = optn.fdataname
-    vals_filename = "values_nuisance_"*fdataname*"1.bin"
     #drop iteration number
-    ndat = readdlm(vals_filename, ' ', Float64)[firsti:end,2:end]
-    mvals = zeros(nmodels,size(ndat,2))
-    mask = Tacrosschains[firsti:end,1] .== ttarg
-    mvals[mask,:] .= ndat[mask,:]
-    for ichain = 2:size(Tacrosschains,2)
+    mvals = zeros(nmodels,optn.nnu)
+    imodel = 0
+    for ichain = 1:size(Tacrosschains,2)
+        at1idx = Tacrosschains[:,ichain].==ttarg
+        at1idx[1:firsti-1] .= false
+        ninchain = sum(at1idx)
+        @info "chain $ichain has $ninchain models"
+        ninchain == 0 && continue
         vals_filename = "values_nuisance_"*fdataname*"$ichain.bin"
-        ndat = readdlm(vals_filename, ' ', Float64)[firsti:end,2:end]
-        mask = Tacrosschains[firsti:end, ichain] .== ttarg
-        mvals[mask,:] .= ndat[mask,:]
+        ndat = readdlm(vals_filename, ' ', Float64)[:,2:end]
+        mvals[imodel+1:imodel+ninchain,:] .= ndat[at1idx,:]
+        imodel += ninchain
     end
     mvals
 end

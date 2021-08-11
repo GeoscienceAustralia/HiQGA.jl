@@ -10,6 +10,8 @@ xall = permutedims(collect(znall))
 xbounds = permutedims([extrema(znall)...])
 λ, δ = [2], 0.1
 fdataname = "nutest_"
+sampledc = true
+sdev_dc = 0.008*diff(fbounds, dims=2)[:]
 ## Initialize a stationary GP using these options
 Random.seed!(12)
 opt = transD_GP.OptionsStat(nmin = nmin,
@@ -23,6 +25,8 @@ opt = transD_GP.OptionsStat(nmin = nmin,
                         demean = demean,
                         sdev_prop = sdev_prop,
                         sdev_pos = sdev_pos,
+                        sampledc = sampledc,
+                        sdev_dc = sdev_dc,
                         pnorm = pnorm,
                         save_freq = 25,
                         quasimultid = false,
