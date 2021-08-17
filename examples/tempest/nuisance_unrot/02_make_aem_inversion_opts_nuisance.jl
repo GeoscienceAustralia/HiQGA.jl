@@ -3,15 +3,15 @@ nmin, nmax = 2, 40
 pnorm = 2.
 K = transD_GP.GP.OrstUhn()
 demean = false
-fbounds = [-0.5 2.5]
-sdev_pos = [0.1abs(diff([extrema(znall)...])[1])]
-sdev_prop = 0.15diff(fbounds, dims=2)[:]
+fbounds = [-0.5 3.25]
+sdev_pos = [0.05abs(diff([extrema(znall)...])[1])]
+sdev_prop = 0.1diff(fbounds, dims=2)[:]
 xall = permutedims(collect(znall))
 xbounds = permutedims([extrema(znall)...])
 λ, δ = [2], 0.1
 fdataname = "nutest_"
 sampledc = true
-sdev_dc = 0.008*diff(fbounds, dims=2)[:]
+sdev_dc = 0.012*diff(fbounds, dims=2)[:]
 ## Initialize a stationary GP using these options
 Random.seed!(12)
 opt = transD_GP.OptionsStat(nmin = nmin,
@@ -52,11 +52,11 @@ optn = transD_GP.OptionsNuisance(opt;
            ],
     bounds = [
       zTx               zTx
-      zRx - 5.0         zRx + 5.0
-      x_rx - 5.0        x_rx + 5.0
+      zRx - 3.0         zRx + 3.0
+      x_rx - 3.0        x_rx + 3.0
       y_rx              y_rx
       rx_roll           rx_roll
-      rx_pitch - 2.0    rx_pitch + 2.0
+      rx_pitch - 1.5    rx_pitch + 1.5
       rx_yaw            rx_yaw
       tx_roll           tx_roll
       tx_pitch          tx_pitch

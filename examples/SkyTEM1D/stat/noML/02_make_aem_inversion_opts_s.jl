@@ -2,8 +2,8 @@ using transD_GP, Distributed
 ## make options for the stationary GP
 fileprefix = "OrstUhn_"
 K = transD_GP.GP.OrstUhn()
-nmin, nmax = 2, 50
-fbounds = [-0.5 2.5]
+nmin, nmax = 2, 40
+fbounds = [-0.5 3.25]
 sdev_pos = [0.05abs(diff([extrema(znall)...])[1])]
 sdev_prop = 0.07*diff(fbounds, dims=2)[:]
 demean = false
