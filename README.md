@@ -38,11 +38,11 @@ You'll have to run `ssh-agent` as shown above for the installation, but instead 
 pkg> update transD_GP
 ```
 
-## Developing transD_GP
+## Developing transD_GP or modifying it for your own special forward physics
 ```
 pkg>dev git@github.com:a2ray/transD_GP.git
 ```
-All the `ssh-keys` jazz above still holds. It will download to your `JULIA_PKG_DEVDIR`. [Here's a gist](https://gist.github.com/a2ray/8c2c55c25fee6647501b403886bbe64d) on adding your own module.
+All the `ssh-keys` jazz above still holds. It will download to your `JULIA_PKG_DEVDIR`. [Here's a gist](https://gist.github.com/a2ray/8c2c55c25fee6647501b403886bbe64d) on adding your own module if you want to modify the source code. Alternatively, if you only want to use the sampling methods in `transD_GP` without contributing to the source (boo! j/k) [here's another gist](https://gist.github.com/a2ray/92a8c14483c21dda6ddf56685b95fbb8) which is more appropriate.
 
 ### References for AEM and CSEM physics 
 
