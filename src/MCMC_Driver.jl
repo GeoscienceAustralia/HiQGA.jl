@@ -537,7 +537,7 @@ function main(opt_in       ::OptionsStat,
               nchainsatone = 1,
               Tmax         = 2.5)
 
-    chains = Chain(chainprocs, Tmax=Tmax)
+    chains = Chain(chainprocs, nchainsatone=nchainsatone, Tmax=Tmax)
     m, mns, mn, opt, optns, optn, stat, statns, statn,
     F, current_misfit, wp, wpns, wpn, iterlast = init_chain_darrays(opt_in,
                                                 optns_in, optn_in, F_in, chains)
