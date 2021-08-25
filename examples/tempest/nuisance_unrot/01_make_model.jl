@@ -58,3 +58,6 @@ extendfrac, dz = 1.06, 1.15
 zall, znall, zboundaries = transD_GP.setupz(zstart, extendfrac, dz=dz, n=50, showplot=true)
 zgrid, ρgrid, nfixed = transD_GP.makezρ(zboundaries; zfixed=zfixed, ρfixed=ρfixed)
 tempest.z, tempest.ρ = zgrid, copy(ρgrid)
+# only primary field stuff if you want for GA-AEM
+# Hxp, Hyp, Hzp = transD_GP.TEMPEST1DInversion.returnprimary!(tempest)
+# Xnoisy, Znoisy = tempest.dataHx - Hxp, tempest.dataHz - Hzp # raw SI units!!
