@@ -6,7 +6,7 @@ zfixed = [-1e5]
 ρfixed = [1e12]
 nmax = 100
 
-zstart = 1e5
+zstart = 0.
 extendfrac, dz = 1.06, 2.
 zall, znall, zboundaries = transD_GP.setupz(zstart, extendfrac, dz=dz, n=40, showplot=true, atol=1e-11)
 z, ρ, nfixed = transD_GP.makezρ(zboundaries; zfixed=zfixed, ρfixed=ρfixed)
@@ -54,13 +54,7 @@ times = sqrt.([
 ])
 
 ## fill in detail in ohm-m
-ρ[(z.>=zstart) .& (z.<50)] .= 20.
-ρ[(z.>=50) .&(z.<80)] .= 1.
-ρ[(z.>=80) .&(z.<100)] .= 20
-ρ[(z.>=100) .&(z.<200)] .= 50
-ρ[(z.>=200) .&(z.<250)] .= 80
-ρ[(z.>=250)]            .= 1e12
-
+ρ[1:end] .= ρ[1] # no contrasts
 ## create total field operator (required for nuisance inversion)
 tempest = transD_GP.TEMPEST1DInversion.Bfield(
     zTx = zTx, zRx = zRx, x_rx = x_rx, y_rx = y_rx,
@@ -74,6 +68,7 @@ tempest = transD_GP.TEMPEST1DInversion.Bfield(
 # plot before testing
 transD_GP.TEMPEST1DInversion.plotmodelfield!(tempest,z,ρ)
 
+μ = transD_GP.TEMPEST1DInversion.μ₀
 Bx, By, Bz = tempest.Hx[1]*μ*1e15, tempest.Hy[1]*μ*1e15, tempest.Hz[1]*μ*1e15
 @testset "Primary field YPR order checks" begin
 	@test isapprox(Bx, 30.2751, atol=1e-4)

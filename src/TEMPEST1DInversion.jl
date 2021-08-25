@@ -162,6 +162,15 @@ function getfieldTD!(tempest::Bfield, z::Array{Float64, 1}, ρ::Array{Float64, 1
 	nothing
 end
 
+function returnprimary!(tempestin;fillrho=1e12)
+# only useful for synthetics I guess
+    tempest = deepcopy(tempestin)
+    tempest.ρ .= 10 # no contrasts at all
+    tempest.addprimary = true
+    getfieldTD!(tempest, tempest.z, tempest.ρ)
+	tempest.Hx, tempest.Hy, tempest.Hz
+end
+
 #match API for SkyTEM inversion getfield
 function getfield!(m::Model, tempest::Bfield)
 	getfield!(m.fstar, tempest)
@@ -424,7 +433,7 @@ end
 
 #for synthetics
 function set_noisy_data!(tempest::Bfield, z::Array{Float64,1}, ρ::Array{Float64,1};
-	noisefracx = 0.02, noisefracz = 0.02,
+	noisefracx = 0.02, noisefracz = 0.02, rseed=123,
 	halt_X = nothing, halt_Z = nothing)
 	if halt_X != nothing
         @assert length(halt_X) == length(tempest.F.times)
@@ -447,7 +456,7 @@ function set_noisy_data!(tempest::Bfield, z::Array{Float64,1}, ρ::Array{Float64
 	σz = sqrt.((noisefracz*abs.(tempest.Hz)).^2 + (halt_Z/μ₀).^2)
 	# reset the tempest primary field modeling flag to original
 	tempest.addprimary = primaryflag
-	set_noisy_data!(tempest, z, ρ, σx, σz)
+	set_noisy_data!(tempest, z, ρ, σx, σz, rseed=rseed)
 	plotmodelfield!(tempest, z, ρ)
 	nothing
 end
@@ -456,8 +465,6 @@ function set_noisy_data!(tempest::Bfield, z::Array{Float64,1}, ρ::Array{Float64
 	σx, σz;rseed = 123)
 	Random.seed!(rseed)
 	getfieldTD!(tempest, z, ρ)
-	tempest.σx = σx
-	tempest.σz = σz
 	set_noisy_data!(tempest,
 		dataHx = tempest.Hx + σx.*randn(size(σx)),
 		dataHz = tempest.Hz + σz.*randn(size(σz)),
