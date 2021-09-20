@@ -220,29 +220,37 @@ function stacks!(F::HField, iTxLayer::Int, nlayers::Int, ω::Float64)
     rTE              = F.rTE
     rTM              = F.rTM
     pz               = view(F.pz, 1:nlayers)
-    #The last and first layer thicknesses are infinite
+    # The first layer thicknesses is infinite
     d                = view(F.thickness, 1:nlayers)
     d[1]             = 1e60
-    d[nlayers]       = 1e60
+    d[nlayers]       = d[nlayers-1] # for Jacobian calculations, but last interface reflectivity is zero
     if F.calcjacobian
         Jtemp        = view(F.Jtemp, 1:nlayers)
     end    
     # Capital R is for a stack
     # Starting from the bottom up, for Rs_down
     Rlowerstack_TE, Rlowerstack_TM = zero(ComplexF64), zero(ComplexF64)
+    Rlowerstack_TE_save = Rlowerstack_TE 
     @inbounds @fastmath for k = (nlayers-1):-1:iTxLayer
         if F.calcjacobian
             b = exp(2im*ω*pz[k+1]*d[k+1])
-            cnext = getpartialRwithnext(rTE[k], b, Rlowerstack_TE)
-            partialkz = getpartialkz(ω, im*ω*pz[k])
-            partial_rTE = getpartial_rTE(partialkz, im*ω*pz[k], im*ω*pz[k+1])
-            a = Rlowerstack_TE*exp(2im*ω*pz[k+1]*d[k+1]) # can write as Rlowerstack_TE*b ...
-            partialRstack = getpartialRstack(partial_rTE, rTE[k], a)
+            c = getpartialRwithnext(rTE[k], b, Rlowerstack_TE)
+            partialkz = getpartialkz(ω, im*ω*pz[k+1])
+            if k < nlayers-1
+                partial_rTE = getpartial_rTE(partialkz, im*ω*pz[k+1], im*ω*pz[k+2])
+                a = Rlowerstack_TE_save*exp(2im*ω*pz[k+2]*d[k+2])
+                partialRstack = getpartialRstack(partial_rTE, rTE[k+1], a)
+            else # only for last layer, i.e. when starting 
+                partial_rTE = getpartial_rTE(partialkz, im*ω*pz[k+1], im*ω*pz[k+1])
+                a = Rlowerstack_TE_save*exp(2im*ω*pz[k+1]*d[k+1])
+                partialRstack = getpartialRstack(partial_rTE, 0.0, a)
+            end        
             Jtemp[k+1] = partialRstack
             for j = nlayers-1:-1:k
-                Jtemp[j+1] *= cnext
-            end    
-        end    
+                Jtemp[j+1] *= c
+            end
+            Rlowerstack_TE_save = Rlowerstack_TE     
+        end
         Rlowerstack_TE = lowerstack(Rlowerstack_TE, pz, rTE, d, k, ω)
         #Rlowerstack_TM = lowerstack(Rlowerstack_TM, pz, rTM, d, k, ω)
     end
