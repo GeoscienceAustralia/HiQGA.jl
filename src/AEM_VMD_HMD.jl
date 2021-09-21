@@ -132,7 +132,7 @@ function HFieldDHT(;
     end
     log10interpkᵣ = log10.(interpkᵣ)
     Jtemp = zeros(ComplexF64, nmax)
-    Jac = map(x->zeros(ComplexF64, nmax, nkᵣeval), 1:length(freqs))
+    Jac = map(x->zeros(ComplexF64, nkᵣeval, nmax), 1:length(freqs))
     useprimary = modelprimary ? one(Float64) : zero(Float64)
     HFieldDHT(thickness, pz, ϵᵢ, zintfc, rTE, rTM, zRx, zTx, rTx, rRx, freqs, times, ramp, log10ω, interptimes,
             HFD_z, HFD_r, HFD_az, HFD_z_interp, HFD_r_interp, HFD_az_interp,
@@ -360,7 +360,7 @@ function getAEM1DKernelsH!(F::HField, kᵣ::Float64, f::Float64, zz::Array{Float
         ikᵣ = findfirst(isapprox.(kᵣ, F.interpkᵣ))
         for ilayer = 2:nlayers
             curlyRAprime, = getCurlyR(F.Jtemp[ilayer], pz[iTxLayer], zRx, z, iTxLayer, ω, 0.)# cannot model primary for deriv
-            F.derivmatrix[ifreq][ilayer,ikᵣ] = 1/pz[iTxLayer]*curlyRAprime*lf_gA_TE*1im/(ω)*log(10)/ρ[ilayer]
+            F.derivmatrix[ifreq][ikᵣ,ilayer] = 1/pz[iTxLayer]*curlyRAprime*lf_gA_TE*1im/(ω)*log(10)/ρ[ilayer]
         end    
     end  
     gA_TE            = μ/pz[iTxLayer]*curlyRA*lf_gA_TE
@@ -401,8 +401,8 @@ function getfieldFD!(F::HFieldDHT, z::Array{Float64, 1}, ρ::Array{Float64, 1})
             F.HFD_z[ifreq] = dot(J0_kernel_v, Filter_J0)/F.rRx
                 if F.calcjacobian
                     for ilayer = 2:length(ρ)
-                        splreal = CubicSpline(real(vec(F.derivmatrix[ifreq][ilayer,:])), F.log10interpkᵣ)
-                        splimag = CubicSpline(imag(vec(F.derivmatrix[ifreq][ilayer,:])), F.log10interpkᵣ)
+                        splreal = CubicSpline(real(vec(F.derivmatrix[ifreq][:,ilayer])), F.log10interpkᵣ)
+                        splimag = CubicSpline(imag(vec(F.derivmatrix[ifreq][:,ilayer])), F.log10interpkᵣ)
                         J0_kernel_v_prime = splreal.(F.log10Filter_base) + 1im*splimag.(F.log10Filter_base)
                         F.HFD_z_J[ilayer, ifreq] = dot(J0_kernel_v_prime, Filter_J0)/F.rRx
                     end    
