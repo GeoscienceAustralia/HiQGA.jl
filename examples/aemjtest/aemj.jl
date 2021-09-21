@@ -7,7 +7,7 @@ freqs = 10 .^(log10(freqLowLimit):1/nFreqsPerDecade:log10(freqHighLimit))
 ## model
 zfixed   = [-1e5,   0,   (20:20:200)...]
 rho      = [1e12,   1000, 1000*ones(10)...]
-rho[5] = 1000.
+rho[5] = 3.
 rho[10] = 1000.
 ##  geometry
 rRx = 100.
@@ -77,3 +77,26 @@ ax[3].set_xlabel("log10 Hz")
 ax[1].set_ylabel("Depth m")
 ax[2].set_title("∂f/∂(log10σ) analytic")
 ax[3].set_title("∂f/∂(log10σ) FD")
+
+## let's try this in an optimisation framework to see if the gradient makes sense
+mtrue = copy(rho)
+m = copy(mtrue); m[5] = 500
+transD_GP.AEM_VMD_HMD.getfieldFD!(Fvmd, zfixed, mtrue)
+d = copy(Fvmd.HFD_z)
+transD_GP.AEM_VMD_HMD.getfieldFD!(Fvmd, zfixed, m)
+f = copy(Fvmd.HFD_z)
+r = (d-f)
+J = Fvmd.HFD_z_J[2:end,:]
+λ² = 5e-17
+Δm = (J*J' + λ²*I)\(J*r)
+m2 = vcat(mtrue[1], 10 .^-(-log10.(m[2:end]) + Δm))
+## plot everything
+figure()
+step(log10.(m[2:end]), zfixed[2:end], linewidth=2, label="start model")
+step(log10.(m2[2:end]), zfixed[2:end], label="1 step")
+step(log10.(mtrue[2:end]), zfixed[2:end], linestyle="--", color="k", label="true model")
+gca().invert_yaxis()
+gca().invert_xaxis()
+legend()
+xlabel("log10 ρ")
+ylabel("Depth m")
