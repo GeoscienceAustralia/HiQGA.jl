@@ -1,21 +1,29 @@
-using PyPlot, transD_GP, Random
-## frequencies
+using PyPlot, transD_GP, Random, LinearAlgebra
+
+## model
+ρbg        = 1000
+zfixed     = [-1e5,   0,   (20:20:200)...]
+rho        = [1e12,   ρbg, ρbg*ones(10)...]
+ianom      = 5
+rho[ianom] = 10.
+δ          = 1e-10  # fd step size in log10
+
+## Gauss Newton settings
+use_fd          = false # in the one step for Gauss Newton
+startfromcloser = true  # whether to start midway between anomaly and bg or plain bg in G-N step
+λ²              = 5e-17 # model update damping
+
+##  geometry and frequencies for VMD in frequency domain
 nFreqsPerDecade     = 5
 freqLowLimit        = 1e-3
 freqHighLimit       = 1e5
 freqs = 10 .^(log10(freqLowLimit):1/nFreqsPerDecade:log10(freqHighLimit))
-## model
-zfixed   = [-1e5,   0,   (20:20:200)...]
-rho      = [1e12,   1000, 1000*ones(10)...]
-rho[5] = 3.
-rho[10] = 1000.
-##  geometry
 rRx = 100.
 zRx = -37.
 zTx = -35.
 nkᵣeval = 50
-## VMD
 modelprimary = true
+
 Fvmd = transD_GP.AEM_VMD_HMD.HFieldDHT(
                       calcjacobian = true,
                       nmax = length(zfixed),
@@ -47,7 +55,6 @@ ax[2].set_title("∂f/∂(log10σ)")
 ax[3].set_title("∂f/∂(log10σ)")
 
 ## approximate partials with central differences and compare
-δ = 1e-6
 J = copy(Fvmd.HFD_z_J)
 
 function getJ!(Fin, zin, ρ, Δ)
@@ -83,19 +90,20 @@ ax[1].set_ylabel("Depth m")
 ax[2].set_title("∂f/∂(log10σ) analytic")
 ax[3].set_title("∂f/∂(log10σ) FD")
 
+
 ## let's try this in an optimisation framework to see if the gradient makes sense
-use_fd = false
 mtrue = copy(rho)
-m = copy(mtrue); m[5] = 1000
+m = copy(mtrue)
+m[ianom] = startfromcloser ? ρbg+(rho[ianom]-ρbg)/2 : ρbg
 transD_GP.AEM_VMD_HMD.getfieldFD!(Fvmd, zfixed, mtrue)
 d = copy(Fvmd.HFD_z)
 transD_GP.AEM_VMD_HMD.getfieldFD!(Fvmd, zfixed, m)
 f = copy(Fvmd.HFD_z)
 r = (d-f)
 J = use_fd ? getJ!(Fvmd, zfixed, m, δ)[2:end,:] : Fvmd.HFD_z_J[2:end,:]
-λ² = 1e-17
-Δm = (J*J' + λ²*I)\(J*r)
+Δm = real((J*J' + λ²*I)\(J*r))
 m2 = vcat(mtrue[1], 10 .^-(-log10.(m[2:end]) + Δm))
+
 ## plot everything
 figure()
 step(log10.(m[2:end]), zfixed[2:end], linewidth=2, label="start model")
