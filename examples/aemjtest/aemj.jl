@@ -46,21 +46,26 @@ ax[1].set_ylabel("Depth m")
 ax[2].set_title("∂f/∂(log10σ)")
 ax[3].set_title("∂f/∂(log10σ)")
 
-## approximate partials with central differences:
-fd_pertubation_cond = 1e-6
-J_fd = similar(Fvmd.HFD_z_J)
+## approximate partials with central differences and compare
+δ = 1e-6
 J = copy(Fvmd.HFD_z_J)
-HFD_z = copy(Fvmd.HFD_z)
 
-@time for i = 2:length(zfixed)
-    modelfd = copy(rho)
-    modelfd[i] = 10 .^-(-log10(rho[i]) .+ fd_pertubation_cond/2)
-    transD_GP.AEM_VMD_HMD.getfieldFD!(Fvmd, zfixed, modelfd)
-    HFD_z1 = copy(Fvmd.HFD_z)
-    modelfd[i] = 10 .^-(-log10(rho[i]) .- fd_pertubation_cond/2)
-    transD_GP.AEM_VMD_HMD.getfieldFD!(Fvmd, zfixed, modelfd)  
-    J_fd[i,:] = (HFD_z1 - Fvmd.HFD_z) / fd_pertubation_cond
+function getJ!(Fin, zin, ρ, Δ)
+    # sensitivities computed in log10σ
+    # same as in AEM_VMD_HMD code
+    Jout = similar(Fin.HFD_z_J)
+    for i = 2:length(zin)
+        modelfd = copy(ρ)
+        modelfd[i] = 10 .^-(-log10(ρ[i]) .+ Δ/2)
+        transD_GP.AEM_VMD_HMD.getfieldFD!(Fin, zin, modelfd)
+        HFD_z1 = copy(Fin.HFD_z)
+        modelfd[i] = 10 .^-(-log10(ρ[i]) .- Δ/2)
+        transD_GP.AEM_VMD_HMD.getfieldFD!(Fin, zin, modelfd)  
+        Jout[i,:] = (HFD_z1 - Fin.HFD_z) / Δ
+        end
+    Jout
 end
+J_fd = getJ!(Fvmd, zfixed, rho, δ)
 
 ## comparison plots
 f, ax = plt.subplots(1,3, sharey=true, figsize=(10,6))
@@ -79,15 +84,16 @@ ax[2].set_title("∂f/∂(log10σ) analytic")
 ax[3].set_title("∂f/∂(log10σ) FD")
 
 ## let's try this in an optimisation framework to see if the gradient makes sense
+use_fd = false
 mtrue = copy(rho)
-m = copy(mtrue); m[5] = 500
+m = copy(mtrue); m[5] = 1000
 transD_GP.AEM_VMD_HMD.getfieldFD!(Fvmd, zfixed, mtrue)
 d = copy(Fvmd.HFD_z)
 transD_GP.AEM_VMD_HMD.getfieldFD!(Fvmd, zfixed, m)
 f = copy(Fvmd.HFD_z)
 r = (d-f)
-J = Fvmd.HFD_z_J[2:end,:]
-λ² = 5e-17
+J = use_fd ? getJ!(Fvmd, zfixed, m, δ)[2:end,:] : Fvmd.HFD_z_J[2:end,:]
+λ² = 1e-17
 Δm = (J*J' + λ²*I)\(J*r)
 m2 = vcat(mtrue[1], 10 .^-(-log10.(m[2:end]) + Δm))
 ## plot everything
