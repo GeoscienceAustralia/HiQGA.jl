@@ -138,7 +138,8 @@ function HFieldDHT(;
             HFD_z, HFD_r, HFD_az, HFD_z_interp, HFD_r_interp, HFD_az_interp,
             HTD_z_interp, HTD_r_interp, HTD_az_interp, dBzdt, dBrdt, dBazdt, J0_kernel_h, J1_kernel_h, J0_kernel_v, J1_kernel_v, lowpassfcs,
             quadnodes, quadweights, preallocate_ω_Hsc(interptimes, lowpassfcs)..., rxwithinloop, provideddt, doconvramp, useprimary,
-            nkᵣeval, interpkᵣ, log10interpkᵣ, log10Filter_base, getradialH, getazimH, calcjacobian, Jtemp, Jac, HFD_z_J)
+            nkᵣeval, interpkᵣ, log10interpkᵣ, log10Filter_base, getradialH, getazimH, 
+            calcjacobian, Jtemp, Jac, HFD_z_J)
 end
 
 #update geometry and dependent parameters - necessary for adjusting geometry
@@ -207,12 +208,16 @@ function getpartial_rTE(partialkz, kz, kznext)
     2*partialkz*kznext/(kz+kznext)^2
 end
 
+function getpartial_rTE_withnext(partialkznext, kz, kznext)
+    -2*partialkznext*kz/(kz+kznext)^2
+end    
+
 function getpartialRstack(partial_rTE, rTE, a)
     partial_rTE*(1 - a^2)/(1 + rTE*a)^2
 end 
 
-function getpartialRwithnext(rTE, b, Rlowerstack)
-    b*(1 - rTE^2)/(1 + rTE*b*Rlowerstack)^2
+function getpartial_bwithnext(b, dnext, partialkznext)
+    b*(2im*dnext*partialkznext)
 end
 
 function stacks!(F::HField, iTxLayer::Int, nlayers::Int, ω::Float64)
@@ -223,36 +228,41 @@ function stacks!(F::HField, iTxLayer::Int, nlayers::Int, ω::Float64)
     # The first layer thicknesses is infinite
     d                = view(F.thickness, 1:nlayers)
     d[1]             = 1e60
-    d[nlayers]       = d[nlayers-1] # for Jacobian calculations, but last interface reflectivity is zero
+    d[nlayers]       = 1e60
     if F.calcjacobian
-        Jtemp        = view(F.Jtemp, 1:nlayers)
+        J      = view(F.Jtemp, 1:nlayers)
     end    
     # Capital R is for a stack
     # Starting from the bottom up, for Rs_down
     Rlowerstack_TE, Rlowerstack_TM = zero(ComplexF64), zero(ComplexF64)
-    Rlowerstack_TE_save = Rlowerstack_TE 
+    Rlowerstack_plus_TE = zero(ComplexF64)
     @inbounds @fastmath for k = (nlayers-1):-1:iTxLayer
-        if F.calcjacobian
-            b = exp(2im*ω*pz[k+1]*d[k+1])
-            c = getpartialRwithnext(rTE[k], b, Rlowerstack_TE)
-            partialkz = getpartialkz(ω, im*ω*pz[k+1])
-            if k < nlayers-1
-                partial_rTE = getpartial_rTE(partialkz, im*ω*pz[k+1], im*ω*pz[k+2])
-                a = Rlowerstack_TE_save*exp(2im*ω*pz[k+2]*d[k+2])
-                partialRstack = getpartialRstack(partial_rTE, rTE[k+1], a)
-            else # only for last layer, i.e. when starting 
-                partial_rTE = getpartial_rTE(partialkz, im*ω*pz[k+1], im*ω*pz[k+1])
-                a = Rlowerstack_TE_save*exp(2im*ω*pz[k+1]*d[k+1])
-                partialRstack = getpartialRstack(partial_rTE, 0.0, a)
-            end        
-            Jtemp[k+1] = partialRstack
-            for j = nlayers-1:-1:k
-                Jtemp[j+1] *= c
-            end
-            Rlowerstack_TE_save = Rlowerstack_TE     
+        kz, kznext = ω*pz[k], ω*pz[k+1]
+        partialkznext = getpartialkz(ω, kznext)
+        S = getpartial_rTE_withnext(partialkznext, kz, kznext)
+        if k == nlayers-1
+            J[k+1] = S
+            Rlowerstack_plus_TE = Rlowerstack_TE
+            Rlowerstack_TE = lowerstack(Rlowerstack_TE, pz, rTE, d, k, ω)
+            continue
         end
+        b = exp(2im*kznext*d[k+1])
+        partial_bnext = getpartial_bwithnext(b, d[k+1], partialkznext)
+        S *= 1 - (Rlowerstack_TE*b)^2
+        kznextplus = ω*pz[k+2]
+        partial_rTE_next = getpartial_rTE(partialkznext, kznext, kznextplus)
+        a = Rlowerstack_plus_TE*exp(2im*kznextplus*d[k+2])
+        partialRnext = getpartialRstack(partial_rTE_next, rTE[k+1], a)
+        denom = (1+rTE[k]*Rlowerstack_TE*b)^2
+        S += (1-rTE[k]^2)*(partialRnext*b + partial_bnext*Rlowerstack_TE) 
+        S /= denom
+        J[k+1] = S
+        c = b*(1-rTE[k]^2)/denom
+        for kk = nlayers:-1:k+2
+            J[kk] *= c
+        end    
+        Rlowerstack_plus_TE = Rlowerstack_TE
         Rlowerstack_TE = lowerstack(Rlowerstack_TE, pz, rTE, d, k, ω)
-        #Rlowerstack_TM = lowerstack(Rlowerstack_TM, pz, rTM, d, k, ω)
     end
 
 return Rlowerstack_TE, Rlowerstack_TM

@@ -6,11 +6,11 @@ zfixed     = [-1e5,   0,   (20:20:200)...]
 rho        = [1e12,   ρbg, ρbg*ones(10)...]
 ianom      = 5
 rho[ianom] = 10.
-δ          = 1e-10  # fd step size in log10
+δ          = 1e-4  # fd step size in log10
 
 ## Gauss Newton settings
 use_fd          = false # in the one step for Gauss Newton
-startfromcloser = true  # whether to start midway between anomaly and bg or plain bg in G-N step
+startfromcloser = false  # whether to start midway between anomaly and bg or plain bg in G-N step
 λ²              = 5e-17 # model update damping
 
 ##  geometry and frequencies for VMD in frequency domain
