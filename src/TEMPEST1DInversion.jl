@@ -304,7 +304,7 @@ function get_misfit(m::Model, mn::ModelNuisance, opt::Union{Options,OptionsNuisa
 	if !opt.debug
 		getfield!(m, mn, tempest)
 		idxx, idxz = tempest.selectx, tempest.selectz
-        if aem.vectorsum
+        if tempest.vectorsum
             fm = sqrt.(tempest.Hx.^2 + tempest.Hz.^2)
             d  = sqrt.(tempest.dataHx.^2 + tempest.dataHz.^2)
             σx, σz = tempest.σx, tempest.σz
@@ -729,7 +729,8 @@ function makeoperator( sounding::TempestSoundingData;
                        nfreqsperdecade = 5,
                        showgeomplot = false,
                        plotfield = false,
-					   addprimary = true)
+					   addprimary = true,
+                       vectorsum = false)
     @assert extendfrac > 1.0
     @assert dz > 0.0
     @assert ρbg > 0.0
@@ -747,7 +748,8 @@ function makeoperator( sounding::TempestSoundingData;
     tx_roll = sounding.roll_tx, tx_pitch = sounding.pitch_tx, tx_yaw = sounding.yaw_tx,
 	ramp = sounding.ramp, times = sounding.times, useML = useML,
 	z=z, ρ=ρ,
-	addprimary = addprimary #this ensures that the geometry update actually changes everything that needs to be
+	addprimary = addprimary, #this ensures that the geometry update actually changes everything that needs to be
+    vectorsum = vectorsum
 	)
 
 	set_noisy_data!(aem,
@@ -873,7 +875,8 @@ function makeoperatorandoptions(soundings::Array{TempestSoundingData, 1};
                                                     nuisance_bounds = [0. 0.],
                                                     C = nothing,
                                                     updatenuisances = true,
-                                                    dispstatstoscreen = false
+                                                    dispstatstoscreen = false,
+                                                    vectorsum = false
                                                     )
     for idx in randperm(length(soundings))[1:nplot]
             aem, znall = makeoperator(soundings[idx],
@@ -888,7 +891,8 @@ function makeoperatorandoptions(soundings::Array{TempestSoundingData, 1};
                                    nfreqsperdecade = nfreqsperdecade,
                                    showgeomplot = showgeomplot,
                                    plotfield = plotfield,
-                                   useML = useML)
+                                   useML = useML,
+                                   vectorsum = vectorsum)
     
             opt, optn = make_tdgp_opt(soundings[idx],
                                     znall = znall,
@@ -1333,6 +1337,7 @@ function plotindividualsoundings(soundings::Array{TempestSoundingData, 1};
                         nfreqsperdecade = 5,
                         computeforwards = false,
                         nforwards = 100,
+                        vectorsum = false,
                       idxcompute = [1])
     for idx = 1:length(soundings)
         if in(idx, idxcompute)
@@ -1345,7 +1350,8 @@ function plotindividualsoundings(soundings::Array{TempestSoundingData, 1};
                 dz = dz,
                 nlayers = nlayers,
                 ntimesperdecade = ntimesperdecade,
-                nfreqsperdecade = nfreqsperdecade)
+                nfreqsperdecade = nfreqsperdecade,
+                vectorsum = vectorsum)
             opt, optn = make_tdgp_opt(soundings[idx],
                                         znall = znall,
                                         fileprefix = soundings[idx].sounding_string,

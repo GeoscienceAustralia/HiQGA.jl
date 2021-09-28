@@ -806,7 +806,8 @@ function loopacrosssoundings(soundings::Array{S, 1};
                                 dispstatstoscreen  = false,
                                 useML              = false,
                                 restart            = false,
-                                C                  = nothing) where S<:Sounding
+                                C                  = nothing,
+                                vectorsum          = false) where S<:Sounding
 
     @assert nsequentialiters  != -1
     @assert nparallelsoundings != -1
@@ -839,7 +840,8 @@ function loopacrosssoundings(soundings::Array{S, 1};
                                     useML = useML,
                                     nlayers = nlayers,
                                     ntimesperdecade = ntimesperdecade,
-                                    nfreqsperdecade = nfreqsperdecade)
+                                    nfreqsperdecade = nfreqsperdecade,
+                                    vectorsum = vectorsum)
 
             opt, optn = transD_GP.make_tdgp_opt(soundings[s],
                                 znall = znall,
