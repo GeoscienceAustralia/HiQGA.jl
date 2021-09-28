@@ -41,6 +41,7 @@ mutable struct Bfield<:Operator1D
 	Hz         :: Array{Float64, 1}
 	addprimary :: Bool
 	peakcurrent:: Float64
+    vectorsum  :: Bool
 end
 
 # If needed to make z axis flip to align with GA-AEM
@@ -82,7 +83,8 @@ function Bfield(;
 				order_rx = "ypr",
 				strictgeometry = true,
 				addprimary = false,
-				peakcurrent = 0.5)
+				peakcurrent = 0.5,
+                vectorsum = false)
 
 	@assert !isempty(times)
 	@assert(!isempty(ramp))
@@ -111,7 +113,7 @@ function Bfield(;
 	Hx, Hy, Hz = map(x->zeros(size(times)), 1:3)
 	Bfield(F, dataHx, dataHz, useML,σx, σz, z, nfixed, copy(ρ), selectx, selectz,
 			ndatax, ndataz, rx_roll, rx_pitch, rx_yaw, tx_roll, tx_pitch, tx_yaw,
-			Rot_rx, x_rx, y_rx, mhat, Hx, Hy, Hz, addprimary, peakcurrent)
+			Rot_rx, x_rx, y_rx, mhat, Hx, Hy, Hz, addprimary, peakcurrent, vectorsum)
 end
 
 #TODO for nuisance moves in an MCMC chain
@@ -302,10 +304,18 @@ function get_misfit(m::Model, mn::ModelNuisance, opt::Union{Options,OptionsNuisa
 	if !opt.debug
 		getfield!(m, mn, tempest)
 		idxx, idxz = tempest.selectx, tempest.selectz
-        chi2by2 = getchi2by2([tempest.Hx[idxx]; tempest.Hz[idxz]],
+        if aem.vectorsum
+            fm = sqrt.(tempest.Hx.^2 + tempest.Hz.^2)
+            d  = sqrt.(tempest.dataHx.^2 + tempest.dataHz.^2)
+            σx, σz = tempest.σx, tempest.σz
+            σ = sqrt.((σx.^2).*tempest.dataHx.^2 + (σz.^2).*tempest.dataHz.^2 )./d
+            chi2by2 = getchi2by2(fm, d, σ, tempest.useML, tempest.ndatax)
+        else
+            chi2by2 = getchi2by2([tempest.Hx[idxx]; tempest.Hz[idxz]],
                         [tempest.dataHx[idxx]; tempest.dataHz[idxz]],
                         [tempest.σx[idxx];tempest.σz[idxz]],
                         tempest.useML, tempest.ndatax + tempest.ndataz)
+        end
 	end
 	return chi2by2
 end

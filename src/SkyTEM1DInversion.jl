@@ -739,6 +739,7 @@ function plotindividualsoundings(soundings::Array{SkyTEMsoundingData, 1}, opt::O
     nfreqsperdecade = 5,
     computeforwards = false,
     nforwards = 100,
+    rseed = 11,
     modelprimary = false,
     idxcompute = [1])
     zall, = setupz(zstart, extendfrac, dz=dz, n=nlayers)
@@ -765,9 +766,9 @@ function plotindividualsoundings(soundings::Array{SkyTEMsoundingData, 1}, opt::O
             ax[1].invert_xaxis()
             if computeforwards
                 M = assembleTat1(opt, :fstar, temperaturenum=1, burninfrac=burninfrac)
-                Random.seed!(10)
+                Random.seed!(rseed)
                 plotmodelfield!(aem, M[randperm(length(M))[1:nforwards]],
-                dz=dz, extendfrac=extendfrac, onesigma=false, alpha=0.05)
+                dz=dz, extendfrac=extendfrac, onesigma=false, alpha=0.2)
             end
         end
     end
