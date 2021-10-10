@@ -11,7 +11,7 @@ rho[ianom] = 10.
 ## Gauss Newton settings
 use_fd          = false # in the one step for Gauss Newton
 startfromcloser = false  # whether to start midway between anomaly and bg or plain bg in G-N step
-λ²              = 5e-10 # model update damping
+λ²              = 1e-11 # model update damping
 
 ##  geometry and modeling parameters
 rRx = 13.
@@ -25,7 +25,7 @@ Flm = transD_GP.AEM_VMD_HMD.HFieldDHT(
                       lowpassfcs = lowpassfcs,
                       nmax   = length(zfixed),
                       times  = LM_times,
-                      ramp   = HM_ramp,
+                      ramp   = LM_ramp,
                       zTx    = zTx,
                       rRx    = rRx,
                       rTx    = rTx,
@@ -72,7 +72,7 @@ function getJ_TD!(Fin, zin, ρ, Δ)
         end
     Jout
 end
-J_fd = getJ_td!(Flm, zfixed, rho, δ)
+J_fd = getJ_TD!(Flm, zfixed, rho, δ)
 
 ## comparison plots
 f, ax = plt.subplots(1,3, sharey=true, figsize=(10,6))
@@ -91,6 +91,7 @@ ax[2].set_title("∂f/∂(log10σ) analytic")
 ax[3].set_title("∂f/∂(log10σ) FD")
 
 ## let's try this in an optimisation framework to see if the gradient makes sense
+log₁₀σ₀ = -2
 mtrue = copy(rho)
 m = copy(mtrue)
 m[ianom] = startfromcloser ? ρbg+(rho[ianom]-ρbg)/2 : ρbg
@@ -98,9 +99,9 @@ transD_GP.AEM_VMD_HMD.getfieldTD!(Flm, zfixed, mtrue)
 d = copy(Flm.dBzdt)
 transD_GP.AEM_VMD_HMD.getfieldTD!(Flm, zfixed, m)
 f = copy(Flm.dBzdt)
-r = (d-f)
+r = (f-d)
 J = use_fd ? getJ_td!(Flm, zfixed, m, δ)[2:end,:] : Flm.dBzdt_J[2:end,:]
-Δm = (J*J' + λ²*I)\(J*r)
+Δm = -real((J*J' + λ²*I)\(J*r + λ²*I*(-log10.(m[2:end]) .- log₁₀σ₀)))
 m2 = vcat(mtrue[1], 10 .^-(-log10.(m[2:end]) + Δm))
 
 ## plot everything

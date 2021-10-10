@@ -92,6 +92,7 @@ ax[3].set_title("∂f/∂(log10σ) FD")
 
 
 ## let's try this in an optimisation framework to see if the gradient makes sense
+log₁₀σ₀ = -3
 mtrue = copy(rho)
 m = copy(mtrue)
 m[ianom] = startfromcloser ? ρbg+(rho[ianom]-ρbg)/2 : ρbg
@@ -99,9 +100,9 @@ transD_GP.AEM_VMD_HMD.getfieldFD!(Fvmd, zfixed, mtrue)
 d = copy(Fvmd.HFD_z)
 transD_GP.AEM_VMD_HMD.getfieldFD!(Fvmd, zfixed, m)
 f = copy(Fvmd.HFD_z)
-r = (d-f)
+r = (f-d)
 J = use_fd ? getJ!(Fvmd, zfixed, m, δ)[2:end,:] : Fvmd.HFD_z_J[2:end,:]
-Δm = real((J*J' + λ²*I)\(J*r))
+Δm = -real((J*J' + λ²*I)\(J*r + λ²*I*(-log10.(m[2:end]) .- log₁₀σ₀)))
 m2 = vcat(mtrue[1], 10 .^-(-log10.(m[2:end]) + Δm))
 
 ## plot everything
