@@ -55,6 +55,7 @@ mutable struct HFieldDHT <: HField
     getazimH        :: Bool
     calcjacobian    :: Bool
     Jtemp           :: Vector
+    b               :: Vector # Another Jtemp
     derivmatrix     :: Vector{Matrix}
     HFD_z_J         :: Array{ComplexF64, 2}
     HTD_z_J_interp  :: Array{Float64, 2}
@@ -143,7 +144,7 @@ function HFieldDHT(;
             HTD_z_interp, HTD_r_interp, HTD_az_interp, dBzdt, dBrdt, dBazdt, J0_kernel_h, J1_kernel_h, J0_kernel_v, J1_kernel_v, lowpassfcs,
             quadnodes, quadweights, preallocate_ω_Hsc(interptimes, lowpassfcs)..., rxwithinloop, provideddt, doconvramp, useprimary,
             nkᵣeval, interpkᵣ, log10interpkᵣ, log10Filter_base, getradialH, getazimH, 
-            calcjacobian, Jtemp, Jac, HFD_z_J, HTD_z_J_interp, dBzdt_J)
+            calcjacobian, Jtemp, similar(Jtemp), Jac, HFD_z_J, HTD_z_J_interp, dBzdt_J)
 end
 
 #update geometry and dependent parameters - necessary for adjusting geometry
@@ -228,6 +229,7 @@ function stacks!(F::HField, iTxLayer::Int, nlayers::Int, ω::Float64)
 
     rTE              = F.rTE
     rTM              = F.rTM
+    b                = view(F.b, 1:nlayers)
     pz               = view(F.pz, 1:nlayers)
     # The first layer thicknesses is infinite
     d                = view(F.thickness, 1:nlayers)
@@ -248,35 +250,38 @@ function stacks!(F::HField, iTxLayer::Int, nlayers::Int, ω::Float64)
             if k == nlayers-1
                 J[k+1] = S
                 Rlowerstack_plus_TE = Rlowerstack_TE
-                Rlowerstack_TE = lowerstack(Rlowerstack_TE, pz, rTE, d, k, ω)
+                b[k+1] = exp(2im*kznext*d[k+1])
+                Rlowerstack_TE = lowerstack(Rlowerstack_TE, rTE, k, b[k+1])
                 continue
             end
-            b = exp(2im*kznext*d[k+1])
-            partial_bnext = getpartial_bwithnext(b, d[k+1], partialkznext)
-            S *= 1 - (Rlowerstack_TE*b)^2
+            b[k+1] = exp(2im*kznext*d[k+1])
+            partial_bnext = getpartial_bwithnext(b[k+1], d[k+1], partialkznext)
+            S *= 1 - (Rlowerstack_TE*b[k+1])^2
             kznextplus = ω*pz[k+2]
             partial_rTE_next = getpartial_rTE(partialkznext, kznext, kznextplus)
-            a = Rlowerstack_plus_TE*exp(2im*kznextplus*d[k+2])
+            a = Rlowerstack_plus_TE*b[k+2]
             partialRnext = getpartialRstack(partial_rTE_next, rTE[k+1], a)
-            denom = (1+rTE[k]*Rlowerstack_TE*b)^2
-            S += (1-rTE[k]^2)*(partialRnext*b + partial_bnext*Rlowerstack_TE) 
+            denom = (1+rTE[k]*Rlowerstack_TE*b[k+1])^2
+            S += (1-rTE[k]^2)*(partialRnext*b[k+1] + partial_bnext*Rlowerstack_TE) 
             S /= denom
             J[k+1] = S
-            c = b*(1-rTE[k]^2)/denom
+            c = b[k+1]*(1-rTE[k]^2)/denom
             for kk = nlayers:-1:k+2
                 J[kk] *= c
             end    
             Rlowerstack_plus_TE = Rlowerstack_TE
+        else
+            kznext = ω*pz[k+1]
+            b[k+1] = exp(2im*kznext*d[k+1])
         end    
-        Rlowerstack_TE = lowerstack(Rlowerstack_TE, pz, rTE, d, k, ω)
+        Rlowerstack_TE = lowerstack(Rlowerstack_TE, rTE, k, b[k+1])
     end
 
 return Rlowerstack_TE, Rlowerstack_TM
 end
 
-@inline function lowerstack(Rlowerstack::ComplexF64, pz::SubArray{ComplexF64, 1},
-                    r::Array{ComplexF64, 1}, d::SubArray{Float64, 1}, k::Int, ω::Float64)
-    a = Rlowerstack*exp(2im*ω*pz[k+1]*d[k+1])
+@inline function lowerstack(Rlowerstack::ComplexF64, r::Array{ComplexF64, 1}, k::Int, b)
+    a = Rlowerstack*b                
     Rs_d = (r[k] + a) / (1. + r[k]*a)
 end
 
