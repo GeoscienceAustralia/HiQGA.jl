@@ -41,6 +41,7 @@ mutable struct Bfield<:Operator1D
 	Hz         :: Array{Float64, 1}
 	addprimary :: Bool
 	peakcurrent:: Float64
+    vectorsum  :: Bool
 end
 
 # If needed to make z axis flip to align with GA-AEM
@@ -82,7 +83,8 @@ function Bfield(;
 				order_rx = "ypr",
 				strictgeometry = true,
 				addprimary = false,
-				peakcurrent = 0.5)
+				peakcurrent = 0.5,
+                vectorsum = false)
 
 	@assert !isempty(times)
 	@assert(!isempty(ramp))
@@ -111,7 +113,7 @@ function Bfield(;
 	Hx, Hy, Hz = map(x->zeros(size(times)), 1:3)
 	Bfield(F, dataHx, dataHz, useML,σx, σz, z, nfixed, copy(ρ), selectx, selectz,
 			ndatax, ndataz, rx_roll, rx_pitch, rx_yaw, tx_roll, tx_pitch, tx_yaw,
-			Rot_rx, x_rx, y_rx, mhat, Hx, Hy, Hz, addprimary, peakcurrent)
+			Rot_rx, x_rx, y_rx, mhat, Hx, Hy, Hz, addprimary, peakcurrent, vectorsum)
 end
 
 #TODO for nuisance moves in an MCMC chain
@@ -160,6 +162,15 @@ function getfieldTD!(tempest::Bfield, z::Array{Float64, 1}, ρ::Array{Float64, 1
 	AEM_VMD_HMD.getfieldTD!(tempest.F,  z, ρ)
 	reducegreenstensor!(tempest)
 	nothing
+end
+
+function returnprimary!(tempestin;fillrho=1e12)
+# only useful for synthetics I guess
+    tempest = deepcopy(tempestin)
+    tempest.ρ .= 10 # no contrasts at all
+    tempest.addprimary = true
+    getfieldTD!(tempest, tempest.z, tempest.ρ)
+	tempest.Hx, tempest.Hy, tempest.Hz
 end
 
 #match API for SkyTEM inversion getfield
@@ -293,10 +304,18 @@ function get_misfit(m::Model, mn::ModelNuisance, opt::Union{Options,OptionsNuisa
 	if !opt.debug
 		getfield!(m, mn, tempest)
 		idxx, idxz = tempest.selectx, tempest.selectz
-        chi2by2 = getchi2by2([tempest.Hx[idxx]; tempest.Hz[idxz]],
+        if tempest.vectorsum
+            fm = sqrt.(tempest.Hx.^2 + tempest.Hz.^2)
+            d  = sqrt.(tempest.dataHx.^2 + tempest.dataHz.^2)
+            σx, σz = tempest.σx, tempest.σz
+            σ = sqrt.((σx.^2).*tempest.dataHx.^2 + (σz.^2).*tempest.dataHz.^2 )./d
+            chi2by2 = getchi2by2(fm, d, σ, tempest.useML, tempest.ndatax)
+        else
+            chi2by2 = getchi2by2([tempest.Hx[idxx]; tempest.Hz[idxz]],
                         [tempest.dataHx[idxx]; tempest.dataHz[idxz]],
                         [tempest.σx[idxx];tempest.σz[idxz]],
                         tempest.useML, tempest.ndatax + tempest.ndataz)
+        end
 	end
 	return chi2by2
 end
@@ -424,7 +443,7 @@ end
 
 #for synthetics
 function set_noisy_data!(tempest::Bfield, z::Array{Float64,1}, ρ::Array{Float64,1};
-	noisefracx = 0.02, noisefracz = 0.02,
+	noisefracx = 0.02, noisefracz = 0.02, rseed=123,
 	halt_X = nothing, halt_Z = nothing)
 	if halt_X != nothing
         @assert length(halt_X) == length(tempest.F.times)
@@ -447,7 +466,7 @@ function set_noisy_data!(tempest::Bfield, z::Array{Float64,1}, ρ::Array{Float64
 	σz = sqrt.((noisefracz*abs.(tempest.Hz)).^2 + (halt_Z/μ₀).^2)
 	# reset the tempest primary field modeling flag to original
 	tempest.addprimary = primaryflag
-	set_noisy_data!(tempest, z, ρ, σx, σz)
+	set_noisy_data!(tempest, z, ρ, σx, σz, rseed=rseed)
 	plotmodelfield!(tempest, z, ρ)
 	nothing
 end
@@ -456,8 +475,6 @@ function set_noisy_data!(tempest::Bfield, z::Array{Float64,1}, ρ::Array{Float64
 	σx, σz;rseed = 123)
 	Random.seed!(rseed)
 	getfieldTD!(tempest, z, ρ)
-	tempest.σx = σx
-	tempest.σz = σz
 	set_noisy_data!(tempest,
 		dataHx = tempest.Hx + σx.*randn(size(σx)),
 		dataHz = tempest.Hz + σz.*randn(size(σz)),
@@ -712,7 +729,8 @@ function makeoperator( sounding::TempestSoundingData;
                        nfreqsperdecade = 5,
                        showgeomplot = false,
                        plotfield = false,
-					   addprimary = true)
+					   addprimary = true,
+                       vectorsum = false)
     @assert extendfrac > 1.0
     @assert dz > 0.0
     @assert ρbg > 0.0
@@ -730,7 +748,8 @@ function makeoperator( sounding::TempestSoundingData;
     tx_roll = sounding.roll_tx, tx_pitch = sounding.pitch_tx, tx_yaw = sounding.yaw_tx,
 	ramp = sounding.ramp, times = sounding.times, useML = useML,
 	z=z, ρ=ρ,
-	addprimary = addprimary #this ensures that the geometry update actually changes everything that needs to be
+	addprimary = addprimary, #this ensures that the geometry update actually changes everything that needs to be
+    vectorsum = vectorsum
 	)
 
 	set_noisy_data!(aem,
@@ -856,7 +875,8 @@ function makeoperatorandoptions(soundings::Array{TempestSoundingData, 1};
                                                     nuisance_bounds = [0. 0.],
                                                     C = nothing,
                                                     updatenuisances = true,
-                                                    dispstatstoscreen = false
+                                                    dispstatstoscreen = false,
+                                                    vectorsum = false
                                                     )
     for idx in randperm(length(soundings))[1:nplot]
             aem, znall = makeoperator(soundings[idx],
@@ -871,7 +891,8 @@ function makeoperatorandoptions(soundings::Array{TempestSoundingData, 1};
                                    nfreqsperdecade = nfreqsperdecade,
                                    showgeomplot = showgeomplot,
                                    plotfield = plotfield,
-                                   useML = useML)
+                                   useML = useML,
+                                   vectorsum = vectorsum)
     
             opt, optn = make_tdgp_opt(soundings[idx],
                                     znall = znall,
@@ -1316,6 +1337,7 @@ function plotindividualsoundings(soundings::Array{TempestSoundingData, 1};
                         nfreqsperdecade = 5,
                         computeforwards = false,
                         nforwards = 100,
+                        vectorsum = false,
                       idxcompute = [1])
     for idx = 1:length(soundings)
         if in(idx, idxcompute)
@@ -1328,7 +1350,8 @@ function plotindividualsoundings(soundings::Array{TempestSoundingData, 1};
                 dz = dz,
                 nlayers = nlayers,
                 ntimesperdecade = ntimesperdecade,
-                nfreqsperdecade = nfreqsperdecade)
+                nfreqsperdecade = nfreqsperdecade,
+                vectorsum = vectorsum)
             opt, optn = make_tdgp_opt(soundings[idx],
                                         znall = znall,
                                         fileprefix = soundings[idx].sounding_string,

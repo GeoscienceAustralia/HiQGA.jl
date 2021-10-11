@@ -809,6 +809,38 @@ function makegrid(vals::AbstractArray, soundings::Array{S, 1};
     img, gridr, gridz, topofine, R
 end
 
+function makegrid(vals::AbstractArray, soundings::Array{S, 1}, XYZrho;
+    dr=10, zall=[NaN], dz=-1) where S<:Sounding
+    @assert all(.!isnan.(zall)) 
+    @assert dz>0
+    X = [s.X for s in soundings]
+    Y = [s.Y for s in soundings]
+    x0, y0 = X[1], Y[1]
+    R  = sqrt.((X .- x0).^2 + (Y .- y0).^2)
+    rr, zz = [r for z in zall, r in R], [z for z in zall, r in R]
+    topo = [s.Z for s in soundings]
+    zz = topo' .- zz # mAHD
+    kdtree = KDTree([rr[:]'; zz[:]'])
+    gridr = range(R[1], R[end], step=dr)
+    gridz = reverse(range(extrema(zz)..., step=dz))
+    rr, zz = [r for z in gridz, r in gridr], [z for z in gridz, r in gridr]
+    idxs, = nn(kdtree, [rr[:]'; zz[:]'])
+    # comparison with ZYZrho
+    x0, y0 = XYZrho[1,1], XYZrho[1,2]
+    rrcompare = sqrt.((XYZrho[:,1] .- x0).^2 + (XYZrho[:,2] .- y0).^2)
+    kdtreecompare = KDTree([rrcompare[:]'; XYZrho[:,3]'])
+    idxscompare, = nn(kdtreecompare, [rr[:]'; zz[:]'])
+    img, imgcompare = zeros(size(rr)), zeros(size(rr))
+    for i = 1:length(img)
+        img[i] = vals[idxs[i]]
+        imgcompare[i] = XYZrho[idxscompare[i], 4]
+    end
+    topofine = gridpoints(R, gridr, topo)
+    img[zz .>topofine'] .= NaN
+    imgcompare[zz .> topofine'] .= NaN
+    img, gridr, gridz, topofine, R, imgcompare
+end
+
 function gridpoints(R, gridr, points::Array{Float64, 1})
     @assert length(R) == length(points)
     kdtree = KDTree(R[:]')
