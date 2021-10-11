@@ -241,31 +241,33 @@ function stacks!(F::HField, iTxLayer::Int, nlayers::Int, ω::Float64)
     Rlowerstack_TE, Rlowerstack_TM = zero(ComplexF64), zero(ComplexF64)
     Rlowerstack_plus_TE = zero(ComplexF64)
     @inbounds @fastmath for k = (nlayers-1):-1:iTxLayer
-        kz, kznext = ω*pz[k], ω*pz[k+1]
-        partialkznext = getpartialkz(ω, kznext)
-        S = getpartial_rTE_withnext(partialkznext, kz, kznext)
-        if k == nlayers-1
+        if F.calcjacobian
+            kz, kznext = ω*pz[k], ω*pz[k+1]
+            partialkznext = getpartialkz(ω, kznext)
+            S = getpartial_rTE_withnext(partialkznext, kz, kznext)
+            if k == nlayers-1
+                J[k+1] = S
+                Rlowerstack_plus_TE = Rlowerstack_TE
+                Rlowerstack_TE = lowerstack(Rlowerstack_TE, pz, rTE, d, k, ω)
+                continue
+            end
+            b = exp(2im*kznext*d[k+1])
+            partial_bnext = getpartial_bwithnext(b, d[k+1], partialkznext)
+            S *= 1 - (Rlowerstack_TE*b)^2
+            kznextplus = ω*pz[k+2]
+            partial_rTE_next = getpartial_rTE(partialkznext, kznext, kznextplus)
+            a = Rlowerstack_plus_TE*exp(2im*kznextplus*d[k+2])
+            partialRnext = getpartialRstack(partial_rTE_next, rTE[k+1], a)
+            denom = (1+rTE[k]*Rlowerstack_TE*b)^2
+            S += (1-rTE[k]^2)*(partialRnext*b + partial_bnext*Rlowerstack_TE) 
+            S /= denom
             J[k+1] = S
+            c = b*(1-rTE[k]^2)/denom
+            for kk = nlayers:-1:k+2
+                J[kk] *= c
+            end    
             Rlowerstack_plus_TE = Rlowerstack_TE
-            Rlowerstack_TE = lowerstack(Rlowerstack_TE, pz, rTE, d, k, ω)
-            continue
-        end
-        b = exp(2im*kznext*d[k+1])
-        partial_bnext = getpartial_bwithnext(b, d[k+1], partialkznext)
-        S *= 1 - (Rlowerstack_TE*b)^2
-        kznextplus = ω*pz[k+2]
-        partial_rTE_next = getpartial_rTE(partialkznext, kznext, kznextplus)
-        a = Rlowerstack_plus_TE*exp(2im*kznextplus*d[k+2])
-        partialRnext = getpartialRstack(partial_rTE_next, rTE[k+1], a)
-        denom = (1+rTE[k]*Rlowerstack_TE*b)^2
-        S += (1-rTE[k]^2)*(partialRnext*b + partial_bnext*Rlowerstack_TE) 
-        S /= denom
-        J[k+1] = S
-        c = b*(1-rTE[k]^2)/denom
-        for kk = nlayers:-1:k+2
-            J[kk] *= c
         end    
-        Rlowerstack_plus_TE = Rlowerstack_TE
         Rlowerstack_TE = lowerstack(Rlowerstack_TE, pz, rTE, d, k, ω)
     end
 
@@ -512,7 +514,7 @@ end
 
 function convramp!(F::HFieldDHT, splz::CubicSpline, splr::CubicSpline, splaz::CubicSpline, nlayers)
     fill!(F.dBzdt, 0.)
-    fill!(F.dBzdt_J, 0.)
+    F.calcjacobian && fill!(F.dBzdt_J, 0.)
     F.getradialH && fill!(F.dBrdt, 0.)
     F.getazimH && fill!(F.dBazdt, 0.)
     for itime = 1:length(F.times)

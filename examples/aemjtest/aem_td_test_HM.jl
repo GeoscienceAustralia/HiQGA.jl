@@ -61,15 +61,19 @@ function getJ_TD!(Fin, zin, ρ, Δ)
     # sensitivities computed in log10σ
     # same as in AEM_VMD_HMD code
     Jout = similar(Fin.dBzdt_J)
+    modelfd = copy(ρ)
+    jflag = Fin.calcjacobian
+    Fin.calcjacobian = false
     for i = 2:length(zin)
-        modelfd = copy(ρ)
+        modelfd[:] = ρ
         modelfd[i] = 10 .^-(-log10(ρ[i]) .+ Δ/2)
         transD_GP.AEM_VMD_HMD.getfieldTD!(Fin, zin, modelfd)
         HTD_z1 = copy(Fin.dBzdt)
         modelfd[i] = 10 .^-(-log10(ρ[i]) .- Δ/2)
         transD_GP.AEM_VMD_HMD.getfieldTD!(Fin, zin, modelfd)  
         Jout[i,:] = (HTD_z1 - Fin.dBzdt) / Δ
-        end
+    end
+    Fin.calcjacobian = jflag
     Jout
 end
 J_fd = getJ_TD!(Fhm, zfixed, rho, δ)
