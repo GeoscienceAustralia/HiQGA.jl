@@ -2,9 +2,10 @@ module SkyTEM1DInversion
 import ..AbstractOperator.get_misfit
 import ..AbstractOperator.Sounding
 import ..AbstractOperator.makeoperator
+import ..AbstractOperator.getresidual
 
 using ..AbstractOperator, ..AEM_VMD_HMD, Statistics, Distributed
-using PyPlot, LinearAlgebra, ..CommonToAll, MAT, Random, DelimitedFiles
+using PyPlot, LinearAlgebra, ..CommonToAll, Random, DelimitedFiles, LinearMaps
 
 import ..Model, ..Options, ..OptionsStat, ..OptionsNonstat
 
@@ -27,9 +28,21 @@ mutable struct dBzdt<:Operator1D
     selecthigh :: Array{Bool, 1}
     ndatalow   :: Int
     ndatahigh  :: Int
+    J          :: AbstractArray
+    Cdinv      :: LinearMap
+    res        :: Vector
 end
 
-function dBzdt(Flow       :: AEM_VMD_HMD.HField,
+struct Cinv
+    # assumes diagonal data cov
+    oneoverσ²
+end
+
+function (a::Cinv)(x) 
+    x.*a.oneoverσ²
+end    
+
+function dBzdt(       Flow       :: AEM_VMD_HMD.HField,
                       Fhigh      :: AEM_VMD_HMD.HField,
                       dlow       :: Array{Float64, 1},
                       dhigh      :: Array{Float64, 1},
@@ -48,9 +61,32 @@ function dBzdt(Flow       :: AEM_VMD_HMD.HField,
     ndatahigh  = sum(.!isnan.(dhigh))
     selectlow  = .!isnan.(dlow)
     selecthigh = .!isnan.(dhigh)
+    # for Gauss-Newton
+    res = [dlow[selectlow];dhigh[selecthigh]]
+    J = [Flow.dBzdt_J'; Fhigh.dBzdt_J']; 
+    J = J[[selectlow;selecthigh],nfixed+1:length(ρ)]
+    Σdiag = [σlow[selectlow].^2; σhigh[selecthigh].^2]
+    Cdinv = LinearMap( Cinv(1 ./Σdiag), length(res), isposdef=true, ishermitian=true, issymmetric=true)
     dBzdt(dlow, dhigh, useML, σlow, σhigh,
-    Flow, Fhigh, z, nfixed, copy(ρ), selectlow, selecthigh, ndatalow, ndatahigh)
+    Flow, Fhigh, z, nfixed, copy(ρ), selectlow, selecthigh, ndatalow, ndatahigh, J, Cdinv, res)
 end
+
+function getresidual(aem::dBzdt, log10σ::Vector{Float64}; computeJ=false)
+    # aem.ρ[:] = 10 .^(-log10σ)
+    aem.Flow.calcjacobian = computeJ
+    aem.Fhigh.calcjacobian = computeJ
+    getfield!(-log10σ, aem)
+    fl, fh = aem.Flow.dBzdt[aem.selectlow], aem.Fhigh.dBzdt[aem.selecthigh]
+    dl, dh = aem.dlow[aem.selectlow], aem.dhigh[aem.selecthigh]
+    aem.res[:] = [fl-dl; fh-dh]
+    if computeJ
+        selectlow, selecthigh, nfixed = aem.selectlow, aem.selecthigh, aem.nfixed
+        Flow, Fhigh = aem. Flow, aem.Fhigh
+        copy!(aem.J, [Flow.dBzdt_J'[selectlow,nfixed+1:nfixed+length(log10σ)]; 
+                      Fhigh.dBzdt_J'[selecthigh,nfixed+1:nfixed+length(log10σ)]])
+    end
+    nothing    
+end    
 
 mutable struct SkyTEMsoundingData <: Sounding
     sounding_string :: String

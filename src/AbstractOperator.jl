@@ -8,6 +8,9 @@ abstract type Operator2D <: Operator end
 # above operators and needs to provide a misfit
 function get_misfit end
 
+# for gradient based inversion
+function getresidual end
+
 # many geophysics data types require a sounding type
 abstract type Sounding end
 # these soundings often need to be fed into a function

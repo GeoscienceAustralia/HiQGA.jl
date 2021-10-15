@@ -3,6 +3,7 @@ import .AbstractOperator.get_misfit
 import .AbstractOperator.Sounding
 import .AbstractOperator.makeoperator
 import .AbstractOperator.make_tdgp_opt
+import .AbstractOperator.getresidual
 include("CommonToAll.jl")
 using .CommonToAll
 include("FooPhysics.jl") # example for API
@@ -25,4 +26,4 @@ include("SkyTEM1DInversion.jl")
 using .SkyTEM1DInversion
 include("TEMPEST1DInversion.jl")
 using .TEMPEST1DInversion
-export Operator, get_misfit, Sounding, makeoperator, make_tdgp_opt
+export Operator, get_misfit, Sounding, makeoperator, make_tdgp_opt, getresidual
