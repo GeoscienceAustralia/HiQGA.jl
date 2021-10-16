@@ -3,9 +3,9 @@ using PyPlot, DelimitedFiles, Random, Statistics, Revise,
 ## model fixed parts, i.e., air
 ρbg        = 100
 zfixed     = [-1e5,   0,   (20:20:200)...]
-rho        = [1e12,   ρbg, ρbg*ones(10)...]
+rho        = [1e12,   ρbg*ones(length(zfixed)-1)...]
 ianom      = 5
-rho[ianom] = 10.
+rho[ianom] = 10
 ##  geometry and modeling parameters
 rRx = 13.
 zRx = -42.0
@@ -46,21 +46,42 @@ dlow, dhigh, σlow, σhigh = (dlow, dhigh, σlow, σhigh)./transD_GP.SkyTEM1DInv
 aem = transD_GP.dBzdt(Flm, Fhm, dlow, dhigh, σlow, σhigh, z=zfixed, ρ=rho, nfixed=1)
 ## let's try gradient descent, all model values are in log10 conductivity
 σstart, σ0 = map(x->zeros(length(rho)-1), 1:2)
-σstart .= -2
+σstart .= -2.5
 σ0 .= -2
-λ² = 10 .^range(0, 20, length=10)
+λ² = 10 .^range(0, 8, length=20)
 ## do it
 m, χ², idx = transD_GP.gradientinv(σstart, σ0, aem, λ², nstepsmax=10, 
                             regularizeupdate=false,
-                            R = transD_GP.makeregR1(aem));
-## debug plots
+                            regtype = :R0);
+## debug plots: all in each
 alpha = 0.5
 for (i, mi) in enumerate(m)
-    figure(figsize=(3,6))
+    figure(figsize=(6,6))
     for (ii, mmi) in enumerate(mi)
-        step(mmi, zfixed[2:end], alpha=alpha) 
+        subplot(121)
+        step(-mmi, zfixed[2:end], alpha=alpha) 
     end
-    step(mi[idx[i]], zfixed[2:end], color="k", linewidth=2)
-    step(-log10.(rho[2:end]), zfixed[2:end], color="k", linewidth=2, linestyle="--")
+    step(-mi[idx[i]], zfixed[2:end], color="r", linewidth=2)
+    step(log10.(rho[2:end]), zfixed[2:end], color="k", linewidth=2, linestyle="--")
+    ylabel("depth m")
+    xlabel("Log₁₀ ρ")
     gca().invert_yaxis()
+    gca().invert_xaxis()
+    subplot(122)
+    loglog(λ², χ²[i])
+    plot(λ²[idx[i]], χ²[i][idx[i]], "." )
+    plt.tight_layout()
 end
+## debug plots best in each
+figure(figsize=(3,6))
+alpha = 0.25
+for (i, mi) in enumerate(m)
+    step(-mi[idx[i]], zfixed[2:end], alpha=alpha)
+end
+step(-m[end][idx[end]], zfixed[2:end], color="r", linewidth=2)
+step(log10.(rho[2:end]), zfixed[2:end], color="k", linewidth=2, linestyle="--")
+gca().invert_yaxis()
+gca().invert_xaxis()
+ylabel("depth m")
+xlabel("Log₁₀ ρ")
+plt.tight_layout()

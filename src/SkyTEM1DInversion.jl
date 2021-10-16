@@ -5,7 +5,7 @@ import ..AbstractOperator.makeoperator
 import ..AbstractOperator.getresidual
 
 using ..AbstractOperator, ..AEM_VMD_HMD, Statistics, Distributed
-using PyPlot, LinearAlgebra, ..CommonToAll, Random, DelimitedFiles, LinearMaps
+using PyPlot, LinearAlgebra, ..CommonToAll, Random, DelimitedFiles, LinearMaps, SparseArrays
 
 import ..Model, ..Options, ..OptionsStat, ..OptionsNonstat
 
@@ -29,7 +29,7 @@ mutable struct dBzdt<:Operator1D
     ndatalow   :: Int
     ndatahigh  :: Int
     J          :: AbstractArray
-    Cdinv      :: LinearMap
+    W          :: SparseMatrixCSC
     res        :: Vector
 end
 
@@ -65,10 +65,10 @@ function dBzdt(       Flow       :: AEM_VMD_HMD.HField,
     res = [dlow[selectlow];dhigh[selecthigh]]
     J = [Flow.dBzdt_J'; Fhigh.dBzdt_J']; 
     J = J[[selectlow;selecthigh],nfixed+1:length(ρ)]
-    Σdiag = [σlow[selectlow].^2; σhigh[selecthigh].^2]
-    Cdinv = LinearMap( Cinv(1 ./Σdiag), length(res), isposdef=true, ishermitian=true, issymmetric=true)
+    Wdiag = [1 ./σlow[selectlow]; 1 ./σhigh[selecthigh]]
+    W = sparse(diagm(Wdiag))
     dBzdt(dlow, dhigh, useML, σlow, σhigh,
-    Flow, Fhigh, z, nfixed, copy(ρ), selectlow, selecthigh, ndatalow, ndatahigh, J, Cdinv, res)
+    Flow, Fhigh, z, nfixed, copy(ρ), selectlow, selecthigh, ndatalow, ndatahigh, J, W, res)
 end
 
 function getresidual(aem::dBzdt, log10σ::Vector{Float64}; computeJ=false)
