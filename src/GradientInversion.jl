@@ -57,7 +57,8 @@ end
 function makereg(r::Symbol, F::Operator)
     r == :R0 && return sparse(makeregR0(F))
     r == :R1 && return sparse(makeregR1(F))
-    error("unknown  regularization")
+    r == :R2 && return sparse(makeregR1(F)*makeregR1(F))
+    error("unknown regularization")
 end    
 
 function gradientinv(   m::AbstractVector,

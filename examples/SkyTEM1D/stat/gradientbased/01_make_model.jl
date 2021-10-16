@@ -2,7 +2,7 @@ using PyPlot, DelimitedFiles, Random, Statistics, Revise,
       transD_GP
 ## model fixed parts, i.e., air
 ρbg        = 100
-zfixed     = [-1e5,   0,   (20:20:200)...]
+zfixed     = [-1e5,   0,   (20:10:200)...]
 rho        = [1e12,   ρbg*ones(length(zfixed)-1)...]
 ianom      = 5
 rho[ianom] = 10
@@ -56,7 +56,7 @@ m, χ², idx = transD_GP.gradientinv(σstart, σ0, aem, λ², nstepsmax=10,
 ## debug plots: all in each
 alpha = 0.5
 for (i, mi) in enumerate(m)
-    figure(figsize=(6,6))
+    figure(figsize=(7,6))
     for (ii, mmi) in enumerate(mi)
         subplot(121)
         step(-mmi, zfixed[2:end], alpha=alpha) 
