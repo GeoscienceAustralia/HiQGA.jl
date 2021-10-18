@@ -19,7 +19,23 @@ function Rt1Dop(y::Vector)
     x = vcat(-diff(y),y[end])
     x[1] = -y[2]
     x
-end
+end  
+
+function makereg(r::Symbol, F::Operator)
+    r == :R0 && return sparse(makeregR0(F))
+    r == :R1 && return sparse(makeregR1(F))
+    r == :R2 && return sparse(makeregR1(F)*makeregR1(F))
+    error("unknown regularization")
+end   
+
+function pushback(m, lo, hi)
+    for i in eachindex(m)
+        while (m[i]<lo) || (m[i]>hi)
+                (m[i]<lo) && (m[i] = 2*lo - m[i])
+                (m[i]>hi) && (m[i] = 2*hi - m[i])
+        end
+    end
+end  
 
 function newtonstep(m::AbstractVector, m0::AbstractVector, F::Operator, λ²::Float64, R::SparseMatrixCSC; 
                     regularizeupdate=true)
@@ -34,7 +50,7 @@ function newtonstep(m::AbstractVector, m0::AbstractVector, F::Operator, λ²::Fl
 end
 
 function occamstep(m::AbstractVector, m0::AbstractVector, mnew::Vector{Vector{Float64}}, χ²::Vector{Float64},
-                   F::Operator, λ²::Vector{Float64}, R::SparseMatrixCSC, target;
+                   F::Operator, λ²::Vector{Float64}, R::SparseMatrixCSC, target, lo, hi;
                    regularizeupdate = false)
     getresidual(F, m, computeJ=true)
     r, W = F.res, F.W
@@ -42,6 +58,7 @@ function occamstep(m::AbstractVector, m0::AbstractVector, mnew::Vector{Vector{Fl
     for (i, l²) in enumerate(λ²)
         mnew[i] = m + newtonstep(m, m0, F, l², R, 
                         regularizeupdate=regularizeupdate)
+        pushback(mnew[i], lo, hi)                
         getresidual(F, mnew[i], computeJ=false)
         χ²[i] = norm(W*r)^2
     end
@@ -52,14 +69,7 @@ function occamstep(m::AbstractVector, m0::AbstractVector, mnew::Vector{Vector{Fl
         idx = findlast(χ² .<= target)
     end
     idx
-end
-
-function makereg(r::Symbol, F::Operator)
-    r == :R0 && return sparse(makeregR0(F))
-    r == :R1 && return sparse(makeregR1(F))
-    r == :R2 && return sparse(makeregR1(F)*makeregR1(F))
-    error("unknown regularization")
-end    
+end 
 
 function gradientinv(   m::AbstractVector,
                         m0::AbstractVector, 
@@ -68,6 +78,8 @@ function gradientinv(   m::AbstractVector,
                         saveall = true, 
                         nstepsmax = 10,
                         target = nothing,
+                        lo = -3.,
+                        hi = 1.,
                         regularizeupdate = false)
     R = makereg(regtype, F)                
     ndata = length(F.res)
@@ -90,7 +102,7 @@ function gradientinv(   m::AbstractVector,
             mn = mnew
             χsq = χ²
         end        
-        idx = occamstep(m, m0, mn, χsq, F, λ², R, ndata, 
+        idx = occamstep(m, m0, mn, χsq, F, λ², R, ndata, lo, hi,
                         regularizeupdate=regularizeupdate)
         @info "iteration: $istep χ²: $(χsq[idx]) target: $target"
         m = mn[idx]

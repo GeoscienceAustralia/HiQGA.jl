@@ -46,15 +46,15 @@ dlow, dhigh, σlow, σhigh = (dlow, dhigh, σlow, σhigh)./transD_GP.SkyTEM1DInv
 aem = transD_GP.dBzdt(Flm, Fhm, dlow, dhigh, σlow, σhigh, z=zfixed, ρ=rho, nfixed=1)
 ## let's try gradient descent, all model values are in log10 conductivity
 σstart, σ0 = map(x->zeros(length(rho)-1), 1:2)
-σstart .= -2.5
+σstart .= -3.
 σ0 .= -2
-λ² = 10 .^range(0, 8, length=20)
+λ² = 10 .^range(0, 8, length=10)
 ## do it
-m, χ², idx = transD_GP.gradientinv(σstart, σ0, aem, λ², nstepsmax=10, 
+m, χ², idx = transD_GP.gradientinv(σstart, σ0, aem, λ², nstepsmax=15, 
                             regularizeupdate=false,
                             regtype = :R0);
 ## debug plots: all in each
-alpha = 0.5
+alpha = 0.1
 for (i, mi) in enumerate(m)
     figure(figsize=(7,6))
     for (ii, mmi) in enumerate(mi)
@@ -74,7 +74,7 @@ for (i, mi) in enumerate(m)
 end
 ## debug plots best in each
 figure(figsize=(3,6))
-alpha = 0.25
+alpha = 0.1
 for (i, mi) in enumerate(m)
     step(-mi[idx[i]], zfixed[2:end], alpha=alpha)
 end
