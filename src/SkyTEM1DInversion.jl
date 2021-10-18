@@ -3,7 +3,7 @@ import ..AbstractOperator.get_misfit
 import ..AbstractOperator.Sounding
 import ..AbstractOperator.makeoperator
 
-using ..AbstractOperator, ..AEM_VMD_HMD, Statistics, Distributed
+using ..AbstractOperator, ..AEM_VMD_HMD, Statistics, Distributed, Printf
 using PyPlot, LinearAlgebra, ..CommonToAll, MAT, Random, DelimitedFiles
 
 import ..Model, ..Options, ..OptionsStat, ..OptionsNonstat
@@ -724,7 +724,7 @@ function summarypost(soundings::Array{SkyTEMsoundingData, 1}, opt::Options;
     pl, pm, ph, ρmean, vdmean, vddev, χ²mean, χ²sd, zall
 end
 
-function writetabdelim(fname, opt::Options, soundings::Array{Sounding, 1}; 
+function writetabdelim(fname, opt::Options, soundings::Array{SkyTEMsoundingData, 1}; 
                         nbins=50, qp1=0.05, qp2=0.95, burninfrac=0.5,
                         zstart = 0.0,
                         extendfrac = -1,
@@ -737,26 +737,25 @@ function writetabdelim(fname, opt::Options, soundings::Array{Sounding, 1};
     io = open(fname, "w")
     for (idx, sounding) in enumerate(soundings)
         @info "Sounding number: $idx out of $(length(soundings))"
-        opt.fdataname = soundings[idx].sounding_string*"_"
+        opt.fdataname = sounding.sounding_string*"_"
         himage, edges, CI, meanimage, meandiffimage, sdslope = make1Dhist(opt, burninfrac=burninfrac, nbins = nbins, qp1=qp1, qp2=qp2, temperaturenum=1)
         χ² = 2*assembleTat1(opt, :U, temperaturenum=1, burninfrac=0.5)
         ndata = sum(.!isnan.(sounding.LM_data)) + sum(.!isnan.(sounding.HM_data))
         χ²mean, χ²sd = mean(χ²)/ndata, std(χ²)/ndata
         towrite = [:X, :Y, :Z, :fid, :linenum, :rRx, :zRxLM, :zTxLM, :zRxHM, :zTxHM, :rTx]
-        msg = ""
         for tw in towrite # writes sounding parts
-            msg *= @sprintf("%e\t", getfield(sounding, tw))
+            msg = @sprintf("%e\t", getfield(sounding, tw))
             write(io, msg)
         end
-        msg *="\t"
+        write(io, "\t")
         # zall is missing
-        for el in [-CI[:,3]; -CI[:,2]; -meanimage; -CI[:,1]; χ²mean; χ²sd; -meandiffimage; -sdslope] # concatenate everything else
-            msg *= @sprintf("%e\t", el)
+        for el in [-CI[:,3]; -CI[:,2]; -vec(meanimage); -CI[:,1]; χ²mean; χ²sd; -vec(meandiffimage); -vec(sdslope)] # concatenate everything else
+            msg = @sprintf("%e\t", el)
             write(io, msg)
         end
-        msg *= "\n"
-        write(io, msg)
+        write(io, "\n")
     end
+    close(io)
 end    
 
 function plotindividualsoundings(soundings::Array{SkyTEMsoundingData, 1}, opt::Options;
