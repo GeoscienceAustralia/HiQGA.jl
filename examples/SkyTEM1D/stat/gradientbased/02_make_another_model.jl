@@ -68,10 +68,11 @@ aem = transD_GP.dBzdt(Flm, Fhm, dlow, dhigh, σlow, σhigh, z=zgrid, ρ=ρgrid, 
 σstart .= -2.
 σ0 .= -2
 λ² = 10 .^range(0, 8, length=10)
+regytpe = :R1
 ## do it
 m, χ², idx = transD_GP.gradientinv(σstart, σ0, aem, λ², nstepsmax=10, 
                             regularizeupdate=false,
-                            regtype = :R1);
+                            regtype = regtype);
 ## debug plots: all in each
 alpha = 0.1
 for (i, mi) in enumerate(m)
@@ -104,3 +105,20 @@ gca().invert_xaxis()
 ylabel("depth m")
 xlabel("Log₁₀ ρ")
 plt.tight_layout()
+ax = gca()
+## Compare with posterior model covariance
+using LinearAlgebra
+F = aem
+R = transD_GP.makereg(regtype, F)
+JtW, Wr = F.J'*F.W, F.W*F.res
+H = JtW*(JtW)' + λ²[idx[end]]*R'R
+Cpost = inv(Hermitian(H))
+figure()
+zplot = [zboundaries; zboundaries[end] + 5]
+pcolormesh(zplot, zplot, Cpost)
+xlabel("Depth m")
+ylabel("Depth m")
+colorbar()
+sd = sqrt.(diag(Cpost))
+ax.fill_betweenx(zall, -m[end][idx[end]] -sd, -m[end][idx[end]] +sd, alpha=0.2)
+ax.set_xlim(3, -1)
