@@ -748,8 +748,8 @@ function writetabdelim(fname, opt::Options, soundings::Array{SkyTEMsoundingData,
             write(io, msg)
         end
         write(io, "\t")
-        # zall is missing
-        for el in [-CI[:,3]; -CI[:,2]; -vec(meanimage); -CI[:,1]; χ²mean; χ²sd; -vec(meandiffimage); -vec(sdslope)] # concatenate everything else
+        # zall never was missing
+        for el in [vec(zall); -CI[:,3]; -CI[:,2]; -vec(meanimage); -CI[:,1]; χ²mean; χ²sd; -vec(meandiffimage); -vec(sdslope)] # concatenate everything else
             msg = @sprintf("%e\t", el)
             write(io, msg)
         end
