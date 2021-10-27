@@ -68,18 +68,17 @@ aem = transD_GP.dBzdt(Flm, Fhm, dlow, dhigh, σlow, σhigh, z=zgrid, ρ=ρgrid, 
 σstart .= -2.
 σ0 .= -2
 λ² = 10 .^range(0, 8, length=10)
-regytpe = :R1
 ## do it
-m, χ², idx = transD_GP.gradientinv(σstart, σ0, aem, λ², nstepsmax=10, 
-                            regularizeupdate=false,
-                            regtype = regtype);
+m, χ², idx = transD_GP.gradientinv(σstart, σ0, aem, λ², nstepsmax=11, 
+                            regularizeupdate=false, dobo=true,
+                            regtype = :R1);
 ## debug plots: all in each
 alpha = 0.1
 for (i, mi) in enumerate(m)
     figure(figsize=(7,6))
-    for (ii, mmi) in enumerate(mi)
+    for ii in 1:length(χ²[i])
         subplot(121)
-        step(-mmi, aem.z[2:end], alpha=alpha) 
+        step(-mi[ii], aem.z[2:end], alpha=alpha) 
     end
     step(-mi[idx[i]], aem.z[2:end], color="r", linewidth=2)
     step(log10.(ρ[2:end]), z[2:end], color="k", linewidth=2, linestyle="--")
@@ -88,7 +87,7 @@ for (i, mi) in enumerate(m)
     gca().invert_yaxis()
     gca().invert_xaxis()
     subplot(122)
-    loglog(λ², χ²[i])
+    loglog(λ²[1:length(χ²[i])], χ²[i])
     plot(λ²[idx[i]], χ²[i][idx[i]], "." )
     plt.tight_layout()
 end
