@@ -73,12 +73,13 @@ m, χ², λ², idx = transD_GP.gradientinv(σstart, σ0, aem, nstepsmax=10,
                             regularizeupdate=false, 
                             dobo=true, 
                             λ²min=0, 
-                            λ²max=8, 
+                            λ²max=7, 
                             ntries=8,
                             knownvalue=0.8, 
-                            frac=6, 
+                            frac=5, 
                             breakonknown = false,
                             firstvalue=:last, 
+                            κ = transD_GP.GP.Mat52(),
                             regtype = regtype);
 ## debug plots: all in each
 alpha = 0.1

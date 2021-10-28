@@ -78,7 +78,7 @@ function bostep(m::AbstractVector, m0::AbstractVector, mnew::Vector{Vector{Float
                    λ²max = 8,
                    ## GP stuff
                    demean = true, 
-                   κ = GP.SqEuclidean(), 
+                   κ = GP.Mat52(), 
                    λ²GP = NaN, 
                    δtry = 1e-2,
                    frac = 5,
@@ -145,6 +145,7 @@ function gradientinv(   m::AbstractVector,
                         frac=5,
                         firstvalue=:last,
                         dobo=true,
+                        κ = GP.Mat52(),
                         breakonknown=false)
     R = makereg(regtype, F)                
     ndata = length(F.res)
@@ -158,7 +159,7 @@ function gradientinv(   m::AbstractVector,
     while true
         if dobo
             idx = bostep(m, m0, mnew[istep], χ²[istep], λ²[istep], F, R, ndata, lo, hi,
-            regularizeupdate=regularizeupdate, λ²min=λ²min, λ²max=λ²max, ntries=ntries, 
+            regularizeupdate=regularizeupdate, λ²min=λ²min, λ²max=λ²max, ntries=ntries, κ = κ,
             knownvalue=knownvalue, frac=frac, firstvalue=firstvalue, breakonknown=breakonknown) 
         else       # broken         
             idx = occamstep(m, m0, mn, χsq, F, λ², R, ndata, lo, hi,
