@@ -8,7 +8,7 @@ nmax = 200
 # Note that the receiver and transmitter need to be in layer 1
 zstart = 0.0
 extendfrac, dz = 1.03, 1.5
-zall, znall, zboundaries = transD_GP.setupz(zstart, extendfrac, dz=dz, n=65, showplot=true)
+zall, znall, zboundaries = transD_GP.setupz(zstart, extendfrac, dz=dz, n=65)
 z, ρ, nfixed = transD_GP.makezρ(zboundaries; zfixed=zfixed, ρfixed=ρfixed)
 ##  geometry and modeling parameters
 rRx = 13.
@@ -59,7 +59,7 @@ dlow, dhigh, σlow, σhigh = transD_GP.addnoise_skytem(Flm, Fhm,
 ## create operator
 # but with a coarser grid
 extendfrac, dz = 1.06, 1.15
-zall, znall, zboundaries = transD_GP.setupz(zstart, extendfrac, dz=dz, n=50, showplot=true)
+zall, znall, zboundaries = transD_GP.setupz(zstart, extendfrac, dz=dz, n=50)
 zgrid, ρgrid, nfixed = transD_GP.makezρ(zboundaries; zfixed=zfixed, ρfixed=ρfixed)
 dlow, dhigh, σlow, σhigh = (dlow, dhigh, σlow, σhigh)./transD_GP.SkyTEM1DInversion.μ₀
 aem = transD_GP.dBzdt(Flm, Fhm, dlow, dhigh, σlow, σhigh, z=zgrid, ρ=ρgrid, nfixed=nfixed)
@@ -67,14 +67,27 @@ aem = transD_GP.dBzdt(Flm, Fhm, dlow, dhigh, σlow, σhigh, z=zgrid, ρ=ρgrid, 
 σstart, σ0 = map(x->zeros(length(aem.ρ)-1), 1:2)
 σstart .= -2.
 σ0 .= -2
-λ² = 10 .^range(0, 8, length=10)
+regtype = :R1
 ## do it
-m, χ², idx = transD_GP.gradientinv(σstart, σ0, aem, λ², nstepsmax=11, 
-                            regularizeupdate=false, dobo=true,
-                            regtype = :R1);
+m, χ², λ², idx = transD_GP.gradientinv(σstart, σ0, aem, nstepsmax=10, 
+                            regularizeupdate=false, 
+                            dobo=true, 
+                            λ²min=0, 
+                            λ²max=8, 
+                            ntries=8,
+                            knownvalue=0.8, 
+                            frac=6, 
+                            breakonknown = false,
+                            firstvalue=:last, 
+                            regtype = regtype);
 ## debug plots: all in each
 alpha = 0.1
+idxlast=length(m)
 for (i, mi) in enumerate(m)
+    if isempty(λ²[i]) 
+        idxlast = i-1
+        break
+    end    
     figure(figsize=(7,6))
     for ii in 1:length(χ²[i])
         subplot(121)
@@ -87,8 +100,9 @@ for (i, mi) in enumerate(m)
     gca().invert_yaxis()
     gca().invert_xaxis()
     subplot(122)
-    loglog(λ²[1:length(χ²[i])], χ²[i])
-    plot(λ²[idx[i]], χ²[i][idx[i]], "." )
+    sortedλidx = sortperm(λ²[i])
+    loglog(λ²[i][sortedλidx], χ²[i][sortedλidx], ".-", markersize=5)
+    plot(λ²[i][idx[i]], χ²[i][idx[i]], "o" )
     plt.tight_layout()
 end
 ## debug plots best in each
@@ -96,8 +110,9 @@ figure(figsize=(3,6))
 alpha = 0.1
 for (i, mi) in enumerate(m)
     step(-mi[idx[i]], aem.z[2:end], alpha=alpha)
+    i == idxlast && break
 end
-step(-m[end][idx[end]], aem.z[2:end], color="r", linewidth=2)
+step(-m[idxlast][idx[idxlast]], aem.z[2:end], color="r", linewidth=2)
 step(log10.(ρ[2:end]), z[2:end], color="k", linewidth=2, linestyle="--")
 gca().invert_yaxis()
 gca().invert_xaxis()
@@ -110,7 +125,7 @@ using LinearAlgebra
 F = aem
 R = transD_GP.makereg(regtype, F)
 JtW, Wr = F.J'*F.W, F.W*F.res
-H = JtW*(JtW)' + λ²[idx[end]]*R'R
+H = JtW*(JtW)' + λ²[idxlast][idx[idxlast]]*R'R
 Cpost = inv(Hermitian(H))
 figure()
 zplot = [zboundaries; zboundaries[end] + 5]
@@ -119,5 +134,5 @@ xlabel("Depth m")
 ylabel("Depth m")
 colorbar()
 sd = sqrt.(diag(Cpost))
-ax.fill_betweenx(zall, -m[end][idx[end]] -sd, -m[end][idx[end]] +sd, alpha=0.2)
+ax.fill_betweenx(zall, -m[idxlast][idx[idxlast]] -sd, -m[idxlast][idx[idxlast]] +sd, alpha=0.2)
 ax.set_xlim(3, -1)

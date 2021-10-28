@@ -48,7 +48,7 @@ aem = transD_GP.dBzdt(Flm, Fhm, dlow, dhigh, σlow, σhigh, z=zfixed, ρ=rho, nf
 σstart, σ0 = map(x->zeros(length(rho)-1), 1:2)
 σstart .= -3.
 σ0 .= -2
-λ² = 10 .^range(1, 8, length=10)
+λ² = 10 .^range(0, 8, length=10)
 ## do it
 m, χ², idx = transD_GP.gradientinv(σstart, σ0, aem, λ², nstepsmax=15, 
                             regularizeupdate=false, dobo = true,
@@ -69,7 +69,7 @@ for (i, mi) in enumerate(m)
     gca().invert_xaxis()
     subplot(122)
     loglog(λ²[1:length(χ²[i])], χ²[i])
-    plot(λ²[idx[i]], χ²[i][idx[i]], "." )
+    # plot(λ²[idx[i]], χ²[i][idx[i]], "." )
     plt.tight_layout()
 end
 ## debug plots best in each

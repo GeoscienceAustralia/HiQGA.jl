@@ -1,6 +1,6 @@
 using transD_GP.GP, Random, PyPlot, Statistics, LinearAlgebra, PositiveFactorizations
 ##
-Random.seed!(11)
+Random.seed!(25)
 f = 1.0/0.5
 t = 0:(10*f)^-1:2/f
 ntrain = 1
@@ -29,7 +29,7 @@ ttrain = T[:,trainidx]
 vmin, vmax = extrema(ynoisy)
 ytest, σ2, σ_prior  = GP.GPfit(GP.SqEuclidean(), ytrain', ttrain, T, λ.^2, δtry, p=p, demean=demean)
 AF = GP.getAF(acqfun, ytrain, vec(ytest), diag(σ2), findmin=findmin, knownvalue=knownvalue)
-f, ax = plt.subplots(3, ntries+1, figsize=(12,3), sharex=true, sharey=true)
+f, ax = plt.subplots(3, ntries+1, figsize=(22,4), sharex=true, sharey=true)
 ax[1].imshow(ynoisy, extent=[t[1], t[end], t[end], t[1]])
 ax[1].plot(ttrain[2,:][:],ttrain[1,:][:], ".m",markersize=5)
 ax[2].imshow(reshape(ytest, size(y)), extent=[t[1], t[end], t[end], t[1]], vmin=vmin, vmax=vmax)

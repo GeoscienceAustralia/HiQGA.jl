@@ -50,7 +50,7 @@ function newtonstep(m::AbstractVector, m0::AbstractVector, F::Operator, λ²::Fl
 end
 
 function occamstep(m::AbstractVector, m0::AbstractVector, mnew::Vector{Vector{Float64}}, χ²::Vector{Float64},
-                   F::Operator, λ²::Vector{Float64}, R::SparseMatrixCSC, target, lo, hi;
+                   F::Operator, R::SparseMatrixCSC, target, lo, hi;
                    regularizeupdate = false)
     getresidual(F, m, computeJ=true)
     r, W = F.res, F.W
@@ -71,9 +71,11 @@ function occamstep(m::AbstractVector, m0::AbstractVector, mnew::Vector{Vector{Fl
     idx
 end 
 
-function bostep(m::AbstractVector, m0::AbstractVector, mnew::Vector{Vector{Float64}}, χ²::Vector{Float64},
-                   F::Operator, λ²::Vector{Float64}, R::SparseMatrixCSC, target, lo, hi;
-                   regularizeupdate = false, 
+function bostep(m::AbstractVector, m0::AbstractVector, mnew::Vector{Vector{Float64}}, χ²::Vector{Float64}, λ²sampled::Vector{Float64},
+                   F::Operator, R::SparseMatrixCSC, target, lo, hi;
+                   regularizeupdate = false,
+                   λ²min = 0,
+                   λ²max = 8,
                    ## GP stuff
                    demean = true, 
                    κ = GP.SqEuclidean(), 
@@ -83,47 +85,31 @@ function bostep(m::AbstractVector, m0::AbstractVector, mnew::Vector{Vector{Float
                    ntestdivs = 50,
                    acqfun = GP.EI(),
                    ntries = 6,
-                   knownvalue = 0.7)
+                   firstvalue = :last,
+                   knownvalue = NaN,
+                   breakonknown = false)
     
     getresidual(F, m, computeJ=true)
     r, W = F.res, F.W
+    r₀ = copy(r)    
     χ²₀ = norm(W*r)^2
     @info "χ² is $χ²₀ at start"
     
     knownvalue *= χ²₀
 
-    lmin, lmax = extrema(log10.(λ²))
-    λ²GP = [((lmax-lmin)/frac)^2] # length scale square for surrogate
-    t = LinRange(lmin, lmax, ntestdivs) # test range for surrogate
-    ttrain = [t[1]] # first training point location
-    mnew[1] = m + newtonstep(m, m0, F, 10^ttrain[end], R, 
-                        regularizeupdate=regularizeupdate)
-    pushback(mnew[1], lo, hi)
-    getresidual(F, mnew[1], computeJ=false)                
-    @info "χ² is $(norm(W*r)^2) after first push"
-    push!(χ², norm(W*r)^2) # first training value
-    ytest, σ2, = GP.GPfit(κ, χ²', ttrain', t', λ²GP, δtry, demean=demean) # fit a GP
-    # @info χ², ttrain
-    # @info vec(ytest)
-    # @info diag(σ2)
-    AF = GP.getAF(acqfun, χ², vec(ytest), diag(σ2), findmin=true, knownvalue=knownvalue) # acquisition func calculation
-    # @info AF
-    # @info "---"
-    for i = 2:ntries
-        nextpos = argmax(AF) # get next test location
-        # find the misfit
-        mnew[i] = m + newtonstep(m, m0, F, 10^t[nextpos], R, 
-        regularizeupdate=regularizeupdate)
+    λ²GP = [((λ²max-λ²min)/frac)^2] # length scale square for surrogate
+    t = LinRange(λ²min, λ²max, ntestdivs)' # test range for surrogate
+    ttrain = zeros(size(t,1), 0)
+    for i = 1:ntries
+        nextpos, = getBOsample(κ, χ²', ttrain, t, λ²GP, δtry, demean, i, knownvalue, firstvalue, acqfun)
+        push!(λ²sampled, 10^t[nextpos])
+        mnew[i] = m + newtonstep(m, m0, F, 10^t[nextpos], R, regularizeupdate=regularizeupdate)
         pushback(mnew[i], lo, hi)                        
         getresidual(F, mnew[i], computeJ=false)
-        @show push!(χ², norm(W*r)^2) # next training value
-        push!(ttrain, t[nextpos]) # next training location
-        ytest, σ2, = GP.GPfit(κ, χ²', ttrain', t', λ²GP, δtry, demean=demean)
-        # @info χ², ttrain
-        # @info vec(ytest)
-        # @info diag(σ2)
-        AF = GP.getAF(acqfun, χ², vec(ytest), diag(σ2), findmin=true, knownvalue=knownvalue)
-        # @info AF
+        push!(χ², norm(W*r)^2) # next training value
+        r .= r₀
+        ttrain = hcat(ttrain, t[:,nextpos]) # next training location
+        (χ²[i] <= knownvalue && breakonknown) && break
     end    
     idx = -1 
     if all(χ² .> target)
@@ -134,53 +120,58 @@ function bostep(m::AbstractVector, m0::AbstractVector, mnew::Vector{Vector{Float
     idx
 end 
 
+function getBOsample(κ, χ², ttrain, t, λ²GP, δtry, demean, iteration, knownvalue, firstvalue, acqfun)
+    # χ², ttrain, t are row major
+    if iteration != 1
+        ytest, σ2, = GP.GPfit(κ, χ², ttrain, t, λ²GP, δtry, demean=demean)
+        diagσ2 = diag(σ2)
+    else
+        ytest, diagσ2 = ones(size(t, 2)), ones(size(t, 2))
+    end
+    nextpos, = GP.getAF(iteration, acqfun, vec(χ²), vec(ytest), diagσ2, findmin=true, knownvalue=knownvalue, firstvalue=firstvalue)          
+end    
+
 function gradientinv(   m::AbstractVector,
                         m0::AbstractVector, 
-                        F::Operator, λ²::Vector{Float64}; 
+                        F::Operator; 
                         regtype=:R0,
-                        saveall = true, 
                         nstepsmax = 10,
+                        ntries = 6,
                         target = nothing,
                         lo = -3.,
                         hi = 1.,
+                        λ²min = 0,
+                        λ²max = 8,
                         regularizeupdate = false,
-                        dobo=true)
+                        knownvalue=0.7,
+                        frac=5,
+                        firstvalue=:last,
+                        dobo=true,
+                        breakonknown=false)
     R = makereg(regtype, F)                
     ndata = length(F.res)
     isnothing(target) && (target = ndata)
-    if saveall
-        mnew = [[similar(m) for i in 1:length(λ²)] for j in 1:nstepsmax]
-        χ²   = [Vector{Float64}(undef, 0) for j in 1:nstepsmax]
-        oidx = zeros(Int, nstepsmax)
-    else
-        mnew = [similar(m) for i in 1:length(λ²)]
-        χ²   = [similar(λ²) for i in 1:length(λ²)]
-    end        
+    mnew = [[similar(m) for i in 1:ntries] for j in 1:nstepsmax]
+    χ²   = [Vector{Float64}(undef, 0) for j in 1:nstepsmax]
+    λ² = [Vector{Float64}(undef, 0) for j in 1:nstepsmax]
+    oidx = zeros(Int, nstepsmax)  
     ndata = length(F.res)
     istep = 1                  
     while true
-        if saveall
-            mn = mnew[istep]
-            χsq = χ²[istep]
-        else 
-            mn = mnew
-            χsq = χ²
-        end
         if dobo
-            idx = bostep(m, m0, mn, χsq, F, λ², R, ndata, lo, hi,
-            regularizeupdate=regularizeupdate)
-        else                
+            idx = bostep(m, m0, mnew[istep], χ²[istep], λ²[istep], F, R, ndata, lo, hi,
+            regularizeupdate=regularizeupdate, λ²min=λ²min, λ²max=λ²max, ntries=ntries, 
+            knownvalue=knownvalue, frac=frac, firstvalue=firstvalue, breakonknown=breakonknown) 
+        else       # broken         
             idx = occamstep(m, m0, mn, χsq, F, λ², R, ndata, lo, hi,
                         regularizeupdate=regularizeupdate)
         end                
-        @info "iteration: $istep χ²: $(χsq[idx]) target: $target"
-        m = mn[idx]
-        saveall && (oidx[istep] = idx)
+        @info "iteration: $istep χ²: $(χ²[istep][idx]) target: $target"
+        m = mnew[istep][idx]
+        oidx[istep] = idx
+        χ²[istep][idx] < target && break
         istep += 1
-        χsq[idx] < target && break
         istep > nstepsmax && break
     end
-    if saveall
-        return mnew, χ², oidx
-    end      
+    return mnew, χ², λ², oidx
 end    

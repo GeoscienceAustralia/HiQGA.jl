@@ -118,18 +118,38 @@ function getAF(AF::EI, y::Array{Float64, 1}, fₓ::Array{Float64, 1}, σₓ²::A
     X.*cdf.(d, Z) + σₓ.*pdf(d, Z) 
 end
 
-function getAF(AF::AcqFunc, y::Vector{Float64}, fₓ::Vector{Float64}, σₓ²::Vector{Float64};
-        findmin = false, tol = 1e-12, knownvalue=NaN)
-        sf = 1.
-        if length(y) != 1
-            sf = var(y)
-        end    
-    if findmin
-        getAF(AF, -y, -fₓ, sf*σₓ², tol, -knownvalue)
-    else
-        getAF(AF,  y,  fₓ, sf*σₓ², tol, knownvalue)    
-    end    
+function getAF(iteration::Int, AF::AcqFunc, y::Vector{Float64}, fₓ::Vector{Float64}, σₓ²::Vector{Float64};
+        findmin = false, tol = 1e-12, knownvalue=NaN, firstvalue=:first)
+    if iteration == 1
+        nextpos, AF = AFoneiter(firstvalue, fₓ)
+    else       
+        AF = getAF(AF, y, fₓ, σₓ², findmin = findmin, tol = tol, knownvalue=knownvalue)
+        nextpos = argmax(AF)
+    end
+    nextpos, AF
 end
+
+function getAF(AF::AcqFunc, y::Vector{Float64}, fₓ::Vector{Float64}, σₓ²::Vector{Float64};
+    findmin = false, tol = 1e-12, knownvalue=NaN)
+    sf = length(y) == 1 ? 1 : var(y) 
+    if findmin
+        AF = getAF(AF, -y, -fₓ, sf*σₓ², tol, -knownvalue)
+    else
+        AF = getAF(AF,  y,  fₓ, sf*σₓ², tol, knownvalue)    
+    end
+end
+
+function AFoneiter(firstvalue::Symbol, fₓ::Vector)
+    if firstvalue == :first
+        return 1, ones(size(fₓ))
+    elseif firstvalue == :last
+        return length(fₓ), ones(size(fₓ))
+    elseif firstvalue == :middle
+        return round(Int, middle(1:length(fₓ))), ones(size(fₓ))
+    elseif firstvalue == :random
+        return rand(1:length(fₓ)), ones(size(fₓ))        
+    end
+end    
 
 function meshkernel(K::Kernel, xtrain::AbstractArray, xtest::AbstractArray,
                     λ²test::AbstractArray, λ²train::AbstractArray, p)
