@@ -93,8 +93,6 @@ function bostep(m::AbstractVector, m0::AbstractVector, mnew::Vector{Vector{Float
     r, W = F.res, F.W
     r₀ = copy(r)    
     χ²₀ = norm(W*r)^2
-    @info "χ² is $χ²₀ at start"
-    
     knownvalue *= χ²₀
 
     λ²GP = [((λ²max-λ²min)/frac)^2] # length scale square for surrogate
