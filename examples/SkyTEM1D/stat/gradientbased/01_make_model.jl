@@ -50,15 +50,15 @@ aem = transD_GP.dBzdt(Flm, Fhm, dlow, dhigh, σlow, σhigh, z=zfixed, ρ=rho, nf
 σ0 .= -2
 regtype = :R1
 ## do it
-m, χ², λ², idx = transD_GP.gradientinv(σstart, σ0, aem, nstepsmax=10, 
+m, χ², λ², idx = transD_GP.gradientinv(σstart, σ0, aem, nstepsmax=15, 
                             regularizeupdate=false, 
                             dobo=true, 
-                            λ²min=-0.5,
+                            λ²min=0,
                             λ²max=7, 
                             ntries=8,
-                            knownvalue=0.8, 
+                            knownvalue=0.7, 
                             frac=5, 
-                            breakonknown = false,
+                            breakonknown = true,
                             firstvalue=:last, 
                             κ = transD_GP.GP.Mat52(),
                             regtype = regtype);
@@ -70,21 +70,32 @@ for (i, mi) in enumerate(m)
         idxlast = i-1
         break
     end    
-    figure(figsize=(7,6))
+    f = figure(figsize=(7,6))
+    s1 = subplot(131)
     for ii in 1:length(χ²[i])
-        subplot(121)
-        step(-mi[ii], aem.z[2:end], alpha=alpha) 
+        s1.step(-mi[ii], aem.z[2:end], alpha=alpha) 
     end
-    step(-mi[idx[i]], aem.z[2:end], color="r", linewidth=2)
-    step(log10.(rho[2:end]), aem.z[2:end], color="k", linewidth=2, linestyle="--")
-    ylabel("depth m")
-    xlabel("Log₁₀ ρ")
-    gca().invert_yaxis()
-    gca().invert_xaxis()
-    subplot(122)
-    sortedλidx = sortperm(λ²[i])
-    loglog(λ²[i][sortedλidx], χ²[i][sortedλidx], ".-", markersize=5)
-    plot(λ²[i][idx[i]], χ²[i][idx[i]], "o" )
+    s1.step(-mi[idx[i]], aem.z[2:end], color="r", linewidth=2)
+    s1.step(log10.(rho[2:end]), aem.z[2:end], color="k", linewidth=2, linestyle="--")
+    s1.set_ylabel("depth m")
+    s1.set_xlabel("Log₁₀ ρ")
+    s1.invert_yaxis()
+    s1.invert_xaxis()
+    s2 = subplot(232)
+    hps = hcat(λ²[i]...)'
+    sortedλidx = sortperm(hps[:,1])
+    sortedαidx = sortperm(hps[:,2])
+    s2.loglog(hps[sortedλidx,1], χ²[i][sortedλidx], ".-", markersize=5)
+    s2.plot(hps[idx[i],1], χ²[i][idx[i]], "o" )
+    s2.set_ylabel("χ²")
+    s3 = subplot(236)
+    s3.loglog(χ²[i][sortedαidx], hps[sortedαidx,2], ".-", markersize=5)
+    s3.plot(χ²[i][idx[i]], hps[idx[i],2], "o" )
+    s3.set_xlabel("χ²")
+    s4 = subplot(235, sharex=s2, sharey=s3)
+    s4.scatter(hps[:,1], hps[:,2], c=log10.(χ²[i]), cmap="magma")
+    s4.plot(hps[idx[i],1], hps[idx[i],2], "x", markersize=10)
+    s4.set_xlabel("λ²"); s4.set_ylabel("step length α")
     plt.tight_layout()
 end
 ## debug plots best in each
