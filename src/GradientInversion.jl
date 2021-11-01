@@ -71,22 +71,23 @@ function occamstep(m::AbstractVector, m0::AbstractVector, mnew::Vector{Vector{Fl
     idx
 end 
 
+function initbo(λ²min, λ²max, λ²frac, ntestdivsλ², αmin, αmax, αfrac, ntestdivsα)
+    l2 = LinRange(λ²min, λ²max, ntestdivsλ²) # test range for surrogate
+    α = LinRange(αmin, αmax, ntestdivsα) # test range for surrogate
+    λ²GP = [((λ²max-λ²min)/λ²frac)^2; (abs(α[end]-α[1])/αfrac)^2] # length scale square for surrogate
+    X1, X2 = [x1 for x1 in l2, x2 in α], [x2 for x1 in l2, x2 in α]
+    t = [X1[:]';X2[:]']
+    t, λ²GP
+end    
+
 function bostep(m::AbstractVector, m0::AbstractVector, mnew::Vector{Vector{Float64}}, χ²::Vector{Float64}, λ²sampled::Vector{Vector{Float64}},
-                   F::Operator, R::SparseMatrixCSC, target, lo, hi;
+                    t::Array{Float64, 2}, λ²GP::Array{Float64, 1}, F::Operator, R::SparseMatrixCSC, target, lo, hi;
                    regularizeupdate = false,
-                   λ²min = 0,
-                   λ²max = 8,
-                   αmin = -4,
-                   αmax = 0,
+                  
                    ## GP stuff
                    demean = true, 
                    κ = GP.Mat52(), 
-                   λ²GP = NaN, 
                    δtry = 1e-2,
-                   frac = 5,
-                   αfrac = 4,
-                   ntestdivsλ² = 50,
-                   ntestdivsα  = 32,
                    acqfun = GP.EI(),
                    ntries = 6,
                    firstvalue = :last,
@@ -99,11 +100,6 @@ function bostep(m::AbstractVector, m0::AbstractVector, mnew::Vector{Vector{Float
     χ²₀ = norm(W*r)^2
     knownvalue *= χ²₀
 
-    l2 = LinRange(λ²min, λ²max, ntestdivsλ²) # test range for surrogate
-    α = LinRange(αmin, αmax, ntestdivsα) # test range for surrogate
-    λ²GP = [((λ²max-λ²min)/frac)^2; (abs(α[end]-α[1])/αfrac)^2] # length scale square for surrogate
-    X1, X2 = [x1 for x1 in l2, x2 in α], [x2 for x1 in l2, x2 in α]
-    t = [X1[:]';X2[:]']
     ttrain = zeros(size(t,1), 0)
     for i = 1:ntries
         nextpos, = getBOsample(κ, χ²', ttrain, t, λ²GP, δtry, demean, i, knownvalue, firstvalue, acqfun)
@@ -163,11 +159,15 @@ function gradientinv(   m::AbstractVector,
                         hi = 1.,
                         λ²min = 0,
                         λ²max = 8,
+                        λ²frac=5,
+                        ntestdivsλ²=50,
+                        αmin=-4, 
+                        αmax=0, 
+                        αfrac=4, 
+                        ntestdivsα=32,
                         regularizeupdate = false,
                         knownvalue=0.7,
-                        frac=5,
                         firstvalue=:last,
-                        dobo=true,
                         κ = GP.Mat52(),
                         breakonknown=false)
     R = makereg(regtype, F)                
@@ -178,16 +178,12 @@ function gradientinv(   m::AbstractVector,
     λ² = [Vector{Vector{Float64}}(undef, 0) for j in 1:nstepsmax]
     oidx = zeros(Int, nstepsmax)  
     ndata = length(F.res)
+    t, λ²GP = initbo(λ²min, λ²max, λ²frac, ntestdivsλ², αmin, αmax, αfrac, ntestdivsα)
     istep = 1                  
     while true
-        if dobo
-            idx = bostep(m, m0, mnew[istep], χ²[istep], λ²[istep], F, R, ndata, lo, hi,
-            regularizeupdate=regularizeupdate, λ²min=λ²min, λ²max=λ²max, ntries=ntries, κ = κ,
-            knownvalue=knownvalue, frac=frac, firstvalue=firstvalue, breakonknown=breakonknown) 
-        else       # broken         
-            idx = occamstep(m, m0, mn, χsq, F, λ², R, ndata, lo, hi,
-                        regularizeupdate=regularizeupdate)
-        end                
+        idx = bostep(m, m0, mnew[istep], χ²[istep], λ²[istep], t, λ²GP, F, R, ndata, lo, hi,
+        regularizeupdate=regularizeupdate, ntries=ntries, κ = κ,
+        knownvalue=knownvalue, firstvalue=firstvalue, breakonknown=breakonknown)         
         @info "iteration: $istep χ²: $(χ²[istep][idx]) target: $target"
         m = mnew[istep][idx]
         oidx[istep] = idx

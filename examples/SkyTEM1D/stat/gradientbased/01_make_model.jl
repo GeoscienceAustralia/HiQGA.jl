@@ -50,14 +50,14 @@ aem = transD_GP.dBzdt(Flm, Fhm, dlow, dhigh, σlow, σhigh, z=zfixed, ρ=rho, nf
 σ0 .= -2
 regtype = :R1
 ## do it
-m, χ², λ², idx = transD_GP.gradientinv(σstart, σ0, aem, nstepsmax=15, 
+m, χ², λ², idx = transD_GP.gradientinv(σstart, σ0, aem, nstepsmax=20, 
                             regularizeupdate=false, 
-                            dobo=true, 
-                            λ²min=0,
+                            λ²min=0, 
                             λ²max=7, 
-                            ntries=8,
+                            ntries=6,
                             knownvalue=0.7, 
-                            frac=5, 
+                            λ²frac=4,
+                            αfrac=4, 
                             breakonknown = true,
                             firstvalue=:last, 
                             κ = transD_GP.GP.Mat52(),

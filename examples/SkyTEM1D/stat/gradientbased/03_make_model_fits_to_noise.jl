@@ -71,12 +71,12 @@ regtype = :R1
 ## do it
 m, χ², λ², idx = transD_GP.gradientinv(σstart, σ0, aem, nstepsmax=20, 
                             regularizeupdate=false, 
-                            dobo=true, 
                             λ²min=0, 
                             λ²max=7, 
-                            ntries=8,
+                            ntries=6,
                             knownvalue=0.7, 
-                            frac=5, 
+                            λ²frac=4,
+                            αfrac=4, 
                             breakonknown = true,
                             firstvalue=:last, 
                             κ = transD_GP.GP.Mat52(),
@@ -86,7 +86,7 @@ alpha = 0.1
 idxlast=length(m)
 for (i, mi) in enumerate(m)
     if isempty(λ²[i]) 
-        idxlast = i-1
+        global idxlast = i-1
         break
     end    
     f = figure(figsize=(7,6))
@@ -137,7 +137,7 @@ using LinearAlgebra
 F = aem
 R = transD_GP.makereg(regtype, F)
 JtW, Wr = F.J'*F.W, F.W*F.res
-H = JtW*(JtW)' + λ²[idxlast][idx[idxlast]]*R'R
+H = JtW*(JtW)' + λ²[idxlast][idx[idxlast]][1]*R'R
 Cpost = inv(Hermitian(H))
 figure()
 zplot = [zboundaries; zboundaries[end] + 5]
