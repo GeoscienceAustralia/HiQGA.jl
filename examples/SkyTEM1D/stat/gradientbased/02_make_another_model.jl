@@ -69,9 +69,9 @@ aem = transD_GP.dBzdt(Flm, Fhm, dlow, dhigh, σlow, σhigh, z=zgrid, ρ=ρgrid, 
 σ0 .= -2
 regtype = :R1
 ## do it
-m, χ², λ², idx = transD_GP.gradientinv(σstart, σ0, aem, nstepsmax=20, 
+m, χ², λ², idx = transD_GP.gradientinv(σstart, σ0, aem, nstepsmax=10, 
                             regularizeupdate=false, 
-                            λ²min=0, 
+                            λ²min=-1, 
                             λ²max=7, 
                             ntries=6,
                             knownvalue=0.7, 
@@ -110,7 +110,7 @@ for (i, mi) in enumerate(m)
     s3 = subplot(236)
     s3.loglog(χ²[i][sortedαidx], hps[sortedαidx,2], ".-", markersize=5)
     s3.plot(χ²[i][idx[i]], hps[idx[i],2], "o" )
-    s3.set_ylabel("χ²")
+    s3.set_xlabel("χ²")
     s4 = subplot(235, sharex=s2, sharey=s3)
     s4.scatter(hps[:,1], hps[:,2], c=log10.(χ²[i]), cmap="magma")
     s4.plot(hps[idx[i],1], hps[idx[i],2], "x", markersize=10)

@@ -49,18 +49,46 @@ function newtonstep(m::AbstractVector, m0::AbstractVector, F::Operator, λ²::Fl
     end       
 end
 
-function occamstep(m::AbstractVector, m0::AbstractVector, mnew::Vector{Vector{Float64}}, χ²::Vector{Float64},
-                   F::Operator, R::SparseMatrixCSC, target, lo, hi;
-                   regularizeupdate = false)
+function occamstep(m::AbstractVector, m0::AbstractVector, mnew::Vector{Vector{Float64}},
+                χ²::Vector{Float64}, λ²::Vector{Vector{Float64}}, F::Operator, R::SparseMatrixCSC, target, 
+                lo, hi, λ²min, λ²max, ntries; knownvalue=NaN, regularizeupdate = false)
+                   
     getresidual(F, m, computeJ=true)
     r, W = F.res, F.W
-    @info "χ² is $(norm(W*r)^2)"
-    for (i, l²) in enumerate(λ²)
-        mnew[i] = m + newtonstep(m, m0, F, l², R, 
-                        regularizeupdate=regularizeupdate)
-        pushback(mnew[i], lo, hi)                
-        getresidual(F, mnew[i], computeJ=false)
-        push!(χ², norm(W*r)^2)
+    r₀ = copy(r)    
+    χ²₀ = norm(W*r)^2
+    knownvalue *= χ²₀
+    α = 1
+    count = 0
+    countmax = 6
+    while true
+        for (i, l²) in enumerate(10 .^LinRange(λ²min, λ²max, ntries))
+            if count == 0    
+                mnew[i] = m + newtonstep(m, m0, F, l², R, 
+                                regularizeupdate=regularizeupdate)
+                pushback(mnew[i], lo, hi)                
+                getresidual(F, mnew[i], computeJ=false)
+                push!(χ², norm(W*r)^2)
+                push!(λ², [l²; α])
+                r .= r₀
+            else    
+                mnew[i] = α*mnew[i] + (1 - α)*m
+                pushback(mnew[i], lo, hi)                
+                getresidual(F, mnew[i], computeJ=false)
+                χ²[i] = norm(W*r)^2
+                λ²[i] = [l²; α]
+                r .= r₀
+            end
+            χ²[i] <= knownvalue && (count = countmax; break)
+        end
+        if all(χ² .>= χ²₀)
+            α = α/2
+            @info "here"
+        else 
+            count = countmax    
+        end
+        count += 1        
+        count > countmax && break                    
     end
     idx = -1
     if all(χ² .> target)
@@ -169,7 +197,8 @@ function gradientinv(   m::AbstractVector,
                         knownvalue=0.7,
                         firstvalue=:last,
                         κ = GP.Mat52(),
-                        breakonknown=false)
+                        breakonknown=false,
+                        dobo = false)
     R = makereg(regtype, F)                
     ndata = length(F.res)
     isnothing(target) && (target = ndata)
@@ -181,9 +210,14 @@ function gradientinv(   m::AbstractVector,
     t, λ²GP = initbo(λ²min, λ²max, λ²frac, ntestdivsλ², αmin, αmax, αfrac, ntestdivsα)
     istep = 1                  
     while true
-        idx = bostep(m, m0, mnew[istep], χ²[istep], λ²[istep], t, λ²GP, F, R, ndata, lo, hi,
-        regularizeupdate=regularizeupdate, ntries=ntries, κ = κ,
-        knownvalue=knownvalue, firstvalue=firstvalue, breakonknown=breakonknown)         
+        if dobo
+            idx = bostep(m, m0, mnew[istep], χ²[istep], λ²[istep], t, λ²GP, F, R, ndata, lo, hi,
+            regularizeupdate=regularizeupdate, ntries=ntries, κ = κ,
+            knownvalue=knownvalue, firstvalue=firstvalue, breakonknown=breakonknown)         
+        else
+            idx = occamstep(m, m0, mnew[istep], χ²[istep], λ²[istep], F, R, target, 
+                lo, hi, λ²min, λ²max, ntries, knownvalue=knownvalue, regularizeupdate = regularizeupdate)
+        end
         @info "iteration: $istep χ²: $(χ²[istep][idx]) target: $target"
         m = mnew[istep][idx]
         oidx[istep] = idx
