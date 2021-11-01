@@ -83,7 +83,6 @@ function occamstep(m::AbstractVector, m0::AbstractVector, mnew::Vector{Vector{Fl
         end
         if all(χ² .>= χ²₀)
             α = α/2
-            @info "here"
         else 
             count = countmax    
         end
