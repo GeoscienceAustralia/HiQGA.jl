@@ -235,7 +235,8 @@ function gradientinv(   m::AbstractVector,
                         firstvalue=:last,
                         κ = GP.Mat52(),
                         breakonknown=false,
-                        dobo = false)
+                        dobo = false,
+                        fname="")
     R = makereg(regtype, F)                
     ndata = length(F.res)
     isnothing(target) && (target = ndata)
@@ -245,7 +246,8 @@ function gradientinv(   m::AbstractVector,
     oidx = zeros(Int, nstepsmax)  
     ndata = length(F.res)
     t, λ²GP = initbo(λ²min, λ²max, λ²frac, ntestdivsλ², αmin, αmax, αfrac, ntestdivsα)
-    istep = 1                  
+    istep = 1 
+    io = open_history(fname)                 
     while true
         if dobo
             idx = bostep(m, m0, mnew[istep], χ²[istep], λ²[istep], t, λ²GP, F, R, ndata, lo, hi,
@@ -258,9 +260,89 @@ function gradientinv(   m::AbstractVector,
         @info "iteration: $istep χ²: $(χ²[istep][idx]) target: $target"
         m = mnew[istep][idx]
         oidx[istep] = idx
+        isa(io, Nothing) || write_history(io, [istep; χ²[istep][idx]/target; vec(m)])
         χ²[istep][idx] < target && break
         istep += 1
         istep > nstepsmax && break
     end
+    isa(io, Nothing) || close(io)
     return mnew, χ², λ², oidx
 end    
+
+function open_history(fname)
+    if isfile(fname)
+        @error "$fname exists"
+    end
+    if !isempty(fname)
+        io = open(fname, "w")
+    end
+end        
+
+function write_history(io, v::Vector)
+    for el in v
+        msg = @sprintf("%e\t", el)
+        write(io, msg)
+    end
+    write(io, "\n")
+end
+
+# function loopacrosssoundings(soundings::Array{S, 1}, opt_in::Options;
+#                             nsequentialiters   =-1,
+#                             nparallelsoundings =-1,
+#                             zfixed             = [-1e5],
+#                             ρfixed             = [1e12],
+#                             zstart             = 0.0,
+#                             extendfrac         = 1.06,
+#                             dz                 = 2.,
+#                             ρbg                = 10,
+#                             nlayers            = 50,
+#                             ntimesperdecade    = 10,
+#                             nfreqsperdecade    = 5,
+#                             nsamples           = -1,
+#                             modelprimary       = false,
+#                             ) where S<:Sounding
+
+#     @assert nsequentialiters  != -1
+#     @assert nparallelsoundings != -1
+#     @assert nsamples != - 1
+
+#     nsoundings = length(soundings)
+#     opt= deepcopy(opt_in)
+
+#     for iter = 1:nsequentialiters
+#         if iter<nsequentialiters
+#             ss = (iter-1)*nparallelsoundings+1:iter*nparallelsoundings
+#         else
+#             ss = (iter-1)*nparallelsoundings+1:nsoundings
+#         end
+#         @info "soundings in loop $iter of $nsequentialiters", ss
+#         r_nothing = Array{Nothing, 1}(undef, length(ss))
+#         @sync for (i, s) in Iterators.reverse(enumerate(ss))
+#             pids = (i-1)*nchainspersounding+i:i*(nchainspersounding+1)
+#             @info "pids in sounding $s:", pids
+
+#             aem, = makeoperator(    soundings[s],
+#                                     zfixed = zfixed,
+#                                     ρfixed = ρfixed,
+#                                     zstart = zstart,
+#                                     extendfrac = extendfrac,
+#                                     dz = dz,
+#                                     ρbg = ρbg,
+#                                     useML = useML,
+#                                     nlayers = nlayers,
+#                                     modelprimary = modelprimary,
+#                                     ntimesperdecade = ntimesperdecade,
+#                                     nfreqsperdecade = nfreqsperdecade)
+
+#             opt = deepcopy(opt_in)
+#             opt.fdataname = soundings[s].sounding_string*"_"
+
+#             @async r_nothing[i] = remotecall_fetch(main, pids[1], opt, aem, collect(pids[2:end]),
+#                                     Tmax         = Tmax,
+#                                     nsamples     = nsamples,
+#                                     nchainsatone = nchainsatone)
+
+#         end # @sync
+#         @info "done $iter out of $nsequentialiters at $(Dates.now())"
+#     end
+# end
