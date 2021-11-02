@@ -1,4 +1,4 @@
-using LinearMaps, SparseArrays, PositiveFactorizations
+using LinearMaps, SparseArrays, PositiveFactorizations, Roots
 using .AbstractOperator, .GP
 
 function makeregR0(F::Operator1D)
@@ -51,7 +51,7 @@ end
 
 function occamstep(m::AbstractVector, m0::AbstractVector, mnew::Vector{Vector{Float64}},
                 χ²::Vector{Float64}, λ²::Vector{Vector{Float64}}, F::Operator, R::SparseMatrixCSC, target, 
-                lo, hi, λ²min, λ²max, ntries; knownvalue=NaN, regularizeupdate = false)
+                lo, hi, λ²min, λ²max, ntries; knownvalue=NaN, regularizeupdate = false, ϵ=.001)
                    
     getresidual(F, m, computeJ=true)
     r, W = F.res, F.W
@@ -94,9 +94,33 @@ function occamstep(m::AbstractVector, m0::AbstractVector, mnew::Vector{Vector{Fl
         idx = argmin(χ²)
     else    
         idx = findlast(χ² .<= target)
+        if 1 - χ²[idx]/target >  - ϵ
+            # # root finding
+            # @info "before $(λ²[idx][1])"
+            # λ²[idx][1] = find_zero(l² -> fλ²(α, m, m0, F, l², R, regularizeupdate, lo, hi) - target, (λ²[idx][1], λ²[idx+1][1]))
+            # @info "after $(λ²[idx][1])"
+            # mnew[idx] = m + α*newtonstep(m, m0, F, λ²[idx][1], R, regularizeupdate=regularizeupdate)
+            # χ²[idx] = getχ²(F, mnew[idx])
+            dophase2(m, m0, F, R, regularizeupdate, lo, hi, target, idx, idx+1, mnew,  χ², λ²)
+        end    
     end
     idx
 end 
+
+function fλ²(α, m, m0, F, l², R, regularizeupdate, lo, hi)
+    mnew = m + α*newtonstep(m, m0, F, l², R, regularizeupdate=regularizeupdate)
+    pushback(mnew, lo, hi)                
+    getχ²(F, mnew)
+end
+
+function getχ²(F, m)
+    r, W = F.res, F.W
+    r₀ = copy(r)
+    getresidual(F, m, computeJ=false)
+    χ² = norm(W*r)^2
+    r .= r₀
+    return χ²
+end
 
 function initbo(λ²min, λ²max, λ²frac, ntestdivsλ², αmin, αmax, αfrac, ntestdivsα)
     l2 = LinRange(λ²min, λ²max, ntestdivsλ²) # test range for surrogate
@@ -109,7 +133,7 @@ end
 
 function bostep(m::AbstractVector, m0::AbstractVector, mnew::Vector{Vector{Float64}}, χ²::Vector{Float64}, λ²sampled::Vector{Vector{Float64}},
                     t::Array{Float64, 2}, λ²GP::Array{Float64, 1}, F::Operator, R::SparseMatrixCSC, target, lo, hi;
-                   regularizeupdate = false,
+                   regularizeupdate = false, ϵ=.001,
                   
                    ## GP stuff
                    demean = true, 
@@ -146,9 +170,23 @@ function bostep(m::AbstractVector, m0::AbstractVector, mnew::Vector{Vector{Float
         sortedλ²idx = sortperm(vec(ttrain[1,:]))   
         sortedχ²idx = findlast(χ²[sortedλ²idx] .<= target)
         idx = sortedλ²idx[sortedχ²idx]
+        if 1 - χ²[idx]/target >  - ϵ
+            # root finding
+            # closing bracket guess index
+            b = sortedλ²idx[sortedχ²idx+1]
+            dophase2(m, m0, F, R, regularizeupdate, lo, hi, target, idx, b, mnew,  χ², λ²sampled)
+        end
     end
     idx
 end 
+
+function dophase2(m, m0, F, R, regularizeupdate, lo, hi, target, aidx, bidx, mnew,  χ², λ²)
+    α = λ²[aidx][2]
+    λ²[aidx][1] = find_zero(l² -> fλ²(α, m, m0, F, l², R, regularizeupdate, lo, hi) - target, (λ²[aidx][1], λ²[bidx][1]))
+    mnew[aidx] = m + α*newtonstep(m, m0, F, λ²[aidx][1], R, regularizeupdate=regularizeupdate)
+    χ²[aidx] = getχ²(F, mnew[aidx])
+    nothing
+end    
 
 function getBOsample(κ, χ², ttrain, t, λ²GP, δtry, demean, iteration, knownvalue, firstvalue, acqfun)
     # χ², ttrain, t are row major
