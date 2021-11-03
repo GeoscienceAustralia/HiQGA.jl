@@ -94,18 +94,24 @@ function occamstep(m::AbstractVector, m0::AbstractVector, mnew::Vector{Vector{Fl
         idx = argmin(χ²)
     else    
         idx = findlast(χ² .<= target)
+        bidx = findfirst(χ² .> target)
         if 1 - χ²[idx]/target >  - ϵ
-            # # root finding
-            # @info "before $(λ²[idx][1])"
-            # λ²[idx][1] = find_zero(l² -> fλ²(α, m, m0, F, l², R, regularizeupdate, lo, hi) - target, (λ²[idx][1], λ²[idx+1][1]))
-            # @info "after $(λ²[idx][1])"
-            # mnew[idx] = m + α*newtonstep(m, m0, F, λ²[idx][1], R, regularizeupdate=regularizeupdate)
-            # χ²[idx] = getχ²(F, mnew[idx])
-            dophase2(m, m0, F, R, regularizeupdate, lo, hi, target, idx, idx+1, mnew,  χ², λ²)
+            a = log10(λ²[idx][1])
+            b = λ²max # isa(bidx, Nothing) ? λ²max : log10(λ²[bidx][1]) # maybe just set default λ²max
+            dophase2(m, m0, F, R, regularizeupdate, lo, hi, target, a, b, mnew,  χ², λ², idx)
         end    
     end
     idx
 end 
+
+
+function dophase2(m, m0, F, R, regularizeupdate, lo, hi, target, a, b, mnew,  χ², λ², idx)
+    α = λ²[idx][2]
+    λ²[idx][1] = 10^find_zero(l² -> fλ²(α, m, m0, F, 10^l², R, regularizeupdate, lo, hi) - target, (a, b))
+    mnew[idx] = m + α*newtonstep(m, m0, F, λ²[idx][1], R, regularizeupdate=regularizeupdate)
+    χ²[idx] = getχ²(F, mnew[idx])
+    nothing
+end    
 
 function fλ²(α, m, m0, F, l², R, regularizeupdate, lo, hi)
     mnew = m + α*newtonstep(m, m0, F, l², R, regularizeupdate=regularizeupdate)
@@ -171,22 +177,13 @@ function bostep(m::AbstractVector, m0::AbstractVector, mnew::Vector{Vector{Float
         sortedχ²idx = findlast(χ²[sortedλ²idx] .<= target)
         idx = sortedλ²idx[sortedχ²idx]
         if 1 - χ²[idx]/target >  - ϵ
-            # root finding
-            # closing bracket guess index
-            b = sortedλ²idx[sortedχ²idx+1]
-            dophase2(m, m0, F, R, regularizeupdate, lo, hi, target, idx, b, mnew,  χ², λ²sampled)
+            a = log10(λ²sampled[idx][1])
+            b = t[1,end] # λ²max in log10 units
+            dophase2(m, m0, F, R, regularizeupdate, lo, hi, target, a, b, mnew,  χ², λ²sampled, idx)
         end
     end
     idx
 end 
-
-function dophase2(m, m0, F, R, regularizeupdate, lo, hi, target, aidx, bidx, mnew,  χ², λ²)
-    α = λ²[aidx][2]
-    λ²[aidx][1] = find_zero(l² -> fλ²(α, m, m0, F, l², R, regularizeupdate, lo, hi) - target, (λ²[aidx][1], λ²[bidx][1]))
-    mnew[aidx] = m + α*newtonstep(m, m0, F, λ²[aidx][1], R, regularizeupdate=regularizeupdate)
-    χ²[aidx] = getχ²(F, mnew[aidx])
-    nothing
-end    
 
 function getBOsample(κ, χ², ttrain, t, λ²GP, δtry, demean, iteration, knownvalue, firstvalue, acqfun)
     # χ², ttrain, t are row major
@@ -270,9 +267,7 @@ function gradientinv(   m::AbstractVector,
 end    
 
 function open_history(fname)
-    if isfile(fname)
-        @error "$fname exists"
-    end
+    @assert !isfile(fname) "$fname exists"
     if !isempty(fname)
         io = open(fname, "w")
     end
@@ -286,7 +281,7 @@ function write_history(io, v::Vector)
     write(io, "\n")
 end
 
-function loopacrosssoundings_grad(soundings::Array{S, 1}, 
+function loopacrosssoundings(soundings::Array{S, 1}, σstart, σ0; 
                             nsequentialiters   =-1,
                             zfixed             = [-1e5],
                             ρfixed             = [1e12],
@@ -346,8 +341,8 @@ function loopacrosssoundings_grad(soundings::Array{S, 1},
                                     nfreqsperdecade = nfreqsperdecade)
 
             fname = soundings[s].sounding_string*"_gradientinv.dat"
-
-            @async remotecall_wait(transD_GP.gradientinv, pids[i], σstart, σ0, aem,
+            σstart_, σ0_ = map(x->x*ones(length(aem.ρ)-1), [σstart, σ0])
+            @async remotecall_wait(transD_GP.gradientinv, pids[i], σstart_, σ0_, aem,
                                                 regtype            = regtype         ,              
                                                 nstepsmax          = nstepsmax       ,              
                                                 ntries             = ntries          ,              
@@ -367,7 +362,8 @@ function loopacrosssoundings_grad(soundings::Array{S, 1},
                                                 firstvalue         = firstvalue      ,              
                                                 κ                  = κ               ,              
                                                 breakonknown       = breakonknown    ,              
-                                                dobo               = dobo) 
+                                                dobo               = dobo            ,
+                                                fname              = fname           ) 
                 
 
         end # @sync

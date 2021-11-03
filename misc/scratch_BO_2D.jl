@@ -1,10 +1,10 @@
 using transD_GP.GP, Random, PyPlot, Statistics, LinearAlgebra, PositiveFactorizations
 ##
-Random.seed!(25)
+Random.seed!(3)
 f = 1.0/0.5
 t = 0:(10*f)^-1:2/f
 ntrain = 1
-ntries = 20
+ntries = 10
 λ = [0.1, 0.1]
 δ = 0.01
 δtry = 5δ

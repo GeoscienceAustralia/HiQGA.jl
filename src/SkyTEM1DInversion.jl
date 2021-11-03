@@ -6,7 +6,7 @@ import ..AbstractOperator.getresidual
 
 
 using ..AbstractOperator, ..AEM_VMD_HMD, Statistics, Distributed, Printf,
-      PyPlot, LinearAlgebra, ..CommonToAll, Random, DelimitedFiles, LinearMaps, SparseArrays
+      PyPlot, LinearAlgebra, ..CommonToAll, Random, DelimitedFiles, LinearMaps, SparseArrays, ..GP
 
 
 import ..Model, ..Options, ..OptionsStat, ..OptionsNonstat
@@ -580,7 +580,7 @@ function make_tdgp_opt(;
                     fileprefix = "sounding",
                     nmin = 2,
                     nmax = 40,
-                    K = GP.Mat32(),
+                    K = GP.OrstUhn(),
                     demean = true,
                     sdpos = 0.05,
                     sdprop = 0.05,
@@ -637,7 +637,7 @@ function makeoperatorandoptions(soundings::Array{SkyTEMsoundingData, 1};
                         fileprefix = "sounding",
                         nmin = 2,
                         nmax = 40,
-                        K = GP.Mat32(),
+                        K = GP.OrstUhn(),
                         demean = true,
                         sdpos = 0.05,
                         sdprop = 0.05,
