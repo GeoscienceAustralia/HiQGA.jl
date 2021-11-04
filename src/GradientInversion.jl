@@ -95,11 +95,9 @@ function occamstep(m::AbstractVector, m0::AbstractVector, mnew::Vector{Vector{Fl
     else    
         idx = findlast(χ² .<= target)
         bidx = findfirst(χ² .> target)
-        if 1 - χ²[idx]/target >  - ϵ
-            a = log10(λ²[idx][1])
-            b = λ²max # isa(bidx, Nothing) ? λ²max : log10(λ²[bidx][1]) # maybe just set default λ²max
-            dophase2(m, m0, F, R, regularizeupdate, lo, hi, target, a, b, mnew,  χ², λ², idx)
-        end
+        a = log10(λ²[idx][1])
+        b = λ²max # isa(bidx, Nothing) ? λ²max : log10(λ²[bidx][1]) # maybe just set default λ²max
+        dophase2(m, m0, F, R, regularizeupdate, lo, hi, target, a, b, mnew,  χ², λ², idx)
         foundroot = true    
     end
     idx, foundroot
@@ -108,7 +106,11 @@ end
 
 function dophase2(m, m0, F, R, regularizeupdate, lo, hi, target, a, b, mnew,  χ², λ², idx)
     α = λ²[idx][2]
-    λ²[idx][1] = 10^find_zero(l² -> fλ²(α, m, m0, F, 10^l², R, regularizeupdate, lo, hi) - target, (a, b))
+    if (fλ²(α, m, m0, F, 10. ^b, R, regularizeupdate, lo, hi) <= target)
+        λ²[idx][1] = 10. ^b
+    else    
+        λ²[idx][1] = 10^find_zero(l² -> fλ²(α, m, m0, F, 10^l², R, regularizeupdate, lo, hi) - target, (a, b))
+    end    
     mnew[idx] = m + α*newtonstep(m, m0, F, λ²[idx][1], R, regularizeupdate=regularizeupdate)
     χ²[idx] = getχ²(F, mnew[idx])
     nothing
@@ -177,11 +179,9 @@ function bostep(m::AbstractVector, m0::AbstractVector, mnew::Vector{Vector{Float
         sortedλ²idx = sortperm(vec(ttrain[1,:]))   
         sortedχ²idx = findlast(χ²[sortedλ²idx] .<= target)
         idx = sortedλ²idx[sortedχ²idx]
-        if 1 - χ²[idx]/target >  - ϵ
-            a = log10(λ²sampled[idx][1])
-            b = t[1,end] # λ²max in log10 units
-            dophase2(m, m0, F, R, regularizeupdate, lo, hi, target, a, b, mnew,  χ², λ²sampled, idx)
-        end
+        a = log10(λ²sampled[idx][1])
+        b = t[1,end] # λ²max in log10 units
+        dophase2(m, m0, F, R, regularizeupdate, lo, hi, target, a, b, mnew,  χ², λ²sampled, idx)
         foundroot = true
     end
     idx, foundroot
@@ -256,7 +256,8 @@ function gradientinv(   m::AbstractVector,
             idx, foundroot = occamstep(m, m0, mnew[istep], χ²[istep], λ²[istep], F, R, target, 
                 lo, hi, λ²min, λ²max, ntries, knownvalue=knownvalue, regularizeupdate = regularizeupdate)
         end
-        @info "iteration: $istep χ²: $(χ²[istep][idx]) target: $target"
+        prefix = isempty(fname) ? fname : fname*" : "
+        @info prefix*"iteration: $istep χ²: $(χ²[istep][idx]) target: $target"
         m = mnew[istep][idx]
         oidx[istep] = idx
         isa(io, Nothing) || write_history(io, [istep; χ²[istep][idx]/target; vec(m)])
