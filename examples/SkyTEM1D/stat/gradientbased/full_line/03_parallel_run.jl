@@ -40,7 +40,7 @@ transD_GP.loopacrosssoundings(soundings, σstart, σ0,
                             nfreqsperdecade    = nfreqsperdecade ,              
                             modelprimary       = modelprimary    ,              
                             regtype            = regtype         ,              
-                            nstepsmax          = 10       ,              
+                            nstepsmax          = nstepsmax       ,              
                             ntries             = ntries          ,              
                             target             = target          ,              
                             lo                 = lo              ,              
@@ -58,7 +58,7 @@ transD_GP.loopacrosssoundings(soundings, σstart, σ0,
                             firstvalue         = firstvalue      ,              
                             κ                  = κ               ,              
                             breakonknown       = breakonknown    ,              
-                            dobo               = true)                  
+                            dobo               = dobo)                  
 
 # MPIClusterManagers.stop_main_loop(manager)
 # rmprocs(workers())
