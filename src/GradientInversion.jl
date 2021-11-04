@@ -28,11 +28,11 @@ function makereg(r::Symbol, F::Operator)
     error("unknown regularization")
 end   
 
-function pushback(m, lo, hi)
+function pushback(m, lo, hi, reflect=true)
     for i in eachindex(m)
         while (m[i]<lo) || (m[i]>hi)
-                (m[i]<lo) && (m[i] = 2*lo - m[i])
-                (m[i]>hi) && (m[i] = 2*hi - m[i])
+                (m[i]<lo) && (m[i] = reflect ? 2*lo - m[i] : lo)
+                (m[i]>hi) && (m[i] = reflect ? 2*hi - m[i] : hi)
         end
     end
 end  
@@ -89,7 +89,7 @@ function occamstep(m::AbstractVector, m0::AbstractVector, mnew::Vector{Vector{Fl
         count += 1        
         count > countmax && break                    
     end
-    idx = -1
+    idx, foundroot = -1, false
     if all(χ² .> target)
         idx = argmin(χ²)
     else    
@@ -99,9 +99,10 @@ function occamstep(m::AbstractVector, m0::AbstractVector, mnew::Vector{Vector{Fl
             a = log10(λ²[idx][1])
             b = λ²max # isa(bidx, Nothing) ? λ²max : log10(λ²[bidx][1]) # maybe just set default λ²max
             dophase2(m, m0, F, R, regularizeupdate, lo, hi, target, a, b, mnew,  χ², λ², idx)
-        end    
+        end
+        foundroot = true    
     end
-    idx
+    idx, foundroot
 end 
 
 
@@ -115,7 +116,7 @@ end
 
 function fλ²(α, m, m0, F, l², R, regularizeupdate, lo, hi)
     mnew = m + α*newtonstep(m, m0, F, l², R, regularizeupdate=regularizeupdate)
-    pushback(mnew, lo, hi)                
+    pushback(mnew, lo, hi, false)                
     getχ²(F, mnew)
 end
 
@@ -169,7 +170,7 @@ function bostep(m::AbstractVector, m0::AbstractVector, mnew::Vector{Vector{Float
         ttrain = hcat(ttrain, t[:,nextpos]) # next training location
         (χ²[i] <= knownvalue && breakonknown) && break
     end    
-    idx = -1 
+    idx, foundroot = -1, false 
     if all(χ² .> target)
         idx = argmin(χ²)
     else 
@@ -181,8 +182,9 @@ function bostep(m::AbstractVector, m0::AbstractVector, mnew::Vector{Vector{Float
             b = t[1,end] # λ²max in log10 units
             dophase2(m, m0, F, R, regularizeupdate, lo, hi, target, a, b, mnew,  χ², λ²sampled, idx)
         end
+        foundroot = true
     end
-    idx
+    idx, foundroot
 end 
 
 function getBOsample(κ, χ², ttrain, t, λ²GP, δtry, demean, iteration, knownvalue, firstvalue, acqfun)
@@ -247,18 +249,18 @@ function gradientinv(   m::AbstractVector,
     io = open_history(fname)                 
     while true
         if dobo
-            idx = bostep(m, m0, mnew[istep], χ²[istep], λ²[istep], t, λ²GP, F, R, ndata, lo, hi,
+            idx, foundroot = bostep(m, m0, mnew[istep], χ²[istep], λ²[istep], t, λ²GP, F, R, ndata, lo, hi,
             regularizeupdate=regularizeupdate, ntries=ntries, κ = κ,
             knownvalue=knownvalue, firstvalue=firstvalue, breakonknown=breakonknown)         
         else
-            idx = occamstep(m, m0, mnew[istep], χ²[istep], λ²[istep], F, R, target, 
+            idx, foundroot = occamstep(m, m0, mnew[istep], χ²[istep], λ²[istep], F, R, target, 
                 lo, hi, λ²min, λ²max, ntries, knownvalue=knownvalue, regularizeupdate = regularizeupdate)
         end
         @info "iteration: $istep χ²: $(χ²[istep][idx]) target: $target"
         m = mnew[istep][idx]
         oidx[istep] = idx
         isa(io, Nothing) || write_history(io, [istep; χ²[istep][idx]/target; vec(m)])
-        χ²[istep][idx] < target && break
+        (foundroot || (χ²[istep][idx] <= target)) && break
         istep += 1
         istep > nstepsmax && break
     end
