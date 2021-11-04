@@ -247,7 +247,7 @@ function gradientinv(   m::AbstractVector,
         istep += 1
         istep > nstepsmax && break
     end
-    isa(io, Nothing) || close(io)
+    isa(io, Nothing) || begin @info "Finished "*fname; close(io) end
     return mnew, χ², λ², oidx
 end    
 
