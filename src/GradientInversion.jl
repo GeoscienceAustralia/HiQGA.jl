@@ -49,9 +49,9 @@ function newtonstep(m::AbstractVector, m0::AbstractVector, F::Operator, λ²::Fl
     end       
 end
 
-function occamstep(m::AbstractVector, m0::AbstractVector, mnew::Vector{Vector{Float64}},
+function occamstep(m::AbstractVector, m0::AbstractVector, Δm::AbstractVector, mnew::Vector{Vector{Float64}},
                 χ²::Vector{Float64}, λ²::Vector{Vector{Float64}}, F::Operator, R::SparseMatrixCSC, target, 
-                lo, hi, λ²min, λ²max, ntries; knownvalue=NaN, regularizeupdate = false, ϵ=.001)
+                lo, hi, λ²min, λ²max, ntries; knownvalue=NaN, regularizeupdate = false)
                    
     getresidual(F, m, computeJ=true)
     r, W = F.res, F.W
@@ -63,16 +63,16 @@ function occamstep(m::AbstractVector, m0::AbstractVector, mnew::Vector{Vector{Fl
     countmax = 6
     while true
         for (i, l²) in enumerate(10 .^LinRange(λ²min, λ²max, ntries))
-            if count == 0    
-                mnew[i] = m + newtonstep(m, m0, F, l², R, 
-                                regularizeupdate=regularizeupdate)
+            if count == 0
+                Δm[i] = newtonstep(m, m0, F, l², R, regularizeupdate=regularizeupdate)     
+                mnew[i] = m + Δm[i]
                 pushback(mnew[i], lo, hi)                
                 getresidual(F, mnew[i], computeJ=false)
                 push!(χ², norm(W*r)^2)
                 push!(λ², [l²; α])
                 r .= r₀
             else    
-                mnew[i] = α*mnew[i] + (1 - α)*m
+                mnew[i] = m + α*Δm[i]
                 pushback(mnew[i], lo, hi)                
                 getresidual(F, mnew[i], computeJ=false)
                 χ²[i] = norm(W*r)^2
@@ -142,7 +142,7 @@ end
 
 function bostep(m::AbstractVector, m0::AbstractVector, mnew::Vector{Vector{Float64}}, χ²::Vector{Float64}, λ²sampled::Vector{Vector{Float64}},
                     t::Array{Float64, 2}, λ²GP::Array{Float64, 1}, F::Operator, R::SparseMatrixCSC, target, lo, hi;
-                   regularizeupdate = false, ϵ=.001,
+                   regularizeupdate = false, 
                   
                    ## GP stuff
                    demean = true, 
@@ -246,14 +246,17 @@ function gradientinv(   m::AbstractVector,
     ndata = length(F.res)
     t, λ²GP = initbo(λ²min, λ²max, λ²frac, ntestdivsλ², αmin, αmax, αfrac, ntestdivsα)
     istep = 1 
-    io = open_history(fname)                 
+    io = open_history(fname)
+    if !dobo
+        Δm = [similar(m) for i in 1:ntries]
+    end              
     while true
         if dobo
             idx, foundroot = bostep(m, m0, mnew[istep], χ²[istep], λ²[istep], t, λ²GP, F, R, ndata, lo, hi,
             regularizeupdate=regularizeupdate, ntries=ntries, κ = κ,
             knownvalue=knownvalue, firstvalue=firstvalue, breakonknown=breakonknown)         
         else
-            idx, foundroot = occamstep(m, m0, mnew[istep], χ²[istep], λ²[istep], F, R, target, 
+            idx, foundroot = occamstep(m, m0, ,Δm, mnew[istep], χ²[istep], λ²[istep], F, R, target, 
                 lo, hi, λ²min, λ²max, ntries, knownvalue=knownvalue, regularizeupdate = regularizeupdate)
         end
         prefix = isempty(fname) ? fname : fname*" : "
