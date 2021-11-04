@@ -53,39 +53,24 @@ function occamstep(m::AbstractVector, m0::AbstractVector, Δm::AbstractVector, m
                 χ²::Vector{Float64}, λ²::Vector{Vector{Float64}}, F::Operator, R::SparseMatrixCSC, target, 
                 lo, hi, λ²min, λ²max, ntries; knownvalue=NaN, regularizeupdate = false)
                    
-    getresidual(F, m, computeJ=true)
-    r, W = F.res, F.W
-    r₀ = copy(r)    
-    χ²₀ = norm(W*r)^2
+    χ²₀ = getχ²(F, m, computeJ=true)
     knownvalue *= χ²₀
     α = 1
     count = 0
     countmax = 6
     while true
         for (i, l²) in enumerate(10 .^LinRange(λ²min, λ²max, ntries))
-            if count == 0
-                Δm[i] = newtonstep(m, m0, F, l², R, regularizeupdate=regularizeupdate)     
-                mnew[i] = m + Δm[i]
-                pushback(mnew[i], lo, hi)                
-                getresidual(F, mnew[i], computeJ=false)
-                push!(χ², norm(W*r)^2)
-                push!(λ², [l²; α])
-                r .= r₀
-            else    
-                mnew[i] = m + α*Δm[i]
-                pushback(mnew[i], lo, hi)                
-                getresidual(F, mnew[i], computeJ=false)
-                χ²[i] = norm(W*r)^2
-                λ²[i] = [l²; α]
-                r .= r₀
-            end
+            count == 0 && (Δm[i] = newtonstep(m, m0, F, l², R, regularizeupdate=regularizeupdate))
+            mnew[i] = m + α*Δm[i]
+            pushback(mnew[i], lo, hi)                
+            chi2 = getχ²(F, mnew[i])
+            nu = [l²; α]
+            count == 0 && (push!(χ², chi2); push!(λ², nu))
+            χ²[i] = chi2
+            λ²[i] = nu
             χ²[i] <= knownvalue && (count = countmax; break)
         end
-        if all(χ² .>= χ²₀)
-            α = α/2
-        else 
-            count = countmax    
-        end
+        all(χ² .>= χ²₀) && (α = α/2)
         count += 1        
         count > countmax && break                    
     end
@@ -94,7 +79,6 @@ function occamstep(m::AbstractVector, m0::AbstractVector, Δm::AbstractVector, m
         idx = argmin(χ²)
     else    
         idx = findlast(χ² .<= target)
-        bidx = findfirst(χ² .> target)
         a = log10(λ²[idx][1])
         b = λ²max # isa(bidx, Nothing) ? λ²max : log10(λ²[bidx][1]) # maybe just set default λ²max
         dophase2(m, m0, F, R, regularizeupdate, lo, hi, target, a, b, mnew,  χ², λ², idx)
@@ -122,12 +106,12 @@ function fλ²(α, m, m0, F, l², R, regularizeupdate, lo, hi)
     getχ²(F, mnew)
 end
 
-function getχ²(F, m)
+function getχ²(F, m; computeJ=false)
     r, W = F.res, F.W
     r₀ = copy(r)
-    getresidual(F, m, computeJ=false)
+    getresidual(F, m, computeJ=computeJ)
     χ² = norm(W*r)^2
-    r .= r₀
+    computeJ || (r .= r₀)
     return χ²
 end
 
@@ -256,7 +240,7 @@ function gradientinv(   m::AbstractVector,
             regularizeupdate=regularizeupdate, ntries=ntries, κ = κ,
             knownvalue=knownvalue, firstvalue=firstvalue, breakonknown=breakonknown)         
         else
-            idx, foundroot = occamstep(m, m0, ,Δm, mnew[istep], χ²[istep], λ²[istep], F, R, target, 
+            idx, foundroot = occamstep(m, m0, Δm, mnew[istep], χ²[istep], λ²[istep], F, R, target, 
                 lo, hi, λ²min, λ²max, ntries, knownvalue=knownvalue, regularizeupdate = regularizeupdate)
         end
         prefix = isempty(fname) ? fname : fname*" : "
