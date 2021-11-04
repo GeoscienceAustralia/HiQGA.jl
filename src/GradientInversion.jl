@@ -138,11 +138,8 @@ function bostep(m::AbstractVector, m0::AbstractVector, mnew::Vector{Vector{Float
                    knownvalue = NaN,
                    breakonknown = false)
     
-    getresidual(F, m, computeJ=true)
-    r, W = F.res, F.W
-    r₀ = copy(r)    
-    χ²₀ = norm(W*r)^2
-    knownvalue *= χ²₀
+    χ²₀ = getχ²(F, m, computeJ=true)
+    knownvalue *= χ²₀               
 
     ttrain = zeros(size(t,1), 0)
     for i = 1:ntries
@@ -150,9 +147,7 @@ function bostep(m::AbstractVector, m0::AbstractVector, mnew::Vector{Vector{Float
         push!(λ²sampled, [10^t[1, nextpos]; 2^t[2,nextpos]])
         mnew[i] = m + 2^t[2,nextpos]*newtonstep(m, m0, F, 10^t[1,nextpos], R, regularizeupdate=regularizeupdate)
         pushback(mnew[i], lo, hi)                        
-        getresidual(F, mnew[i], computeJ=false)
-        push!(χ², norm(W*r)^2) # next training value
-        r .= r₀
+        push!(χ², getχ²(F, mnew[i])) # next training value
         ttrain = hcat(ttrain, t[:,nextpos]) # next training location
         (χ²[i] <= knownvalue && breakonknown) && break
     end    
@@ -164,7 +159,7 @@ function bostep(m::AbstractVector, m0::AbstractVector, mnew::Vector{Vector{Float
         sortedχ²idx = findlast(χ²[sortedλ²idx] .<= target)
         idx = sortedλ²idx[sortedχ²idx]
         a = log10(λ²sampled[idx][1])
-        b = t[1,end] # λ²max in log10 units
+        b = maximum(t[1,:]) # λ²max in log10 units
         dophase2(m, m0, F, R, regularizeupdate, lo, hi, target, a, b, mnew,  χ², λ²sampled, idx)
         foundroot = true
     end
