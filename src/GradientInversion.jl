@@ -100,9 +100,9 @@ function dophase2(m, m0, F, R, regularizeupdate, lo, hi, target, a, b, mnew,  χ
     nothing
 end    
 
-function fλ²(α, m, m0, F, l², R, regularizeupdate, lo, hi)
+function fλ²(α, m, m0, F, l², R, regularizeupdate, lo, hi, reflect=true)
     mnew = m + α*newtonstep(m, m0, F, l², R, regularizeupdate=regularizeupdate)
-    pushback(mnew, lo, hi, false)                
+    pushback(mnew, lo, hi, reflect)                
     getχ²(F, mnew)
 end
 
