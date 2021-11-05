@@ -1004,6 +1004,61 @@ function summaryimages(soundings::Array{SkyTEMsoundingData, 1}, opt::Options;
     end
 end
 
+# for deterministic inversions, read in
+function readingrid(soundings, zall)
+    nstepsmax = 0 
+    for s in soundings
+        fname = s.sounding_string*"_gradientinv.dat"
+        nstepsmax = max(size(readdlm(fname), 1), nstepsmax)
+    end
+    ϕd = zeros(length(soundings))
+    σgrid = zeros(length(zall), length(soundings))
+    for (i, s) in enumerate(soundings)
+        fname = s.sounding_string*"_gradientinv.dat"
+        A = readdlm(fname)
+        ϕd[i] = A[end,2]
+        σgrid[:,i] = vec(A[end,3:end])
+    end    
+    ϕd, σgrid
+end
+
+# plot the convergence and the result
+function plotconvandlast(soundings, delr, delz; 
+        zstart=-1, extendfrac=-1, dz=-1, nlayers=-1, cmapσ="jet", vmin=-2.5, vmax=0.5, fontsize=12,
+        figsize=(20,5),
+        topowidth=1,
+        preferEright = false,
+        preferNright = false)
+    @assert zstart > -1
+    @assert extendfrac >-1
+    @assert dz>-1
+    @assert nlayers>-1
+    Eislast, Nislast = whichislast(soundings)
+    zall, = setupz(zstart, extendfrac, dz=dz, n=nlayers)
+    ϕd, σ = readingrid(soundings, zall)
+    img, gridr, gridz, topofine, R = makegrid(σ, soundings, zall=zall, dz=delz, dr=delr)
+    f, ax = plt.subplots(2,1, sharex=true, figsize=figsize)
+    lname = "Line $(soundings[1].linenum)"
+    f.suptitle(lname*" Δx=$delr m, Fids: $(length(R))", fontsize=fontsize)
+    ax[1].plot(R, ϕd)
+    # ax[1].plot(R, ones(length(ϕd)), "--k")
+    ax[1].set_ylabel(L"\phi_d")
+    ax[1].set_yscale("log")
+    imlast = ax[2].imshow(img, extent=[gridr[1], gridr[end], gridz[end], gridz[1]], cmap=cmapσ, aspect="auto", vmin=vmin, vmax=vmax)
+    ax[2].plot(gridr, topofine, linewidth=topowidth, "-k")
+    ax[2].set_xlim(extrema(gridr)...)
+    ax[2].set_ylabel("mAHD")
+    ax[2].set_xlabel("Distance m")
+    nicenup(f, fsize=fontsize)
+    plotNEWSlabels(Eislast, Nislast, gridr, gridz, [ax[2]])
+    f.subplots_adjust(bottom=0.25)
+    cbar_ax = f.add_axes([0.3, 0.1, 0.4, 0.02])
+    cb = f.colorbar(imlast, cax=cbar_ax, orientation="horizontal")
+    cb.ax.set_xlabel("Log₁₀ S/m")
+    (preferNright && !Nislast) && s[end].invert_xaxis()
+    (preferEright && !Eislast) && s[end].invert_xaxis()
+end    
+
 # plot multiple grids with supplied labels
 function plotgrids()
     f, ax = plt.subplots(size(grids, 1), 1, figsize=figsize,
