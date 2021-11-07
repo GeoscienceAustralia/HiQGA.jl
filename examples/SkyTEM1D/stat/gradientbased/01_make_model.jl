@@ -119,7 +119,7 @@ using LinearAlgebra
 F = aem
 R = transD_GP.makereg(regtype, F)
 JtW, Wr = F.J'*F.W, F.W*F.res
-H = JtW*(JtW)' + λ²[idxlast][idx[idxlast]]*R'R
+H = JtW*(JtW)' + λ²[idxlast][idx[idxlast]][1]*R'R
 Cpost = inv(Hermitian(H))
 figure()
 zplot = [aem.z[2:end]; aem.z[end] + 5]

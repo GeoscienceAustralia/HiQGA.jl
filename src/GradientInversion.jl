@@ -59,7 +59,7 @@ function occamstep(m::AbstractVector, m0::AbstractVector, Δm::AbstractVector, m
     count = 0
     countmax = 6
     while true
-        for (i, l²) in enumerate(10 .^LinRange(λ²min, λ²max, ntries))
+        for (i, l²) in enumerate(10 .^reverse(LinRange(λ²min, λ²max, ntries)))
             count == 0 && (Δm[i] = newtonstep(m, m0, F, l², R, regularizeupdate=regularizeupdate))
             mnew[i] = m + α*Δm[i]
             pushback(mnew[i], lo, hi)                
