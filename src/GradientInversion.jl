@@ -291,6 +291,7 @@ function loopacrosssoundings(soundings::Array{S, 1}, σstart, σ0;
                             λ²min              = 0,
                             λ²max              = 8,
                             λ²frac             = 4,
+                            β²                 = 0.,
                             ntestdivsλ²        = 50,
                             αmin               = -4, 
                             αmax               = 0, 
