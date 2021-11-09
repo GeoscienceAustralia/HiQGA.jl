@@ -40,7 +40,7 @@ end
 function newtonstep(m::AbstractVector, m0::AbstractVector, F::Operator, λ²::Float64, β²::Float64, R::SparseMatrixCSC; 
                     regularizeupdate=true)
     JtW, Wr = F.J'*F.W, F.W*F.res
-    H = (JtW*(JtW)' + λ²*R'R + β²*I)
+    H = (JtW*(JtW)' + λ²*R'R + λ²*β²*I)
     U = cholesky(Positive, H, Val{false}).U 
     if !regularizeupdate # regularize model
         -U\(U'\(JtW*Wr + λ²*R'R*m + λ²*β²*(m - m0)))
