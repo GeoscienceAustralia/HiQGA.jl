@@ -69,10 +69,11 @@ aem = transD_GP.dBzdt(Flm, Fhm, dlow, dhigh, σlow, σhigh, z=zgrid, ρ=ρgrid, 
 σ0 .= -2
 regtype = :R1
 ## do it
-m, χ², λ², idx = transD_GP.gradientinv(σstart, σ0, aem, nstepsmax=20, 
+m, χ², λ², idx = transD_GP.gradientinv(σstart, σ0, aem, nstepsmax=30, 
                             regularizeupdate=false, 
                             λ²min=0, 
                             λ²max=7, 
+                            β² = 1.,
                             ntries=6,
                             knownvalue=0.7, 
                             λ²frac=4,
