@@ -328,7 +328,8 @@ function loopacrosssoundings(soundings::Array{S, 1}, σstart, σ0;
                                     nlayers = nlayers,
                                     modelprimary = modelprimary,
                                     ntimesperdecade = ntimesperdecade,
-                                    nfreqsperdecade = nfreqsperdecade)
+                                    nfreqsperdecade = nfreqsperdecade,
+                                    calcjacobian = true)
 
             fname = soundings[s].sounding_string*"_gradientinv.dat"
             σstart_, σ0_ = map(x->x*ones(length(aem.ρ)-1), [σstart, σ0])

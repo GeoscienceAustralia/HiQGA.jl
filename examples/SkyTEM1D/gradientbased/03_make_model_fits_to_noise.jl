@@ -10,6 +10,7 @@ zstart = 0.0
 extendfrac, dz = 1.03, 1.5
 zall, znall, zboundaries = transD_GP.setupz(zstart, extendfrac, dz=dz, n=65)
 z, ρ, nfixed = transD_GP.makezρ(zboundaries; zfixed=zfixed, ρfixed=ρfixed)
+calcjacobian = true
 ##  geometry and modeling parameters
 rRx = 13.
 zRx = -42.0
@@ -26,7 +27,8 @@ Flm = transD_GP.AEM_VMD_HMD.HFieldDHT(
                       rRx    = rRx,
                       rTx    = rTx,
                       zRx    = zRx,
-                      freqlow = freqlow
+                      freqlow = freqlow,
+                      calcjacobian = calcjacobian
                       )
 ## HM operator
 Fhm = transD_GP.AEM_VMD_HMD.HFieldDHT(
@@ -38,7 +40,8 @@ Fhm = transD_GP.AEM_VMD_HMD.HFieldDHT(
                       rRx    = rRx,
                       rTx    = rTx,
                       zRx    = zRx,
-                      freqlow = freqlow
+                      freqlow = freqlow,
+                      calcjacobian = calcjacobian
                       )
 ## fill in detail in ohm-m
 ρ[(z.>=zstart) .& (z.<50)] .= 20.

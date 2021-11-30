@@ -56,7 +56,7 @@ mutable struct HFieldDHT <: HField
     calcjacobian    :: Bool
     Jtemp           :: Vector
     b               :: Vector # Another Jtemp
-    derivmatrix     :: Vector{Matrix}
+    derivmatrix     :: Vector
     HFD_z_J         :: Array{ComplexF64, 2}
     HTD_z_J_interp  :: Array{Float64, 2}
     dBzdt_J         :: Array{Float64, 2}
@@ -108,18 +108,15 @@ function HFieldDHT(;
     log10ω = log10.(2*pi*freqs)
     interptimes = 10 .^(minimum(log10.(times))-1:1/ntimesperdecade:maximum(log10.(times))+1)
     HFD_z       = zeros(ComplexF64, length(freqs)) # space domain fields in freq
-    HFD_z_J     = zeros(ComplexF64, nmax, length(freqs))
     HFD_r       = zeros(ComplexF64, length(freqs)) # space domain fields in freq
     HFD_az       = zeros(ComplexF64, length(freqs)) # space domain fields in freq
     dBzdt     = zeros(Float64, length(times)) # time derivative of space domain fields convolved with ramp
-    dBzdt_J     = zeros(Float64, nmax, length(times))
     dBrdt     = zeros(Float64, length(times)) # time derivative of space domain fields convolved with ramp
     dBazdt     = zeros(Float64, length(times)) # time derivative of space domain fields convolved with ramp
     HFD_z_interp = zeros(ComplexF64, length(Filter_t_base))
     HFD_r_interp = zeros(ComplexF64, length(Filter_t_base))
     HFD_az_interp = zeros(ComplexF64, length(Filter_t_base))
     HTD_z_interp = zeros(Float64, length(interptimes))
-    HTD_z_J_interp = zeros(Float64, nmax, length(interptimes))
     HTD_r_interp = zeros(Float64, length(interptimes))
     HTD_az_interp = zeros(Float64, length(interptimes))
     lowpassfcs = float.([lowpassfcs..., 5e6])
@@ -136,8 +133,11 @@ function HFieldDHT(;
         end
     end
     log10interpkᵣ = log10.(interpkᵣ)
-    Jtemp = zeros(ComplexF64, nmax)
-    Jac = map(x->zeros(ComplexF64, nkᵣeval, nmax), 1:length(freqs))
+    HFD_z_J     = calcjacobian ? zeros(ComplexF64, nmax, length(freqs)) : zeros(0, 0)
+    dBzdt_J     = calcjacobian ? zeros(Float64, nmax, length(times)) : zeros(0, 0)
+    HTD_z_J_interp = calcjacobian ? zeros(Float64, nmax, length(interptimes)) : zeros(0, 0)
+    Jtemp = calcjacobian ? zeros(ComplexF64, nmax) : zeros(0)
+    Jac = calcjacobian ? map(x->zeros(ComplexF64, nkᵣeval, nmax), 1:length(freqs)) : zeros(0)
     useprimary = modelprimary ? one(Float64) : zero(Float64)
     HFieldDHT(thickness, pz, ϵᵢ, zintfc, rTE, rTM, zRx, zTx, rTx, rRx, freqs, times, ramp, log10ω, interptimes,
             HFD_z, HFD_r, HFD_az, HFD_z_interp, HFD_r_interp, HFD_az_interp,
@@ -229,13 +229,13 @@ function stacks!(F::HField, iTxLayer::Int, nlayers::Int, ω::Float64)
 
     rTE              = F.rTE
     rTM              = F.rTM
-    b                = view(F.b, 1:nlayers)
     pz               = view(F.pz, 1:nlayers)
     # The first layer thicknesses is infinite
     d                = view(F.thickness, 1:nlayers)
     d[1]             = 1e60
     d[nlayers]       = 1e60
     if F.calcjacobian
+        b      = view(F.b, 1:nlayers)
         J      = view(F.Jtemp, 1:nlayers)
     end    
     # Capital R is for a stack
@@ -270,11 +270,12 @@ function stacks!(F::HField, iTxLayer::Int, nlayers::Int, ω::Float64)
                 J[kk] *= c
             end    
             Rlowerstack_plus_TE = Rlowerstack_TE
+            Rlowerstack_TE = lowerstack(Rlowerstack_TE, rTE, k, b[k+1])
         else
             kznext = ω*pz[k+1]
-            b[k+1] = exp(2im*kznext*d[k+1])
+            bnext = exp(2im*kznext*d[k+1])
+            Rlowerstack_TE = lowerstack(Rlowerstack_TE, rTE, k, bnext)
         end    
-        Rlowerstack_TE = lowerstack(Rlowerstack_TE, rTE, k, b[k+1])
     end
 
 return Rlowerstack_TE, Rlowerstack_TM

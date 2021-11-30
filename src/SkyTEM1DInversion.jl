@@ -64,10 +64,16 @@ function dBzdt(       Flow       :: AEM_VMD_HMD.HField,
     selectlow  = .!isnan.(dlow)
     selecthigh = .!isnan.(dhigh)
     # for Gauss-Newton
+    calcjacobian = Flow.calcjacobian & Fhigh.calcjacobian
     res = [dlow[selectlow];dhigh[selecthigh]]
-    J = [Flow.dBzdt_J'; Fhigh.dBzdt_J']; 
-    J = J[[selectlow;selecthigh],nfixed+1:length(ρ)]
-    Wdiag = [1 ./σlow[selectlow]; 1 ./σhigh[selecthigh]]
+    if calcjacobian
+        J = [Flow.dBzdt_J'; Fhigh.dBzdt_J']; 
+        J = J[[selectlow;selecthigh],nfixed+1:length(ρ)]
+        Wdiag = [1 ./σlow[selectlow]; 1 ./σhigh[selecthigh]]
+        res = [dlow[selectlow];dhigh[selecthigh]]
+    else    
+        res, J, Wdiag = zeros(0), zeros(0), zeros(0)
+    end    
     W = sparse(diagm(Wdiag))
     dBzdt(dlow, dhigh, useML, σlow, σhigh,
     Flow, Fhigh, z, nfixed, copy(ρ), selectlow, selecthigh, ndatalow, ndatahigh, J, W, res)
@@ -517,6 +523,7 @@ function makeoperator(sounding::SkyTEMsoundingData;
                        nfreqsperdecade = 5,
                        showgeomplot = false,
                        useML = false,
+                       calcjacobian = false,
                        modelprimary = false,
                        plotfield = false)
     @assert extendfrac > 1.0
@@ -540,7 +547,8 @@ function makeoperator(sounding::SkyTEMsoundingData;
                           rRx    = sounding.rRx,
                           rTx    = sounding.rTx,
                           zRx    = sounding.zRxLM,
-                          modelprimary = modelprimary
+                          modelprimary = modelprimary,
+                          calcjacobian = calcjacobian
                           )
     ## HM operator
     Fhm = AEM_VMD_HMD.HFieldDHT(
@@ -554,7 +562,8 @@ function makeoperator(sounding::SkyTEMsoundingData;
                           rRx    = sounding.rRx,
                           rTx    = sounding.rTx,
                           zRx    = sounding.zRxHM,
-                          modelprimary = modelprimary
+                          modelprimary = modelprimary,
+                          calcjacobian = calcjacobian
                           )
     ## create operator
     dlow, dhigh, σlow, σhigh = (sounding.LM_data, sounding.HM_data, sounding.LM_noise, sounding.HM_noise)./μ₀

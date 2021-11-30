@@ -16,6 +16,7 @@ zRx = -42.0
 zTx = -40.0
 freqlow = 1e-3
 include("electronics_halt.jl")
+calcjacobian = true
 ## LM operator
 Flm = transD_GP.AEM_VMD_HMD.HFieldDHT(
                       lowpassfcs = lowpassfcs,
@@ -26,7 +27,8 @@ Flm = transD_GP.AEM_VMD_HMD.HFieldDHT(
                       rRx    = rRx,
                       rTx    = rTx,
                       zRx    = zRx,
-                      freqlow = freqlow
+                      freqlow = freqlow,
+                      calcjacobian = calcjacobian
                       )
 ## HM operator
 Fhm = transD_GP.AEM_VMD_HMD.HFieldDHT(
@@ -38,7 +40,8 @@ Fhm = transD_GP.AEM_VMD_HMD.HFieldDHT(
                       rRx    = rRx,
                       rTx    = rTx,
                       zRx    = zRx,
-                      freqlow = freqlow
+                      freqlow = freqlow,
+                      calcjacobian = calcjacobian
                       )
 ## fill in detail in ohm-m
 ρ[(z.>=zstart) .& (z.<50)] .= 20.
