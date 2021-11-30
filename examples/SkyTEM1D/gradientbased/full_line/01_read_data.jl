@@ -36,4 +36,3 @@ soundings = transD_GP.SkyTEM1DInversion.read_survey_files(fname_dat = fname_dat,
 									 skipevery        = 10,
 									 dotillsounding   = nothing,
 									 makesounding     = true)
-soundings = soundings[114:117]

@@ -1,17 +1,17 @@
 ## delete this on NCI
-using Distributed
-addprocs(2)
+# using Distributed
+# addprocs(2)
 ## end delete
 ## MPI Init
-# using MPIClusterManagers, Distributed
-# import MPI
-# MPI.Init()
-# rank = MPI.Comm_rank(MPI.COMM_WORLD)
-# size = MPI.Comm_size(MPI.COMM_WORLD)
-# if rank == 0
-#     @info "size is $size"
-# end
-# manager = MPIClusterManagers.start_main_loop(MPI_TRANSPORT_ALL)
+using MPIClusterManagers, Distributed
+import MPI
+MPI.Init()
+rank = MPI.Comm_rank(MPI.COMM_WORLD)
+size = MPI.Comm_size(MPI.COMM_WORLD)
+if rank == 0
+    @info "size is $size"
+end
+manager = MPIClusterManagers.start_main_loop(MPI_TRANSPORT_ALL)
 @info "there are $(nworkers()) workers"
 @everywhere @info gethostname()
 include("01_read_data.jl")
@@ -48,6 +48,7 @@ transD_GP.loopacrosssoundings(soundings, σstart, σ0,
                             λ²min              = λ²min           ,              
                             λ²max              = λ²max           ,              
                             λ²frac             = λ²frac          ,              
+                            β²                 = β²              ,
                             ntestdivsλ²        = ntestdivsλ²     ,              
                             αmin               = αmin            ,              
                             αmax               = αmax            ,              
@@ -60,6 +61,6 @@ transD_GP.loopacrosssoundings(soundings, σstart, σ0,
                             breakonknown       = breakonknown    ,              
                             dobo               = dobo)                  
 
-# MPIClusterManagers.stop_main_loop(manager)
-# rmprocs(workers())
-# exit()
+MPIClusterManagers.stop_main_loop(manager)
+rmprocs(workers())
+exit()
