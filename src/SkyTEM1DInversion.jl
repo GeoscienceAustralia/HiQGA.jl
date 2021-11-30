@@ -305,13 +305,29 @@ function get_misfit(m::Model, opt::Options, aem::dBzdt)
 end
 
 function getchi2by2(dBzdt, d, σ, select, useML, ndata)
-    r, d, s, idx = dBzdt, d, σ, select
+    r, s, idx = dBzdt, σ, select
     r .= (r - d)./s
     if useML
         chi2by2 = 0.5*ndata*log(norm(r[idx])^2)
     else
         chi2by2 = 0.5*norm(r[idx])^2
     end
+end
+
+function computeMLfactor(dBzdt, d, σ, select, ndata)
+    if ndata > 0
+        r, s, idx = dBzdt, σ, select
+        r .= (r - d)./s
+        r[idx]'*r[idx]/ndata
+    else
+        NaN
+    end    
+end    
+
+function computeMLfactor(aem)
+    mlfact_low = computeMLfactor(aem.Flow.dBzdt, aem.dlow, aem.σlow, aem.selectlow, aem.ndatalow)
+    mlfact_high = computeMLfactor(aem.Fhigh.dBzdt, aem.dhigh, aem.σhigh, aem.selecthigh, aem.ndatahigh)
+    sqrt(mlfact_low), sqrt(mlfact_high)
 end
 
 function plotmodelfield_skytem!(Flow::AEM_VMD_HMD.HField, Fhigh::AEM_VMD_HMD.HField,
@@ -416,61 +432,77 @@ function plotmodelfield!(Flow::AEM_VMD_HMD.HField, Fhigh::AEM_VMD_HMD.HField,
     nicenup(f)
 end
 
-function plotmodelfield!(aem::dBzdt, Ρ::Vector{Array{Float64}};
-                        figsize=(8,5), dz=-1., onesigma=true,
-                        extendfrac=-1., fsize=10, alpha=0.1)
+function plotmodelfield!(aem::dBzdt, Ρ::Vector{T};
+                        figsize=(8,5), dz=-1., onesigma=true, onlygetMLsampled=false,
+                        extendfrac=-1., fsize=10, alpha=0.1) where T<:AbstractArray
     @assert all((dz, extendfrac) .> 0)
-    sigma = onesigma ? 1.0 : 2.0
-    f = figure(figsize=figsize)
-    ax = Vector{PyPlot.PyObject}(undef, 3)
-    ax[1] = subplot(121)
-    ρmin, ρmax = extrema(vcat(Ρ...))
-    delρ = ρmax - ρmin
-    ax[1].set_xlim(ρmin-0.1delρ,ρmax+0.1delρ)
     nfixed, z = aem.nfixed, aem.z
-    ax[1].plot([ρmin-0.1delρ,ρmax+0.1delρ], z[nfixed+1]*[1., 1], color="b")
-    ax[2] = subplot(122)
+    if !onlygetMLsampled 
+        sigma = onesigma ? 1.0 : 2.0
+        f = figure(figsize=figsize)
+        ax = Vector{PyPlot.PyObject}(undef, 3)
+        ax[1] = subplot(121)
+        ρmin, ρmax = extrema(vcat(Ρ...))
+        delρ = ρmax - ρmin
+        ax[1].set_xlim(ρmin-0.1delρ,ρmax+0.1delρ)
+        ax[1].plot([ρmin-0.1delρ,ρmax+0.1delρ], z[nfixed+1]*[1., 1], color="b")
+        ax[2] = subplot(122)
+    end    
     Flow = aem.Flow
     dlow, σlow = aem.dlow, aem.σlow
     Fhigh = aem.Fhigh
     dhigh, σhigh = aem.dhigh, aem.σhigh
-    aem.ndatalow>0 && ax[2].errorbar(Flow.times, μ₀*dlow, yerr = μ₀*sigma*abs.(σlow),
-                        linestyle="none", marker=".", elinewidth=0, capsize=3, label="low moment")
-    aem.ndatahigh>0 && ax[2].errorbar(Fhigh.times, μ₀*dhigh, yerr = μ₀*sigma*abs.(σhigh),
-                        linestyle="none", marker=".", elinewidth=0, capsize=3, label="high moment")
-    for ρ in Ρ
+    if !onlygetMLsampled
+        aem.ndatalow>0 && ax[2].errorbar(Flow.times, μ₀*dlow, yerr = μ₀*sigma*abs.(σlow),
+                            linestyle="none", marker=".", elinewidth=0, capsize=3, label="low moment")
+        aem.ndatahigh>0 && ax[2].errorbar(Fhigh.times, μ₀*dhigh, yerr = μ₀*sigma*abs.(σhigh),
+                            linestyle="none", marker=".", elinewidth=0, capsize=3, label="high moment")
+    else
+        errorfact_low, errorfact_high = map(x->zeros(length(Ρ)), 1:2)                        
+    end
+    for (i, ρ) in enumerate(Ρ)
         getfield!(ρ,  aem)
-        if aem.ndatalow>0
-            Flow.dBzdt[.!aem.selectlow] .= NaN
-            ax[2].loglog(Flow.times,μ₀*Flow.dBzdt, "k", alpha=alpha, markersize=2)
-        end
-        if aem.ndatahigh>0
-            Fhigh.dBzdt[.!aem.selecthigh] .= NaN
-            ax[2].loglog(Fhigh.times,μ₀*Fhigh.dBzdt, "k", alpha=alpha, markersize=2)
-        end
-        ax[1].step(log10.(aem.ρ[2:end]), aem.z[2:end], "-k", alpha=alpha)
+        if !onlygetMLsampled
+            if aem.ndatalow>0
+                Flow.dBzdt[.!aem.selectlow] .= NaN
+                ax[2].loglog(Flow.times,μ₀*Flow.dBzdt, "k", alpha=alpha, markersize=2)
+            end
+            if aem.ndatahigh>0
+                Fhigh.dBzdt[.!aem.selecthigh] .= NaN
+                ax[2].loglog(Fhigh.times,μ₀*Fhigh.dBzdt, "k", alpha=alpha, markersize=2)
+            end
+            ax[1].step(log10.(aem.ρ[2:end]), aem.z[2:end], "-k", alpha=alpha)
+        else
+            errorfact_low[i], errorfact_high[i] = computeMLfactor(aem)
+        end    
     end
-    ax[1].grid()
-    ax[1].set_ylabel("Depth m")
-    ax[1].plot(xlim(), z[nfixed+1]*[1, 1], "--k")
-    if dz > 0
-        axn = ax[1].twinx()
-        ax[1].get_shared_y_axes().join(ax[1],axn)
-        yt = ax[1].get_yticks()[ax[1].get_yticks().>=z[nfixed+1]]
-        axn.set_yticks(yt)
-        axn.set_ylim(ax[1].get_ylim()[end:-1:1])
-        axn.set_yticklabels(string.(Int.(round.(getn.(yt .- z[nfixed+1], dz, extendfrac)))))
-    end
-    axn.set_ylabel("Depth index", rotation=-90)
-    ax[1].set_xlabel("Log₁₀ρ")
-    ax[1].set_title("Model")
-    ax[2].set_ylabel(L"dBzdt \; V/(A.m^4)")
-    ax[2].set_xlabel("Time (s)")
-    ax[2].set_title("Transient response")
-    ax[2].legend()
-    ax[2].grid()
-    ax[1].invert_xaxis()
-    nicenup(f, fsize=fsize)
+    if !onlygetMLsampled
+        ax[1].grid()
+        ax[1].set_ylabel("Depth m")
+        ax[1].plot(xlim(), z[nfixed+1]*[1, 1], "--k")
+        if dz > 0
+            axn = ax[1].twinx()
+            ax[1].get_shared_y_axes().join(ax[1],axn)
+            yt = ax[1].get_yticks()[ax[1].get_yticks().>=z[nfixed+1]]
+            axn.set_yticks(yt)
+            axn.set_ylim(ax[1].get_ylim()[end:-1:1])
+            axn.set_yticklabels(string.(Int.(round.(getn.(yt .- z[nfixed+1], dz, extendfrac)))))
+        end
+        axn.set_ylabel("Depth index", rotation=-90, labelpad=10)
+        ax[1].set_xlabel("Log₁₀ρ")
+        ax[1].set_title("Model")
+        ax[2].set_ylabel(L"dBzdt \; V/(A.m^4)")
+        ax[2].set_xlabel("Time (s)")
+        ax[2].set_title("Transient response")
+        ax[2].legend()
+        ax[2].grid()
+        ax[1].invert_xaxis()
+        nicenup(f, fsize=fsize)
+        nothing, nothing, nothing, nothing
+    else
+        mean(errorfact_low), std(errorfact_low),
+        mean(errorfact_high), std(errorfact_high)
+    end    
 end
 
 function makeoperator(sounding::SkyTEMsoundingData;
@@ -806,6 +838,7 @@ function plotindividualsoundings(soundings::Array{SkyTEMsoundingData, 1}, opt::O
     extendfrac = 1.06,
     dz = 2.,
     ρbg = 10,
+    omittemp = false,
     nlayers = 40,
     ntimesperdecade = 10,
     nfreqsperdecade = 5,
@@ -813,7 +846,13 @@ function plotindividualsoundings(soundings::Array{SkyTEMsoundingData, 1}, opt::O
     nforwards = 100,
     rseed = 11,
     modelprimary = false,
-    idxcompute = [1])
+    idxcompute = [1],
+    onlygetMLsampled = false)
+    
+    if onlygetMLsampled
+        computeforwards = true
+        errorfac_low, errorfacσ_low, errorfac_high, errorfacσ_high = map(x->zeros(length(soundings)), 1:4)
+    end
     zall, = setupz(zstart, extendfrac, dz=dz, n=nlayers)
     opt.xall[:] .= zall
     for idx = 1:length(soundings)
@@ -831,25 +870,36 @@ function plotindividualsoundings(soundings::Array{SkyTEMsoundingData, 1}, opt::O
                 ntimesperdecade = ntimesperdecade,
                 nfreqsperdecade = nfreqsperdecade,
                 modelprimary = modelprimary)
-            getchi2forall(opt, alpha=0.8)
-            CommonToAll.getstats(opt)
-            plot_posterior(aem, opt, burninfrac=burninfrac, nbins=nbins, figsize=figsize)
-            ax = gcf().axes
-            ax[1].invert_xaxis()
+            if !onlygetMLsampled
+                getchi2forall(opt, alpha=0.8, omittemp=omittemp)
+                CommonToAll.getstats(opt)
+                plot_posterior(aem, opt, burninfrac=burninfrac, nbins=nbins, figsize=figsize)
+                ax = gcf().axes
+                ax[1].invert_xaxis()
+            end    
             if computeforwards
                 M = assembleTat1(opt, :fstar, temperaturenum=1, burninfrac=burninfrac)
                 Random.seed!(rseed)
-                plotmodelfield!(aem, M[randperm(length(M))[1:nforwards]],
-                dz=dz, extendfrac=extendfrac, onesigma=false, alpha=0.2)
+                if onlygetMLsampled
+                    errorfac_low[idx], errorfacσ_low[idx], 
+                    errorfac_high[idx], errorfacσ_high[idx] = plotmodelfield!(aem, M[randperm(length(M))[1:nforwards]],
+                        dz=dz, extendfrac=extendfrac, onesigma=false, alpha=0.2, onlygetMLsampled=true)
+                else
+                    plotmodelfield!(aem, M[randperm(length(M))[1:nforwards]],
+                    dz=dz, extendfrac=extendfrac, onesigma=false, alpha=0.2)
+                end            
             end
         end
     end
+    if onlygetMLsampled
+        errorfac_low, errorfacσ_low, errorfac_high, errorfacσ_high
+    end    
 end
 
 function plotsummarygrids1(meangrid, phgrid, plgrid, pmgrid, gridx, gridz, topofine, R, Z, χ²mean, χ²sd, lname; qp1=0.05, qp2=0.95,
                         figsize=(10,10), fontsize=12, cmap="viridis", vmin=-2, vmax=0.5, Eislast=true, Nislast=true,
                         topowidth=2, idx=nothing, omitconvergence=false, useML=false, preferEright=false, preferNright=false,
-                        saveplot=false)
+                        saveplot=false, yl=nothing, botadjust=[0.125, 0.05, 0.75, 0.01])
     f = figure(figsize=figsize)
     dr = diff(gridx)[1]
     f.suptitle(lname*" Δx=$dr m, Fids: $(length(R))", fontsize=fontsize)
@@ -908,11 +958,13 @@ function plotsummarygrids1(meangrid, phgrid, plgrid, pmgrid, gridx, gridz, topof
     map(x->x.tick_params(labelbottom=false), s[1:end-1])
     map(x->x.grid(), s)
     nicenup(f, fsize=fontsize)
+    isa(yl, Nothing) || s[end].set_ylim(yl...)
     plotNEWSlabels(Eislast, Nislast, gridx, gridz, s)
     f.subplots_adjust(bottom=0.125)
-    cbar_ax = f.add_axes([0.125, 0.05, 0.75, 0.01])
-    cb = f.colorbar(imlast, cax=cbar_ax, orientation="horizontal")
-    cb.ax.set_xlabel("Log₁₀ S/m")
+    cbar_ax = f.add_axes(botadjust)
+    cb = f.colorbar(imlast, cax=cbar_ax, orientation="horizontal",)
+    cb.ax.set_xlabel("Log₁₀ S/m", fontsize=fontsize)
+    cb.ax.tick_params(labelsize=fontsize)
     (preferNright && !Nislast) && s[end].invert_xaxis()
     (preferEright && !Eislast) && s[end].invert_xaxis()
     saveplot && savefig(lname*".png", dpi=300)
@@ -977,6 +1029,8 @@ function summaryimages(soundings::Array{SkyTEMsoundingData, 1}, opt::Options;
                         preferEright = false,
                         preferNright = false,
                         saveplot = false,
+                        yl = nothing,
+                        botadjust=[0.125, 0.05, 0.75, 0.01]
                         )
     @assert !(preferNright && preferEright) # can't prefer both labels to the right
     pl, pm, ph, ρmean, vdmean, vddev, χ²mean, χ²sd, zall = summarypost(soundings, opt,
@@ -995,7 +1049,8 @@ function summaryimages(soundings::Array{SkyTEMsoundingData, 1}, opt::Options;
     plotsummarygrids1(σmeangrid, phgrid, plgrid, pmgrid, gridx, gridz, topofine, R, Z, χ²mean, χ²sd, lname, qp1=qp1, qp2=qp2,
                         figsize=figsize, fontsize=fontsize, cmap=cmap, vmin=vmin, vmax=vmax, Eislast=Eislast,
                         Nislast=Nislast, topowidth=topowidth, idx=idx, omitconvergence=omitconvergence, useML=useML,
-                        preferEright=preferEright, preferNright=preferNright, saveplot=saveplot)
+                        preferEright=preferEright, preferNright=preferNright, saveplot=saveplot, 
+                        yl=yl, botadjust=botadjust)
     if showderivs
         cigrid = phgrid - plgrid
         plotsummarygrids2(σmeangrid, ∇zmeangrid, ∇zsdgrid, cigrid, gridx, gridz, topofine, lname, qp1=qp1, qp2=qp2,

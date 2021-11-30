@@ -338,7 +338,8 @@ function getchi2forall(opt_in::Options;
                         fsize           = 8,
                         alpha           = 0.25,
                         nxticks         = 0,
-                        gridon          = false
+                        gridon          = false,
+                        omittemp        = false,
                       )
     # now look at any chain to get how many iterations
     isns = checkns(opt_in)
@@ -385,8 +386,8 @@ function getchi2forall(opt_in::Options;
         kacrosschains[jstep,:] = kacrosschains[jstep,sortidx]
         Tacrosschains[jstep,:] = Tacrosschains[jstep,sortidx]
     end
-
-    f, ax = plt.subplots(3,1, sharex=true, figsize=figsize)
+    nrows = omittemp ? 2 : 3
+    f, ax = plt.subplots(nrows, 1, sharex=true, figsize=figsize)
     nchainsatone = sum(Tacrosschains[1,:] .== 1)
     ax[1].plot(iters, kacrosschains, alpha=alpha)
     ax[1].set_xlim(extrema(iters)...)
@@ -398,17 +399,13 @@ function getchi2forall(opt_in::Options;
     ax[2].plot(iters, X2by2inchains[:,1:nchainsatone], "k", alpha=alpha)
     ax[2].set_ylabel("-Log L")
     gridon && ax[2].grid()
-    ax[3].plot(iters, Tunsorted, alpha=alpha, color="gray")
-    # for i = 1:size(Tunsorted, 2)
-    #    for (j, s) = enumerate(Base.Iterators.cycle(lstyles))
-    #        j == i && (ax[3].plot(iters, Tunsorted, alpha=alpha/5, color="gray", linestyle=s); break)
-    #    end
-    # end
-    ax[3].set_ylabel("Temperature")
-    # ax[3].plot(iters, Tacrosschains[:,1:nchainsatone], "k", alpha=alpha)
-    gridon && ax[3].grid()
+    if !omittemp
+        ax[3].plot(iters, Tunsorted, alpha=alpha, color="gray")
+        ax[3].set_ylabel("Temperature")
+        gridon && ax[3].grid()
+    end
     nxticks == 0 || ax[3].set_xticks(iters[1]:div(iters[end],nxticks):iters[end])
-    ax[3].set_xlabel("iterations")
+    ax[nrows].set_xlabel("iterations")
     nicenup(f, fsize=fsize)
 
 end
@@ -623,7 +620,9 @@ function plot_posterior(operator::Operator1D,
 
         ax[1].set_xlim(propmin, propmax)
         ax[2].plot(meandiffimage[:], xall[:], linewidth=2, color="k", linestyle="-")
-        ax[2].fill_betweenx(xall[:],meandiffimage[:]-sdslope[:],meandiffimage[:]+sdslope[:],alpha=.5)
+        zeroside = meandiffimage[:]-sdslope[:]
+        zeroside[zeroside .< 0] .= 0
+        ax[2].fill_betweenx(xall[:],zeroside,meandiffimage[:]+sdslope[:],alpha=.5)
         ax[2].set_xlabel("mean slope")
         nicenup(f, fsize=fsize)
     end
@@ -908,8 +907,8 @@ end
 
 function plotNEWSlabels(Eislast, Nislast, gridx, gridz, axarray)
     for s in axarray
-        Eislast ? s.text(gridx[1], gridz[end], "W", backgroundcolor="w") : s.text(gridx[1], gridz[end], "E", backgroundcolor="w")
-        Nislast ? s.text(gridx[end], gridz[end], "N", backgroundcolor="w") : s.text(gridx[end], gridz[end], "S", backgroundcolor="w")
+        Eislast ? s.text(gridx[1], minimum(s.get_ylim()), "W", backgroundcolor="w") : s.text(gridx[1], minimum(s.get_ylim()), "E", backgroundcolor="w")
+        Nislast ? s.text(gridx[end], minimum(s.get_ylim()), "N", backgroundcolor="w") : s.text(gridx[end], minimum(s.get_ylim()), "S", backgroundcolor="w")
     end
 end
 
