@@ -919,4 +919,31 @@ function plotprofile(ax, idxs, Z, R)
     end
 end
 
+function selectwithin1Dinterval(M::AbstractVector, z, 
+                                zbounds, vbounds,
+                                cond = :mean)
+    @assert(any(cond .== [:all, :any, :median, :mean]))
+    @assert size(vbounds, 1) == size(zbounds, 1)
+    @assert length(z) == length(M[1])
+    @assert all(vbounds[:,1] .< vbounds[:,2])
+    @assert all(zbounds[:,1] .< zbounds[:,2])
+    nconditions = size(vbounds, 1)
+    idx = zeros(Bool, length(M), nconditions)
+    for (i, m) in enumerate(M)
+       for j in 1:nconditions
+            idxdepth = zbounds[j,1] .< z .< zbounds[j,2]
+            if any(cond .== [:median, :mean])
+                if vbounds[j,1] < eval(cond)(m[idxdepth]) < vbounds[j,2]
+                    idx[i,j] = true
+                end
+            else     
+                if eval(cond)(vbounds[j,1] .< (m[idxdepth]) .< vbounds[j,2])
+                    idx[i,j] = true
+                end    
+            end
+       end
+    end
+    vec(reduce(&, idx, dims=2))
+end
+
 end
