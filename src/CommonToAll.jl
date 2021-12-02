@@ -220,7 +220,7 @@ function getstats(optin::Options;
     opt.costs_filename    = costs_filename*"_1.bin"
     iters          = history(opt, stat=:iter)
     statnames = [:acceptanceRateBirth, :acceptanceRateDeath,
-                 :acceptanceRatePosition, :acceptanceRateProperty]
+                 :acceptanceRatePosition, :acceptanceRateProperty, :acceptanceRateDC]
     f,ax = plt.subplots(length(statnames), 1,
                         sharex=true, sharey=true, figsize=figsize)
     maxar = 0
