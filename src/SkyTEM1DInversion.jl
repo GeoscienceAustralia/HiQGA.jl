@@ -1044,6 +1044,8 @@ function summaryimages(soundings::Array{SkyTEMsoundingData, 1}, opt::Options;
     @assert !(preferNright && preferEright) # can't prefer both labels to the right
     pl, pm, ph, ρmean, vdmean, vddev, χ²mean, χ²sd, zall = summarypost(soundings, opt,
                                                                     zstart=zstart,
+                                                                    qp1=qp1,
+                                                                    qp2=qp2,
                                                                     dz=dz,
                                                                     extendfrac=extendfrac,
                                                                     nlayers=nlayers,
@@ -1119,8 +1121,8 @@ function plotconvandlast(soundings, delr, delz;
     cbar_ax = f.add_axes([0.3, 0.1, 0.4, 0.02])
     cb = f.colorbar(imlast, cax=cbar_ax, orientation="horizontal")
     cb.ax.set_xlabel("Log₁₀ S/m")
-    (preferNright && !Nislast) && s[end].invert_xaxis()
-    (preferEright && !Eislast) && s[end].invert_xaxis()
+    (preferNright && !Nislast) && ax[end].invert_xaxis()
+    (preferEright && !Eislast) && ax[end].invert_xaxis()
 end    
 
 # plot multiple grids with supplied labels

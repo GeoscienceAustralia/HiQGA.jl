@@ -946,4 +946,42 @@ function selectwithin1Dinterval(M::AbstractVector, z,
     vec(reduce(&, idx, dims=2))
 end
 
+function block1Dvalues(M::AbstractVector, z, zbounds, cond = :median)
+    @assert(any(cond .== [:median, :mean]))
+    @assert length(z) == length(M[1])
+    @assert all(zbounds[:,1] .< zbounds[:,2])
+    nconditions = size(zbounds, 1)
+    Mblock = zeros(length(M), nconditions)
+    for (i, m) in enumerate(M)
+        for j in 1:nconditions
+            idxdepth = zbounds[j,1] .< z .<= zbounds[j,2]
+            Mblock[i,j] = eval(cond)(m[idxdepth])
+        end
+     end
+    Mblock
+end    
+
+function correlationplot(M::Array{Float64, 2}; figsize=(5,5), nbins=25)
+    f, ax = plt.subplots(size(M, 2), size(M, 2), figsize=figsize, sharex=true, sharey=true)
+    nrows = size(M, 2)
+    for j = 1:nrows
+        for i = j:nrows
+            h = normalize(fit(Histogram, (M[:,i], M[:,j]), nbins=nbins))
+            ax[nrows*(j-1)+i].pcolormesh(h.edges[2], h.edges[1], h.weights)
+        end
+    end 
+    ax[1].set_aspect(1)   
+end    
+
+function plot1Dpatches(ax, zlist, xlist; alpha=0.25, fc="red", ec="blue", lw=2)
+    @assert length(zlist) == length(xlist)
+    for i in 1:size(zlist, 1)
+        x0, z0 = xlist[i,1], zlist[i,1]
+        delx = xlist[i,2] - x0
+        delz = zlist[i,2] - z0
+        ax.add_patch(matplotlib.patches.Rectangle((x0,z0),delx,delz, alpha=alpha, fc=fc, ec=fc))
+        ax.add_patch(matplotlib.patches.Rectangle((x0,z0),delx,delz, fill=false, ec=ec, lw=lw, linestyle="--"))
+    end    
+end
+
 end
