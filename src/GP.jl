@@ -115,7 +115,7 @@ function getAF(AF::EI, y::Array{Float64, 1}, fₓ::Array{Float64, 1}, σₓ²::A
     X = (fₓ .- kv .- tol)
     σₓ = sqrt.(σₓ²)
     Z = X./σₓ
-    X.*cdf.(d, Z) + σₓ.*pdf(d, Z) 
+    X.*cdf.(d, Z) + σₓ.*pdf.(d, Z) 
 end
 
 function getAF(AF::AcqFunc, y::Vector{Float64}, fₓ::Vector{Float64}, σₓ²::Vector{Float64};
