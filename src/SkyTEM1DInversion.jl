@@ -2,9 +2,12 @@ module SkyTEM1DInversion
 import ..AbstractOperator.get_misfit
 import ..AbstractOperator.Sounding
 import ..AbstractOperator.makeoperator
+import ..AbstractOperator.getresidual
 
-using ..AbstractOperator, ..AEM_VMD_HMD, Statistics, Distributed, Printf
-using PyPlot, LinearAlgebra, ..CommonToAll, MAT, Random, DelimitedFiles
+
+using ..AbstractOperator, ..AEM_VMD_HMD, Statistics, Distributed, Printf,
+      PyPlot, LinearAlgebra, ..CommonToAll, Random, DelimitedFiles, LinearMaps, SparseArrays, ..GP
+
 
 import ..Model, ..Options, ..OptionsStat, ..OptionsNonstat
 
@@ -27,9 +30,21 @@ mutable struct dBzdt<:Operator1D
     selecthigh :: Array{Bool, 1}
     ndatalow   :: Int
     ndatahigh  :: Int
+    J          :: AbstractArray
+    W          :: SparseMatrixCSC
+    res        :: Vector
 end
 
-function dBzdt(Flow       :: AEM_VMD_HMD.HField,
+struct Cinv
+    # assumes diagonal data cov
+    oneoverσ²
+end
+
+function (a::Cinv)(x) 
+    x.*a.oneoverσ²
+end    
+
+function dBzdt(       Flow       :: AEM_VMD_HMD.HField,
                       Fhigh      :: AEM_VMD_HMD.HField,
                       dlow       :: Array{Float64, 1},
                       dhigh      :: Array{Float64, 1},
@@ -48,9 +63,38 @@ function dBzdt(Flow       :: AEM_VMD_HMD.HField,
     ndatahigh  = sum(.!isnan.(dhigh))
     selectlow  = .!isnan.(dlow)
     selecthigh = .!isnan.(dhigh)
+    # for Gauss-Newton
+    calcjacobian = Flow.calcjacobian & Fhigh.calcjacobian
+    res = [dlow[selectlow];dhigh[selecthigh]]
+    if calcjacobian
+        J = [Flow.dBzdt_J'; Fhigh.dBzdt_J']; 
+        J = J[[selectlow;selecthigh],nfixed+1:length(ρ)]
+        Wdiag = [1 ./σlow[selectlow]; 1 ./σhigh[selecthigh]]
+        res = [dlow[selectlow];dhigh[selecthigh]]
+    else    
+        res, J, Wdiag = zeros(0), zeros(0), zeros(0)
+    end    
+    W = sparse(diagm(Wdiag))
     dBzdt(dlow, dhigh, useML, σlow, σhigh,
-    Flow, Fhigh, z, nfixed, copy(ρ), selectlow, selecthigh, ndatalow, ndatahigh)
+    Flow, Fhigh, z, nfixed, copy(ρ), selectlow, selecthigh, ndatalow, ndatahigh, J, W, res)
 end
+
+function getresidual(aem::dBzdt, log10σ::Vector{Float64}; computeJ=false)
+    # aem.ρ[:] = 10 .^(-log10σ)
+    aem.Flow.calcjacobian = computeJ
+    aem.Fhigh.calcjacobian = computeJ
+    getfield!(-log10σ, aem)
+    fl, fh = aem.Flow.dBzdt[aem.selectlow], aem.Fhigh.dBzdt[aem.selecthigh]
+    dl, dh = aem.dlow[aem.selectlow], aem.dhigh[aem.selecthigh]
+    aem.res[:] = [fl-dl; fh-dh]
+    if computeJ
+        selectlow, selecthigh, nfixed = aem.selectlow, aem.selecthigh, aem.nfixed
+        Flow, Fhigh = aem. Flow, aem.Fhigh
+        copy!(aem.J, [Flow.dBzdt_J'[selectlow,nfixed+1:nfixed+length(log10σ)]; 
+                      Fhigh.dBzdt_J'[selecthigh,nfixed+1:nfixed+length(log10σ)]])
+    end
+    nothing    
+end    
 
 mutable struct SkyTEMsoundingData <: Sounding
     sounding_string :: String
@@ -267,13 +311,29 @@ function get_misfit(m::Model, opt::Options, aem::dBzdt)
 end
 
 function getchi2by2(dBzdt, d, σ, select, useML, ndata)
-    r, d, s, idx = dBzdt, d, σ, select
+    r, s, idx = dBzdt, σ, select
     r .= (r - d)./s
     if useML
         chi2by2 = 0.5*ndata*log(norm(r[idx])^2)
     else
         chi2by2 = 0.5*norm(r[idx])^2
     end
+end
+
+function computeMLfactor(dBzdt, d, σ, select, ndata)
+    if ndata > 0
+        r, s, idx = dBzdt, σ, select
+        r .= (r - d)./s
+        r[idx]'*r[idx]/ndata
+    else
+        NaN
+    end    
+end    
+
+function computeMLfactor(aem)
+    mlfact_low = computeMLfactor(aem.Flow.dBzdt, aem.dlow, aem.σlow, aem.selectlow, aem.ndatalow)
+    mlfact_high = computeMLfactor(aem.Fhigh.dBzdt, aem.dhigh, aem.σhigh, aem.selecthigh, aem.ndatahigh)
+    sqrt(mlfact_low), sqrt(mlfact_high)
 end
 
 function plotmodelfield_skytem!(Flow::AEM_VMD_HMD.HField, Fhigh::AEM_VMD_HMD.HField,
@@ -378,61 +438,77 @@ function plotmodelfield!(Flow::AEM_VMD_HMD.HField, Fhigh::AEM_VMD_HMD.HField,
     nicenup(f)
 end
 
-function plotmodelfield!(aem::dBzdt, Ρ::Vector{Array{Float64}};
-                        figsize=(8,5), dz=-1., onesigma=true,
-                        extendfrac=-1., fsize=10, alpha=0.1)
+function plotmodelfield!(aem::dBzdt, Ρ::Vector{T};
+                        figsize=(8,5), dz=-1., onesigma=true, onlygetMLsampled=false,
+                        extendfrac=-1., fsize=10, alpha=0.1) where T<:AbstractArray
     @assert all((dz, extendfrac) .> 0)
-    sigma = onesigma ? 1.0 : 2.0
-    f = figure(figsize=figsize)
-    ax = Vector{PyPlot.PyObject}(undef, 3)
-    ax[1] = subplot(121)
-    ρmin, ρmax = extrema(vcat(Ρ...))
-    delρ = ρmax - ρmin
-    ax[1].set_xlim(ρmin-0.1delρ,ρmax+0.1delρ)
     nfixed, z = aem.nfixed, aem.z
-    ax[1].plot([ρmin-0.1delρ,ρmax+0.1delρ], z[nfixed+1]*[1., 1], color="b")
-    ax[2] = subplot(122)
+    if !onlygetMLsampled 
+        sigma = onesigma ? 1.0 : 2.0
+        f = figure(figsize=figsize)
+        ax = Vector{PyPlot.PyObject}(undef, 3)
+        ax[1] = subplot(121)
+        ρmin, ρmax = extrema(vcat(Ρ...))
+        delρ = ρmax - ρmin
+        ax[1].set_xlim(ρmin-0.1delρ,ρmax+0.1delρ)
+        ax[1].plot([ρmin-0.1delρ,ρmax+0.1delρ], z[nfixed+1]*[1., 1], color="b")
+        ax[2] = subplot(122)
+    end    
     Flow = aem.Flow
     dlow, σlow = aem.dlow, aem.σlow
     Fhigh = aem.Fhigh
     dhigh, σhigh = aem.dhigh, aem.σhigh
-    aem.ndatalow>0 && ax[2].errorbar(Flow.times, μ₀*dlow, yerr = μ₀*sigma*abs.(σlow),
-                        linestyle="none", marker=".", elinewidth=0, capsize=3, label="low moment")
-    aem.ndatahigh>0 && ax[2].errorbar(Fhigh.times, μ₀*dhigh, yerr = μ₀*sigma*abs.(σhigh),
-                        linestyle="none", marker=".", elinewidth=0, capsize=3, label="high moment")
-    for ρ in Ρ
+    if !onlygetMLsampled
+        aem.ndatalow>0 && ax[2].errorbar(Flow.times, μ₀*dlow, yerr = μ₀*sigma*abs.(σlow),
+                            linestyle="none", marker=".", elinewidth=0, capsize=3, label="low moment")
+        aem.ndatahigh>0 && ax[2].errorbar(Fhigh.times, μ₀*dhigh, yerr = μ₀*sigma*abs.(σhigh),
+                            linestyle="none", marker=".", elinewidth=0, capsize=3, label="high moment")
+    else
+        errorfact_low, errorfact_high = map(x->zeros(length(Ρ)), 1:2)                        
+    end
+    for (i, ρ) in enumerate(Ρ)
         getfield!(ρ,  aem)
-        if aem.ndatalow>0
-            Flow.dBzdt[.!aem.selectlow] .= NaN
-            ax[2].loglog(Flow.times,μ₀*Flow.dBzdt, "k", alpha=alpha, markersize=2)
-        end
-        if aem.ndatahigh>0
-            Fhigh.dBzdt[.!aem.selecthigh] .= NaN
-            ax[2].loglog(Fhigh.times,μ₀*Fhigh.dBzdt, "k", alpha=alpha, markersize=2)
-        end
-        ax[1].step(log10.(aem.ρ[2:end]), aem.z[2:end], "-k", alpha=alpha)
+        if !onlygetMLsampled
+            if aem.ndatalow>0
+                Flow.dBzdt[.!aem.selectlow] .= NaN
+                ax[2].loglog(Flow.times,μ₀*Flow.dBzdt, "k", alpha=alpha, markersize=2)
+            end
+            if aem.ndatahigh>0
+                Fhigh.dBzdt[.!aem.selecthigh] .= NaN
+                ax[2].loglog(Fhigh.times,μ₀*Fhigh.dBzdt, "k", alpha=alpha, markersize=2)
+            end
+            ax[1].step(log10.(aem.ρ[2:end]), aem.z[2:end], "-k", alpha=alpha)
+        else
+            errorfact_low[i], errorfact_high[i] = computeMLfactor(aem)
+        end    
     end
-    ax[1].grid()
-    ax[1].set_ylabel("Depth m")
-    ax[1].plot(xlim(), z[nfixed+1]*[1, 1], "--k")
-    if dz > 0
-        axn = ax[1].twinx()
-        ax[1].get_shared_y_axes().join(ax[1],axn)
-        yt = ax[1].get_yticks()[ax[1].get_yticks().>=z[nfixed+1]]
-        axn.set_yticks(yt)
-        axn.set_ylim(ax[1].get_ylim()[end:-1:1])
-        axn.set_yticklabels(string.(Int.(round.(getn.(yt .- z[nfixed+1], dz, extendfrac)))))
-    end
-    axn.set_ylabel("Depth index", rotation=-90)
-    ax[1].set_xlabel("Log₁₀ρ")
-    ax[1].set_title("Model")
-    ax[2].set_ylabel(L"dBzdt \; V/(A.m^4)")
-    ax[2].set_xlabel("Time (s)")
-    ax[2].set_title("Transient response")
-    ax[2].legend()
-    ax[2].grid()
-    ax[1].invert_xaxis()
-    nicenup(f, fsize=fsize)
+    if !onlygetMLsampled
+        ax[1].grid()
+        ax[1].set_ylabel("Depth m")
+        ax[1].plot(xlim(), z[nfixed+1]*[1, 1], "--k")
+        if dz > 0
+            axn = ax[1].twinx()
+            ax[1].get_shared_y_axes().join(ax[1],axn)
+            yt = ax[1].get_yticks()[ax[1].get_yticks().>=z[nfixed+1]]
+            axn.set_yticks(yt)
+            axn.set_ylim(ax[1].get_ylim()[end:-1:1])
+            axn.set_yticklabels(string.(Int.(round.(getn.(yt .- z[nfixed+1], dz, extendfrac)))))
+        end
+        axn.set_ylabel("Depth index", rotation=-90, labelpad=10)
+        ax[1].set_xlabel("Log₁₀ρ")
+        ax[1].set_title("Model")
+        ax[2].set_ylabel(L"dBzdt \; V/(A.m^4)")
+        ax[2].set_xlabel("Time (s)")
+        ax[2].set_title("Transient response")
+        ax[2].legend()
+        ax[2].grid()
+        ax[1].invert_xaxis()
+        nicenup(f, fsize=fsize)
+        nothing, nothing, nothing, nothing
+    else
+        mean(errorfact_low), std(errorfact_low),
+        mean(errorfact_high), std(errorfact_high)
+    end    
 end
 
 function makeoperator(sounding::SkyTEMsoundingData;
@@ -447,6 +523,7 @@ function makeoperator(sounding::SkyTEMsoundingData;
                        nfreqsperdecade = 5,
                        showgeomplot = false,
                        useML = false,
+                       calcjacobian = false,
                        modelprimary = false,
                        plotfield = false)
     @assert extendfrac > 1.0
@@ -470,7 +547,8 @@ function makeoperator(sounding::SkyTEMsoundingData;
                           rRx    = sounding.rRx,
                           rTx    = sounding.rTx,
                           zRx    = sounding.zRxLM,
-                          modelprimary = modelprimary
+                          modelprimary = modelprimary,
+                          calcjacobian = calcjacobian
                           )
     ## HM operator
     Fhm = AEM_VMD_HMD.HFieldDHT(
@@ -484,7 +562,8 @@ function makeoperator(sounding::SkyTEMsoundingData;
                           rRx    = sounding.rRx,
                           rTx    = sounding.rTx,
                           zRx    = sounding.zRxHM,
-                          modelprimary = modelprimary
+                          modelprimary = modelprimary,
+                          calcjacobian = calcjacobian
                           )
     ## create operator
     dlow, dhigh, σlow, σhigh = (sounding.LM_data, sounding.HM_data, sounding.LM_noise, sounding.HM_noise)./μ₀
@@ -542,7 +621,7 @@ function make_tdgp_opt(;
                     fileprefix = "sounding",
                     nmin = 2,
                     nmax = 40,
-                    K = GP.Mat32(),
+                    K = GP.OrstUhn(),
                     demean = true,
                     sdpos = 0.05,
                     sdprop = 0.05,
@@ -599,7 +678,7 @@ function makeoperatorandoptions(soundings::Array{SkyTEMsoundingData, 1};
                         fileprefix = "sounding",
                         nmin = 2,
                         nmax = 40,
-                        K = GP.Mat32(),
+                        K = GP.OrstUhn(),
                         demean = true,
                         sdpos = 0.05,
                         sdprop = 0.05,
@@ -768,6 +847,7 @@ function plotindividualsoundings(soundings::Array{SkyTEMsoundingData, 1}, opt::O
     extendfrac = 1.06,
     dz = 2.,
     ρbg = 10,
+    omittemp = false,
     nlayers = 40,
     ntimesperdecade = 10,
     nfreqsperdecade = 5,
@@ -775,7 +855,13 @@ function plotindividualsoundings(soundings::Array{SkyTEMsoundingData, 1}, opt::O
     nforwards = 100,
     rseed = 11,
     modelprimary = false,
-    idxcompute = [1])
+    idxcompute = [1],
+    onlygetMLsampled = false)
+    
+    if onlygetMLsampled
+        computeforwards = true
+        errorfac_low, errorfacσ_low, errorfac_high, errorfacσ_high = map(x->zeros(length(soundings)), 1:4)
+    end
     zall, = setupz(zstart, extendfrac, dz=dz, n=nlayers)
     opt.xall[:] .= zall
     for idx = 1:length(soundings)
@@ -793,25 +879,36 @@ function plotindividualsoundings(soundings::Array{SkyTEMsoundingData, 1}, opt::O
                 ntimesperdecade = ntimesperdecade,
                 nfreqsperdecade = nfreqsperdecade,
                 modelprimary = modelprimary)
-            getchi2forall(opt, alpha=0.8)
-            CommonToAll.getstats(opt)
-            plot_posterior(aem, opt, burninfrac=burninfrac, nbins=nbins, figsize=figsize)
-            ax = gcf().axes
-            ax[1].invert_xaxis()
+            if !onlygetMLsampled
+                getchi2forall(opt, alpha=0.8, omittemp=omittemp)
+                CommonToAll.getstats(opt)
+                plot_posterior(aem, opt, burninfrac=burninfrac, nbins=nbins, figsize=figsize)
+                ax = gcf().axes
+                ax[1].invert_xaxis()
+            end    
             if computeforwards
                 M = assembleTat1(opt, :fstar, temperaturenum=1, burninfrac=burninfrac)
                 Random.seed!(rseed)
-                plotmodelfield!(aem, M[randperm(length(M))[1:nforwards]],
-                dz=dz, extendfrac=extendfrac, onesigma=false, alpha=0.2)
+                if onlygetMLsampled
+                    errorfac_low[idx], errorfacσ_low[idx], 
+                    errorfac_high[idx], errorfacσ_high[idx] = plotmodelfield!(aem, M[randperm(length(M))[1:nforwards]],
+                        dz=dz, extendfrac=extendfrac, onesigma=false, alpha=0.2, onlygetMLsampled=true)
+                else
+                    plotmodelfield!(aem, M[randperm(length(M))[1:nforwards]],
+                    dz=dz, extendfrac=extendfrac, onesigma=false, alpha=0.2)
+                end            
             end
         end
     end
+    if onlygetMLsampled
+        errorfac_low, errorfacσ_low, errorfac_high, errorfacσ_high
+    end    
 end
 
 function plotsummarygrids1(meangrid, phgrid, plgrid, pmgrid, gridx, gridz, topofine, R, Z, χ²mean, χ²sd, lname; qp1=0.05, qp2=0.95,
                         figsize=(10,10), fontsize=12, cmap="viridis", vmin=-2, vmax=0.5, Eislast=true, Nislast=true,
                         topowidth=2, idx=nothing, omitconvergence=false, useML=false, preferEright=false, preferNright=false,
-                        saveplot=false)
+                        saveplot=false, yl=nothing, botadjust=[0.125, 0.05, 0.75, 0.01])
     f = figure(figsize=figsize)
     dr = diff(gridx)[1]
     f.suptitle(lname*" Δx=$dr m, Fids: $(length(R))", fontsize=fontsize)
@@ -870,11 +967,13 @@ function plotsummarygrids1(meangrid, phgrid, plgrid, pmgrid, gridx, gridz, topof
     map(x->x.tick_params(labelbottom=false), s[1:end-1])
     map(x->x.grid(), s)
     nicenup(f, fsize=fontsize)
+    isa(yl, Nothing) || s[end].set_ylim(yl...)
     plotNEWSlabels(Eislast, Nislast, gridx, gridz, s)
     f.subplots_adjust(bottom=0.125)
-    cbar_ax = f.add_axes([0.125, 0.05, 0.75, 0.01])
-    cb = f.colorbar(imlast, cax=cbar_ax, orientation="horizontal")
-    cb.ax.set_xlabel("Log₁₀ S/m")
+    cbar_ax = f.add_axes(botadjust)
+    cb = f.colorbar(imlast, cax=cbar_ax, orientation="horizontal",)
+    cb.ax.set_xlabel("Log₁₀ S/m", fontsize=fontsize)
+    cb.ax.tick_params(labelsize=fontsize)
     (preferNright && !Nislast) && s[end].invert_xaxis()
     (preferEright && !Eislast) && s[end].invert_xaxis()
     saveplot && savefig(lname*".png", dpi=300)
@@ -939,10 +1038,14 @@ function summaryimages(soundings::Array{SkyTEMsoundingData, 1}, opt::Options;
                         preferEright = false,
                         preferNright = false,
                         saveplot = false,
+                        yl = nothing,
+                        botadjust=[0.125, 0.05, 0.75, 0.01]
                         )
     @assert !(preferNright && preferEright) # can't prefer both labels to the right
     pl, pm, ph, ρmean, vdmean, vddev, χ²mean, χ²sd, zall = summarypost(soundings, opt,
                                                                     zstart=zstart,
+                                                                    qp1=qp1,
+                                                                    qp2=qp2,
                                                                     dz=dz,
                                                                     extendfrac=extendfrac,
                                                                     nlayers=nlayers,
@@ -957,7 +1060,8 @@ function summaryimages(soundings::Array{SkyTEMsoundingData, 1}, opt::Options;
     plotsummarygrids1(σmeangrid, phgrid, plgrid, pmgrid, gridx, gridz, topofine, R, Z, χ²mean, χ²sd, lname, qp1=qp1, qp2=qp2,
                         figsize=figsize, fontsize=fontsize, cmap=cmap, vmin=vmin, vmax=vmax, Eislast=Eislast,
                         Nislast=Nislast, topowidth=topowidth, idx=idx, omitconvergence=omitconvergence, useML=useML,
-                        preferEright=preferEright, preferNright=preferNright, saveplot=saveplot)
+                        preferEright=preferEright, preferNright=preferNright, saveplot=saveplot, 
+                        yl=yl, botadjust=botadjust)
     if showderivs
         cigrid = phgrid - plgrid
         plotsummarygrids2(σmeangrid, ∇zmeangrid, ∇zsdgrid, cigrid, gridx, gridz, topofine, lname, qp1=qp1, qp2=qp2,
@@ -965,6 +1069,61 @@ function summaryimages(soundings::Array{SkyTEMsoundingData, 1}, opt::Options;
                         Eislast=Eislast, Nislast=Nislast)
     end
 end
+
+# for deterministic inversions, read in
+function readingrid(soundings, zall)
+    nstepsmax = 0 
+    for s in soundings
+        fname = s.sounding_string*"_gradientinv.dat"
+        nstepsmax = max(size(readdlm(fname), 1), nstepsmax)
+    end
+    ϕd = zeros(length(soundings))
+    σgrid = zeros(length(zall), length(soundings))
+    for (i, s) in enumerate(soundings)
+        fname = s.sounding_string*"_gradientinv.dat"
+        A = readdlm(fname)
+        ϕd[i] = A[end,2]
+        σgrid[:,i] = vec(A[end,3:end])
+    end    
+    ϕd, σgrid
+end
+
+# plot the convergence and the result
+function plotconvandlast(soundings, delr, delz; 
+        zstart=-1, extendfrac=-1, dz=-1, nlayers=-1, cmapσ="jet", vmin=-2.5, vmax=0.5, fontsize=12,
+        figsize=(20,5),
+        topowidth=1,
+        preferEright = false,
+        preferNright = false)
+    @assert zstart > -1
+    @assert extendfrac >-1
+    @assert dz>-1
+    @assert nlayers>-1
+    Eislast, Nislast = whichislast(soundings)
+    zall, = setupz(zstart, extendfrac, dz=dz, n=nlayers)
+    ϕd, σ = readingrid(soundings, zall)
+    img, gridr, gridz, topofine, R = makegrid(σ, soundings, zall=zall, dz=delz, dr=delr)
+    f, ax = plt.subplots(2,1, sharex=true, figsize=figsize)
+    lname = "Line $(soundings[1].linenum)"
+    f.suptitle(lname*" Δx=$delr m, Fids: $(length(R))", fontsize=fontsize)
+    ax[1].plot(R, ϕd)
+    # ax[1].plot(R, ones(length(ϕd)), "--k")
+    ax[1].set_ylabel(L"\phi_d")
+    ax[1].set_yscale("log")
+    imlast = ax[2].imshow(img, extent=[gridr[1], gridr[end], gridz[end], gridz[1]], cmap=cmapσ, aspect="auto", vmin=vmin, vmax=vmax)
+    ax[2].plot(gridr, topofine, linewidth=topowidth, "-k")
+    ax[2].set_xlim(extrema(gridr)...)
+    ax[2].set_ylabel("mAHD")
+    ax[2].set_xlabel("Distance m")
+    nicenup(f, fsize=fontsize)
+    plotNEWSlabels(Eislast, Nislast, gridr, gridz, [ax[2]])
+    f.subplots_adjust(bottom=0.25)
+    cbar_ax = f.add_axes([0.3, 0.1, 0.4, 0.02])
+    cb = f.colorbar(imlast, cax=cbar_ax, orientation="horizontal")
+    cb.ax.set_xlabel("Log₁₀ S/m")
+    (preferNright && !Nislast) && ax[end].invert_xaxis()
+    (preferEright && !Eislast) && ax[end].invert_xaxis()
+end    
 
 # plot multiple grids with supplied labels
 function plotgrids()

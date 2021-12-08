@@ -8,7 +8,7 @@ abstract type HField end
 mutable struct HFieldDHT <: HField
     thickness       :: Array{Float64, 1}
     pz              :: Array{Complex{Float64}, 1}
-    ϵᵢ            :: Array{ComplexF64, 1}
+    ϵᵢ              :: Array{ComplexF64, 1}
     zintfc          :: Array{Float64, 1}
     rTE             :: Array{ComplexF64, 1}
     rTM             :: Array{ComplexF64, 1}
@@ -23,13 +23,13 @@ mutable struct HFieldDHT <: HField
     interptimes     :: Array{Float64, 1}
     HFD_z           :: Array{ComplexF64, 1}
     HFD_r           :: Array{ComplexF64, 1}
-    HFD_az           :: Array{ComplexF64, 1}
-    HFD_z_interp       :: Array{ComplexF64, 1}
-    HFD_r_interp       :: Array{ComplexF64, 1}
-    HFD_az_interp       :: Array{ComplexF64, 1}
-    HTD_z_interp       :: Array{Float64, 1}
-    HTD_r_interp       :: Array{Float64, 1}
-    HTD_az_interp       :: Array{ComplexF64, 1}
+    HFD_az          :: Array{ComplexF64, 1}
+    HFD_z_interp    :: Array{ComplexF64, 1}
+    HFD_r_interp    :: Array{ComplexF64, 1}
+    HFD_az_interp   :: Array{ComplexF64, 1}
+    HTD_z_interp    :: Array{Float64, 1}
+    HTD_r_interp    :: Array{Float64, 1}
+    HTD_az_interp   :: Array{ComplexF64, 1}
     dBzdt           :: Array{Float64, 1}
     dBrdt           :: Array{Float64, 1}
     dBazdt          :: Array{Float64, 1}
@@ -53,6 +53,13 @@ mutable struct HFieldDHT <: HField
     log10Filter_base   :: Array{Float64,1}
     getradialH      :: Bool
     getazimH        :: Bool
+    calcjacobian    :: Bool
+    Jtemp           :: Vector
+    b               :: Vector # Another Jtemp
+    derivmatrix     :: Vector
+    HFD_z_J         :: Array{ComplexF64, 2}
+    HTD_z_J_interp  :: Array{Float64, 2}
+    dBzdt_J         :: Array{Float64, 2}
 end
 
 function HFieldDHT(;
@@ -75,7 +82,8 @@ function HFieldDHT(;
       getradialH = false,
       getazimH  = false,
       freqlow = 1e-4,
-      freqhigh = 1e6
+      freqhigh = 1e6,
+      calcjacobian = false
   )
     @assert all(freqs .> 0.)
     @assert freqhigh > freqlow
@@ -125,12 +133,18 @@ function HFieldDHT(;
         end
     end
     log10interpkᵣ = log10.(interpkᵣ)
+    HFD_z_J     = calcjacobian ? zeros(ComplexF64, nmax, length(freqs)) : zeros(0, 0)
+    dBzdt_J     = calcjacobian ? zeros(Float64, nmax, length(times)) : zeros(0, 0)
+    HTD_z_J_interp = calcjacobian ? zeros(Float64, nmax, length(interptimes)) : zeros(0, 0)
+    Jtemp = calcjacobian ? zeros(ComplexF64, nmax) : zeros(0)
+    Jac = calcjacobian ? map(x->zeros(ComplexF64, nkᵣeval, nmax), 1:length(freqs)) : zeros(0)
     useprimary = modelprimary ? one(Float64) : zero(Float64)
     HFieldDHT(thickness, pz, ϵᵢ, zintfc, rTE, rTM, zRx, zTx, rTx, rRx, freqs, times, ramp, log10ω, interptimes,
             HFD_z, HFD_r, HFD_az, HFD_z_interp, HFD_r_interp, HFD_az_interp,
             HTD_z_interp, HTD_r_interp, HTD_az_interp, dBzdt, dBrdt, dBazdt, J0_kernel_h, J1_kernel_h, J0_kernel_v, J1_kernel_v, lowpassfcs,
             quadnodes, quadweights, preallocate_ω_Hsc(interptimes, lowpassfcs)..., rxwithinloop, provideddt, doconvramp, useprimary,
-            nkᵣeval, interpkᵣ, log10interpkᵣ, log10Filter_base, getradialH, getazimH)
+            nkᵣeval, interpkᵣ, log10interpkᵣ, log10Filter_base, getradialH, getazimH, 
+            calcjacobian, Jtemp, similar(Jtemp), Jac, HFD_z_J, HTD_z_J_interp, dBzdt_J)
 end
 
 #update geometry and dependent parameters - necessary for adjusting geometry
@@ -191,30 +205,84 @@ const ϵ₀     = 8.854e-12
 const iTxLayer = 1
 const iRxLayer = 1
 
+function getpartialkz(ω, kz)
+    0.5im*ω*μ/kz
+end    
+
+function getpartial_rTE(partialkz, kz, kznext)
+    2*partialkz*kznext/(kz+kznext)^2
+end
+
+function getpartial_rTE_withnext(partialkznext, kz, kznext)
+    -2*partialkznext*kz/(kz+kznext)^2
+end    
+
+function getpartialRstack(partial_rTE, rTE, a)
+    partial_rTE*(1 - a^2)/(1 + rTE*a)^2
+end 
+
+function getpartial_bwithnext(b, dnext, partialkznext)
+    b*(2im*dnext*partialkznext)
+end
+
 function stacks!(F::HField, iTxLayer::Int, nlayers::Int, ω::Float64)
 
     rTE              = F.rTE
     rTM              = F.rTM
     pz               = view(F.pz, 1:nlayers)
-    #The last and first layer thicknesses are infinite
+    # The first layer thicknesses is infinite
     d                = view(F.thickness, 1:nlayers)
     d[1]             = 1e60
     d[nlayers]       = 1e60
-
+    if F.calcjacobian
+        b      = view(F.b, 1:nlayers)
+        J      = view(F.Jtemp, 1:nlayers)
+    end    
     # Capital R is for a stack
     # Starting from the bottom up, for Rs_down
     Rlowerstack_TE, Rlowerstack_TM = zero(ComplexF64), zero(ComplexF64)
+    Rlowerstack_plus_TE = zero(ComplexF64)
     @inbounds @fastmath for k = (nlayers-1):-1:iTxLayer
-      Rlowerstack_TE = lowerstack(Rlowerstack_TE, pz, rTE, d, k, ω)
-      #Rlowerstack_TM = lowerstack(Rlowerstack_TM, pz, rTM, d, k, ω)
+        if F.calcjacobian
+            kz, kznext = ω*pz[k], ω*pz[k+1]
+            partialkznext = getpartialkz(ω, kznext)
+            S = getpartial_rTE_withnext(partialkznext, kz, kznext)
+            if k == nlayers-1
+                J[k+1] = S
+                Rlowerstack_plus_TE = Rlowerstack_TE
+                b[k+1] = exp(2im*kznext*d[k+1])
+                Rlowerstack_TE = lowerstack(Rlowerstack_TE, rTE, k, b[k+1])
+                continue
+            end
+            b[k+1] = exp(2im*kznext*d[k+1])
+            partial_bnext = getpartial_bwithnext(b[k+1], d[k+1], partialkznext)
+            S *= 1 - (Rlowerstack_TE*b[k+1])^2
+            kznextplus = ω*pz[k+2]
+            partial_rTE_next = getpartial_rTE(partialkznext, kznext, kznextplus)
+            a = Rlowerstack_plus_TE*b[k+2]
+            partialRnext = getpartialRstack(partial_rTE_next, rTE[k+1], a)
+            denom = (1+rTE[k]*Rlowerstack_TE*b[k+1])^2
+            S += (1-rTE[k]^2)*(partialRnext*b[k+1] + partial_bnext*Rlowerstack_TE) 
+            S /= denom
+            J[k+1] = S
+            c = b[k+1]*(1-rTE[k]^2)/denom
+            for kk = nlayers:-1:k+2
+                J[kk] *= c
+            end    
+            Rlowerstack_plus_TE = Rlowerstack_TE
+            Rlowerstack_TE = lowerstack(Rlowerstack_TE, rTE, k, b[k+1])
+        else
+            kznext = ω*pz[k+1]
+            bnext = exp(2im*kznext*d[k+1])
+            Rlowerstack_TE = lowerstack(Rlowerstack_TE, rTE, k, bnext)
+        end    
     end
 
 return Rlowerstack_TE, Rlowerstack_TM
 end
 
-@inline function lowerstack(Rlowerstack::ComplexF64, pz::SubArray{ComplexF64, 1},
-                    r::Array{ComplexF64, 1}, d::SubArray{Float64, 1}, k::Int, ω::Float64)
-    a = Rlowerstack*exp(2im*ω*pz[k+1]*d[k+1])
+@inline function lowerstack(Rlowerstack::ComplexF64, r::Array{ComplexF64, 1}, k::Int, b)
+    a = Rlowerstack*b                
     Rs_d = (r[k] + a) / (1. + r[k]*a)
 end
 
@@ -278,20 +346,20 @@ function getAEM1DKernelsH!(F::HField, kᵣ::Float64, f::Float64, zz::Array{Float
     nlayers = length(ρ)
     z       = view(F.zintfc, 1:nlayers)
     zRx     = ztxorignify(F.zRx, F.zTx)
-    ω   = 2. *pi*f
-    ϵᵢ    = F.ϵᵢ
+    ω       = 2. *pi*f
+    ϵᵢ      = F.ϵᵢ
     pz      = F.pz
     # reflection coefficients (downward) for an intfc: pz vertical slowness
     rTE, rTM = F.rTE, F.rTM
 
     l = 1
     z[l]       = ztxorignify(zz[l], F.zTx)
-    ϵᵢ[l]    = getepsc(ρ[l], ω)
+    ϵᵢ[l]      = getepsc(ρ[l], ω)
     pz[l]      = getpz(ϵᵢ[l], kᵣ, ω)
     @inbounds @fastmath for intfc in 1:nlayers-1
         l = intfc+1
         z[l]       = ztxorignify(zz[l], F.zTx)
-        ϵᵢ[l]    = getepsc(ρ[l], ω)
+        ϵᵢ[l]      = getepsc(ρ[l], ω)
         pz[l]      = getpz(ϵᵢ[l], kᵣ, ω)
         rTE[intfc] = (pz[intfc] - pz[intfc+1])/(pz[intfc] + pz[intfc+1])
         # commented out as we aren't yet using TM modes
@@ -309,6 +377,14 @@ function getAEM1DKernelsH!(F::HField, kᵣ::Float64, f::Float64, zz::Array{Float
     else
         lf_gA_TE *= loopfactor(F.rTx, kᵣ)
     end
+    if F.calcjacobian
+        ifreq = findfirst(isapprox.(ω, 2pi*F.freqs))
+        ikᵣ = findfirst(isapprox.(kᵣ, F.interpkᵣ))
+        for ilayer = 2:nlayers
+            curlyRAprime, = getCurlyR(F.Jtemp[ilayer], pz[iTxLayer], zRx, z, iTxLayer, ω, 0.)# cannot model primary for deriv
+            F.derivmatrix[ifreq][ikᵣ,ilayer] = 1/pz[iTxLayer]*curlyRAprime*lf_gA_TE*1im/(ω)*log(10)/ρ[ilayer]
+        end    
+    end  
     gA_TE            = μ/pz[iTxLayer]*curlyRA*lf_gA_TE
     gD_TE            = curlyRD
     gC_TE            = pz[iTxLayer]/μ*curlyRC
@@ -345,6 +421,14 @@ function getfieldFD!(F::HFieldDHT, z::Array{Float64, 1}, ρ::Array{Float64, 1})
             splimag = CubicSpline(imag(F.J0_kernel_v[:,ifreq]), F.log10interpkᵣ)
             J0_kernel_v = splreal.(F.log10Filter_base) + 1im*splimag.(F.log10Filter_base)
             F.HFD_z[ifreq] = dot(J0_kernel_v, Filter_J0)/F.rRx
+                if F.calcjacobian
+                    for ilayer = 2:length(ρ)
+                        splreal = CubicSpline(real(vec(F.derivmatrix[ifreq][:,ilayer])), F.log10interpkᵣ)
+                        splimag = CubicSpline(imag(vec(F.derivmatrix[ifreq][:,ilayer])), F.log10interpkᵣ)
+                        J0_kernel_v_prime = splreal.(F.log10Filter_base) + 1im*splimag.(F.log10Filter_base)
+                        F.HFD_z_J[ilayer, ifreq] = dot(J0_kernel_v_prime, Filter_J0)/F.rRx
+                    end    
+                end    
             # radial component
             if F.getradialH
                 splreal = CubicSpline(real(F.J1_kernel_v[:,ifreq]), F.log10interpkᵣ)
@@ -384,6 +468,14 @@ function getfieldTD!(F::HFieldDHT, z::Array{Float64, 1}, ρ::Array{Float64, 1})
                 # vertical
                 F.HFD_z_interp[:] .= imag(conj((spl_z_real.(l10w) .+ 1im*spl_z_imag.(l10w)).*H))*2/pi
                 F.HTD_z_interp[itime] = dot(F.HFD_z_interp, Filter_t_sin)/t
+                if F.calcjacobian
+                    for ilayer = 2:length(ρ)
+                        spl_z_J_real = CubicSpline(real(vec(F.HFD_z_J[ilayer,:])), F.log10ω)
+                        spl_z_J_imag = CubicSpline(imag(vec(F.HFD_z_J[ilayer,:])), F.log10ω)
+                        temp = imag(conj((spl_z_J_real.(l10w) .+ 1im*spl_z_J_imag.(l10w)).*H))*2/pi
+                        F.HTD_z_J_interp[ilayer,itime] = dot(temp, Filter_t_sin)/t
+                    end    
+                end
                 # radial
                 if F.getradialH
                     F.HFD_r_interp[:] .= imag(conj((spl_r_real.(l10w) .+ 1im*spl_r_imag.(l10w)).*H))*2/pi
@@ -422,12 +514,13 @@ function getfieldTD!(F::HFieldDHT, z::Array{Float64, 1}, ρ::Array{Float64, 1})
         else
             splaz = splz
         end
-        convramp!(F, splz, splr, splaz)
+        convramp!(F, splz, splr, splaz, length(ρ))
     end
 end
 
-function convramp!(F::HFieldDHT, splz::CubicSpline, splr::CubicSpline, splaz::CubicSpline)
+function convramp!(F::HFieldDHT, splz::CubicSpline, splr::CubicSpline, splaz::CubicSpline, nlayers)
     fill!(F.dBzdt, 0.)
+    F.calcjacobian && fill!(F.dBzdt_J, 0.)
     F.getradialH && fill!(F.dBrdt, 0.)
     F.getazimH && fill!(F.dBazdt, 0.)
     for itime = 1:length(F.times)
@@ -449,6 +542,12 @@ function convramp!(F::HFieldDHT, splz::CubicSpline, splr::CubicSpline, splaz::Cu
             a, b = log10(ta), log10(tb)
             x, w = F.quadnodes, F.quadweights
             F.dBzdt[itime] += (b-a)/2*dot(getrampresponse((b-a)/2*x .+ (a+b)/2, splz), w)*dIdt
+            if F.calcjacobian
+                    for ilayer = 2:nlayers
+                        splz_J = CubicSpline(F.HTD_z_J_interp[ilayer,:], log10.(F.interptimes)) # TODO preallocate
+                        F.dBzdt_J[ilayer,itime] += (b-a)/2*dot(getrampresponse((b-a)/2*x .+ (a+b)/2, splz_J), w)*dIdt
+                    end    
+                end
             if F.getradialH
                 F.dBrdt[itime] += (b-a)/2*dot(getrampresponse((b-a)/2*x .+ (a+b)/2, splr), w)*dIdt
             end

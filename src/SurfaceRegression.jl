@@ -53,6 +53,23 @@ function get_misfit(m::Model, opt::Options, surface::SurfaceWithDifferentData)
     return chi2by2
 end
 
+function relativeuncertainty(opt::Options, surface::SurfaceWithDifferentData; burninfrac=0.5, temperaturenum=1)
+    M = assembleTat1(opt, :fstar, burninfrac=burninfrac, temperaturenum=temperaturenum)
+    Σ = [[s.σ[s.select] for m in M] for s in surface.surfaces]
+    scaling = [zeros(length(M)) for s in surface.surfaces]
+    for (im, m) in enumerate(M)
+        for (is, s) in enumerate(surface.surfaces)
+            d, σ, select, r  = s.d, s.σ, s.select, s.r
+            r .= (vec(m[vec(select)]) .- d[select])./σ[select]
+            n = length(r)
+            scaling[is][im] = sqrt(r'r/n)
+            Σ[is][im] .= scaling[is][im]*s.σ[s.select]
+        end
+    end
+    finalΣ = [vcat(s...) for s in Σ]
+    scaling, finalΣ
+end    
+
 function slice_image_posterior( M::AbstractArray, opt::Options, roworcol::Symbol;
                                 rowcolnum = 1,
                                 nbins = 50,

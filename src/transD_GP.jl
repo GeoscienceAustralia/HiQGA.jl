@@ -4,4 +4,5 @@ include("TransD_GP_MCMC.jl")
 include("AbstractOperator.jl")
 include("GeophysOperator.jl")
 include("MCMC_Driver.jl")
+include("GradientInversion.jl")
 end

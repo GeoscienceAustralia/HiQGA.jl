@@ -220,7 +220,7 @@ function getstats(optin::Options;
     opt.costs_filename    = costs_filename*"_1.bin"
     iters          = history(opt, stat=:iter)
     statnames = [:acceptanceRateBirth, :acceptanceRateDeath,
-                 :acceptanceRatePosition, :acceptanceRateProperty]
+                 :acceptanceRatePosition, :acceptanceRateProperty, :acceptanceRateDC]
     f,ax = plt.subplots(length(statnames), 1,
                         sharex=true, sharey=true, figsize=figsize)
     maxar = 0
@@ -338,7 +338,8 @@ function getchi2forall(opt_in::Options;
                         fsize           = 8,
                         alpha           = 0.25,
                         nxticks         = 0,
-                        gridon          = false
+                        gridon          = false,
+                        omittemp        = false,
                       )
     # now look at any chain to get how many iterations
     isns = checkns(opt_in)
@@ -385,8 +386,8 @@ function getchi2forall(opt_in::Options;
         kacrosschains[jstep,:] = kacrosschains[jstep,sortidx]
         Tacrosschains[jstep,:] = Tacrosschains[jstep,sortidx]
     end
-
-    f, ax = plt.subplots(3,1, sharex=true, figsize=figsize)
+    nrows = omittemp ? 2 : 3
+    f, ax = plt.subplots(nrows, 1, sharex=true, figsize=figsize)
     nchainsatone = sum(Tacrosschains[1,:] .== 1)
     ax[1].plot(iters, kacrosschains, alpha=alpha)
     ax[1].set_xlim(extrema(iters)...)
@@ -398,17 +399,13 @@ function getchi2forall(opt_in::Options;
     ax[2].plot(iters, X2by2inchains[:,1:nchainsatone], "k", alpha=alpha)
     ax[2].set_ylabel("-Log L")
     gridon && ax[2].grid()
-    ax[3].plot(iters, Tunsorted, alpha=alpha, color="gray")
-    # for i = 1:size(Tunsorted, 2)
-    #    for (j, s) = enumerate(Base.Iterators.cycle(lstyles))
-    #        j == i && (ax[3].plot(iters, Tunsorted, alpha=alpha/5, color="gray", linestyle=s); break)
-    #    end
-    # end
-    ax[3].set_ylabel("Temperature")
-    # ax[3].plot(iters, Tacrosschains[:,1:nchainsatone], "k", alpha=alpha)
-    gridon && ax[3].grid()
+    if !omittemp
+        ax[3].plot(iters, Tunsorted, alpha=alpha, color="gray")
+        ax[3].set_ylabel("Temperature")
+        gridon && ax[3].grid()
+    end
     nxticks == 0 || ax[3].set_xticks(iters[1]:div(iters[end],nxticks):iters[end])
-    ax[3].set_xlabel("iterations")
+    ax[nrows].set_xlabel("iterations")
     nicenup(f, fsize=fsize)
 
 end
@@ -623,7 +620,9 @@ function plot_posterior(operator::Operator1D,
 
         ax[1].set_xlim(propmin, propmax)
         ax[2].plot(meandiffimage[:], xall[:], linewidth=2, color="k", linestyle="-")
-        ax[2].fill_betweenx(xall[:],meandiffimage[:]-sdslope[:],meandiffimage[:]+sdslope[:],alpha=.5)
+        zeroside = meandiffimage[:]-sdslope[:]
+        zeroside[zeroside .< 0] .= 0
+        ax[2].fill_betweenx(xall[:],zeroside,meandiffimage[:]+sdslope[:],alpha=.5)
         ax[2].set_xlabel("mean slope")
         nicenup(f, fsize=fsize)
     end
@@ -908,8 +907,8 @@ end
 
 function plotNEWSlabels(Eislast, Nislast, gridx, gridz, axarray)
     for s in axarray
-        Eislast ? s.text(gridx[1], gridz[end], "W", backgroundcolor="w") : s.text(gridx[1], gridz[end], "E", backgroundcolor="w")
-        Nislast ? s.text(gridx[end], gridz[end], "N", backgroundcolor="w") : s.text(gridx[end], gridz[end], "S", backgroundcolor="w")
+        Eislast ? s.text(gridx[1], minimum(s.get_ylim()), "W", backgroundcolor="w") : s.text(gridx[1], minimum(s.get_ylim()), "E", backgroundcolor="w")
+        Nislast ? s.text(gridx[end], minimum(s.get_ylim()), "N", backgroundcolor="w") : s.text(gridx[end], minimum(s.get_ylim()), "S", backgroundcolor="w")
     end
 end
 
@@ -918,6 +917,71 @@ function plotprofile(ax, idxs, Z, R)
         ax.plot(R[idx]*[1,1], [ax.get_ylim()[1], Z[idx]], "-w")
         ax.plot(R[idx]*[1,1], [ax.get_ylim()[1], Z[idx]], "--k")
     end
+end
+
+function selectwithin1Dinterval(M::AbstractVector, z, 
+                                zbounds, vbounds,
+                                cond = :mean)
+    @assert(any(cond .== [:all, :any, :median, :mean]))
+    @assert size(vbounds, 1) == size(zbounds, 1)
+    @assert length(z) == length(M[1])
+    @assert all(vbounds[:,1] .< vbounds[:,2])
+    @assert all(zbounds[:,1] .< zbounds[:,2])
+    nconditions = size(vbounds, 1)
+    idx = zeros(Bool, length(M), nconditions)
+    for (i, m) in enumerate(M)
+       for j in 1:nconditions
+            idxdepth = zbounds[j,1] .< z .< zbounds[j,2]
+            if any(cond .== [:median, :mean])
+                if vbounds[j,1] < eval(cond)(m[idxdepth]) < vbounds[j,2]
+                    idx[i,j] = true
+                end
+            else     
+                if eval(cond)(vbounds[j,1] .< (m[idxdepth]) .< vbounds[j,2])
+                    idx[i,j] = true
+                end    
+            end
+       end
+    end
+    vec(reduce(&, idx, dims=2))
+end
+
+function block1Dvalues(M::AbstractVector, z, zbounds, cond = :median)
+    @assert(any(cond .== [:median, :mean]))
+    @assert length(z) == length(M[1])
+    @assert all(zbounds[:,1] .< zbounds[:,2])
+    nconditions = size(zbounds, 1)
+    Mblock = zeros(length(M), nconditions)
+    for (i, m) in enumerate(M)
+        for j in 1:nconditions
+            idxdepth = zbounds[j,1] .< z .<= zbounds[j,2]
+            Mblock[i,j] = eval(cond)(m[idxdepth])
+        end
+     end
+    Mblock
+end    
+
+function correlationplot(M::Array{Float64, 2}; figsize=(5,5), nbins=25)
+    f, ax = plt.subplots(size(M, 2), size(M, 2), figsize=figsize, sharex=true, sharey=true)
+    nrows = size(M, 2)
+    for j = 1:nrows
+        for i = j:nrows
+            h = normalize(fit(Histogram, (M[:,i], M[:,j]), nbins=nbins))
+            ax[nrows*(j-1)+i].pcolormesh(h.edges[2], h.edges[1], h.weights)
+        end
+    end 
+    ax[1].set_aspect(1)   
+end    
+
+function plot1Dpatches(ax, zlist, xlist; alpha=0.25, fc="red", ec="blue", lw=2)
+    @assert length(zlist) == length(xlist)
+    for i in 1:size(zlist, 1)
+        x0, z0 = xlist[i,1], zlist[i,1]
+        delx = xlist[i,2] - x0
+        delz = zlist[i,2] - z0
+        ax.add_patch(matplotlib.patches.Rectangle((x0,z0),delx,delz, alpha=alpha, fc=fc, ec=fc))
+        ax.add_patch(matplotlib.patches.Rectangle((x0,z0),delx,delz, fill=false, ec=ec, lw=lw, linestyle="--"))
+    end    
 end
 
 end

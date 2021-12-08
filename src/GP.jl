@@ -1,6 +1,6 @@
 module GP
 
-using Statistics, LinearAlgebra
+using Statistics, LinearAlgebra, Distributions
 function gaussiankernel(x::AbstractArray, y::AbstractArray, p)
     return exp(-0.5*norm(x-y,p)^p)
 end
@@ -96,11 +96,37 @@ function GPfit(K::Kernel, ytrain, xtrain, xtest, λ²test::Array{Float64,2}, λ�
     ytest, var_y, var_prior
 end
 
-function getPI(y::Array{Float64, 1}, fₓ::Array{Float64, 1}, σₓ²::Array{Float64, 1}; tol= 1e-12)
+abstract type AcqFunc end
+struct EI <: AcqFunc end
+struct PI <: AcqFunc end
+
+function getAF(AF::PI, y::Array{Float64, 1}, fₓ::Array{Float64, 1}, σₓ²::Array{Float64, 1}, 
+        tol = 1e-12, kv = NaN)
+    isnan(kv) && (kv = maximum(y))
     d = Normal()
-    X = (maximum(y) .- fₓ .- tol)./sqrt.(σₓ²)
-    return ccdf.(d, X)
+    X = (fₓ .- kv .- tol)./sqrt.(σₓ²)
+    cdf.(d, X)
 end
+    
+function getAF(AF::EI, y::Array{Float64, 1}, fₓ::Array{Float64, 1}, σₓ²::Array{Float64, 1}, 
+        tol = 1e-12, kv = NaN)
+    isnan(kv) && (kv = maximum(y))    
+    d = Normal()
+    X = (fₓ .- kv .- tol)
+    σₓ = sqrt.(σₓ²)
+    Z = X./σₓ
+    X.*cdf.(d, Z) + σₓ.*pdf.(d, Z) 
+end
+
+function getAF(AF::AcqFunc, y::Vector{Float64}, fₓ::Vector{Float64}, σₓ²::Vector{Float64};
+    findmin = false, tol = 1e-12, knownvalue=NaN)
+    sf = length(y) == 1 ? 1 : var(y) 
+    if findmin
+        AF = getAF(AF, -y, -fₓ, sf*σₓ², tol, -knownvalue)
+    else
+        AF = getAF(AF,  y,  fₓ, sf*σₓ², tol, knownvalue)    
+    end
+end 
 
 function meshkernel(K::Kernel, xtrain::AbstractArray, xtest::AbstractArray,
                     λ²test::AbstractArray, λ²train::AbstractArray, p)
