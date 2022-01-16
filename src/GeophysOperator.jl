@@ -26,4 +26,7 @@ include("SkyTEM1DInversion.jl")
 using .SkyTEM1DInversion
 include("TEMPEST1DInversion.jl")
 using .TEMPEST1DInversion
+include("MT1D.jl")
+using .MT1D
+include("MT1DInversion.jl")
 export Operator, get_misfit, Sounding, makeoperator, make_tdgp_opt, getresidual

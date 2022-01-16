@@ -1,4 +1,3 @@
-# make sure to include this file in src/GeophysOperator.jl
 module MT1D
 using PyPlot
 const μ = 4*pi*1e-7
