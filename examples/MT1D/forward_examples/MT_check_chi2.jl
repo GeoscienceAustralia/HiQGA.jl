@@ -7,5 +7,5 @@ f = 1 ./T
 ρ = [10, 100]
 z = [0, 5000]
 ## make a synthetic
-F = transD_GP.MT1DInversion.create_synthetic(ρ, z, f, rseed=1)
+F = transD_GP.MT1DInversion.create_synthetic(ρ, z, f, rseed=11)
 transD_GP.get_misfit(F.d_log10_ρ, F.d_phase_deg, F.σ_log10_ρ, F.σ_phase_deg, f, ρ, z)

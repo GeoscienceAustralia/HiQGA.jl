@@ -80,16 +80,16 @@ function plotcurve(T, Z, fig; showfreq=false, iaxis=1, gridalpha=0.5)
     fig.tight_layout()
 end    
 
-function plotmodelcurve(T, ρ, z; showfreq=false, figsize=(10,4), gridalpha=0.5)
+function plotmodelcurve(T, ρ, z; showfreq=false, figsize=(10,4), gridalpha=0.5, logscaledepth=false)
     fig = figure(figsize=(figsize))
     s1 = subplot(131)
     s2 = subplot(132)
     s3 = subplot(133, sharex=s2)
-    plotmodelcurve(T, ρ, z, fig, showfreq=showfreq, gridalpha=gridalpha)
+    plotmodelcurve(T, ρ, z, fig, showfreq=showfreq, gridalpha=gridalpha, logscaledepth=logscaledepth)
     fig
 end
 
-function plotmodelcurve(T, ρ, z, fig; showfreq=false, gridalpha=0.5)
+function plotmodelcurve(T, ρ, z, fig; showfreq=false, gridalpha=0.5, logscaledepth=false)
     f = 1 ./T
     h = diff(z)
     Z = Z_f(f, ρ, h)
@@ -100,6 +100,11 @@ function plotmodelcurve(T, ρ, z, fig; showfreq=false, gridalpha=0.5)
     ax[1].set_ylabel("Depth m")
     y1, y2 = ax[1].get_ylim()
     y1 < y2 && ax[1].invert_yaxis()
+    if logscaledepth
+        ymax = max(y1, y2)
+        ax[1].set_ylim(ymax, 1)
+        ax[1].set_yscale("log")
+    end    
     ax[1].set_xscale("log")
     ax[1].grid(b=true, which="both", alpha=gridalpha)
     plotcurve(T, Z, fig, showfreq=showfreq, iaxis=2, gridalpha=gridalpha) 

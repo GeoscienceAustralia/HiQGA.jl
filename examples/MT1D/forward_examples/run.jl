@@ -1,5 +1,4 @@
-includet("MT1D.jl")
-using .MT1D, PyPlot
+using transD_GP.MT1D, PyPlot
 ##
 ntimesperdecade = 10
 T = 10 .^(-3:1/ntimesperdecade:6)
