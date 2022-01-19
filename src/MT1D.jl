@@ -57,27 +57,41 @@ function plotcurve(T, Z; showfreq=false, gridalpha=0.5)
     fig
 end    
 
-function plotcurve(T, Z, fig; showfreq=false, iaxis=1, gridalpha=0.5) 
+function plotcurve(T, Z, fig; showfreq=false, iaxis=1, gridalpha=0.5, modelalpha=0.5, lcolor="nocolor") 
     f = 1 ./T
     ρₐ = ρapp(f, Z)
     ϕ  = phase(Z)
+    ax = fig.axes
+    xlabel, abcissa = f_or_T(f, showfreq=showfreq)
+    if lcolor == "nocolor"
+        ax[iaxis].semilogx(abcissa, log10.(ρₐ))
+        ax[iaxis+1].semilogx(abcissa, ϕ)
+    else
+        ax[iaxis].semilogx(abcissa, log10.(ρₐ), alpha=modelalpha, color=lcolor)
+        ax[iaxis+1].semilogx(abcissa, ϕ, alpha=modelalpha, color=lcolor)
+    end    
+    labelaxis(xlabel, ax, iaxis, gridalpha=gridalpha)
+    fig.tight_layout()
+end    
+
+function f_or_T(f; showfreq=false)
     if showfreq 
         abcissa = f
         xlabel = "Frequency Hz"
     else
-        abcissa = T
+        abcissa = 1 ./f
         xlabel = "Time s"
-    end    
-    ax = fig.axes
-    ax[iaxis].loglog(abcissa, ρₐ)
+    end
+    xlabel, abcissa
+end    
+
+function labelaxis(xlabel, ax, iaxis; gridalpha=0.5)
     ax[iaxis].set_xlabel(xlabel)
-    ax[iaxis].set_ylabel(L"\rho_{app}"*" ohm-m")
+    ax[iaxis].set_ylabel(L"\log_{10}\rho_{app}"*" (ohm-m)")
     ax[iaxis].grid(b=true, which="both", alpha=gridalpha)
-    ax[iaxis+1].semilogx(abcissa, ϕ)
     ax[iaxis+1].set_xlabel(xlabel)
     ax[iaxis+1].set_ylabel("Phase "*L"^\circ")
     ax[iaxis+1].grid(b=true, which="both", alpha=gridalpha)
-    fig.tight_layout()
 end    
 
 function plotmodelcurve(T, ρ, z; showfreq=false, figsize=(10,4), gridalpha=0.5, logscaledepth=false)
@@ -89,13 +103,17 @@ function plotmodelcurve(T, ρ, z; showfreq=false, figsize=(10,4), gridalpha=0.5,
     fig
 end
 
-function plotmodelcurve(T, ρ, z, fig; showfreq=false, gridalpha=0.5, logscaledepth=false)
+function plotmodelcurve(T, ρ, z, fig; showfreq=false, gridalpha=0.5, logscaledepth=false, lcolor="nocolor", modelalpha=0.5)
     f = 1 ./T
     h = diff(z)
     Z = Z_f(f, ρ, h)
     ax = fig.axes
-    zlast = diff(z)[end] +z[end]
-    ax[1].step([ρ; ρ[end]], [z; zlast])
+    zlast = diff(z)[end] + z[end]
+    if lcolor == "nocolor"
+        ax[1].step([ρ; ρ[end]], [z; zlast])
+    else
+        ax[1].step([ρ; ρ[end]], [z; zlast], color=lcolor, alpha=modelalpha)
+    end      
     ax[1].set_xlabel("ρ ohm-m")
     ax[1].set_ylabel("Depth m")
     y1, y2 = ax[1].get_ylim()
@@ -107,7 +125,7 @@ function plotmodelcurve(T, ρ, z, fig; showfreq=false, gridalpha=0.5, logscalede
     end    
     ax[1].set_xscale("log")
     ax[1].grid(b=true, which="both", alpha=gridalpha)
-    plotcurve(T, Z, fig, showfreq=showfreq, iaxis=2, gridalpha=gridalpha) 
+    plotcurve(T, Z, fig, showfreq=showfreq, iaxis=2, gridalpha=gridalpha, modelalpha=modelalpha, lcolor=lcolor) 
 end
 
 end

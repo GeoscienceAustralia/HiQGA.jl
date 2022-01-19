@@ -3,7 +3,7 @@ using ..AbstractOperator
 import ..AbstractOperator.get_misfit
 import ..Model, ..Options
 using ..MT1D
-using Random
+using Random, PyPlot
 
 mutable struct MT1DZ <: Operator1D
     d_log10_ρ
@@ -45,7 +45,7 @@ function add_noise(ρ, z, freqs; noisefrac=0.05, rseed=1)
     Z + noise
 end
 
-function create_synthetic(ρ, z, freqs; noisefrac=0.05, rseed=1, showplot=true, logscaledepth=true)
+function create_synthetic(ρ, z, freqs; noisefrac=0.05, rseed=1, showplot=true, logscaledepth=true, showfreq=false, gridalpha=0.5)
     Znoisy = add_noise(ρ, z, freqs, noisefrac=noisefrac, rseed=rseed)
     ρₐnoisy = MT1D.ρapp(freqs, Znoisy)
     d_log10_ρ = log10.(ρₐnoisy)   
@@ -54,13 +54,39 @@ function create_synthetic(ρ, z, freqs; noisefrac=0.05, rseed=1, showplot=true, 
     σ_phase_deg = rad2deg(noisefrac/2)
     F = MT1DZ(d_log10_ρ, d_phase_deg, σ_log10_ρ, σ_phase_deg, freqs, z)
     if showplot
-        T = 1 ./freqs
-        fig = MT1D.plotmodelcurve(T, ρ, z, logscaledepth=logscaledepth)
-        ax = fig.axes
-        ax[2].errorbar(T, ρₐnoisy, ρₐnoisy*noisefrac, linestyle="none", marker=".", elinewidth=0, capsize=3)
-        ax[3].errorbar(T, d_phase_deg,σ_phase_deg, linestyle="none", marker=".", elinewidth=0, capsize=3)
+        fig = MT1D.plotmodelcurve(1 ./freqs, ρ, z, logscaledepth=logscaledepth, showfreq=showfreq)
+        plotdata(F, fig, iaxis=2, showfreq=showfreq, gridalpha=gridalpha)
     end
     F
 end
+
+function plotdata(F::MT1DZ; showfreq=false, gridalpha=0.5, figsize=(6,3))
+    fig, ax = plt.subplots(1, 2, sharex=true, figsize=figsize)
+    plotdata(F, fig, showfreq=showfreq, gridalpha=gridalpha)
+    fig 
+end
+
+function plotdata(F::MT1DZ, fig; iaxis=1, showfreq=false, gridalpha=0.5)
+    xlabel, abcissa = MT1D.f_or_T(F.freqs, showfreq=showfreq)
+    ax = fig.axes
+    ax[iaxis].errorbar(abcissa, F.d_log10_ρ, F.σ_log10_ρ, linestyle="none", marker=".", elinewidth=0, capsize=3)
+    ax[iaxis+1].errorbar(abcissa, F.d_phase_deg, F.σ_phase_deg, linestyle="none", marker=".", elinewidth=0, capsize=3)
+    MT1D.labelaxis(xlabel, ax, iaxis, gridalpha=gridalpha)
+    ax[iaxis].set_xscale("log")
+    fig.tight_layout()
+end    
+
+function plot_posterior(F::MT1DZ, M::AbstractArray; showfreq=false, gridalpha=0.5, logscaledepth=true, 
+                            figsize=(10,4), lcolor="nocolor", modelalpha=0.5)
+    fig = figure(figsize=(figsize))
+    s1 = subplot(131)
+    s2 = subplot(132)
+    s3 = subplot(133, sharex=s2)
+    for m in M
+        MT1D.plotmodelcurve(1 ./F.freqs, 10 .^m', F.zboundaries, fig, showfreq=showfreq, 
+                        gridalpha=gridalpha, logscaledepth=logscaledepth, lcolor=lcolor, modelalpha=modelalpha)
+    end
+    plotdata(F, fig, iaxis=2, showfreq=showfreq, gridalpha=gridalpha)    
+end    
 
 end
