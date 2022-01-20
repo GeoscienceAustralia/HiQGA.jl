@@ -13,10 +13,18 @@ mutable struct MT1DZ <: Operator1D
     freqs
     zboundaries
     irxlayer
+    stretchmodel
+    low
+    Δ
 end    
 
 function get_misfit(m::Model, opt::Options, F::MT1DZ)
-    get_misfit(10 .^m.fstar, opt, F)
+    if F.stretch
+        F.stretchmodel[:] .= 10 .^(F.low + m.fstar.*F.Δ)
+        get_misfit(F.stretchmodel, opt, F)
+    else        
+        get_misfit(10 .^m.fstar, opt, F)
+    end    
 end
 # above defined function and type signature MUST be defined
 
