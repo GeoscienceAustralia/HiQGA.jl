@@ -2,18 +2,18 @@ module MT1D
 using PyPlot
 const μ = 4*pi*1e-7
 
-function Z_f(freqs, ρ, h)
+function Z_f(freqs, ρ, h, irxlayer=1)
     n = length(ρ)
     @assert length(h) == n - 1
-    [Z_f(f, ρ, h, n) for f in freqs]   
+    [Z_f(f, ρ, h, n, irxlayer) for f in freqs]   
 end    
 
-function Z_f(f, ρ, h, n)
+function Z_f(f, ρ, h, n, irxlayer)
     # from Kaufman & Keller 1981 
     ω = 2pi*f
     k = sqrt(im*ω*μ/ρ[end])
     Z = ω*μ/k
-    for i = n-1:-1:1
+    for i = n-1:-1:irxlayer
         k = sqrt(im*ω*μ/ρ[i])
         ωμ_over_k = ω*μ/k
         Z = ωμ_over_k*coth(-im*k*h[i] + acoth(Z/ωμ_over_k))
@@ -94,19 +94,19 @@ function labelaxis(xlabel, ax, iaxis; gridalpha=0.5)
     ax[iaxis+1].grid(b=true, which="both", alpha=gridalpha)
 end    
 
-function plotmodelcurve(T, ρ, z; showfreq=false, figsize=(10,4), gridalpha=0.5, logscaledepth=false)
+function plotmodelcurve(T, ρ, z; showfreq=false, figsize=(10,4), gridalpha=0.5, logscaledepth=false, irxlayer=1)
     fig = figure(figsize=(figsize))
     s1 = subplot(131)
     s2 = subplot(132)
     s3 = subplot(133, sharex=s2)
-    plotmodelcurve(T, ρ, z, fig, showfreq=showfreq, gridalpha=gridalpha, logscaledepth=logscaledepth)
+    plotmodelcurve(T, ρ, z, fig, showfreq=showfreq, gridalpha=gridalpha, logscaledepth=logscaledepth, irxlayer=irxlayer)
     fig
 end
 
-function plotmodelcurve(T, ρ, z, fig; showfreq=false, gridalpha=0.5, logscaledepth=false, lcolor="nocolor", modelalpha=0.5)
+function plotmodelcurve(T, ρ, z, fig; showfreq=false, gridalpha=0.5, logscaledepth=false, lcolor="nocolor", modelalpha=0.5, irxlayer=1)
     f = 1 ./T
     h = diff(z)
-    Z = Z_f(f, ρ, h)
+    Z = Z_f(f, ρ, h, irxlayer)
     ax = fig.axes
     zlast = diff(z)[end] + z[end]
     if lcolor == "nocolor"

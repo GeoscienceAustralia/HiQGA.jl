@@ -12,6 +12,7 @@ mutable struct MT1DZ <: Operator1D
     σ_phase_deg
     freqs
     zboundaries
+    irxlayer
 end    
 
 function get_misfit(m::Model, opt::Options, F::MT1DZ)
@@ -21,40 +22,40 @@ end
 
 function get_misfit(ρ::AbstractArray, opt::Options, F::MT1DZ)
     if !opt.debug
-        get_misfit(F.d_log10_ρ, F.d_phase_deg, F.σ_log10_ρ, F.σ_phase_deg, F.freqs, ρ, F.zboundaries)
+        get_misfit(F.d_log10_ρ, F.d_phase_deg, F.σ_log10_ρ, F.σ_phase_deg, F.freqs, ρ, F.zboundaries, F.irxlayer)
     else
         0.0
     end        
 end
 
-function get_misfit(d_log10_ρ, d_phase_deg, σ_log10_ρ, σ_phase_deg, freqs, ρ, z)
-    Z = get_Z(freqs, ρ, z)
+function get_misfit(d_log10_ρ, d_phase_deg, σ_log10_ρ, σ_phase_deg, freqs, ρ, z, irxlayer=1)
+    Z = get_Z(freqs, ρ, z, irxlayer)
     ρₐ = MT1D.ρapp(freqs, Z)
     ϕ  = MT1D.phase(Z)
     r = [(d_log10_ρ - log10.(ρₐ))./σ_log10_ρ ; (d_phase_deg - ϕ)./σ_phase_deg]
     r'r/2
 end
 
-get_Z(freqs, ρ, z) = MT1D.Z_f(freqs, ρ, diff(z))
+get_Z(freqs, ρ, z, irxlayer) = MT1D.Z_f(freqs, ρ, diff(z), irxlayer)
 
-function add_noise(ρ, z, freqs; noisefrac=0.05, rseed=1)
+function add_noise(ρ, z, freqs; noisefrac=0.05, rseed=1, irxlayer=1)
     Random.seed!(rseed)
-    Z = get_Z(freqs, ρ, z)
+    Z = get_Z(freqs, ρ, z, irxlayer)
     σ_real = noisefrac*abs.(Z)/2
     noise = σ_real.*( randn(length(freqs)) + 1im*randn(length(freqs)) )
     Z + noise
 end
 
-function create_synthetic(ρ, z, freqs; noisefrac=0.05, rseed=1, showplot=true, logscaledepth=true, showfreq=false, gridalpha=0.5)
-    Znoisy = add_noise(ρ, z, freqs, noisefrac=noisefrac, rseed=rseed)
+function create_synthetic(ρ, z, freqs; noisefrac=0.05, rseed=1, showplot=true, logscaledepth=true, showfreq=false, gridalpha=0.5, irxlayer=1)
+    Znoisy = add_noise(ρ, z, freqs, noisefrac=noisefrac, rseed=rseed, irxlayer=irxlayer)
     ρₐnoisy = MT1D.ρapp(freqs, Znoisy)
     d_log10_ρ = log10.(ρₐnoisy)   
     d_phase_deg = MT1D.phase(Znoisy)
     σ_log10_ρ = noisefrac/log(10)
     σ_phase_deg = rad2deg(noisefrac/2)
-    F = MT1DZ(d_log10_ρ, d_phase_deg, σ_log10_ρ, σ_phase_deg, freqs, z)
+    F = MT1DZ(d_log10_ρ, d_phase_deg, σ_log10_ρ, σ_phase_deg, freqs, z, irxlayer)
     if showplot
-        fig = MT1D.plotmodelcurve(1 ./freqs, ρ, z, logscaledepth=logscaledepth, showfreq=showfreq)
+        fig = MT1D.plotmodelcurve(1 ./freqs, ρ, z, logscaledepth=logscaledepth, showfreq=showfreq, irxlayer=irxlayer)
         plotdata(F, fig, iaxis=2, showfreq=showfreq, gridalpha=gridalpha)
     end
     F
@@ -83,7 +84,7 @@ function plot_posterior(F::MT1DZ, M::AbstractArray; showfreq=false, gridalpha=0.
     s2 = subplot(132)
     s3 = subplot(133, sharex=s2)
     for m in M
-        MT1D.plotmodelcurve(1 ./F.freqs, 10 .^m', F.zboundaries, fig, showfreq=showfreq, 
+        MT1D.plotmodelcurve(1 ./F.freqs, 10 .^m', F.zboundaries, fig, showfreq=showfreq, irxlayer=F.irxlayer,
                         gridalpha=gridalpha, logscaledepth=logscaledepth, lcolor=lcolor, modelalpha=modelalpha)
     end
     plotdata(F, fig, iaxis=2, showfreq=showfreq, gridalpha=gridalpha)    
