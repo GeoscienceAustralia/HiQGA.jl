@@ -13,6 +13,7 @@ mutable struct MT1DZ <: Operator1D
     freqs
     zboundaries
     irxlayer
+    stretch
     stretchmodel
     low
     Δ
@@ -20,7 +21,7 @@ end
 
 function get_misfit(m::Model, opt::Options, F::MT1DZ)
     if F.stretch
-        F.stretchmodel[:] .= 10 .^(F.low + m.fstar.*F.Δ)
+        F.stretchmodel[:] .= 10 .^(F.low + vec(m.fstar).*F.Δ)
         get_misfit(F.stretchmodel, opt, F)
     else        
         get_misfit(10 .^m.fstar, opt, F)
@@ -92,7 +93,12 @@ function plot_posterior(F::MT1DZ, M::AbstractArray; showfreq=false, gridalpha=0.
     s2 = subplot(132)
     s3 = subplot(133, sharex=s2)
     for m in M
-        MT1D.plotmodelcurve(1 ./F.freqs, 10 .^m', F.zboundaries, fig, showfreq=showfreq, irxlayer=F.irxlayer,
+        if F.stretch
+            F.stretchmodel[:] .= 10 .^(F.low + vec(m).*F.Δ)
+        else
+            F.stretchmodel[:] .= 10 .^m    
+        end    
+        MT1D.plotmodelcurve(1 ./F.freqs, F.stretchmodel, F.zboundaries, fig, showfreq=showfreq, irxlayer=F.irxlayer,
                         gridalpha=gridalpha, logscaledepth=logscaledepth, lcolor=lcolor, modelalpha=modelalpha)
     end
     plotdata(F, fig, iaxis=2, showfreq=showfreq, gridalpha=gridalpha)    

@@ -581,7 +581,7 @@ function plot_posterior(operator::Operator1D,
     nicenup(f, fsize=fsize)
 end
 
-function plot_posterior(operator::Operator1D,
+function plot_posterior(F::Operator1D,
                         opt::OptionsStat;
     temperaturenum = 1,
     nbins = 50,
@@ -595,7 +595,7 @@ function plot_posterior(operator::Operator1D,
     fsize=14,
     doplot = true)
     @assert 0<vmaxpc<=1
-    himage, edges, CI, meanimage, meandiffimage, sdslope = make1Dhist(opt, burninfrac=burninfrac, nbins = nbins, qp1=qp1, qp2=qp2,
+    himage, edges, CI, meanimage, meandiffimage, sdslope = make1Dhist(F, opt, burninfrac=burninfrac, nbins = nbins, qp1=qp1, qp2=qp2,
                                     pdfnormalize=pdfnormalize, temperaturenum=temperaturenum)
     if doplot
         f,ax = plt.subplots(1,2, sharey=true, figsize=figsize)
@@ -711,7 +711,8 @@ function make1Dhist(optns::OptionsNonstat,
     return himage, edges, CI, himage_ns, edges_ns, CI_ns
 end
 
-function make1Dhist(opt::Options;
+function make1Dhist(F::Operator1D,
+                opt::Options;
                 burninfrac = 0.5,
                 nbins = 50,
                 rhomin=Inf,
@@ -722,10 +723,13 @@ function make1Dhist(opt::Options;
                 pdfnormalize=false,
                 temperaturenum=1)
     M = assembleTat1(opt, :fstar, burninfrac=burninfrac, temperaturenum=temperaturenum)
-    himage, edges, CI = gethimage(M, opt, burninfrac=burninfrac, temperaturenum=temperaturenum,
+    himage, edges, CI = gethimage(F, M, opt, burninfrac=burninfrac, temperaturenum=temperaturenum,
                 nbins=nbins, rhomin=rhomin, rhomax=rhomax, qp1=qp1, qp2=qp2,
                 pdfnormalize=pdfnormalize)
     meanimage = mean(M)
+    if stretchexists(F)
+        meanimage = F.low + vec(meanimage).*F.Δ
+    end    
     if islscale
         Mslope = mean(firstderiv.([0.5log10.(m) for m in M]))
         sdevslope = std(firstderiv.([0.5log10.(m) for m in M]))
@@ -737,7 +741,7 @@ function make1Dhist(opt::Options;
     return himage, edges, CI, meanimage, Mslope, sdevslope
 end
 
-function gethimage(M::AbstractArray, opt::Options;
+function gethimage(F::Operator1D, M::AbstractArray, opt::Options;
                 burninfrac = 0.5,
                 nbins = 50,
                 rhomin=Inf,
@@ -748,17 +752,22 @@ function gethimage(M::AbstractArray, opt::Options;
                 pdfnormalize=false,
                 temperaturenum=1)
     if (rhomin == Inf) && (rhomax == -Inf)
-        for (i,mm) in enumerate(M)
-            rhomin_mm = minimum(mm)
-            rhomax_mm = maximum(mm)
-            rhomin_mm < rhomin && (rhomin = rhomin_mm)
-            rhomax_mm > rhomax && (rhomax = rhomax_mm)
+        if !stretchexists(F) # if no stretch
+            for (i,mm) in enumerate(M)
+                rhomin_mm = minimum(mm)
+                rhomax_mm = maximum(mm)
+                rhomin_mm < rhomin && (rhomin = rhomin_mm)
+                rhomax_mm > rhomax && (rhomax = rhomax_mm)
 
-        end
-        if (typeof(opt) == OptionsStat && opt.needλ²fromlog) && !islscale
-            rhomin = 0.5*log10(rhomin)
-            rhomax = 0.5*log10(rhomax)
-        end
+            end
+            if (typeof(opt) == OptionsStat && opt.needλ²fromlog) && !islscale
+                rhomin = 0.5*log10(rhomin)
+                rhomax = 0.5*log10(rhomax)
+            end
+        else # there is a stretch
+            rhomin = minimum(F.low)
+            rhomax = maximum(F.low + F.Δ)
+        end        
     else
         @assert rhomin < rhomax
     end
@@ -769,7 +778,11 @@ function gethimage(M::AbstractArray, opt::Options;
         if (typeof(opt) == OptionsStat && opt.needλ²fromlog) && !islscale
             himage[ilayer,:] = fit(Histogram, [0.5log10.(m[ilayer]) for m in M], edges).weights
         else
-            himage[ilayer,:] = fit(Histogram, [m[ilayer] for m in M], edges).weights
+            if !stretchexists(F) # if no stretch
+                himage[ilayer,:] = fit(Histogram, [m[ilayer] for m in M], edges).weights
+            else # there is a stretch
+                himage[ilayer,:] = fit(Histogram, [F.low[ilayer] + m[ilayer]*F.Δ[ilayer] for m in M], edges).weights
+            end        
         end
         himage[ilayer,:] = himage[ilayer,:]/sum(himage[ilayer,:])/(diff(edges)[1])
         pdfnormalize && (himage[ilayer,:] = himage[ilayer,:]/maximum(himage[ilayer,:]))
@@ -777,9 +790,16 @@ function gethimage(M::AbstractArray, opt::Options;
             CI[ilayer,:] = [quantile([0.5log10.(m[ilayer]) for m in M],(qp1, 0.5, qp2))...]
         else
             CI[ilayer,:] = [quantile([m[ilayer] for m in M],(qp1, 0.5, qp2))...]
+            if stretchexists(F)
+                CI[ilayer,:] = F.low[ilayer] .+ CI[ilayer,:]*F.Δ[ilayer]
+            end    
         end
     end
     himage, edges, CI
+end
+
+function stretchexists(F::Operator1D)
+    in(:stretch, fieldnames(typeof(F))) && F.stretch
 end
 
 # plotting codes for 2D sections in AEM
