@@ -1,8 +1,8 @@
 ## make options for the stationary GP
-fileprefix = "MT_SERPENT_08_"
+fileprefix = "MT_SERPENT_08_stretchis$(string(usedepthprior))_"
 K = transD_GP.GP.OrstUhn()
 nmin, nmax = 2, 40
-fbounds = [0 1.]#[-1 4.5]
+fbounds = usedepthprior ? [0 1.] : [-1 4.5]
 sdev_pos = [0.05abs(diff([extrema(znall)...])[1])]
 sdev_prop = 0.07*diff(fbounds, dims=2)[:]
 demean = false

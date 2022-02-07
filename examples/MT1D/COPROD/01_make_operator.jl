@@ -14,5 +14,5 @@ d_log10_ρ = [2.315  2.254  2.229  2.188  2.18  2.162  2.151  2.208  2.194  2.29
 d_phase_deg = -[57.19  58.19  61.39  59.09  59.89  51.19  46.89  42.79  36.89  32.0  44.0  32.0  37.59  45.29  50.09][:]
 σ_log10_ρ = [0.0721  0.0425  0.0244  0.021  0.0164  0.0173  0.0287  0.0328  0.0193  0.027  0.0591  0.0506  0.0825  0.1233  0.0927][:]
 σ_phase_deg = [22.95  22.95  4.96  4.46  5.96  22.95  22.95  2.46  1.65  22.95  6.37  2.46  22.95  4.15  22.95][:]
-F = transD_GP.MT1DInversion.MT1DZ(d_log10_ρ, d_phase_deg,σ_log10_ρ, σ_phase_deg, 1 ./T, zboundaries, 1)
+F = transD_GP.MT1DInversion.MT1DZ_nodepthprior(d_log10_ρ, d_phase_deg,σ_log10_ρ, σ_phase_deg, 1 ./T, zboundaries, 1)
 transD_GP.MT1DInversion.plotdata(F)

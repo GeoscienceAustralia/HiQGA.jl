@@ -1,11 +1,24 @@
 module MT1DInversion
-using ..AbstractOperator
+using ..AbstractOperator, ..CommonToAll
 import ..AbstractOperator.get_misfit
 import ..Model, ..Options
 using ..MT1D
 using Random, PyPlot
 
-mutable struct MT1DZ <: Operator1D
+abstract type MT1DZ <: Operator1D
+end
+
+mutable struct MT1DZ_nodepthprior <: MT1DZ
+    d_log10_ρ
+    d_phase_deg
+    σ_log10_ρ
+    σ_phase_deg
+    freqs
+    zboundaries
+    irxlayer
+end
+
+mutable struct MT1DZ_depthprior <: MT1DZ
     d_log10_ρ
     d_phase_deg
     σ_log10_ρ
@@ -17,10 +30,10 @@ mutable struct MT1DZ <: Operator1D
     stretchmodel
     low
     Δ
-end    
+end
 
 function get_misfit(m::Model, opt::Options, F::MT1DZ)
-    if F.stretch
+    if stretchexists(F)
         F.stretchmodel[:] .= 10 .^(F.low + vec(m.fstar).*F.Δ)
         get_misfit(F.stretchmodel, opt, F)
     else        
@@ -52,6 +65,7 @@ function add_noise(ρ, z, freqs; noisefrac=0.05, rseed=1, irxlayer=1)
     Z = get_Z(freqs, ρ, z, irxlayer)
     σ_real = noisefrac*abs.(Z)/2
     noise = σ_real.*( randn(length(freqs)) + 1im*randn(length(freqs)) )
+    # same as sqrt(2)*σ_real.*randn(ComplexF64, length(freqs))
     Z + noise
 end
 
@@ -62,7 +76,7 @@ function create_synthetic(ρ, z, freqs; noisefrac=0.05, rseed=1, showplot=true, 
     d_phase_deg = MT1D.phase(Znoisy)
     σ_log10_ρ = noisefrac/log(10)
     σ_phase_deg = rad2deg(noisefrac/2)
-    F = MT1DZ(d_log10_ρ, d_phase_deg, σ_log10_ρ, σ_phase_deg, freqs, z, irxlayer)
+    F = MT1DZ_nodepthprior(d_log10_ρ, d_phase_deg, σ_log10_ρ, σ_phase_deg, freqs, z, irxlayer)
     if showplot
         fig = MT1D.plotmodelcurve(1 ./freqs, ρ, z, logscaledepth=logscaledepth, showfreq=showfreq, irxlayer=irxlayer)
         plotdata(F, fig, iaxis=2, showfreq=showfreq, gridalpha=gridalpha)
@@ -92,13 +106,14 @@ function plot_posterior(F::MT1DZ, M::AbstractArray; showfreq=false, gridalpha=0.
     s1 = subplot(131)
     s2 = subplot(132)
     s3 = subplot(133, sharex=s2)
+    mnew = ones(length(M[1]))
     for m in M
-        if F.stretch
-            F.stretchmodel[:] .= 10 .^(F.low + vec(m).*F.Δ)
+        if stretchexists(F)
+            mnew[:] = 10 .^(F.low + vec(m).*F.Δ)
         else
-            F.stretchmodel[:] .= 10 .^m    
+            mnew[:] .= 10 .^m[:]    
         end    
-        MT1D.plotmodelcurve(1 ./F.freqs, F.stretchmodel, F.zboundaries, fig, showfreq=showfreq, irxlayer=F.irxlayer,
+        MT1D.plotmodelcurve(1 ./F.freqs, mnew, F.zboundaries, fig, showfreq=showfreq, irxlayer=F.irxlayer,
                         gridalpha=gridalpha, logscaledepth=logscaledepth, lcolor=lcolor, modelalpha=modelalpha)
     end
     plotdata(F, fig, iaxis=2, showfreq=showfreq, gridalpha=gridalpha)    

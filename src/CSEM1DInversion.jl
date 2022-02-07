@@ -105,6 +105,9 @@ function addnoise(F::CSEM1DEr.RadialEr, z::Array{Float64, 1}, ρ::Array{Float64,
                   )
     @assert all((nfixed, dz, extendfrac) .> 0)
     CSEM1DEr.getfield!(F, z, ρ)
+    # because for independent, isotropic noise in real and imaginary
+    # σamp = σr = σi
+    # and complex variance is twice the σamp
     d = F.Er + sqrt(2)*noisefrac*abs.(F.Er).*randn(ComplexF64, size(F.Er))
     d[abs.(d).<noisefloor] .= NaN
     σ = sqrt(2)*noisefrac*abs.(d)

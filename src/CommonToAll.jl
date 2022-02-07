@@ -8,7 +8,7 @@ import ..Options, ..OptionsStat, ..OptionsNonstat, ..OptionsNuisance,
 export trimxft, assembleTat1, gettargtemps, checkns, getchi2forall, nicenup,
         plot_posterior, make1Dhist, make1Dhists, setupz, makezρ, plotdepthtransforms,
         unwrap, getn, geomprogdepth, assemblemodelsatT, getstats, gethimage,
-        assemblenuisancesatT, makenuisancehists, 
+        assemblenuisancesatT, makenuisancehists, stretchexists,
         makegrid, whichislast, makesummarygrid, makearray, plotNEWSlabels, 
         plotprofile, gridpoints
 
