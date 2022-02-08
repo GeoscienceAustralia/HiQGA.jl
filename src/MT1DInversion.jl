@@ -32,6 +32,17 @@ mutable struct MT1DZ_depthprior <: MT1DZ
     Δ
 end
 
+function makestretchop(F::MT1DZ_nodepthprior; ρlow=nothing, Δ=nothing)
+    @assert !isa(ρlow, Nothing)
+    @assert !isa(Δ, Nothing)
+    @assert all(Δ .> 0)
+    A = []
+    for fn in fieldnames(typeof(F))
+        push!(A, getfield(F, fn))
+    end
+    F = MT1DZ_depthprior(A..., true, copy(ρlow), ρlow, Δ)
+end    
+
 function get_misfit(m::Model, opt::Options, F::MT1DZ)
     if stretchexists(F)
         F.stretchmodel[:] .= 10 .^(F.low + vec(m.fstar).*F.Δ)
@@ -118,5 +129,13 @@ function plot_posterior(F::MT1DZ, M::AbstractArray; showfreq=false, gridalpha=0.
     end
     plotdata(F, fig, iaxis=2, showfreq=showfreq, gridalpha=gridalpha)    
 end    
+
+function plotpriorenv(F::MT1DZ_depthprior; ax=nothing, lw=2, lc="r", plotlinear=true)
+    isa(ax, Nothing) && (ax = gca())
+    low, high = copy(F.low), F.low + F.Δ
+    plotlinear && (low = 10 .^low; high = 10 .^high)
+    ax.step(low, F.zboundaries, linewidth=lw, color=lc)
+    ax.step(high, F.zboundaries, linewidth=lw, color=lc)
+end
 
 end

@@ -696,7 +696,7 @@ function domcmciters(iterlast, nsamples, chains, opt_in, mns, m, mn, optns, opt,
         if mod(isample-1, 1000) == 0
             dt = time() - t2 #seconds
             t2 = time()
-            @info("*****$dt**sec*****")
+            @info("**$dt**sec** $isample out of $nsamples")
         end
     end
 end

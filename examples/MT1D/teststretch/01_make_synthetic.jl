@@ -4,21 +4,29 @@ zfixed   = [-1e5]
 ρfixed   = [1e12]
 nmax = 200
 # z grid spec starts, the first z and first ρ will be unused in MT
-zstart = 0.0
-extendfrac, dz = 1.22, 15
+zstart = 0.
+extendfrac, dz = 1.028, 10
 zall, znall, zboundaries = transD_GP.setupz(zstart, extendfrac, dz=dz, n=50, showplot=true, atol=1e-3)
 z, ρ, nfixed = transD_GP.makezρ(zboundaries; zfixed=zfixed, ρfixed=ρfixed)
-## COPROD from Occam paper
-T = [28.5 38.5 52.0 70.5 95.5 129.0 174.6 236.2 319.6 432.5 585.1 791.7 1071.1 1449.2 1960.7][:]
-d_log10_ρ = [2.315  2.254  2.229  2.188  2.18  2.162  2.151  2.208  2.194  2.299  2.338  2.42  2.405  2.308  2.397][:]
-d_phase_deg = -[57.19  58.19  61.39  59.09  59.89  51.19  46.89  42.79  36.89  32.0  44.0  32.0  37.59  45.29  50.09][:]
-σ_log10_ρ = [0.0721  0.0425  0.0244  0.021  0.0164  0.0173  0.0287  0.0328  0.0193  0.027  0.0591  0.0506  0.0825  0.1233  0.0927][:]
-σ_phase_deg = [22.95  22.95  4.96  4.46  5.96  22.95  22.95  2.46  1.65  22.95  6.37  2.46  22.95  4.15  22.95][:]
-## load zho limits
-using DelimitedFiles, DataInterpolations
-zrholim = readdlm("zlog10rholims.txt")
-interplow, interphigh = map(x->ConstantInterpolation(x, zrholim[:,1]), (zrholim[:,2], zrholim[:,3]))
-ρlow, ρhigh = interplow.(zall), interphigh.(zall)
+## fill in detail in ohm-m
+ρ[(z.>=zstart) .& (z.<50)] .= 10.
+ρ[(z.>=50)  .& (z.<100)] .= 20
+ρ[(z.>=100) .& (z.<250)] .= 50
+ρ[(z.>=250) .& (z.<300)] .= 5
+ρ[(z.>=300) .& (z.<500)] .= 100
+ρ[z.>=500] .= 800
+##
+T = 10 .^range(-3, 0, length=10)
+F = transD_GP.MT1DInversion.create_synthetic(ρ[2:end], zboundaries, 1 ./T, rseed=125, showplot=true, noisefrac=0.05, logscaledepth=false)
+transD_GP.get_misfit(F.d_log10_ρ, F.d_phase_deg, F.σ_log10_ρ, F.σ_phase_deg, 1 ./T, ρ[2:end], zboundaries)
+## now apply a stretch prior
+# remember there must be a ρlow and ρhigh at every zall
+ρsmooth = log10.(ρ[2:end])
+ρsmooth[2:end] = (ρsmooth[1:end-1] + ρsmooth[2:end])/2
+ρlow, ρhigh = -0.5*ones(size(zall)), zall*0.001 .+ 2.5
 Δ = ρhigh - ρlow
-F = transD_GP.MT1DInversion.MT1DZ(d_log10_ρ, d_phase_deg,σ_log10_ρ, σ_phase_deg, 1 ./T, zboundaries, 1, true, copy(ρlow), ρlow,  Δ)
-transD_GP.MT1DInversion.plotdata(F)
+F = transD_GP.MT1DInversion.makestretchop(F, ρlow=ρlow, Δ=Δ)
+ax = gcf().axes[1]
+transD_GP.MT1DInversion.plotpriorenv(F, ax=ax, lc = "r")
+F.stretch = false # if not wanting to use stretch priors
+

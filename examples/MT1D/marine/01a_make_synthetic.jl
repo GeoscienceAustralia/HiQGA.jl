@@ -1,5 +1,5 @@
 using transD_GP, PyPlot
-## model fixed parts, i.e., air, but only to be compatible with AEM ...
+## model fixed parts, i.e., water
 zfixed   = [0]
 ρfixed   = [0.22]
 nmax = 200

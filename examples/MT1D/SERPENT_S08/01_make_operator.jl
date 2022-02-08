@@ -21,5 +21,6 @@ zrholim = readdlm("zlog10rholims.txt")
 interplow, interphigh = map(x->ConstantInterpolation(x, zrholim[:,1]), (zrholim[:,2], zrholim[:,3]))
 ρlow, ρhigh = interplow.(zall), interphigh.(zall)
 Δ = ρhigh - ρlow
-F = transD_GP.MT1DInversion.MT1DZ_depthprior(d_log10_ρ, d_phase_deg,σ_log10_ρ, σ_phase_deg, 1 ./T, zboundaries, 1, usedepthprior, copy(ρlow), ρlow,  Δ)
+F = transD_GP.MT1DInversion.MT1DZ_nodepthprior(d_log10_ρ, d_phase_deg,σ_log10_ρ, σ_phase_deg, 1 ./T, zboundaries, 1)
+F = transD_GP.MT1DInversion.makestretchop(F, ρlow=ρlow, Δ=Δ)
 transD_GP.MT1DInversion.plotdata(F)
