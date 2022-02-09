@@ -615,8 +615,12 @@ function plot_posterior(F::Operator1D,
         ax[1].plot(meanimage[:], xall[:], linewidth=2, color="k", linestyle="--", alpha=0.5)
         ax[1].set_xlabel(L"\log_{10} \rho")
         ax[1].set_ylabel("depth (m)")
-        propmin = min(minimum(CI), minimum(opt.fbounds))
-        propmax = max(maximum(CI), maximum(opt.fbounds))
+        bounds = copy(opt.fbounds)
+        if stretchexists(F)
+            bounds = [minimum(F.low) maximum(F.low + F.Δ)]
+        end    
+        propmin = min(minimum(CI), minimum(bounds))
+        propmax = max(maximum(CI), maximum(bounds))
 
         ax[1].set_xlim(propmin, propmax)
         ax[2].plot(meandiffimage[:], xall[:], linewidth=2, color="k", linestyle="-")

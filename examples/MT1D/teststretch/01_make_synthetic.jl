@@ -28,5 +28,5 @@ transD_GP.get_misfit(F.d_log10_ρ, F.d_phase_deg, F.σ_log10_ρ, F.σ_phase_deg,
 F = transD_GP.MT1DInversion.makestretchop(F, ρlow=ρlow, Δ=Δ)
 ax = gcf().axes[1]
 transD_GP.MT1DInversion.plotpriorenv(F, ax=ax, lc = "r")
-F.stretch = false # if not wanting to use stretch priors
+F.stretch = true # if wanting to toggle stretch priors
 

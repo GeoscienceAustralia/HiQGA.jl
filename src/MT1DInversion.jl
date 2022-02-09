@@ -131,11 +131,20 @@ function plot_posterior(F::MT1DZ, M::AbstractArray; showfreq=false, gridalpha=0.
 end    
 
 function plotpriorenv(F::MT1DZ_depthprior; ax=nothing, lw=2, lc="r", plotlinear=true)
-    isa(ax, Nothing) && (ax = gca())
+    if isa(ax, Nothing)
+        fig = figure()
+        ax = gca()
+        plotlinear ? ax.set_xlabel("ohm-m") : ax.set_xlabel("Log₁₀ ohm-m")
+        ax.set_ylabel("Depth m")
+        ax.invert_yaxis()
+        fig.suptitle("Prior bounds")
+    end
+    zlast = F.zboundaries[end] + diff(F.zboundaries)[end]    
     low, high = copy(F.low), F.low + F.Δ
     plotlinear && (low = 10 .^low; high = 10 .^high)
-    ax.step(low, F.zboundaries, linewidth=lw, color=lc)
-    ax.step(high, F.zboundaries, linewidth=lw, color=lc)
+    ax.step([low; low[end]], [F.zboundaries; zlast], linewidth=lw, color=lc)
+    ax.step([high; high[end]], [F.zboundaries; zlast], linewidth=lw, color=lc)
+    plt.tight_layout()
 end
 
 end
