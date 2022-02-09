@@ -17,8 +17,8 @@ z, ρ, nfixed = transD_GP.makezρ(zboundaries; zfixed=zfixed, ρfixed=ρfixed)
 ρ[z.>=500] .= 800
 ##
 T = 10 .^range(-3, 0, length=10)
-F = transD_GP.MT1DInversion.create_synthetic(ρ[2:end], zboundaries, 1 ./T, rseed=125, showplot=true, noisefrac=0.05, logscaledepth=false)
-transD_GP.get_misfit(F.d_log10_ρ, F.d_phase_deg, F.σ_log10_ρ, F.σ_phase_deg, 1 ./T, ρ[2:end], zboundaries)
+F = transD_GP.MT1DInversion.create_synthetic(ρ =  ρ[2:end], zboundaries = zboundaries, 
+                                            freqs = 1 ./T, rseed=125, showplot=true, noisefrac=0.05, logscaledepth=false)
 ## now apply a stretch prior
 # remember there must be a ρlow and ρhigh at every zall
 ρsmooth = log10.(ρ[2:end])

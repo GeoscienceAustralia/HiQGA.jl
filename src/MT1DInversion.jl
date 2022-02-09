@@ -18,6 +18,25 @@ mutable struct MT1DZ_nodepthprior <: MT1DZ
     irxlayer
 end
 
+function MT1DZ_nodepthprior(;
+                            d_log10_ρ = nothing,
+                            d_phase_deg = nothing,
+                            σ_log10_ρ = nothing,
+                            σ_phase_deg = nothing,
+                            freqs = nothing,
+                            zboundaries = nothing,
+                            irxlayer = nothing)
+    @assert !isa(d_log10_ρ, Nothing)
+    @assert !isa(d_phase_deg, Nothing)
+    @assert !isa(σ_log10_ρ, Nothing)
+    @assert !isa(σ_phase_deg, Nothing)
+    @assert !isa(freqs, Nothing)
+    @assert !isa(zboundaries, Nothing)
+    @assert !isa(irxlayer, Nothing)                    
+    @assert all(diff(zboundaries) .> 0)
+    MT1DZ_nodepthprior(d_log10_ρ, d_phase_deg, σ_log10_ρ, σ_phase_deg, freqs, zboundaries, irxlayer)
+end
+
 mutable struct MT1DZ_depthprior <: MT1DZ
     d_log10_ρ
     d_phase_deg
@@ -80,16 +99,21 @@ function add_noise(ρ, z, freqs; noisefrac=0.05, rseed=1, irxlayer=1)
     Z + noise
 end
 
-function create_synthetic(ρ, z, freqs; noisefrac=0.05, rseed=1, showplot=true, logscaledepth=true, showfreq=false, gridalpha=0.5, irxlayer=1)
-    Znoisy = add_noise(ρ, z, freqs, noisefrac=noisefrac, rseed=rseed, irxlayer=irxlayer)
+function create_synthetic(;ρ=nothing, zboundaries=nothing, freqs=nothing, 
+                        noisefrac=0.05, rseed=1, showplot=true, 
+                        logscaledepth=true, showfreq=false, gridalpha=0.5, irxlayer=1)
+    @assert !isa(ρ, Nothing)   
+    @assert !isa(zboundaries, Nothing)
+    @assert !isa(freqs, Nothing)            
+    Znoisy = add_noise(ρ, zboundaries, freqs, noisefrac=noisefrac, rseed=rseed, irxlayer=irxlayer)
     ρₐnoisy = MT1D.ρapp(freqs, Znoisy)
     d_log10_ρ = log10.(ρₐnoisy)   
     d_phase_deg = MT1D.phase(Znoisy)
     σ_log10_ρ = noisefrac/log(10)
     σ_phase_deg = rad2deg(noisefrac/2)
-    F = MT1DZ_nodepthprior(d_log10_ρ, d_phase_deg, σ_log10_ρ, σ_phase_deg, freqs, z, irxlayer)
+    F = MT1DZ_nodepthprior(d_log10_ρ, d_phase_deg, σ_log10_ρ, σ_phase_deg, freqs, zboundaries, irxlayer)
     if showplot
-        fig = MT1D.plotmodelcurve(1 ./freqs, ρ, z, logscaledepth=logscaledepth, showfreq=showfreq, irxlayer=irxlayer)
+        fig = MT1D.plotmodelcurve(1 ./freqs, ρ, zboundaries, logscaledepth=logscaledepth, showfreq=showfreq, irxlayer=irxlayer)
         plotdata(F, fig, iaxis=2, showfreq=showfreq, gridalpha=gridalpha)
     end
     F
