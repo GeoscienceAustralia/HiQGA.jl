@@ -28,7 +28,7 @@ optlog10λ = transD_GP.OptionsStat(nmin = nminlog10λ,
                         quasimultid = false,
                         K = Klog10λ,
                         save_freq = 20,
-                        timesλ = 3.6,
+                        timesλ = 4,
                         peskycholesky = true
                         )
 ## make options for the nonstationary actual properties GP
@@ -38,11 +38,11 @@ ymin, ymax = extrema(y)
 fbounds[1] > ymin && (fbounds[1] = ymin)
 fbounds[2] < ymax && (fbounds[2] = ymax)
 sdev_prop = 0.05*diff(fbounds, dims=2)[:]
-sdev_pos = [0.05abs(diff([extrema(x)...])[1])]
-demean_ns = true
+sdev_pos = [0.02abs(diff([extrema(x)...])[1])]
+demean_ns = false
+sampledc = true
 K = transD_GP.GP.Mat32()
 δ = 0.05
-## Initialize model for the nonstationary properties GP
 Random.seed!(13)
 opt = transD_GP.OptionsNonstat(optlog10λ,
                         nmin = nmin,
@@ -50,13 +50,14 @@ opt = transD_GP.OptionsNonstat(optlog10λ,
                         fbounds = fbounds,
                         δ = δ,
                         demean = demean_ns,
+                        sampledc = sampledc,
                         sdev_prop = sdev_prop,
                         sdev_pos = sdev_pos,
                         pnorm = pnorm,
                         K = K,
                         )
 ## set up McMC
-nsamples, nchains, nchainsatone = 20001, 4, 1
+nsamples, nchains, nchainsatone = 100001, 4, 1
 Tmax = 2.50
 addprocs(nchains)
 @info "workers are $(workers())"

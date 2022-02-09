@@ -4,7 +4,8 @@
 nmin, nmax = 2, 30
 pnorm = 2.
 K = transD_GP.GP.Mat32()
-demean = true
+demean = false
+sampledc = true
 fbounds = permutedims([extrema(ynoisy[.!isnan.(ynoisy)])...])
 ymin, ymax = extrema(y)
 fbounds[1] > ymin && (fbounds[1] = ymin)
@@ -25,6 +26,7 @@ opt = transD_GP.OptionsStat(nmin = nmin,
                         λ = λ,
                         δ = δ,
                         demean = demean,
+                        sampledc = sampledc,
                         sdev_prop = sdev_prop,
                         sdev_pos = sdev_pos,
                         pnorm = pnorm,
@@ -37,7 +39,7 @@ opt = transD_GP.OptionsStat(nmin = nmin,
                         peskycholesky = true
                         )
 ## set up McMC
-nsamples, nchains, nchainsatone = 10001, 4, 1
+nsamples, nchains, nchainsatone = 100001, 4, 1
 Tmax = 2.50
 addprocs(nchains)
 @info "workers are $(workers())"

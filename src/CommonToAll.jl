@@ -91,35 +91,6 @@ function assemblemodelsatT(opt::OptionsStat; burninfrac=0.9, temperaturenum=-1)
     matT
 end
 
-function assemblemodelsatT(optns::OptionsNonstat, opts::OptionsStat;
-    burninfrac=0.9, temperaturenum=-1)
-    @assert temperaturenum!=-1 "Please explicitly specify which temperature number"
-    msatT = assemblemodelsatT(opts, burninfrac=burninfrac, temperaturenum=temperaturenum)
-    x_ft = assembleTat1(optns, :x_ftrain, burninfrac=burninfrac, temperaturenum=temperaturenum)
-    n = assembleTat1(optns, :nodes, burninfrac=burninfrac, temperaturenum=temperaturenum)
-    nmodels = length(n)
-    mnsatT = Array{Array{Float64}, 1}(undef, nmodels)
-    K_y = zeros(optns.nmax, optns.nmax)
-    Kstar = zeros(Float64, size(optns.xall,2), optns.nmax)
-    xtest = optns.xall
-    for imodel = 1:nmodels
-        λ² = msatT[imodel]
-        xtrain = x_ft[imodel][1:size(optns.xall, 1), :]
-        ftrain = x_ft[imodel][size(optns.xall, 1)+1:end, :]
-        idxs = gettrainidx(optns.kdtree, xtrain, n[imodel])
-        ky = view(K_y, 1:n[imodel], 1:n[imodel])
-        map!(x->x, ky, pairwise(optns.K, xtrain[:,1:n[imodel]], xtrain[:,1:n[imodel]],
-                                    λ²[:,idxs], λ²[:,idxs]))
-        K_y[diagind(K_y)] .+= optns.δ^2
-        ks = view(Kstar, :, 1:n[imodel])
-        map!(x->x, ks, pairwise(optns.K, xtrain[:,1:n[imodel]], xtest, λ²[:,idxs], λ²))
-        mnsatT[imodel] = zeros(size(optns.xall, 2), size(optns.fbounds, 1))
-        fstar = mnsatT[imodel]
-        calcfstar!(fstar, ftrain, optns, K_y, Kstar, n[imodel])
-    end
-    msatT, mnsatT
-end
-
 function assemblenuisancesatT(optn::OptionsNuisance;
     burninfrac = 0.5, temperaturenum = -1)
     @assert temperaturenum != -1 "Please specify temperature idx explicitly"
@@ -165,7 +136,7 @@ function getnchains(costs_filename)
 c = 0
     for fname in readdir(pwd())
            r = Regex(costs_filename)
-           c += match(r, fname) != nothing
+           c += !isa(match(r, fname), Nothing)
     end
     c
 end
@@ -507,7 +478,7 @@ function nicenup(g::PyPlot.Figure;fsize=16)
     g.tight_layout()
 end
 
-function plot_posterior(operator::Operator1D,
+function plot_posterior(F::Operator1D,
                         optns::OptionsNonstat,
                         opts::OptionsStat;
     temperaturenum = 1,
@@ -525,15 +496,10 @@ function plot_posterior(operator::Operator1D,
     a = 0.25,
     lw = 1)
     @assert 0<vmaxpc<=1
-    if temperaturenum == 1
-        himage_ns, edges_ns, CI_ns, meanimage_ns, meandiffimage_ns, sdslope_ns = make1Dhist(optns, burninfrac=burninfrac, nbins = nbins, qp1=qp1, qp2=qp2,
+    himage_ns, edges_ns, CI_ns, meanimage_ns, meandiffimage_ns, sdslope_ns = make1Dhist(F, optns, burninfrac=burninfrac, nbins = nbins, qp1=qp1, qp2=qp2,
                                 pdfnormalize=pdfnormalize, temperaturenum=temperaturenum)
-        himage, edges, CI, meanimage, meandiffimage, sdslope = make1Dhist(opts, burninfrac=burninfrac, nbins = nbins, qp1=qp1, qp2=qp2,
+    himage, edges, CI, meanimage, meandiffimage, sdslope = make1Dhist(F, opts, burninfrac=burninfrac, nbins = nbins, qp1=qp1, qp2=qp2,
                                 pdfnormalize=pdfnormalize, temperaturenum=temperaturenum, islscale=true)
-    else
-        himage, edges, CI, himage_ns, edges_ns, CI_ns = make1Dhist(optns, opts, burninfrac=burninfrac, nbins = nbins, qp1=qp1, qp2=qp2,
-                                pdfnormalize=pdfnormalize, temperaturenum=temperaturenum)
-    end
     f,ax = plt.subplots(1, 3+convert(Int, showlscale1vd), sharey=true, figsize=figsize)
     xall = opts.xall
     diffs = diff(xall[:])
@@ -691,28 +657,6 @@ function secondderiv(x)
     sd[2:end-1] .= (x[3:end] - x[2:end-1] + x[1:end-2])
     sd[end]      = 2x[end] - 5x[end-1] + 4x[end-2] - x[end-3]
     abs.(sd)
-end
-
-function make1Dhist(optns::OptionsNonstat,
-                    opts::OptionsStat;
-                burninfrac = 0.5,
-                nbins = 50,
-                rhomin=Inf,
-                rhomax=-Inf,
-                qp1=0.05,
-                qp2=0.95,
-                pdfnormalize=false,
-                temperaturenum=-1)
-    @assert temperaturenum!=-1 "Please explicitly specify which temperature number"
-    msatT, mnsatT = assemblemodelsatT(optns, opts,
-                    burninfrac=burninfrac, temperaturenum=temperaturenum)
-    himage, edges, CI = gethimage(msatT, opts, burninfrac=burninfrac, temperaturenum=temperaturenum,
-                nbins=nbins, rhomin=rhomin, rhomax=rhomax, qp1=qp1, qp2=qp2,
-                pdfnormalize=pdfnormalize)
-    himage_ns, edges_ns, CI_ns = gethimage(mnsatT, optns, burninfrac=burninfrac, temperaturenum=temperaturenum,
-                nbins=nbins, rhomin=rhomin, rhomax=rhomax, qp1=qp1, qp2=qp2,
-                pdfnormalize=pdfnormalize)
-    return himage, edges, CI, himage_ns, edges_ns, CI_ns
 end
 
 function make1Dhist(F::Operator1D,
