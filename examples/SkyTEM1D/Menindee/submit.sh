@@ -8,6 +8,5 @@
 #PBS -N juliaAEM
 #PBS -e grid.err
 #PBS -l storage=gdata/z67
-cd /scratch/z67/ar/transD_GP/examples/SkyTEM1D/Menindee/
-module load openmpi/3.0.4
-mpirun -np 48 /home/547/ar0754/bin/julia doall.jl >& outfile
+/home/547/ar0754/bin/julia-1.6.0 --project -e 'using Pkg; Pkg.instantiate(); Pkg.precompile()'
+/g/data/z67/ar0754/ompi-4.1.0/bin/mpiexec -np 48 /home/547/ar0754/bin/julia-1.6.0 doall.jl >& outfile
