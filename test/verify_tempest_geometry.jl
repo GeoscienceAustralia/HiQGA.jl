@@ -8,7 +8,7 @@ nmax = 100
 
 zstart = 0.
 extendfrac, dz = 1.06, 2.
-zall, znall, zboundaries = transD_GP.setupz(zstart, extendfrac, dz=dz, n=40, showplot=true, atol=1e-11)
+zall, znall, zboundaries = transD_GP.setupz(zstart, extendfrac, dz=dz, n=40, showplot=true)
 z, ρ, nfixed = transD_GP.makezρ(zboundaries; zfixed=zfixed, ρfixed=ρfixed)
 @info z
 

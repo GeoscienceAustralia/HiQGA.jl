@@ -8,7 +8,7 @@ ax[2].set_ylim(χ²-10, χ²+10)
 opt.xall[:] .= zall
 transD_GP.plot_posterior(F, opt, burninfrac=0.5, figsize=(10,6), qp1=0.05, qp2=0.95, nbins=50, fsize=11)
 ax = gcf().axes[1]
-ax.step(log10.(ρ[2:end]), zall)
+ax.step(log10.(ρ[2:end]), z[2:end])
 if F.stretch
     transD_GP.MT1DInversion.plotpriorenv(F, ax=ax, lc = "r", plotlinear=false)
 end   

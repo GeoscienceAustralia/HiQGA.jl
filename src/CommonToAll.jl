@@ -6,7 +6,7 @@ import ..Options, ..OptionsStat, ..OptionsNonstat, ..OptionsNuisance,
        ..history, ..GP.κ, ..calcfstar!, ..AbstractOperator.Sounding
 
 export trimxft, assembleTat1, gettargtemps, checkns, getchi2forall, nicenup,
-        plot_posterior, make1Dhist, make1Dhists, setupz, makezρ, plotdepthtransforms,
+        plot_posterior, make1Dhist, make1Dhists, setupz, zcontinue, makezρ, plotdepthtransforms,
         unwrap, getn, geomprogdepth, assemblemodelsatT, getstats, gethimage,
         assemblenuisancesatT, makenuisancehists, stretchexists,
         makegrid, whichislast, makesummarygrid, makearray, plotNEWSlabels, 
@@ -403,29 +403,40 @@ function unwrap(v, inplace=false)
   return unwrapped
 end
 
-function setupz(zstart, extendfrac;n=100, dz=10, showplot=false, atol=1e-12)
+function setupz(zstart, extendfrac;n=100, dz=10, showplot=false, forextension=false)
     @assert extendfrac>1
     znrange        = 1.0:n
     zboundaries    = [zstart, zstart .+ geomprogdepth.(znrange, dz, extendfrac)...]
-    thickness      = dz*(extendfrac).^(znrange .-1)
-    @assert isapprox(diff(zboundaries)[end], thickness[end], atol=atol)
+    thickness      = diff(zboundaries)
     zall           = zboundaries[1:end-1] + thickness/2
     znall          = getn.(zall .- zstart, dz, extendfrac)
-    showplot && plotdepthtransforms(zall, znall, zboundaries, thickness)
-    return zall, znall, zboundaries[1:end-1]
+    showplot && plotdepthtransforms(zall, znall, zboundaries)
+    zbreturn = forextension ? zboundaries : zboundaries[1:end-1]
+    return zall, znall, zbreturn
+end
+
+function zcontinue(;zall=nothing, znall=nothing, zboundaries=nothing, n=nothing,
+                extendfrac=nothing, dz=nothing, showplot=false)
+    isa(dz, Nothing) && (dz=diff(zboundaries)[end])
+    zall_, znall_, zboundaries_ = setupz(zboundaries[end], extendfrac, n=n, dz=dz, showplot=false)
+    zall, znall, zboundaries = [zall;zall_], [znall; znall[end] .+ znall_], [zboundaries[1:end-1]; zboundaries_]
+    zlast = zboundaries[end] + diff(zboundaries)[end]
+    showplot && plotdepthtransforms(zall, znall, [zboundaries;zlast])
+    @assert all(diff(zall).>0)
+    @assert all(diff(znall).>0)
+    @assert all(diff(zboundaries).>0)
+    zall, znall, zboundaries
 end
 
 function setupz(zstart;n=100, dz=10)
-    znrange        = 1.0:n
     zboundaries    = range(zstart, step=dz, length=n)
-    thickness      = diff(zboundaries)
     zall           = zboundaries[1:end-1] .+ dz/2
     znall          = 1.5:1:n-0.5
-    plotdepthtransforms(zall, znall, zboundaries, thickness)
+    plotdepthtransforms(zall, znall, zboundaries)
     return zall, znall, zboundaries[1:end-1]
 end
 
-function plotdepthtransforms(zall, znall, zboundaries, thickness)
+function plotdepthtransforms(zall, znall, zboundaries)
     figure()
     plot(znall, zall)
     xlabel("depth index")
@@ -440,6 +451,7 @@ function plotdepthtransforms(zall, znall, zboundaries, thickness)
     ax.set_ylabel("depth m")
     nicenup(gcf())
 
+    thickness = diff(zboundaries)
     f, ax = plt.subplots(1, 2, sharey=true, figsize=(11,5))
     ax[1].stem(zall,thickness, "k--", markerfmt=" ")
     ax[1].set_ylabel("thickness m")

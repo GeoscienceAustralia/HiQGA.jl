@@ -6,7 +6,7 @@ nmax = 200
 # z grid spec starts, the first z and first ρ will be unused in MT
 zstart = 35.
 extendfrac, dz = 1.028, 10
-zall, znall, zboundaries = transD_GP.setupz(zstart, extendfrac, dz=dz, n=50, showplot=true, atol=1e-3)
+zall, znall, zboundaries = transD_GP.setupz(zstart, extendfrac, dz=dz, n=50, showplot=true)
 z, ρ, nfixed = transD_GP.makezρ(zboundaries; zfixed=zfixed, ρfixed=ρfixed)
 ## fill in detail in ohm-m
 ρ[(z.>=zstart) .& (z.<100)] .= 4.

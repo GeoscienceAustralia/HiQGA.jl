@@ -6,7 +6,7 @@ nmax = 200
 # z grid spec starts, the first z and first ρ will be unused in MT
 zstart = 0.
 extendfrac, dz = 1.028, 10
-zall, znall, zboundaries = transD_GP.setupz(zstart, extendfrac, dz=dz, n=50, showplot=true, atol=1e-3)
+zall, znall, zboundaries = transD_GP.setupz(zstart, extendfrac, dz=dz, n=50, showplot=true)
 z, ρ, nfixed = transD_GP.makezρ(zboundaries; zfixed=zfixed, ρfixed=ρfixed)
 ## fill in detail in ohm-m
 ρ[(z.>=zstart) .& (z.<50)] .= 10.
@@ -21,8 +21,6 @@ F = transD_GP.MT1DInversion.create_synthetic(ρ =  ρ[2:end], zboundaries = zbou
                                             freqs = 1 ./T, rseed=125, showplot=true, noisefrac=0.05, logscaledepth=false)
 ## now apply a stretch prior
 # remember there must be a ρlow and ρhigh at every zall
-ρsmooth = log10.(ρ[2:end])
-ρsmooth[2:end] = (ρsmooth[1:end-1] + ρsmooth[2:end])/2
 ρlow, ρhigh = -0.5*ones(size(zall)), zall*0.001 .+ 2.5
 Δ = ρhigh - ρlow
 F = transD_GP.MT1DInversion.makestretchop(F, ρlow=ρlow, Δ=Δ)
