@@ -505,7 +505,7 @@ function birth!(m::ModelStat, opt::OptionsStat, mns::ModelNonstat, optns::Option
     # stationary and nonstat together but for stat model update
     birth!(m, opt)
     # updating the nonstationary kernels now
-    opt.updatenonstat && updatenskernels!(opt, m, m.n, optns, mns, doall=doall)
+    updatenskernels!(opt, m, m.n, optns, mns, doall=doall)
     nothing
 end
 
@@ -545,7 +545,7 @@ function death!(m::ModelStat, opt::OptionsStat,
     # stationary and nonstat together but for stat model update            
     death!(m, opt)
     # updating the nonstationary kernels now
-    opt.updatenonstat && updatenskernels!(opt, m, m.n+1, optns, mns, doall=doall)
+    updatenskernels!(opt, m, m.n+1, optns, mns, doall=doall)
     nothing
 end
 
@@ -591,7 +591,7 @@ function property_change!(m::ModelStat, opt::OptionsStat,
                           mns::ModelNonstat, optns::OptionsNonstat; doall=false)
     property_change!(m, opt)
     # updating the nonstationary kernels now
-    opt.updatenonstat && updatenskernels!(opt, m, m.iremember, optns, mns, doall=doall)
+    updatenskernels!(opt, m, m.iremember, optns, mns, doall=doall)
     nothing
 end
 
@@ -638,7 +638,7 @@ function position_change!(m::ModelStat, opt::OptionsStat,
                           mns::ModelNonstat, optns::OptionsNonstat; doall=false)
     position_change!(m, opt)
     # updating the nonstationary kernels now
-    opt.updatenonstat && updatenskernels!(opt, m, m.iremember, optns, mns, doall=doall, isposchange=true)
+    updatenskernels!(opt, m, m.iremember, optns, mns, doall=doall, isposchange=true)
     nothing
 end
 
