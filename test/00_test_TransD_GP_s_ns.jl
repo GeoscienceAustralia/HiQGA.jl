@@ -161,7 +161,7 @@ fracthresh = 0.05
     @testset "undo property change" begin
         log10λold = deepcopy(log10λ)
         transD_GP.property_change!(log10λ, optlog10λ, m, opt)
-        transD_GP.undo_property_change!(log10λ, optlog10λ, m)
+        transD_GP.undo_property_change!(log10λ, m)
         transD_GP.sync_model!(log10λ, optlog10λ)
         ftest = transD_GP.testupdate(optlog10λ, log10λ)
         transD_GP.sync_model!(m, opt)

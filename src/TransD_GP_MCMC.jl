@@ -392,9 +392,8 @@ function init(opt::OptionsNuisance)
     return ModelNuisance(nuisance, copy(nuisance))
 end
 
-function calcfstar!(fstar::Array{Float64,2}, ftrain::Array{Float64,2},
-                    opt::OptionsStat, K_y::Array{Float64,2},
-                    Kstar::Array{Float64, 2}, n::Int, dcvalue::Array{Float64})
+function commoncalc(ftrain::Array{Float64,2}, opt::Options, K_y::Array{Float64,2},
+    Kstar::Array{Float64, 2}, n::Int, dcvalue::Array{Float64})
     if opt.demean && n>1
         mf = mean(ftrain[:,1:n], dims=2)
     else
@@ -412,6 +411,13 @@ function calcfstar!(fstar::Array{Float64,2}, ftrain::Array{Float64,2},
         U = cholesky(ky).U
     end
     ks = @view Kstar[:,1:n]
+    rhs, mf, U, ks
+end
+
+function calcfstar!(fstar::Array{Float64,2}, ftrain::Array{Float64,2},
+                    opt::OptionsStat, K_y::Array{Float64,2},
+                    Kstar::Array{Float64, 2}, n::Int, dcvalue::Array{Float64})
+    rhs, mf, U, ks = commoncalc(ftrain, opt, K_y, Kstar, n, dcvalue)
     if opt.needλ²fromlog
         copy!(fstar, 10 .^(2(mf' .+ ks*(U\(U'\rhs'))))' )
     else
@@ -524,7 +530,7 @@ function undo_birth!(m::ModelStat, mns::ModelNonstat)
     nothing
 end
 
-function death!(m::ModelStat, opt::OptionsStat)
+function death!(m::Model, opt::Options)
     xtrain, ftrain, K_y,  Kstar, n = m.xtrain, m.ftrain, m.K_y,  m.Kstar, m.n
     ipoint = rand(1:n)
     m.iremember = ipoint
@@ -549,7 +555,7 @@ function death!(m::ModelStat, opt::OptionsStat,
     nothing
 end
 
-function undo_death!(m::ModelStat, opt::OptionsStat)
+function undo_death!(m::Model, opt::Options)
     m.n = m.n + 1
     ftrain, xtrain, Kstar, K_y, n, ipoint = m.ftrain, m.xtrain, m.Kstar, m.K_y, m.n, m.iremember
     xtrain[:,ipoint], xtrain[:,n] = xtrain[:,n], xtrain[:,ipoint]
@@ -571,7 +577,7 @@ function undo_death!(m::ModelStat, opt::OptionsStat, mns::ModelNonstat)
     nothing
 end
 
-function property_change!(m::ModelStat, opt::OptionsStat)
+function property_change!(m::Model, opt::Options)
     ftrain, K_y, Kstar, n = m.ftrain, m.K_y, m. Kstar, m.n
     ipoint = 1 + floor(Int, rand()*n)
     m.iremember = ipoint
@@ -595,13 +601,13 @@ function property_change!(m::ModelStat, opt::OptionsStat,
     nothing
 end
 
-function undo_property_change!(m::ModelStat)
+function undo_property_change!(m::Model)
     ipoint, ftrain = m.iremember, m.ftrain
     ftrain[:,ipoint] = m.ftrain_old
     nothing
 end
 
-function undo_property_change!(m::ModelStat, opt::OptionsStat, mns::ModelNonstat)
+function undo_property_change!(m::ModelStat, mns::ModelNonstat)
     undo_property_change!(m)
     # updating the nonstationary kernels now
     copyto!(mns.K_y, CartesianIndices((mns.n, mns.n)), mns.K_y_old, CartesianIndices((mns.n, mns.n)))
@@ -719,23 +725,7 @@ end
 function calcfstar!(fstar::Array{Float64,2}, ftrain::Array{Float64,2},
                     opt::OptionsNonstat, K_y::Array{Float64,2},
                     Kstar::Array{Float64, 2}, n::Int, dcvalue::Array{Float64})
-    if opt.demean && n>1
-        mf = mean(ftrain[:,1:n], dims=2)
-    else
-        if opt.sampledc
-            mf = dcvalue # from what is stored in model and passed to it
-        else
-            mf = opt.dcvalue # supplied by user or mid point of prior range by default
-        end
-    end
-    rhs = ftrain[:,1:n] .- mf
-    ky = view(K_y, 1:n, 1:n)
-    ks = @view Kstar[:,1:n]
-    if opt.peskycholesky
-        U = cholesky(Positive, ky, Val{false}).U
-    else
-        U = cholesky(ky).U
-    end
+    rhs, mf, U, ks = commoncalc(ftrain, opt, K_y, Kstar, n, dcvalue)
     copy!(fstar, mf' .+ ks*(U\(U'\rhs')) )
     nothing
 end
@@ -763,56 +753,6 @@ end
 
 function undo_birth!(m::ModelNonstat)
     m.n = m.n - 1
-    nothing
-end
-
-function death!(m::ModelNonstat, opt::OptionsNonstat)
-    xtrain, ftrain, K_y,  Kstar, n = m.xtrain, m.ftrain, m.K_y,  m.Kstar, m.n
-    ipoint = rand(1:n)
-    m.iremember = ipoint
-    copy!(m.xtrain_focus, xtrain[:,ipoint])
-    xtrain[:,ipoint], xtrain[:,n] = xtrain[:,n], xtrain[:,ipoint]
-    ftrain[:,ipoint], ftrain[:,n] = ftrain[:,n], ftrain[:,ipoint]
-    Kstar[:,ipoint], Kstar[:,n] = Kstar[:,n], Kstar[:,ipoint]
-    K_y[ipoint,1:n], K_y[n,1:n] = K_y[n,1:n], K_y[ipoint,1:n]
-    K_y[1:n-1,ipoint] = K_y[ipoint,1:n-1]
-    K_y[ipoint,ipoint] = 1.0 + opt.δ^2
-    calcfstar!(m.fstar, m.ftrain, opt, K_y, Kstar, n-1, m.dcvalue)
-    m.n = n-1
-    nothing
-end
-
-function undo_death!(m::ModelNonstat, opt::OptionsNonstat)
-    m.n = m.n + 1
-    ftrain, xtrain, Kstar, K_y, n, ipoint = m.ftrain, m.xtrain, m.Kstar, m.K_y, m.n, m.iremember
-    xtrain[:,ipoint], xtrain[:,n] = xtrain[:,n], xtrain[:,ipoint]
-    ftrain[:,ipoint], ftrain[:,n] = ftrain[:,n], ftrain[:,ipoint]
-    Kstar[:,ipoint], Kstar[:,n] = Kstar[:,n], Kstar[:,ipoint]
-    K_y[ipoint,1:n], K_y[n,1:n] = K_y[n,1:n], K_y[ipoint,1:n]
-    K_y[1:n,ipoint] = K_y[ipoint,1:n]
-    K_y[ipoint,ipoint] = 1.0 + opt.δ^2
-    K_y[n,n] = 1.0 + opt.δ^2
-end
-
-function property_change!(m::ModelNonstat, opt::OptionsNonstat)
-    ftrain, K_y, Kstar, n = m.ftrain, m.K_y, m. Kstar, m.n
-    ipoint = 1 + floor(Int, rand()*n)
-    m.iremember = ipoint
-    copy!(m.ftrain_old, ftrain[:,ipoint])
-    ftrain[:,ipoint] = ftrain[:,ipoint] + opt.sdev_prop.*randn(size(opt.fbounds, 1))
-    for i in eachindex(ftrain[:,ipoint])
-        while (ftrain[i,ipoint]<opt.fbounds[i,1]) || (ftrain[i,ipoint]>opt.fbounds[i,2])
-                (ftrain[i,ipoint]<opt.fbounds[i,1]) && (ftrain[i,ipoint] = 2*opt.fbounds[i,1] - ftrain[i,ipoint])
-                (ftrain[i,ipoint]>opt.fbounds[i,2]) && (ftrain[i,ipoint] = 2*opt.fbounds[i,2] - ftrain[i,ipoint])
-        end
-    end
-    calcfstar!(m.fstar, m.ftrain, opt, K_y, Kstar, n, m.dcvalue)
-    nothing
-end
-
-function undo_property_change!(m::ModelNonstat)
-    ipoint, ftrain = m.iremember, m.ftrain
-    ftrain[:,ipoint] = m.ftrain_old
     nothing
 end
 
