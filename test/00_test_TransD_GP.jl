@@ -96,7 +96,7 @@ fracthresh = 0.05
     @testset "undo birth" begin
         log10λold = deepcopy(log10λ)
         transD_GP.birth!(log10λ, optlog10λ, m, opt)
-        transD_GP.undo_birth!(log10λ, optlog10λ, m)
+        transD_GP.undo_birth!(log10λ, m)
         transD_GP.sync_model!(log10λ, optlog10λ)
         ftest = transD_GP.testupdate(optlog10λ, log10λ)
         transD_GP.sync_model!(m, opt)
@@ -111,7 +111,7 @@ fracthresh = 0.05
         transD_GP.birth!(log10λ, optlog10λ, m, opt)
         log10λold = deepcopy(log10λ)
         transD_GP.birth!(log10λ, optlog10λ, m, opt)
-        transD_GP.undo_birth!(log10λ,optlog10λ, m)
+        transD_GP.undo_birth!(log10λ, m)
         transD_GP.sync_model!(log10λ, optlog10λ)
         ftest = transD_GP.testupdate(optlog10λ, log10λ)
         transD_GP.sync_model!(m, opt)

@@ -85,7 +85,7 @@ opt = transD_GP.OptionsNonstat(optlog10λ,
     @testset "undo birth" begin
         log10λold = deepcopy(log10λ)
         transD_GP.birth!(log10λ, optlog10λ, m, opt)
-        transD_GP.undo_birth!(log10λ, optlog10λ, m)
+        transD_GP.undo_birth!(log10λ, m)
         transD_GP.sync_model!(log10λ, optlog10λ)
         ftest = transD_GP.testupdate(optlog10λ, log10λ)
         @test norm(mean(log10λold.fstar - log10λ.fstar)) < 1e-12
@@ -96,7 +96,7 @@ opt = transD_GP.OptionsNonstat(optlog10λ,
         transD_GP.birth!(log10λ, optlog10λ, m, opt)
         log10λold = deepcopy(log10λ)
         transD_GP.birth!(log10λ, optlog10λ, m, opt)
-        transD_GP.undo_birth!(log10λ, optlog10λ, m)
+        transD_GP.undo_birth!(log10λ, m)
         transD_GP.sync_model!(log10λ, optlog10λ)
         ftest = transD_GP.testupdate(optlog10λ, log10λ)
         @test norm(mean(ftest' - log10λ.fstar)) < 1e-12

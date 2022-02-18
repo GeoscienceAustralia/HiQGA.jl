@@ -483,8 +483,8 @@ function updatenskernels!(opt::OptionsStat, m::ModelStat, ipoint::Union{Int, Arr
     nothing
 end
 
-function birth!(m::ModelStat, opt::OptionsStat,
-                mns::ModelNonstat, optns::OptionsNonstat; doall=false)
+function birth!(m::ModelStat, opt::OptionsStat)
+    # stationary only
     xtrain, ftrain, K_y,  Kstar, n = m.xtrain, m.ftrain, m.K_y,  m.Kstar, m.n
     xtrain[:,n+1] = opt.xbounds[:,1] + diff(opt.xbounds, dims=2).*rand(size(opt.xbounds, 1))
     copy!(m.xtrain_focus, xtrain[:,n+1])
@@ -498,24 +498,33 @@ function birth!(m::ModelStat, opt::OptionsStat,
     K_y[n+1,n+1] = K_y[n+1,n+1] + opt.δ^2
     calcfstar!(m.fstar, m.ftrain, opt, K_y, Kstar, n+1, m.dcvalue)
     m.n = n+1
-    # updating the nonstationary kernels now
-    opt.updatenonstat && updatenskernels!(opt, m, n+1, optns, mns, doall=doall)
     nothing
 end
 
-function undo_birth!(m::ModelStat, opt::OptionsStat, mns::ModelNonstat)
+function birth!(m::ModelStat, opt::OptionsStat, mns::ModelNonstat, optns::OptionsNonstat; doall=false)
+    # stationary and nonstat together but for stat model update
+    birth!(m, opt)
+    # updating the nonstationary kernels now
+    opt.updatenonstat && updatenskernels!(opt, m, m.n, optns, mns, doall=doall)
+    nothing
+end
+
+function undo_birth!(m::ModelStat)
     m.n = m.n - 1
-    # updating the nonstationary kernels now
-    if opt.updatenonstat
-        copyto!(mns.K_y, CartesianIndices((mns.n, mns.n)), mns.K_y_old, CartesianIndices((mns.n, mns.n)))
-        copyto!(mns.Kstar, CartesianIndices((size(mns.Kstar_old, 1), mns.n)),
-                mns.Kstar_old, CartesianIndices((size(mns.Kstar_old, 1), mns.n)))
-    end
     nothing
 end
 
-function death!(m::ModelStat, opt::OptionsStat,
-                mns::ModelNonstat, optns::OptionsNonstat; doall=false)
+function undo_birth!(m::ModelStat, mns::ModelNonstat)
+    # stationary and nonstat together but for stat model update
+    undo_birth!(m)
+    # updating the nonstationary kernels now
+    copyto!(mns.K_y, CartesianIndices((mns.n, mns.n)), mns.K_y_old, CartesianIndices((mns.n, mns.n)))
+    copyto!(mns.Kstar, CartesianIndices((size(mns.Kstar_old, 1), mns.n)),
+                mns.Kstar_old, CartesianIndices((size(mns.Kstar_old, 1), mns.n)))
+    nothing
+end
+
+function death!(m::ModelStat, opt::OptionsStat)
     xtrain, ftrain, K_y,  Kstar, n = m.xtrain, m.ftrain, m.K_y,  m.Kstar, m.n
     ipoint = rand(1:n)
     m.iremember = ipoint
@@ -528,12 +537,19 @@ function death!(m::ModelStat, opt::OptionsStat,
     K_y[ipoint,ipoint] = 1.0 + opt.δ^2
     calcfstar!(m.fstar, m.ftrain, opt, K_y, Kstar, n-1, m.dcvalue)
     m.n = n-1
-    # updating the nonstationary kernels now
-    opt.updatenonstat && updatenskernels!(opt, m, n, optns, mns, doall=doall)
     nothing
 end
 
-function undo_death!(m::ModelStat, opt::OptionsStat, mns::ModelNonstat)
+function death!(m::ModelStat, opt::OptionsStat,
+                mns::ModelNonstat, optns::OptionsNonstat; doall=false)
+    # stationary and nonstat together but for stat model update            
+    death!(m, opt)
+    # updating the nonstationary kernels now
+    opt.updatenonstat && updatenskernels!(opt, m, m.n+1, optns, mns, doall=doall)
+    nothing
+end
+
+function undo_death!(m::ModelStat, opt::OptionsStat)
     m.n = m.n + 1
     ftrain, xtrain, Kstar, K_y, n, ipoint = m.ftrain, m.xtrain, m.Kstar, m.K_y, m.n, m.iremember
     xtrain[:,ipoint], xtrain[:,n] = xtrain[:,n], xtrain[:,ipoint]
@@ -543,17 +559,19 @@ function undo_death!(m::ModelStat, opt::OptionsStat, mns::ModelNonstat)
     K_y[1:n,ipoint] = K_y[ipoint,1:n]
     K_y[ipoint,ipoint] = 1.0 + opt.δ^2
     K_y[n,n] = 1.0 + opt.δ^2
-    # updating the nonstationary kernels now
-    if opt.updatenonstat
-        copyto!(mns.K_y, CartesianIndices((mns.n, mns.n)), mns.K_y_old, CartesianIndices((mns.n, mns.n)))
-        copyto!(mns.Kstar, CartesianIndices((size(mns.Kstar_old, 1), mns.n)),
-                mns.Kstar_old, CartesianIndices((size(mns.Kstar_old, 1), mns.n)))
-    end
     nothing
 end
 
-function property_change!(m::ModelStat, opt::OptionsStat,
-                          mns::ModelNonstat, optns::OptionsNonstat; doall=false)
+function undo_death!(m::ModelStat, opt::OptionsStat, mns::ModelNonstat)
+    undo_death!(m, opt)
+    # updating the nonstationary kernels now
+    copyto!(mns.K_y, CartesianIndices((mns.n, mns.n)), mns.K_y_old, CartesianIndices((mns.n, mns.n)))
+    copyto!(mns.Kstar, CartesianIndices((size(mns.Kstar_old, 1), mns.n)),
+            mns.Kstar_old, CartesianIndices((size(mns.Kstar_old, 1), mns.n)))
+    nothing
+end
+
+function property_change!(m::ModelStat, opt::OptionsStat)
     ftrain, K_y, Kstar, n = m.ftrain, m.K_y, m. Kstar, m.n
     ipoint = 1 + floor(Int, rand()*n)
     m.iremember = ipoint
@@ -566,25 +584,33 @@ function property_change!(m::ModelStat, opt::OptionsStat,
         end
     end
     calcfstar!(m.fstar, m.ftrain, opt, K_y, Kstar, n, m.dcvalue)
+    nothing
+end
+
+function property_change!(m::ModelStat, opt::OptionsStat,
+                          mns::ModelNonstat, optns::OptionsNonstat; doall=false)
+    property_change!(m, opt)
     # updating the nonstationary kernels now
-    opt.updatenonstat && updatenskernels!(opt, m, ipoint, optns, mns, doall=doall)
+    opt.updatenonstat && updatenskernels!(opt, m, m.iremember, optns, mns, doall=doall)
+    nothing
+end
+
+function undo_property_change!(m::ModelStat)
+    ipoint, ftrain = m.iremember, m.ftrain
+    ftrain[:,ipoint] = m.ftrain_old
     nothing
 end
 
 function undo_property_change!(m::ModelStat, opt::OptionsStat, mns::ModelNonstat)
-    ipoint, ftrain = m.iremember, m.ftrain
-    ftrain[:,ipoint] = m.ftrain_old
+    undo_property_change!(m)
     # updating the nonstationary kernels now
-    if opt.updatenonstat
-        copyto!(mns.K_y, CartesianIndices((mns.n, mns.n)), mns.K_y_old, CartesianIndices((mns.n, mns.n)))
-        copyto!(mns.Kstar, CartesianIndices((size(mns.Kstar_old, 1), mns.n)),
-                mns.Kstar_old, CartesianIndices((size(mns.Kstar_old, 1), mns.n)))
-    end
+    copyto!(mns.K_y, CartesianIndices((mns.n, mns.n)), mns.K_y_old, CartesianIndices((mns.n, mns.n)))
+    copyto!(mns.Kstar, CartesianIndices((size(mns.Kstar_old, 1), mns.n)),
+            mns.Kstar_old, CartesianIndices((size(mns.Kstar_old, 1), mns.n)))
     nothing
 end
 
-function position_change!(m::ModelStat, opt::OptionsStat,
-                          mns::ModelNonstat, optns::OptionsNonstat; doall=false)
+function position_change!(m::ModelStat, opt::OptionsStat)
     xtrain, ftrain, K_y, Kstar, n = m.xtrain, m.ftrain, m.K_y, m.Kstar, m.n
     ipoint = 1 + floor(Int, rand()*n)
     m.iremember = ipoint
@@ -605,12 +631,18 @@ function position_change!(m::ModelStat, opt::OptionsStat,
     K_y[1:n,ipoint] = K_y[ipoint,1:n]
     K_y[ipoint,ipoint] = K_y[ipoint,ipoint] + opt.δ^2
     calcfstar!(m.fstar, m.ftrain, opt, K_y, Kstar, n, m.dcvalue)
-    # updating the nonstationary kernels now
-    opt.updatenonstat && updatenskernels!(opt, m, ipoint, optns, mns, doall=doall, isposchange=true)
     nothing
 end
 
-function undo_position_change!(m::ModelStat, opt::OptionsStat, mns::ModelNonstat)
+function position_change!(m::ModelStat, opt::OptionsStat,
+                          mns::ModelNonstat, optns::OptionsNonstat; doall=false)
+    position_change!(m, opt)
+    # updating the nonstationary kernels now
+    opt.updatenonstat && updatenskernels!(opt, m, m.iremember, optns, mns, doall=doall, isposchange=true)
+    nothing
+end
+
+function undo_position_change!(m::ModelStat, opt::OptionsStat)
     xtrain, K_y, Kstar, n = m.xtrain, m.K_y, m.Kstar, m.n
     ipoint = m.iremember
     xtrain[:,ipoint] = m.xtrain_old
@@ -621,12 +653,15 @@ function undo_position_change!(m::ModelStat, opt::OptionsStat, mns::ModelNonstat
     map!(x->GP.κ(opt.K, x),K_yv,colwise(WeightedEuclidean(1 ./opt.λ² ), xtrain[:,ipoint], xtrain[:,1:n]))
     K_y[1:n,ipoint] = K_y[ipoint,1:n]
     K_y[ipoint,ipoint] = K_y[ipoint,ipoint] + opt.δ^2
+    nothing
+end
+
+function undo_position_change!(m::ModelStat, opt::OptionsStat, mns::ModelNonstat)
+    undo_position_change!(m, opt)
     # updating the nonstationary kernels now
-    if opt.updatenonstat
-        copyto!(mns.K_y, CartesianIndices((mns.n, mns.n)), mns.K_y_old, CartesianIndices((mns.n, mns.n)))
-        copyto!(mns.Kstar, CartesianIndices((size(mns.Kstar_old, 1), mns.n)),
-                mns.Kstar_old, CartesianIndices((size(mns.Kstar_old, 1), mns.n)))
-    end
+    copyto!(mns.K_y, CartesianIndices((mns.n, mns.n)), mns.K_y_old, CartesianIndices((mns.n, mns.n)))
+    copyto!(mns.Kstar, CartesianIndices((size(mns.Kstar_old, 1), mns.n)),
+            mns.Kstar_old, CartesianIndices((size(mns.Kstar_old, 1), mns.n)))
     nothing
 end
 
