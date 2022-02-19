@@ -392,8 +392,7 @@ function init(opt::OptionsNuisance)
     return ModelNuisance(nuisance, copy(nuisance))
 end
 
-function commoncalc(ftrain::Array{Float64,2}, opt::Options, K_y::Array{Float64,2},
-    Kstar::Array{Float64, 2}, n::Int, dcvalue::Array{Float64})
+function getmean(opt, n, ftrain, dcvalue)
     if opt.demean && n>1
         mf = mean(ftrain[:,1:n], dims=2)
     else
@@ -403,6 +402,12 @@ function commoncalc(ftrain::Array{Float64,2}, opt::Options, K_y::Array{Float64,2
             mf = opt.dcvalue # supplied by user or mid point of prior range by default
         end
     end
+    mf
+end    
+
+function commoncalc(ftrain::Array{Float64,2}, opt::Options, K_y::Array{Float64,2},
+    Kstar::Array{Float64, 2}, n::Int, dcvalue::Array{Float64})
+    mf = getmean(opt, n, ftrain, dcvalue)
     rhs = ftrain[:,1:n] .- mf
     ky = @view K_y[1:n,1:n]
     if opt.peskycholesky
@@ -810,17 +815,19 @@ end
 
 function testupdate(optns::OptionsNonstat, l::ModelStat, mns::ModelNonstat)
     λ² = l.fstar
+    mf = getmean(optns, mns.n, mns.ftrain, mns.dcvalue)
     idxs = gettrainidx(optns.kdtree, mns.xtrain, mns.n)
     ftest, = GP.GPfit(optns.K, mns.ftrain[:,1:mns.n], mns.xtrain[:,1:mns.n],
             optns.xall, λ², λ²[:,idxs], optns.δ, p=2, demean=optns.demean, nogetvars=true,
-            my=mean(optns.fbounds, dims=2))
+            my=mf)
     return ftest
 end
 
 function testupdate(opt::OptionsStat, m::ModelStat)
+    mf = getmean(opt, m.n, m.ftrain, m.dcvalue)
     ftest, = GP.GPfit(opt.K, m.ftrain[:,1:m.n], m.xtrain[:,1:m.n],
             opt.xall, opt.λ², opt.δ, nogetvars=true, demean=opt.demean, p=2,
-            my=mean(opt.fbounds, dims=2))
+            my=mf)
     return ftest
 end
 
