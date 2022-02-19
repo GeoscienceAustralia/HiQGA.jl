@@ -62,91 +62,52 @@ function Chain(chainprocs::Array{Int, 1};
     chains
 end
 
-function mh_step!(mns::ModelNonstat, m::ModelStat, mn::ModelNuisance,
-    F::Operator, optns::OptionsNonstat, stat::Stats,
-    Temp::Float64, movetype::Int, current_misfit::Array{Float64, 1})
-
-    if optns.quasimultid
-        if opt.updatenuisances
-            new_misfit = get_misfit(mns, mn, optns, movetype, F)
-        else
-            new_misfit = get_misfit(mns, optns, movetype, F)
-        end
-    else
-        if optns.updatenuisances
-            new_misfit = get_misfit(mns, mn, optns, F)
-        else
-            new_misfit = get_misfit(mns, optns, F)
-        end
-    end
+function accept(current_misfit, new_misfit, stat, Temp, movetype) 
     logalpha = (current_misfit[1] - new_misfit)/Temp
+    accepted = true
     if log(rand()) < logalpha
         current_misfit[1] = new_misfit
         stat.accepted_moves[movetype] += 1
     else
-        undo_move!(movetype, mns, optns, m)
+        accepted = false
     end
+    accepted
+end
+
+function mh_step!(m::ModelStat, mn::ModelNuisance,
+    F::Operator, opt::OptionsStat, stat::Stats,
+    Temp::Float64, movetype::Int, current_misfit::Array{Float64, 1})
+    # for purely stat move and nuisance
+    new_misfit = get_misfit(m, mn, opt, F)
+    accepted = accept(current_misfit, new_misfit, stat, Temp, movetype)
+    !accepted && undo_move!(movetype, m, opt)
+end
+
+function mh_step!(mns::ModelNonstat, m::ModelStat, mn::ModelNuisance,
+    F::Operator, optns::OptionsNonstat, stat::Stats,
+    Temp::Float64, movetype::Int, current_misfit::Array{Float64, 1})
+    # for nonstat move and nuisance
+    new_misfit = get_misfit(mns, mn, optns, F)
+    accepted = accept(current_misfit, new_misfit, stat, Temp, movetype)
+    !accepted && undo_move!(movetype, mns, optns, m)
 end
 
 function mh_step!(m::ModelStat, mns::ModelNonstat, mn::ModelNuisance,
     F::Operator, opt::OptionsStat, optns::OptionsNonstat,
     stat::Stats, Temp::Float64, movetype::Int, current_misfit::Array{Float64, 1})
-
-    if opt.quasimultid
-        if opt.updatenonstat
-            if opt.updatenuisances
-                new_misfit = get_misfit(mns, mn, opt, movetype, F)
-            else
-                new_misfit = get_misfit(mns, opt, movetype, F)
-            end
-        else
-            if opt.updatenuisances
-                new_misfit = get_misfit(m, mn, opt, movetype, F)
-            else
-                new_misfit = get_misfit(m, opt, movetype, F)
-            end
-        end
-    else
-        if opt.updatenonstat
-            if opt.updatenuisances
-                new_misfit = get_misfit(mns, mn, opt, F)
-            else
-                new_misfit = get_misfit(mns, opt, F)
-            end
-        else
-            if opt.updatenuisances
-                new_misfit = get_misfit(m, mn, opt, F)
-            else
-                new_misfit = get_misfit(m, opt, F)
-            end
-        end
-    end
-    logalpha = (current_misfit[1] - new_misfit)/Temp
-    if log(rand()) < logalpha
-        current_misfit[1] = new_misfit
-        stat.accepted_moves[movetype] += 1
-    else
-        undo_move!(movetype, m, opt, mns, optns)
-    end
+    # for stat move updating nonstat and nuisance
+    new_misfit = get_misfit(mns, mn, opt, F)
+    accepted = accept(current_misfit, new_misfit, stat, Temp, movetype)
+    !accepted && undo_move!(movetype, m, opt, mns, optns)
 end
 
-#this only gets called for moves on the nuisance chain
-function mh_step!(mn::ModelNuisance, m::ModelStat, mns::ModelNonstat, F::Operator,
+function mh_step!(mn::ModelNuisance, m::Model, F::Operator,
     optn::OptionsNuisance, statn::Stats,
     Temp::Float64, movetype::Int, current_misfit::Array{Float64,1})
-    if optn.updatenonstat
-        new_misfit = get_misfit(mns, mn, optn, F)
-    else
-        new_misfit = get_misfit(m, mn, optn, F)
-    end
-
-    logalpha = (current_misfit[1] - new_misfit)/Temp
-    if log(rand()) < logalpha
-        current_misfit[1] = new_misfit
-        statn.accepted_moves[movetype] += 1
-    else
-        undo_move!(mn)
-    end
+    # this only gets called for moves on the nuisance chain
+    new_misfit = get_misfit(m, mn, optn, F)
+    accepted = accept(current_misfit, new_misfit, stat, Temp, movetype)
+    !accepted && undo_move!(mn)
 end
 
 function do_mcmc_step(m::ModelStat, mns::ModelNonstat, mn::ModelNuisance,
