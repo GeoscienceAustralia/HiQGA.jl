@@ -832,6 +832,7 @@ function testupdate(opt::OptionsStat, m::ModelStat)
 end
 
 function do_move!(mns::ModelNonstat, m::ModelStat, optns::OptionsNonstat, statns::Stats)
+    # purely nonstationary GP moves
     cumprob = [0.20, 0.40, 0.60, 0.8] # if sampledc and 5 total noves
     if !optns.sampledc
         cumprob +=  [0.05, 0.10, 0.15, 0.2] # add these if no sampledc, 4 total moves
@@ -867,6 +868,7 @@ function do_move!(mns::ModelNonstat, m::ModelStat, optns::OptionsNonstat, statns
 end
 
 function undo_move!(movetype::Int, mns::ModelNonstat, optns::OptionsNonstat, m::ModelStat)
+    # purely nonstationary GP moves
     if movetype == 1
         undo_birth!(mns)
     elseif movetype == 2
@@ -884,6 +886,7 @@ end
 
 function do_move!(m::ModelStat, opt::OptionsStat, stat::Stats,
                   mns::ModelNonstat, optns::OptionsNonstat)
+    # Stationary GP changes which update nonstationary GP              
     cumprob = [0.20, 0.40, 0.60, 0.8] # if sampledc and 5 total noves
     if !opt.sampledc
         cumprob +=  [0.05, 0.10, 0.15, 0.2] # add these if no sampledc, 4 total moves
@@ -920,14 +923,69 @@ end
 
 function undo_move!(movetype::Int, m::ModelStat, opt::OptionsStat,
                     mns::ModelNonstat, optns::OptionsNonstat)
+    # Stationary GP changes which update nonstationary GP           
     if movetype == 1
-        undo_birth!(m, opt, mns)
+        undo_birth!(m, mns)
     elseif movetype == 2
         undo_death!(m, opt, mns)
     elseif movetype == 3
         undo_position_change!(m, opt, mns)
     elseif movetype == 4
-        undo_property_change!(m, opt, mns)
+        undo_property_change!(m, mns)
+    else
+        undo_dc_change!(m)
+    end
+    sync_model!(m, opt)
+    opt.updatenonstat && sync_model!(mns, optns)
+    nothing
+end
+
+function do_move!(m::ModelStat, opt::OptionsStat, stat::Stats)
+    # purely stationary GP moves
+    cumprob = [0.20, 0.40, 0.60, 0.8] # if sampledc and 5 total noves
+    if !opt.sampledc
+        cumprob +=  [0.05, 0.10, 0.15, 0.2] # add these if no sampledc, 4 total moves
+    end
+    unifrand = rand()
+    movetype, priorviolate = 0, false
+    if unifrand<cumprob[1]
+        if m.n<opt.nmax
+            birth!(m, opt)
+        else
+            priorviolate = true
+        end
+        movetype = 1
+    elseif unifrand<cumprob[2]
+        if m.n>opt.nmin
+            death!(m, opt)
+        else
+            priorviolate = true
+        end
+        movetype = 2
+    elseif unifrand<cumprob[3]
+        position_change!(m, opt)
+        movetype = 3
+    elseif unifrand<cumprob[4]
+        property_change!(m, opt)
+        movetype = 4
+    else
+        dc_change!(m, opt)
+        movetype = 5
+    end
+    stat.move_tries[movetype] += 1
+    return movetype, priorviolate
+end
+
+function undo_move!(movetype::Int, m::ModelStat, opt::OptionsStat)
+    # purely stationary GP moves
+    if movetype == 1
+        undo_birth!(m)
+    elseif movetype == 2
+        undo_death!(m, opt)
+    elseif movetype == 3
+        undo_position_change!(m, opt)
+    elseif movetype == 4
+        undo_property_change!(m)
     else
         undo_dc_change!(m)
     end
