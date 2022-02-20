@@ -105,112 +105,207 @@ function mh_step!(mn::ModelNuisance, m::Model, F::Operator,
     optn::OptionsNuisance, statn::Stats,
     Temp::Float64, movetype::Int, current_misfit::Array{Float64,1})
     # this only gets called for moves on the nuisance chain
+    # can be either nonstat or stat
     new_misfit = get_misfit(m, mn, optn, F)
-    accepted = accept(current_misfit, new_misfit, stat, Temp, movetype)
+    accepted = accept(current_misfit, new_misfit, statn, Temp, movetype)
     !accepted && undo_move!(mn)
 end
 
+function mh_step!(m::ModelStat, F::Operator, opt::OptionsStat, stat::Stats,
+    Temp::Float64, movetype::Int, current_misfit::Array{Float64, 1})
+    # for purely stat move
+    new_misfit = get_misfit(m, opt, F)
+    accepted = accept(current_misfit, new_misfit, stat, Temp, movetype)
+    !accepted && undo_move!(movetype, m, opt)
+end
+
+function mh_step!(mns::ModelNonstat, m::ModelStat, 
+    F::Operator, optns::OptionsNonstat, statns::Stats,
+    Temp::Float64, movetype::Int, current_misfit::Array{Float64, 1})
+    # for purely nonstat move 
+    new_misfit = get_misfit(mns, optns, F)
+    accepted = accept(current_misfit, new_misfit, statns, Temp, movetype)
+    !accepted && undo_move!(movetype, mns, optns, m)
+end
+
+function mh_step!(m::ModelStat, mns::ModelNonstat,
+    F::Operator, opt::OptionsStat, optns::OptionsNonstat,
+    stat::Stats, Temp::Float64, movetype::Int, current_misfit::Array{Float64, 1})
+    # for stat move updating nonstat
+    new_misfit = get_misfit(mns, mn, opt, F)
+    accepted = accept(current_misfit, new_misfit, stat, Temp, movetype)
+    !accepted && undo_move!(movetype, m, opt, mns, optns)
+end
+
 function do_mcmc_step(m::ModelStat, mns::ModelNonstat, mn::ModelNuisance,
-    opt::OptionsStat, optns::OptionsNonstat,
-    stat::Stats,
+    opt::OptionsStat, optns::OptionsNonstat, stat::Stats,
     current_misfit::Array{Float64, 1}, F::Operator,
     Temp::Float64, isample::Int, wp::Writepointers)
-
-    # select move and do it
+    # Stationary GP changes which update nonstationary GP + nuisance
     movetype, priorviolate = do_move!(m, opt, stat, mns, optns)
-
     if !priorviolate
         mh_step!(m, mns, mn, F, opt, optns, stat, Temp, movetype, current_misfit)
     end
-
-    # acceptance stats
     get_acceptance_stats!(isample, opt, stat)
-
-    # write models
     writemodel = false
     abs(Temp-1.0) < 1e-12 && (writemodel = true)
     write_history(isample, opt, m, current_misfit[1], stat, wp, Temp, writemodel)
-
     return current_misfit[1]
 end
 
 function do_mcmc_step(m::DArray{ModelStat}, mns::DArray{ModelNonstat},
-    mn::DArray{ModelNuisance},
-    opt::DArray{OptionsStat}, optns::DArray{OptionsNonstat},
-    stat::DArray{Stats}, current_misfit::DArray{Array{Float64, 1}},
-    F::DArray{x}, Temp::Float64, isample::Int,
-    wp::DArray{Writepointers}) where x<:Operator
-
+    mn::DArray{ModelNuisance}, opt::DArray{OptionsStat}, 
+    optns::DArray{OptionsNonstat}, stat::DArray{Stats}, 
+    current_misfit::DArray{Array{Float64, 1}}, F::DArray{x}, Temp::Float64, 
+    isample::Int, wp::DArray{Writepointers}) where x<:Operator
     misfit = do_mcmc_step(localpart(m)[1], localpart(mns)[1], localpart(mn)[1],
-        localpart(opt)[1], localpart(optns)[1],
-        localpart(stat)[1], localpart(current_misfit)[1], localpart(F)[1],
-                            Temp, isample, localpart(wp)[1])
-
+        localpart(opt)[1], localpart(optns)[1], localpart(stat)[1], 
+        localpart(current_misfit)[1], localpart(F)[1],
+        Temp, isample, localpart(wp)[1])
 end
 
 function do_mcmc_step(mns::ModelNonstat, m::ModelStat, mn::ModelNuisance,
-    optns::OptionsNonstat, statns::Stats,
-    current_misfit::Array{Float64, 1}, F::Operator,
-    Temp::Float64, isample::Int, wp::Writepointers)
-
-    # select move and do it
+    optns::OptionsNonstat, statns::Stats, current_misfit::Array{Float64, 1},
+    F::Operator, Temp::Float64, isample::Int, wp::Writepointers)
+    # purely nonstationary GP moves + nuisance
     movetype, priorviolate = do_move!(mns, m, optns, statns)
-
     if !priorviolate
         mh_step!(mns, m, mn, F, optns, statns, Temp, movetype, current_misfit)
     end
-
-    # acceptance stats
     get_acceptance_stats!(isample, optns, statns)
-
-    # write models
     writemodel = false
     abs(Temp-1.0) < 1e-12 && (writemodel = true)
     write_history(isample, optns, mns, current_misfit[1], statns, wp, Temp, writemodel)
-
     return current_misfit[1]
 end
 
 function do_mcmc_step(mns::DArray{ModelNonstat}, m::DArray{ModelStat},
-    mn::DArray{ModelNuisance},
-    optns::DArray{OptionsNonstat}, statns::DArray{Stats},
-    current_misfit::DArray{Array{Float64, 1}},
-    F::DArray{x}, Temp::Float64, isample::Int,
-    wpns::DArray{Writepointers}) where x<:Operator
-
+    mn::DArray{ModelNuisance}, optns::DArray{OptionsNonstat}, statns::DArray{Stats},
+    current_misfit::DArray{Array{Float64, 1}}, F::DArray{x}, Temp::Float64, 
+    isample::Int, wpns::DArray{Writepointers}) where x<:Operator
     misfit = do_mcmc_step(localpart(mns)[1], localpart(m)[1], localpart(mn)[1],
-                          localpart(optns)[1], localpart(statns)[1],
-                          localpart(current_misfit)[1], localpart(F)[1],
-                            Temp, isample, localpart(wpns)[1])
-
+        localpart(optns)[1], localpart(statns)[1],localpart(current_misfit)[1], 
+        localpart(F)[1], Temp, isample, localpart(wpns)[1])
 end
 
-function do_mcmc_step(mn::ModelNuisance, m::ModelStat, mns::ModelNonstat,
-    optn::OptionsNuisance, statn::Stats, current_misfit::Array{Float64,1},
-    F::Operator, Temp::Float64, isample::Int, wpn::Writepointers_nuisance)
-
-    movetype = do_move!(mn, optn, statn)
-
-    mh_step!(mn, m, mns, F, optn, statn, Temp, movetype, current_misfit)
-
-    get_acceptance_stats!(isample, optn, statn)
-
+function do_mcmc_step(m::ModelStat, mn::ModelNuisance,
+    opt::OptionsStat, stat::Stats, current_misfit::Array{Float64, 1},
+    F::Operator, Temp::Float64, isample::Int, wp::Writepointers)
+    # purely stationary GP moves + nuisance
+    movetype, priorviolate = do_move!(m, opt, stat)
+    if !priorviolate
+        mh_step!(m, mn, F, opt, stat, Temp, movetype, current_misfit)
+    end
+    get_acceptance_stats!(isample, optns, statns)
     writemodel = false
-    abs(Temp - 1.0) < 1e-12 && (writemodel = true)
-    write_history(isample, optn, mn, current_misfit[1], statn, wpn, Temp, writemodel)
-
+    abs(Temp-1.0) < 1e-12 && (writemodel = true)
+    write_history(isample, optns, mns, current_misfit[1], statns, wp, Temp, writemodel)
     return current_misfit[1]
 end
 
-function do_mcmc_step(mn::DArray{ModelNuisance}, m::DArray{ModelStat},
-    mns::DArray{ModelNonstat}, optn::DArray{OptionsNuisance}, statn::DArray{Stats},
+function do_mcmc_step(m::DArray{ModelStat}, mn::DArray{ModelNuisance}, 
+    opt::DArray{OptionsStat}, stat::DArray{Stats},
+    current_misfit::DArray{Array{Float64, 1}}, F::DArray{x}, Temp::Float64, 
+    isample::Int, wp::DArray{Writepointers}) where x<:Operator
+    misfit = do_mcmc_step(localpart(m)[1], localpart(mn)[1],
+        localpart(opt)[1], localpart(stat)[1],localpart(current_misfit)[1], 
+        localpart(F)[1], Temp, isample, localpart(wp)[1])
+end
+
+function do_mcmc_step(mn::ModelNuisance, m::Model,
+    optn::OptionsNuisance, statn::Stats, current_misfit::Array{Float64,1},
+    F::Operator, Temp::Float64, isample::Int, wpn::Writepointers_nuisance)
+    # this only gets called for moves on the nuisance chain
+    # can be either nonstat or stat model
+    movetype = do_move!(mn, optn, statn)
+    mh_step!(mn, m, F, optn, statn, Temp, movetype, current_misfit)
+    get_acceptance_stats!(isample, optn, statn)
+    writemodel = false
+    abs(Temp - 1.0) < 1e-12 && (writemodel = true)
+    write_history(isample, optn, mn, current_misfit[1], statn, wpn, Temp, writemodel)
+    return current_misfit[1]
+end
+
+function do_mcmc_step(mn::DArray{ModelNuisance}, m::DArray{S}, 
+    optn::DArray{OptionsNuisance}, statn::DArray{Stats},
     current_misfit::DArray{Array{Float64, 1}},
     F::DArray{x}, Temp::Float64, isample::Int,
-    wpn::DArray{Writepointers_nuisance}) where x<:Operator
-
-    misfit = do_mcmc_step(localpart(mn)[1], localpart(m)[1], localpart(mns)[1],
+    wpn::DArray{Writepointers_nuisance}) where {x<:Operator, S<:Model}
+    misfit = do_mcmc_step(localpart(mn)[1], localpart(m)[1], 
             localpart(optn)[1], localpart(statn)[1], localpart(current_misfit)[1],
             localpart(F)[1], localpart(Temp)[1], localpart(isample)[1], localpart(wpn)[1])
+end
+
+function do_mcmc_step(m::ModelStat, mns::ModelNonstat, 
+    opt::OptionsStat, optns::OptionsNonstat, stat::Stats,
+    current_misfit::Array{Float64, 1}, F::Operator,
+    Temp::Float64, isample::Int, wp::Writepointers)
+    # Stationary GP changes which update nonstationary GP
+    movetype, priorviolate = do_move!(m, opt, stat, mns, optns)
+    if !priorviolate
+        mh_step!(m, mns, F, opt, optns, stat, Temp, movetype, current_misfit)
+    end
+    get_acceptance_stats!(isample, opt, stat)
+    writemodel = false
+    abs(Temp-1.0) < 1e-12 && (writemodel = true)
+    write_history(isample, opt, m, current_misfit[1], stat, wp, Temp, writemodel)
+    return current_misfit[1]
+end
+
+function do_mcmc_step(m::DArray{ModelStat}, mn::DArray{ModelNuisance}, opt::DArray{OptionsStat}, 
+    optns::DArray{OptionsNonstat}, stat::DArray{Stats}, 
+    current_misfit::DArray{Array{Float64, 1}}, F::DArray{x}, Temp::Float64, 
+    isample::Int, wp::DArray{Writepointers}) where x<:Operator
+    misfit = do_mcmc_step(localpart(m)[1], localpart(mn)[1],
+        localpart(opt)[1], localpart(optns)[1], localpart(stat)[1], 
+        localpart(current_misfit)[1], localpart(F)[1],
+        Temp, isample, localpart(wp)[1])
+end
+
+function do_mcmc_step(mns::ModelNonstat, m::ModelStat, 
+    optns::OptionsNonstat, statns::Stats, current_misfit::Array{Float64, 1},
+    F::Operator, Temp::Float64, isample::Int, wpns::Writepointers)
+    # purely nonstationary GP moves 
+    movetype, priorviolate = do_move!(mns, m, optns, statns)
+    if !priorviolate
+        mh_step!(mns, m, F, optns, statns, Temp, movetype, current_misfit)
+    end
+    get_acceptance_stats!(isample, optns, statns)
+    writemodel = false
+    abs(Temp-1.0) < 1e-12 && (writemodel = true)
+    write_history(isample, optns, mns, current_misfit[1], statns, wpns, Temp, writemodel)
+    return current_misfit[1]
+end
+
+function do_mcmc_step(mns::DArray{ModelNonstat}, m::DArray{ModelStat},
+    optns::DArray{OptionsNonstat}, statns::DArray{Stats},
+    current_misfit::DArray{Array{Float64, 1}}, F::DArray{x}, Temp::Float64, 
+    isample::Int, wpns::DArray{Writepointers}) where x<:Operator
+    misfit = do_mcmc_step(localpart(mns)[1], localpart(m)[1], 
+        localpart(optns)[1], localpart(statns)[1],localpart(current_misfit)[1], 
+        localpart(F)[1], Temp, isample, localpart(wpns)[1])
+end
+
+function do_mcmc_step(m::ModelStat, opt::OptionsStat, stat::Stats, current_misfit::Array{Float64, 1},
+    F::Operator, Temp::Float64, isample::Int, wp::Writepointers)
+    # purely stationary GP moves
+    movetype, priorviolate = do_move!(m, opt, stat)
+    if !priorviolate
+        mh_step!(m, F, opt, stat, Temp, movetype, current_misfit)
+    end
+    get_acceptance_stats!(isample, opt, stat)
+    writemodel = false
+    abs(Temp-1.0) < 1e-12 && (writemodel = true)
+    write_history(isample, opt, m, current_misfit[1], stat, wp, Temp, writemodel)
+    return current_misfit[1]
+end
+
+function do_mcmc_step(m::DArray{ModelStat}, opt::DArray{OptionsStat}, stat::DArray{Stats},
+    current_misfit::DArray{Array{Float64, 1}}, F::DArray{x}, Temp::Float64, 
+    isample::Int, wp::DArray{Writepointers}) where x<:Operator
+    misfit = do_mcmc_step(localpart(m)[1], localpart(opt)[1], 
+        localpart(stat)[1],localpart(current_misfit)[1], 
+        localpart(F)[1], Temp, isample, localpart(wp)[1])
 end
 
 function close_history(wp::DArray)
