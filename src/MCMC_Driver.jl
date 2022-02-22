@@ -417,7 +417,7 @@ function domcmciters(iterlast, nsamples, chains, mns::ModelNonstat, m::ModelStat
                                             current_misfit, F,
                                             chain.T, isample, wp)
         end
-        disptime(isample, t2, iterlast, nsamples)
+        t2 = disptime(isample, t2, iterlast, nsamples)
     end
 end
 
@@ -514,7 +514,7 @@ function domcmciters(iterlast, nsamples, chains, mns::DArray{ModelNonstat}, m::D
                                             current_misfit, F,
                                             chain.T, isample, wp)
         end
-        disptime(isample, t2, iterlast, nsamples)
+        t2 = disptime(isample, t2, iterlast, nsamples)
     end
 end
 
@@ -622,7 +622,7 @@ function domcmciters(iterlast, nsamples, chains, m::ModelStat, mn::ModelNuisance
                                             current_misfit, F,
                                             chain.T, isample, wp)
         end
-        disptime(isample, t2, iterlast, nsamples)
+        t2 = disptime(isample, t2, iterlast, nsamples)
     end
 end
 
@@ -697,7 +697,7 @@ function domcmciters(iterlast, nsamples, chains, m::DArray{ModelStat},
                                             current_misfit, F,
                                             chain.T, isample, wp)
         end
-        disptime(isample, t2, iterlast, nsamples)
+        t2 = disptime(isample, t2, iterlast, nsamples)
     end
 end
 
@@ -754,6 +754,7 @@ function disptime(isample, t2, iterlast, nsamples)
         t2 = time()
         @info("**$dt**sec** $isample out of $(iterlast+nsamples)")
     end
+    t2
 end
 
 # maybe split this off into a different include file
