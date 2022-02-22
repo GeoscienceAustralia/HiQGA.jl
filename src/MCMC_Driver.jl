@@ -13,13 +13,6 @@ mutable struct Chain
     misfit        :: Float64
 end
 
-function Chain(nchains::Int;
-               Tmax          = 2.5,
-               nchainsatone  = 1,
-              )
-    Chains(workers(), Tmax=Tmax, nchainsatone=nchainsatone)
-end
-
 function Chain(chainprocs::Array{Int, 1};
                Tmax          = 2.5,
                nchainsatone  = 1)
@@ -307,21 +300,21 @@ function makewritefilenames(opt_in)
     costs_filename, fstar_filename, x_ftrain_filename, nu_filename
 end
 
-function makestatfilenames(opt_in::OptionsStat)
-    costs_filename, fstar_filename, x_ftrain_filename, = makewritefilenames(opt)
+function makestatfilenames(opt_in::OptionsStat, idx)
+    costs_filename, fstar_filename, x_ftrain_filename, = makewritefilenames(opt_in)
     opt_in.costs_filename      = costs_filename*"s_$idx.bin"
     opt_in.fstar_filename      = fstar_filename*"s_$idx.bin"
     opt_in.x_ftrain_filename   = x_ftrain_filename*"s_$idx.bin"
 end    
 
-function makenonstatfilenames(optns_in::OptionsNonstat)
+function makenonstatfilenames(optns_in::OptionsNonstat, idx)
     costs_filename, fstar_filename, x_ftrain_filename, = makewritefilenames(opt)
     optns_in.costs_filename    = costs_filename*"ns_$idx.bin"
     optns_in.fstar_filename    = fstar_filename*"ns_$idx.bin"
     optns_in.x_ftrain_filename = x_ftrain_filename*"ns_$idx.bin"
 end
 
-function makenuisancefilenames(optn_in::OptionsNuisance)
+function makenuisancefilenames(optn_in::OptionsNuisance, idx)
     costs_filename, fstar_filename, x_ftrain_filename, nu_filename = makewritefilenames(opt)
     optn_in.costs_filename     = costs_filename*"nuisance_$idx.bin"
     optn_in.vals_filename      = nu_filename*"$idx.bin"
@@ -341,9 +334,9 @@ function init_chain_darrays(opt_in::OptionsStat,
     iterlast = 0
     @sync for(idx, chain) in enumerate(chains)
 
-        makestatfilenames(opt_in)
-        makenonstatfilenames(optns_in)
-        makenuisancefilenames(optn_in)
+        makestatfilenames(opt_in, idx)
+        makenonstatfilenames(optns_in, idx)
+        makenuisancefilenames(optn_in, idx)
 
         opt_[idx]            = @spawnat chain.pid [opt_in]
         optns_[idx]          = @spawnat chain.pid [optns_in]
@@ -367,6 +360,7 @@ function init_chain_darrays(opt_in::OptionsStat,
                                 fetch(mn_[idx])[1],
                                 fetch(optns_[idx])[1],
                                 fetch(F_in_[idx])[1]) ]]
+    end
 
     m, mns, mn, opt, optns, optn, stat, statns, statn, F,
     current_misfit, wp, wpns, wpn = map(x -> DArray(x), (m_, mns_, mn_, opt_, optns_, optn_,
@@ -377,8 +371,8 @@ function init_chain_darrays(opt_in::OptionsStat,
             wp, wpns, wpn, iterlast
 end
 
-function domcmciters(iterlast, nsamples, chains, mns::ModelNonStat, m::ModelStat, 
-            mn::ModelNuisance, optns::OptionsNonStat, opt::OptionsStat,
+function domcmciters(iterlast, nsamples, chains, mns::ModelNonstat, m::ModelStat, 
+            mn::ModelNuisance, optns::OptionsNonstat, opt::OptionsStat,
             optn::OptionsNuisance, statns, stat, statn, current_misfit, F, wpns, wp, wpn)
     # for nonstat, stat, and nuisances all together         
     
@@ -448,8 +442,8 @@ function init_chain_darrays(opt_in::OptionsStat,
     iterlast = 0
     @sync for(idx, chain) in enumerate(chains)
 
-        makestatfilenames(opt_in)
-        makenonstatfilenames(optns_in)
+        makestatfilenames(opt_in, idx)
+        makenonstatfilenames(optns_in, idx)
 
         opt_[idx]            = @spawnat chain.pid [opt_in]
         optns_[idx]          = @spawnat chain.pid [optns_in]
@@ -468,7 +462,8 @@ function init_chain_darrays(opt_in::OptionsStat,
         current_misfit_[idx] = @spawnat chain.pid [[ get_misfit(fetch(mns_[idx])[1],
                                 fetch(optns_[idx])[1],
                                 fetch(F_in_[idx])[1]) ]]
-
+    end
+    
     m, mns, opt, optns, stat, statns, F,
     current_misfit, wp, wpns = map(x -> DArray(x), (m_, mns_, opt_, optns_, 
                                     stat_, statns_, F_in_, current_misfit_,
@@ -478,8 +473,8 @@ function init_chain_darrays(opt_in::OptionsStat,
             wp, wpns, iterlast
 end
 
-function domcmciters(iterlast, nsamples, chains, mns::ModelNonStat, m::ModelStat, 
-            optns::OptionsNonStat, opt::OptionsStat, 
+function domcmciters(iterlast, nsamples, chains, mns::ModelNonstat, m::ModelStat, 
+            optns::OptionsNonstat, opt::OptionsStat, 
             statns, stat, current_misfit, F, wpns, wp)
     # for nonstat and stat together        
     
@@ -540,8 +535,8 @@ function init_chain_darrays(opt_in::OptionsStat, optn_in::OptionsNuisance,
     iterlast = 0
     @sync for(idx, chain) in enumerate(chains)
 
-        makestatfilenames(opt_in)
-        makenuisancefilenames(optn_in)
+        makestatfilenames(opt_in, idx)
+        makenuisancefilenames(optn_in, idx)
 
         opt_[idx]            = @spawnat chain.pid [opt_in]
         optn_[idx]           = @spawnat chain.pid [optn_in]
@@ -561,6 +556,7 @@ function init_chain_darrays(opt_in::OptionsStat, optn_in::OptionsNuisance,
                                 fetch(mn_[idx])[1],
                                 fetch(opt_[idx])[1],
                                 fetch(F_in_[idx])[1]) ]]
+    end
 
     m, mn, opt, optn, stat, statn, F,
     current_misfit, wp, wpn = map(x -> DArray(x), (m_, mn_, opt_, optn_,
@@ -633,7 +629,7 @@ function init_chain_darrays(opt_in::OptionsStat, F_in::Operator,
     iterlast = 0
     @sync for(idx, chain) in enumerate(chains)
 
-        makestatfilenames(opt_in)
+        makestatfilenames(opt_in, idx)
 
         opt_[idx]            = @spawnat chain.pid [opt_in]
         m_[idx]              = @spawnat chain.pid [init(opt_in)]
@@ -643,6 +639,7 @@ function init_chain_darrays(opt_in::OptionsStat, F_in::Operator,
         current_misfit_[idx] = @spawnat chain.pid [[ get_misfit(fetch(m_[idx])[1],
                                 fetch(opt_[idx])[1],
                                 fetch(F_in_[idx])[1]) ]]
+    end
 
     m, opt, stat, F,
     current_misfit, wp = map(x -> DArray(x), (m_, opt_, 
@@ -653,8 +650,8 @@ function init_chain_darrays(opt_in::OptionsStat, F_in::Operator,
         wp, iterlast
 end
 
-function domcmciters(iterlast, nsamples, chains, m::ModelStat, 
-            opt::OptionsStat, stat, 
+function domcmciters(iterlast, nsamples, chains, m::DArray{ModelStat}, 
+            opt::DArray{OptionsStat}, stat, 
             current_misfit, F, wp)
     # purely stationary GP moves     
     
@@ -692,6 +689,18 @@ function main(opt_in ::OptionsStat,
     close_history(wp)
     nothing
 end
+
+function main(opt_in ::OptionsStat,
+    F_in         ::Operator;
+    nchains      = 4,
+    nsamples     = 4001,
+    nchainsatone = 1,
+    Tmax         = 2.5)
+    # unnecessary but for backwards compat
+    pids = workers()
+    @assert length(pids) == nchains
+    main(opt_in, F_in, workers(), nsamples=nsamples, Tmax=Tmax, nchainsatone=nchainsatone)
+end   
 
 function swap_temps(chains::Array{Chain, 1})
     for ichain in length(chains):-1:2
