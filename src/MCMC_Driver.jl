@@ -17,26 +17,7 @@ function Chain(nchains::Int;
                Tmax          = 2.5,
                nchainsatone  = 1,
               )
-
-    @assert nchains > 1
-    @assert Tmax > 1
-    @assert mod(nworkers(), nchains) == 0
-
-    npidsperchain = floor(Int, nworkers()/nchains)
-    @info "npidsperchain = $npidsperchain"
-    T = 10.0.^range(0, stop = log10(Tmax), length = nchains-nchainsatone+1)
-    append!(T, ones(nchainsatone-1))
-    chains = Array{Chain, 1}(undef, nchains)
-
-    pid_end = 0
-    for ichain in 1:nchains
-        pid_start      = pid_end + 1
-        pid_end        = pid_start + npidsperchain - 1
-        pids           = workers()[pid_start:pid_end]
-
-        chains[ichain] = Chain(pids[1], npidsperchain, T[ichain], 0.0)
-    end
-    chains
+    Chains(workers(), Tmax=Tmax, nchainsatone=nchainsatone)
 end
 
 function Chain(chainprocs::Array{Int, 1};
@@ -132,7 +113,7 @@ function mh_step!(m::ModelStat, mns::ModelNonstat,
     F::Operator, opt::OptionsStat, optns::OptionsNonstat,
     stat::Stats, Temp::Float64, movetype::Int, current_misfit::Array{Float64, 1})
     # for stat move updating nonstat
-    new_misfit = get_misfit(mns, mn, opt, F)
+    new_misfit = get_misfit(mns, optns, F)
     accepted = accept(current_misfit, new_misfit, stat, Temp, movetype)
     !accepted && undo_move!(movetype, m, opt, mns, optns)
 end
@@ -199,7 +180,7 @@ function do_mcmc_step(m::ModelStat, mn::ModelNuisance,
     get_acceptance_stats!(isample, optns, statns)
     writemodel = false
     abs(Temp-1.0) < 1e-12 && (writemodel = true)
-    write_history(isample, optns, mns, current_misfit[1], statns, wp, Temp, writemodel)
+    write_history(isample, opt, m, current_misfit[1], stat, wp, Temp, writemodel)
     return current_misfit[1]
 end
 
@@ -314,113 +295,402 @@ function close_history(wp::DArray)
     end
 end
 
-function open_temperature_file(opt_in::Options, nchains::Int)
-    fdataname = opt_in.costs_filename[9:end-4]
-    fp_temps  = open(fdataname*"_temps.txt", opt_in.history_mode)
-    fmt = "{:d} "
-    for i = 1:nchains-1
-        fmt = fmt*"{:f} "
-    end
-    fmt = fmt*"{:f}"
-    tpointer = Tpointer(fp_temps, fmt)
-end
-
-function write_temperatures(iter::Int, chains::Array{Chain, 1}, tpointer::Tpointer, opt_in::Options)
-    if (mod(iter-1, opt_in.save_freq) == 0 || iter == 1)
-        printfmtln(tpointer.fp, tpointer.fstr, iter, (getproperty.(chains,:T))...)
-        flush(tpointer.fp)
-    end
-end
-
 function close_temperature_file(fp::IOStream)
     close(fp)
+end
+
+function makewritefilenames(opt_in)
+    costs_filename = "misfits_"*opt_in.fdataname
+    fstar_filename = "models_"*opt_in.fdataname
+    x_ftrain_filename = "points_"*opt_in.fdataname
+    nu_filename = "values_nuisance_"*opt_in.fdataname
+    costs_filename, fstar_filename, x_ftrain_filename, nu_filename
+end
+
+function makestatfilenames(opt_in::OptionsStat)
+    costs_filename, fstar_filename, x_ftrain_filename, = makewritefilenames(opt)
+    opt_in.costs_filename      = costs_filename*"s_$idx.bin"
+    opt_in.fstar_filename      = fstar_filename*"s_$idx.bin"
+    opt_in.x_ftrain_filename   = x_ftrain_filename*"s_$idx.bin"
+end    
+
+function makenonstatfilenames(optns_in::OptionsNonstat)
+    costs_filename, fstar_filename, x_ftrain_filename, = makewritefilenames(opt)
+    optns_in.costs_filename    = costs_filename*"ns_$idx.bin"
+    optns_in.fstar_filename    = fstar_filename*"ns_$idx.bin"
+    optns_in.x_ftrain_filename = x_ftrain_filename*"ns_$idx.bin"
+end
+
+function makenuisancefilenames(optn_in::OptionsNuisance)
+    costs_filename, fstar_filename, x_ftrain_filename, nu_filename = makewritefilenames(opt)
+    optn_in.costs_filename     = costs_filename*"nuisance_$idx.bin"
+    optn_in.vals_filename      = nu_filename*"$idx.bin"
 end
 
 function init_chain_darrays(opt_in::OptionsStat,
                             optns_in::OptionsNonstat,
                             optn_in::OptionsNuisance,
                             F_in::Operator, chains::Array{Chain, 1})
-    m_, mns_, mn_, opt_, optns_, optn_, F_in_, stat_, statns_, statn_, d_in_,
-    current_misfit_, wp_, wpns_, wpn_  = map(x -> Array{Future, 1}(undef, length(chains)), 1:15)
-
-    costs_filename = "misfits_"*opt_in.fdataname
-    fstar_filename = "models_"*opt_in.fdataname
-    x_ftrain_filename = "points_"*opt_in.fdataname
-    nu_filename = "values_nuisance_"*opt_in.fdataname
-
-    if opt_in.history_mode == "a"
-        setrestartflag.([opt_in, optns_in, optn_in])
-    end
-
+    # for nonstat, stat, and nuisances all together                        
+    
+    m_, mns_, mn_, opt_, optns_, optn_, F_in_, stat_, statns_, statn_,
+    current_misfit_, wp_, wpns_, wpn_  = map(x -> Array{Future, 1}(undef, length(chains)), 1:14)
+    
+    opt_in.history_mode == "a" && setrestartflag.([opt_in, optns_in, optn_in])
+    
     iterlast = 0
     @sync for(idx, chain) in enumerate(chains)
 
-        opt_in.costs_filename      = costs_filename*"s_$idx.bin"
-        optns_in.costs_filename    = costs_filename*"ns_$idx.bin"
-        opt_in.fstar_filename      = fstar_filename*"s_$idx.bin"
-        optns_in.fstar_filename    = fstar_filename*"ns_$idx.bin"
-        opt_in.x_ftrain_filename   = x_ftrain_filename*"s_$idx.bin"
-        optns_in.x_ftrain_filename = x_ftrain_filename*"ns_$idx.bin"
-        optn_in.costs_filename     = costs_filename*"nuisance_$idx.bin"
-        optn_in.vals_filename      = nu_filename*"$idx.bin"
+        makestatfilenames(opt_in)
+        makenonstatfilenames(optns_in)
+        makenuisancefilenames(optn_in)
 
         opt_[idx]            = @spawnat chain.pid [opt_in]
         optns_[idx]          = @spawnat chain.pid [optns_in]
         optn_[idx]           = @spawnat chain.pid [optn_in]
 
-        m_[idx]                = @spawnat chain.pid [init(opt_in)]
-        mns_[idx]              = @spawnat chain.pid [init(optns_in,
-                                                            fetch(m_[idx])[1])]
-        mn_[idx]               = @spawnat chain.pid [init(optn_in)]
+        m_[idx]              = @spawnat chain.pid [init(opt_in)]
+        mns_[idx]            = @spawnat chain.pid [init(optns_in, fetch(m_[idx])[1])]
+        mn_[idx]             = @spawnat chain.pid [init(optn_in)]
 
-        @sync wp_[idx]             = @spawnat chain.pid [open_history(opt_in)]
-        #@info "sending $(optns_in.costs_filename)"
-        @sync wpns_[idx]           = @spawnat chain.pid [open_history(optns_in)]
-        @sync wpn_[idx]            = @spawnat chain.pid [open_history(optn_in)]
+        @sync wp_[idx]       = @spawnat chain.pid [open_history(opt_in)]
+        @sync wpns_[idx]     = @spawnat chain.pid [open_history(optns_in)]
+        @sync wpn_[idx]      = @spawnat chain.pid [open_history(optn_in)]
 
         stat_[idx]           = @spawnat chain.pid [Stats()]
         statns_[idx]         = @spawnat chain.pid [Stats()]
         statn_[idx]          = @spawnat chain.pid [Stats(nmoves=optn_in.nnu)]
 
         F_in_[idx]           = @spawnat chain.pid [F_in]
-        if opt_in.updatenonstat
-            if opt_in.updatenuisances
-                current_misfit_[idx] = @spawnat chain.pid [[ get_misfit(fetch(mns_[idx])[1],
-                                               fetch(mn_[idx])[1],
-                                               fetch(optns_[idx])[1],
-                                               fetch(F_in_[idx])[1]) ]]
-            else
-                current_misfit_[idx] = @spawnat chain.pid [[ get_misfit(fetch(mns_[idx])[1],
-                                               fetch(optns_[idx])[1],
-                                               fetch(F_in_[idx])[1]) ]]
-            end
-        else
-            if opt_in.updatenuisances
-                current_misfit_[idx] = @spawnat chain.pid [[ get_misfit(fetch(m_[idx])[1],
-                                               fetch(mn_[idx])[1],
-                                               fetch(opt_[idx])[1],
-                                               fetch(F_in_[idx])[1]) ]]
-            else
-                current_misfit_[idx] = @spawnat chain.pid [[ get_misfit(fetch(m_[idx])[1],
-                                               fetch(opt_[idx])[1],
-                                               fetch(F_in_[idx])[1]) ]]
-            end
-        end
-        if opt_in.history_mode=="a"
-            if idx == length(chains)
-                iterlast = history(opt_in, stat=:iter)[end]
-            end
-            chains[idx].T = history(opt_in, stat=:T)[end]
-        end
-    end
+
+        current_misfit_[idx] = @spawnat chain.pid [[ get_misfit(fetch(mns_[idx])[1],
+                                fetch(mn_[idx])[1],
+                                fetch(optns_[idx])[1],
+                                fetch(F_in_[idx])[1]) ]]
+
     m, mns, mn, opt, optns, optn, stat, statns, statn, F,
     current_misfit, wp, wpns, wpn = map(x -> DArray(x), (m_, mns_, mn_, opt_, optns_, optn_,
                                     stat_, statns_, statn_, F_in_, current_misfit_,
                                     wp_, wpns_, wpn_))
-#return mn as well (at least, possibly return some "nuisance stat" as well)
     @info "initialisation complete"
     return m, mns, mn, opt, optns, optn, stat, statns, statn, F, current_misfit,
             wp, wpns, wpn, iterlast
+end
+
+function domcmciters(iterlast, nsamples, chains, mns::ModelNonStat, m::ModelStat, 
+            mn::ModelNuisance, optns::OptionsNonStat, opt::OptionsStat,
+            optn::OptionsNuisance, statns, stat, statn, current_misfit, F, wpns, wp, wpn)
+    # for nonstat, stat, and nuisances all together         
+    
+    t2 = time()
+    for isample = iterlast+1:iterlast+nsamples
+        # we do need each remotecall to finish before 
+        # moving on to the next kind of move
+        swap_temps(chains)
+        @sync for chain in chains
+            # purely nonstationary GP moves + nuisance
+            @async chain.misfit = remotecall_fetch(do_mcmc_step, chain.pid,
+                                            mns, m, mn, optns, statns,
+                                            current_misfit, F,
+                                            chain.T, isample, wpns)
+        end
+        @sync for chain in chains
+            # purely nuisance move
+            @async chain.misfit = remotecall_fetch(do_mcmc_step, chain.pid,
+                                            mn, m, optn, statn,
+                                            current_misfit, F,
+                                            chain.T, isample, wpn)
+        end
+        @sync for chain in chains
+            # Stationary GP changes which update nonstationary GP + nuisance
+            @async chain.misfit = remotecall_fetch(do_mcmc_step, chain.pid,
+                                            m, mns, mn, opt, optns, stat,
+                                            current_misfit, F,
+                                            chain.T, isample, wp)
+        end
+        disptime(isample, t2, iterlast, nsamples)
+    end
+end
+
+function main(opt_in     ::OptionsStat,
+            optns_in     ::OptionsNonstat,
+            optn_in      ::OptionsNuisance,
+            F_in         ::Operator,
+            chainprocs   ::Array{Int, 1};
+            nsamples     = 4001,
+            nchainsatone = 1,
+            Tmax         = 2.5)
+    # for nonstat, stat, and nuisances all together 
+
+    chains = Chain(chainprocs, nchainsatone=nchainsatone, Tmax=Tmax)
+
+    m, mns, mn, opt, optns, optn, stat, 
+    statns, statn, F, current_misfit, wp, wpns, wpn, 
+    iterlast = init_chain_darrays(opt_in, optns_in, optn_in, F_in, chains)
+
+    domcmciters(iterlast, nsamples, chains, mns, m, mn, optns, opt,
+        optn, statns, stat, statn, current_misfit, F, wpns, wp, wpn)
+
+    close_history.([wp, wpns, wpn])
+    nothing
+end
+
+function init_chain_darrays(opt_in::OptionsStat,
+                            optns_in::OptionsNonstat,
+                            F_in::Operator, chains::Array{Chain, 1})
+    # for nonstat and stat together                    
+    
+    m_, mns_, opt_, optns_, F_in_, stat_, statns_, 
+    current_misfit_, wp_, wpns_,  = map(x -> Array{Future, 1}(undef, length(chains)), 1:10)
+    
+    opt_in.history_mode == "a" && setrestartflag.([opt_in, optns_in])
+    
+    iterlast = 0
+    @sync for(idx, chain) in enumerate(chains)
+
+        makestatfilenames(opt_in)
+        makenonstatfilenames(optns_in)
+
+        opt_[idx]            = @spawnat chain.pid [opt_in]
+        optns_[idx]          = @spawnat chain.pid [optns_in]
+
+        m_[idx]              = @spawnat chain.pid [init(opt_in)]
+        mns_[idx]            = @spawnat chain.pid [init(optns_in, fetch(m_[idx])[1])]
+
+        @sync wp_[idx]       = @spawnat chain.pid [open_history(opt_in)]
+        @sync wpns_[idx]     = @spawnat chain.pid [open_history(optns_in)]
+
+        stat_[idx]           = @spawnat chain.pid [Stats()]
+        statns_[idx]         = @spawnat chain.pid [Stats()]
+
+        F_in_[idx]           = @spawnat chain.pid [F_in]
+
+        current_misfit_[idx] = @spawnat chain.pid [[ get_misfit(fetch(mns_[idx])[1],
+                                fetch(optns_[idx])[1],
+                                fetch(F_in_[idx])[1]) ]]
+
+    m, mns, opt, optns, stat, statns, F,
+    current_misfit, wp, wpns = map(x -> DArray(x), (m_, mns_, opt_, optns_, 
+                                    stat_, statns_, F_in_, current_misfit_,
+                                    wp_, wpns_))
+    @info "initialisation complete"
+    return m, mns, opt, optns, stat, statns, F, current_misfit,
+            wp, wpns, iterlast
+end
+
+function domcmciters(iterlast, nsamples, chains, mns::ModelNonStat, m::ModelStat, 
+            optns::OptionsNonStat, opt::OptionsStat, 
+            statns, stat, current_misfit, F, wpns, wp)
+    # for nonstat and stat together        
+    
+    t2 = time()
+    for isample = iterlast+1:iterlast+nsamples
+        # we do need each remotecall to finish before 
+        # moving on to the next kind of move
+        swap_temps(chains)
+        @sync for chain in chains
+            # purely nonstationary GP moves
+            @async chain.misfit = remotecall_fetch(do_mcmc_step, chain.pid,
+                                            mns, m, optns, statns,
+                                            current_misfit, F,
+                                            chain.T, isample, wpns)
+        end
+        @sync for chain in chains
+            # Stationary GP changes which update nonstationary GP
+            @async chain.misfit = remotecall_fetch(do_mcmc_step, chain.pid,
+                                            m, mns, opt, optns, stat,
+                                            current_misfit, F,
+                                            chain.T, isample, wp)
+        end
+        disptime(isample, t2, iterlast, nsamples)
+    end
+end
+
+function main(opt_in     ::OptionsStat,
+            optns_in     ::OptionsNonstat,
+            F_in         ::Operator,
+            chainprocs   ::Array{Int, 1};
+            nsamples     = 4001,
+            nchainsatone = 1,
+            Tmax         = 2.5)
+    # for nonstat and stat together 
+
+    chains = Chain(chainprocs, nchainsatone=nchainsatone, Tmax=Tmax)
+
+    m, mns, opt, optns, stat, 
+    statns, F, current_misfit, wp, wpns,  
+    iterlast = init_chain_darrays(opt_in, optns_in, F_in, chains)
+
+    domcmciters(iterlast, nsamples, chains, mns, m, optns, opt,
+        statns, stat, current_misfit, F, wpns, wp)
+
+    close_history.([wp, wpns])
+    nothing
+end
+
+function init_chain_darrays(opt_in::OptionsStat, optn_in::OptionsNuisance,
+                            F_in::Operator, chains::Array{Chain, 1})
+    # purely stationary GP moves + nuisance                    
+    
+    m_, mn_, opt_, optn_, F_in_, stat_, statn_,
+    current_misfit_, wp_, wpn_  = map(x -> Array{Future, 1}(undef, length(chains)), 1:10)
+    
+    opt_in.history_mode == "a" && setrestartflag.([opt_in, optn_in])
+    
+    iterlast = 0
+    @sync for(idx, chain) in enumerate(chains)
+
+        makestatfilenames(opt_in)
+        makenuisancefilenames(optn_in)
+
+        opt_[idx]            = @spawnat chain.pid [opt_in]
+        optn_[idx]           = @spawnat chain.pid [optn_in]
+
+        m_[idx]              = @spawnat chain.pid [init(opt_in)]
+        mn_[idx]             = @spawnat chain.pid [init(optn_in)]
+
+        @sync wp_[idx]       = @spawnat chain.pid [open_history(opt_in)]
+        @sync wpn_[idx]      = @spawnat chain.pid [open_history(optn_in)]
+
+        stat_[idx]           = @spawnat chain.pid [Stats()]
+        statn_[idx]          = @spawnat chain.pid [Stats(nmoves=optn_in.nnu)]
+
+        F_in_[idx]           = @spawnat chain.pid [F_in]    
+
+        current_misfit_[idx] = @spawnat chain.pid [[ get_misfit(fetch(m_[idx])[1],
+                                fetch(mn_[idx])[1],
+                                fetch(opt_[idx])[1],
+                                fetch(F_in_[idx])[1]) ]]
+
+    m, mn, opt, optn, stat, statn, F,
+    current_misfit, wp, wpn = map(x -> DArray(x), (m_, mn_, opt_, optn_,
+                                    stat_, statn_, F_in_, current_misfit_,
+                                    wp_, wpn_))
+    @info "initialisation complete"
+    return m, mn, opt, optn, stat, statn, F, current_misfit,
+        wp, wpn, iterlast
+end
+
+function domcmciters(iterlast, nsamples, chains, m::ModelStat, mn::ModelNuisance, 
+            opt::OptionsStat, optn::OptionsNuisance, stat, statn, 
+            current_misfit, F, wp, wpn)
+    # purely stationary GP moves + nuisance        
+    
+    t2 = time()
+    for isample = iterlast+1:iterlast+nsamples
+        # we do need each remotecall to finish before 
+        # moving on to the next kind of move
+        swap_temps(chains)
+        @sync for chain in chains
+            # purely nuisance move
+            @async chain.misfit = remotecall_fetch(do_mcmc_step, chain.pid,
+                                            mn, m, optn, statn,
+                                            current_misfit, F,
+                                            chain.T, isample, wpn)
+        end
+        @sync for chain in chains
+            # purely stationary GP moves + nuisance
+            @async chain.misfit = remotecall_fetch(do_mcmc_step, chain.pid,
+                                            m, mn, opt, stat,
+                                            current_misfit, F,
+                                            chain.T, isample, wp)
+        end
+        disptime(isample, t2, iterlast, nsamples)
+    end
+end
+
+function main(opt_in       ::OptionsStat,
+        optn_in      ::OptionsNuisance,
+        F_in         ::Operator,
+        chainprocs   ::Array{Int, 1};
+        nsamples     = 4001,
+        nchainsatone = 1,
+        Tmax         = 2.5)
+    # purely stationary GP moves + nuisance   
+
+    chains = Chain(chainprocs, nchainsatone=nchainsatone, Tmax=Tmax)
+
+    m, mn, opt, optn, stat, 
+    statn, F, current_misfit, wp, wpn, 
+    iterlast = init_chain_darrays(opt_in, optn_in, F_in, chains)
+
+    domcmciters(iterlast, nsamples, chains, m, mn, opt,
+        optn, stat, statn, current_misfit, F, wp, wpn)
+
+    close_history.([wp, wpn])
+    nothing
+end
+
+function init_chain_darrays(opt_in::OptionsStat, F_in::Operator, 
+    chains::Array{Chain, 1})
+    # purely stationary GP moves
+    
+    m_, opt_, F_in_, stat_, current_misfit_, 
+    wp_  = map(x -> Array{Future, 1}(undef, length(chains)), 1:6)
+    
+    opt_in.history_mode == "a" && setrestartflag(opt_in)
+    
+    iterlast = 0
+    @sync for(idx, chain) in enumerate(chains)
+
+        makestatfilenames(opt_in)
+
+        opt_[idx]            = @spawnat chain.pid [opt_in]
+        m_[idx]              = @spawnat chain.pid [init(opt_in)]
+        @sync wp_[idx]       = @spawnat chain.pid [open_history(opt_in)]
+        stat_[idx]           = @spawnat chain.pid [Stats()]
+        F_in_[idx]           = @spawnat chain.pid [F_in]    
+        current_misfit_[idx] = @spawnat chain.pid [[ get_misfit(fetch(m_[idx])[1],
+                                fetch(opt_[idx])[1],
+                                fetch(F_in_[idx])[1]) ]]
+
+    m, opt, stat, F,
+    current_misfit, wp = map(x -> DArray(x), (m_, opt_, 
+                                    stat_, F_in_, current_misfit_,
+                                    wp_))
+    @info "initialisation complete"
+    return m, opt, stat, F, current_misfit,
+        wp, iterlast
+end
+
+function domcmciters(iterlast, nsamples, chains, m::ModelStat, 
+            opt::OptionsStat, stat, 
+            current_misfit, F, wp)
+    # purely stationary GP moves     
+    
+    t2 = time()
+    for isample = iterlast+1:iterlast+nsamples
+        swap_temps(chains)
+        @sync for chain in chains
+            # purely stationary GP moves 
+            @async chain.misfit = remotecall_fetch(do_mcmc_step, chain.pid,
+                                            m, opt, stat,
+                                            current_misfit, F,
+                                            chain.T, isample, wp)
+        end
+        disptime(isample, t2, iterlast, nsamples)
+    end
+end
+
+function main(opt_in ::OptionsStat,
+        F_in         ::Operator,
+        chainprocs   ::Array{Int, 1};
+        nsamples     = 4001,
+        nchainsatone = 1,
+        Tmax         = 2.5)
+    # purely stationary GP moves    
+
+    chains = Chain(chainprocs, nchainsatone=nchainsatone, Tmax=Tmax)
+
+    m, opt, stat, 
+    F, current_misfit, wp, 
+    iterlast = init_chain_darrays(opt_in, F_in, chains)
+
+    domcmciters(iterlast, nsamples, chains, m, opt,
+        stat, current_misfit, F, wp)
+
+    close_history(wp)
+    nothing
 end
 
 function swap_temps(chains::Array{Chain, 1})
@@ -434,326 +704,13 @@ function swap_temps(chains::Array{Chain, 1})
             end
         end
     end
-
 end
 
-# non pbs: this is for everything nonstationary, stationary and nuisance
-# everyday users should not call this but the
-# versions underneath instead
-function main(opt_in       ::OptionsStat,
-              optns_in     ::OptionsNonstat,
-              optn_in      ::OptionsNuisance,
-              F_in         ::Operator;
-              nsamples     = 4001,
-              nchains      = 1,
-              nchainsatone = 1,
-              Tmax         = 2.5)
-
-
-    chains = Chain(nchains, Tmax=Tmax, nchainsatone=nchainsatone)
-    m, mns, mn, opt, optns, optn, stat, statns, statn,
-    F, current_misfit, wp, wpns, wpn, iterlast = init_chain_darrays(opt_in,
-                                                optns_in, optn_in, F_in, chains)
-
-    domcmciters(iterlast, nsamples, chains, opt_in, mns, m, mn, optns, opt,
-                optn, statns, stat, statn, current_misfit, F, wpns, wp, wpn)
-
-    close_history(wp)
-    close_history(wpns)
-    close_history(wpn)
-    d_closeall()
-    nothing
-end
-
-# non pbs: this is for stationary only
-function main(opt_in       ::OptionsStat,
-              F_in         ::Operator;
-              nsamples     = 4001,
-              nchains      = 1,
-              nchainsatone = 1,
-              Tmax         = 2.5)
-
-    @assert opt_in.needλ²fromlog == false
-    @assert opt_in.updatenonstat == false
-    updatenuisances = false
-
-    optns_dummy = transD_GP.OptionsNonstat(opt_in,
-            nmin = 2,
-            nmax = 3,
-            fbounds = opt_in.fbounds,
-            δ = opt_in.δ,
-            demean = opt_in.demean,
-            sdev_prop = opt_in.sdev_prop,
-            sdev_pos = opt_in.sdev_pos,
-            pnorm = opt_in.pnorm,
-            K = opt_in.K
-            )
-
-    optn_dummy = OptionsNuisance([0.], [0. 0], 0, updatenuisances,
-     opt_in.updatenonstat, opt_in.debug, opt_in.stat_window, opt_in.dispstatstoscreen,
-     opt_in.report_freq, opt_in.save_freq, opt_in.history_mode, "misfits_nuisance_"*opt_in.fdataname*".bin",
-     "values_nuisance_"*opt_in.fdataname*".bin", opt_in.fdataname, [0 0.], [0], [0. 0.], [0.])
-
-
-    main(opt_in, optns_dummy, optn_dummy, F_in,
-            nsamples     = nsamples,
-            nchains      = nchains,
-            nchainsatone = nchainsatone,
-            Tmax         = Tmax)
-end
-
-# non pbs: this is for stationary and nuisance only
-function main(opt_in       ::OptionsStat,
-              optn_in      ::OptionsNuisance,
-              F_in         ::Operator;
-              nsamples     = 4001,
-              nchains      = 1,
-              nchainsatone = 1,
-              Tmax         = 2.5)
-
-    @assert opt_in.needλ²fromlog == false
-    @assert opt_in.updatenonstat == false
-    @assert optn_in.updatenuisances == true
-    @assert opt_in.updatenuisances == true
-
-    optdummy = transD_GP.OptionsNonstat(opt_in,
-            nmin = 2,
-            nmax = 3,
-            fbounds = opt_in.fbounds,
-            δ = opt_in.δ,
-            demean = opt_in.demean,
-            sdev_prop = opt_in.sdev_prop,
-            sdev_pos = opt_in.sdev_pos,
-            pnorm = opt_in.pnorm,
-            K = opt_in.K
-            )
-
-    main(opt_in, optdummy, optn_in, F_in,
-            nsamples     = nsamples,
-            nchains      = nchains,
-            nchainsatone = nchainsatone,
-            Tmax         = Tmax)
-end
-
-# non pbs: this is for stationary and nonstationary only
-function main(opt_in       ::OptionsStat,
-              optns_in     ::OptionsNonstat,
-              F_in         ::Operator;
-              nsamples     = 4001,
-              nchains      = 1,
-              nchainsatone = 1,
-              Tmax         = 2.5)
-
-    @assert opt_in.needλ²fromlog == true
-    @assert opt_in.updatenonstat == true
-    updatenuisances = false
-
-    optdummy = OptionsNuisance([0.], [0. 0], 0, updatenuisances,
-     opt_in.updatenonstat, opt_in.debug, opt_in.stat_window, opt_in.dispstatstoscreen,
-     opt_in.report_freq, opt_in.save_freq, opt_in.history_mode, "misfits_nuisance_"*opt_in.fdataname*".bin",
-     "values_nuisance_"*opt_in.fdataname*".bin", opt_in.fdataname, [0 0.], [0], [0. 0.], [0.])
-
-    main(opt_in, optns_in, optdummy, F_in,
-            nsamples     = nsamples,
-            nchains      = nchains,
-            nchainsatone = nchainsatone,
-            Tmax         = Tmax)
-end
-
-# non pbs: If certainly wanting to do stat, nonstat and nuisance all together
-function main(doall        ::Bool,
-              opt_in       ::OptionsStat,
-              optns_in     ::OptionsNonstat,
-              optn_in      ::OptionsNuisance,
-              F_in         ::Operator;
-              nsamples     = 4001,
-              nchains      = 1,
-              nchainsatone = 1,
-              Tmax         = 2.5)
-    @assert doall == true
-    @assert opt_in.needλ²fromlog == true
-    @assert opt_in.updatenonstat == true
-    @assert optn_in.updatenuisances == true
-
-    main(opt_in, optns_in, optn_in, F_in,
-            nsamples     = nsamples,
-            nchains      = nchains,
-            nchainsatone = nchainsatone,
-            Tmax         = Tmax)
-end
-
-# This is for the cluster,
-# again ordinary users should not use this but versions underneath
-function main(opt_in       ::OptionsStat,
-              optns_in     ::OptionsNonstat,
-              optn_in      ::OptionsNuisance,
-              F_in         ::Operator,
-              chainprocs   ::Array{Int, 1};
-              nsamples     = 4001,
-              nchainsatone = 1,
-              Tmax         = 2.5)
-
-    chains = Chain(chainprocs, nchainsatone=nchainsatone, Tmax=Tmax)
-    m, mns, mn, opt, optns, optn, stat, statns, statn,
-    F, current_misfit, wp, wpns, wpn, iterlast = init_chain_darrays(opt_in,
-                                                optns_in, optn_in, F_in, chains)
-
-    domcmciters(iterlast, nsamples, chains, opt_in, mns, m, mn, optns, opt,
-                optn, statns, stat, statn, current_misfit, F, wpns, wp, wpn)
-
-    close_history(wp)
-    close_history(wpns)
-    close_history(wpn)
-    nothing
-end
-
-# on cluster: this is for stationary only
-function main(opt_in       ::OptionsStat,
-              F_in         ::Operator,
-              chainprocs   ::Array{Int, 1};
-              nsamples     = 4001,
-              nchainsatone = 1,
-              Tmax         = 2.5)
-
-    @assert opt_in.needλ²fromlog == false
-    @assert opt_in.updatenonstat == false
-    updatenuisances = false
-
-    optns_dummy = transD_GP.OptionsNonstat(opt_in,
-            nmin = 2,
-            nmax = 3,
-            fbounds = opt_in.fbounds,
-            δ = opt_in.δ,
-            demean = opt_in.demean,
-            sdev_prop = opt_in.sdev_prop,
-            sdev_pos = opt_in.sdev_pos,
-            pnorm = opt_in.pnorm,
-            K = opt_in.K
-            )
-
-    optn_dummy = OptionsNuisance([0.], [0. 0], 0, updatenuisances,
-     opt_in.updatenonstat, opt_in.debug, opt_in.stat_window, opt_in.dispstatstoscreen,
-     opt_in.report_freq, opt_in.save_freq, opt_in.history_mode, "misfits_nuisance_"*opt_in.fdataname*".bin",
-     "values_nuisance_"*opt_in.fdataname*".bin", opt_in.fdataname, [0 0.], [0], [0. 0.], [0.])
-
-
-    main(opt_in, optns_dummy, optn_dummy, F_in, chainprocs,
-            nsamples     = nsamples,
-            nchainsatone = nchainsatone,
-            Tmax         = Tmax)
-end
-
-# on cluster: stat + nuisance only
-function main(opt_in       ::OptionsStat,
-              optn_in      ::OptionsNuisance,
-              F_in         ::Operator,
-              chainprocs   ::Array{Int, 1};
-              nsamples     = 4001,
-              nchainsatone = 1,
-              Tmax         = 2.5)
-
-    @assert opt_in.needλ²fromlog == false
-    @assert opt_in.updatenonstat == false
-    @assert optn_in.updatenuisances == true
-    @assert opt_in.updatenuisances == true
-
-    optdummy = transD_GP.OptionsNonstat(opt_in,
-            nmin = 2,
-            nmax = 3,
-            fbounds = opt_in.fbounds,
-            δ = opt_in.δ,
-            demean = opt_in.demean,
-            sdev_prop = opt_in.sdev_prop,
-            sdev_pos = opt_in.sdev_pos,
-            pnorm = opt_in.pnorm,
-            K = opt_in.K
-            )
-
-    main(opt_in, optdummy, optn_in, F_in, chainprocs,
-            nsamples     = nsamples,
-            nchainsatone = nchainsatone,
-            Tmax         = Tmax)
-end
-
-# on cluster: stationary and nonstationary only
-function main(opt_in       ::OptionsStat,
-              optns_in     ::OptionsNonstat,
-              F_in         ::Operator,
-              chainprocs   ::Array{Int, 1};
-              nsamples     = 4001,
-              nchainsatone = 1,
-              Tmax         = 2.5)
-
-    @assert opt_in.needλ²fromlog == true
-    @assert opt_in.updatenonstat == true
-    updatenuisances = false
-
-    optdummy = OptionsNuisance([0.], [0. 0], 0, updatenuisances,
-     opt_in.updatenonstat, opt_in.debug, opt_in.stat_window, opt_in.dispstatstoscreen,
-     opt_in.report_freq, opt_in.save_freq, opt_in.history_mode, "misfits_nuisance_"*opt_in.fdataname*".bin",
-     "values_nuisance_"*opt_in.fdataname*".bin", opt_in.fdataname, [0 0.], [0], [0. 0.], [0.])
-
-    main(opt_in, optns_in, optdummy, F_in, chainprocs,
-            nsamples     = nsamples,
-            nchainsatone = nchainsatone,
-            Tmax         = Tmax)
-end
-
-# on cluster: stat, nonstat and nuisance all together
-function main(doall        ::Bool,
-              opt_in       ::OptionsStat,
-              optns_in     ::OptionsNonstat,
-              optn_in      ::OptionsNuisance,
-              F_in         ::Operator,
-              chainprocs   ::Array{Int, 1};
-              nsamples     = 4001,
-              nchainsatone = 1,
-              Tmax         = 2.5)
-    @assert doall == true
-    @assert opt_in.needλ²fromlog == true
-    @assert opt_in.updatenonstat == true
-    @assert optn_in.updatenuisances == true
-
-    main(opt_in, optns_in, optn_in, F_in, chainprocs,
-            nsamples     = nsamples,
-            nchainsatone = nchainsatone,
-            Tmax         = Tmax)
-end
-
-# all main() call this
-function domcmciters(iterlast, nsamples, chains, opt_in, mns, m, mn, optns, opt,
-            optn, statns, stat, statn, current_misfit, F, wpns, wp, wpn)
-    t2 = time()
-    for isample = iterlast+1:iterlast+nsamples
-
-        swap_temps(chains)
-        if opt_in.updatenonstat
-            @sync for(ichain, chain) in enumerate(chains)
-                @async chain.misfit = remotecall_fetch(do_mcmc_step, chain.pid,
-                                                mns, m, mn, optns, statns,
-                                                current_misfit, F,
-                                                chain.T, isample, wpns)
-            end
-        end
-        if opt_in.updatenuisances
-            @sync for(ichain, chain) in enumerate(chains)
-                @async chain.misfit = remotecall_fetch(do_mcmc_step, chain.pid,
-                                                mn, m, mns, optn, statn,
-                                                current_misfit, F,
-                                                chain.T, isample, wpn)
-            end
-        end
-        @sync for(ichain, chain) in enumerate(chains)
-            @async chain.misfit = remotecall_fetch(do_mcmc_step, chain.pid,
-                                            m, mns, mn, opt, optns, stat,
-                                            current_misfit, F,
-                                            chain.T, isample, wp)
-        end
-        if mod(isample-1, 1000) == 0
-            dt = time() - t2 #seconds
-            t2 = time()
-            @info("**$dt**sec** $isample out of $(iterlast+nsamples)")
-        end
+function disptime(isample, t2, iterlast, nsamples)
+    if mod(isample-1, 1000) == 0
+        dt = time() - t2 #seconds
+        t2 = time()
+        @info("**$dt**sec** $isample out of $(iterlast+nsamples)")
     end
 end
 
