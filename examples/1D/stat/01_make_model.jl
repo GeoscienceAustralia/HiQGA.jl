@@ -1,4 +1,4 @@
-using PyPlot, Random, Revise, Statistics, LinearAlgebra,
+using PyPlot, Random, Revise, LinearAlgebra,
       Distributed, DelimitedFiles, transD_GP
 ## 1D functions
 Random.seed!(200)

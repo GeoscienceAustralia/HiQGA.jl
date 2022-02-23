@@ -199,9 +199,9 @@ function OptionsNonstat(opt::OptionsStat;
                 opt.updatenuisances, opt.peskycholesky, dcvalue, sampledc)
 end
 
-#not subtyping Options because methods that expect Options are expecting
-#options for a Gaussian process model, not fixed-dimension MCMC
 mutable struct OptionsNuisance
+    # not subtyping Options because methods that expect Options are expecting
+    # options for a Gaussian process model, not fixed-dimension MCMC
     sdev                   :: Array{Float64,1}
     bounds                 :: Array{Float64,2}
     nnu                    :: Int64
@@ -298,8 +298,9 @@ function findidxnotzero(nnu, bounds)
     idxnotzero
 end
 
-#"Model" means a Gaussian-process parametrised function
-abstract type Model end
+abstract type Model 
+    #"Model" means a Gaussian-process parametrised function
+end
 
 mutable struct ModelStat <:Model
     fstar         :: Array{Float64}
@@ -334,9 +335,9 @@ mutable struct ModelNonstat <:Model
 end
 
 mutable struct ModelNuisance
-    #"nuisances" are a fixed-dimensional part of the model, with the only
-    #allowed move being a value change. Contrasting with the GP parametrisation
-    #of the main part of the model which allows birth and death of GP nodes
+    # "nuisances" are a fixed-dimensional part of the model, with the only
+    # allowed move being a value change. Contrasting with the GP parametrisation
+    # of the main part of the model which allows birth and death of GP nodes
     nuisance      :: Array{Float64}
     nu_old        :: Array{Float64} #prev val of nidx_mem
 end
@@ -392,9 +393,7 @@ function init(opt::OptionsNuisance)
     return ModelNuisance(nuisance, copy(nuisance))
 end
 
-function calcfstar!(fstar::Array{Float64,2}, ftrain::Array{Float64,2},
-                    opt::OptionsStat, K_y::Array{Float64,2},
-                    Kstar::Array{Float64, 2}, n::Int, dcvalue::Array{Float64})
+function getmean(opt, n, ftrain, dcvalue)
     if opt.demean && n>1
         mf = mean(ftrain[:,1:n], dims=2)
     else
@@ -404,6 +403,12 @@ function calcfstar!(fstar::Array{Float64,2}, ftrain::Array{Float64,2},
             mf = opt.dcvalue # supplied by user or mid point of prior range by default
         end
     end
+    mf
+end    
+
+function commoncalc(ftrain::Array{Float64,2}, opt::Options, K_y::Array{Float64,2},
+    Kstar::Array{Float64, 2}, n::Int, dcvalue::Array{Float64})
+    mf = getmean(opt, n, ftrain, dcvalue)
     rhs = ftrain[:,1:n] .- mf
     ky = @view K_y[1:n,1:n]
     if opt.peskycholesky
@@ -412,6 +417,13 @@ function calcfstar!(fstar::Array{Float64,2}, ftrain::Array{Float64,2},
         U = cholesky(ky).U
     end
     ks = @view Kstar[:,1:n]
+    rhs, mf, U, ks
+end
+
+function calcfstar!(fstar::Array{Float64,2}, ftrain::Array{Float64,2},
+                    opt::OptionsStat, K_y::Array{Float64,2},
+                    Kstar::Array{Float64, 2}, n::Int, dcvalue::Array{Float64})
+    rhs, mf, U, ks = commoncalc(ftrain, opt, K_y, Kstar, n, dcvalue)
     if opt.needλ²fromlog
         copy!(fstar, 10 .^(2(mf' .+ ks*(U\(U'\rhs'))))' )
     else
@@ -483,8 +495,8 @@ function updatenskernels!(opt::OptionsStat, m::ModelStat, ipoint::Union{Int, Arr
     nothing
 end
 
-function birth!(m::ModelStat, opt::OptionsStat,
-                mns::ModelNonstat, optns::OptionsNonstat; doall=false)
+function birth!(m::ModelStat, opt::OptionsStat)
+    # stationary only
     xtrain, ftrain, K_y,  Kstar, n = m.xtrain, m.ftrain, m.K_y,  m.Kstar, m.n
     xtrain[:,n+1] = opt.xbounds[:,1] + diff(opt.xbounds, dims=2).*rand(size(opt.xbounds, 1))
     copy!(m.xtrain_focus, xtrain[:,n+1])
@@ -498,24 +510,33 @@ function birth!(m::ModelStat, opt::OptionsStat,
     K_y[n+1,n+1] = K_y[n+1,n+1] + opt.δ^2
     calcfstar!(m.fstar, m.ftrain, opt, K_y, Kstar, n+1, m.dcvalue)
     m.n = n+1
-    # updating the nonstationary kernels now
-    opt.updatenonstat && updatenskernels!(opt, m, n+1, optns, mns, doall=doall)
     nothing
 end
 
-function undo_birth!(m::ModelStat, opt::OptionsStat, mns::ModelNonstat)
+function birth!(m::ModelStat, opt::OptionsStat, mns::ModelNonstat, optns::OptionsNonstat; doall=false)
+    # stationary and nonstat together but for stat model update
+    birth!(m, opt)
+    # updating the nonstationary kernels now
+    updatenskernels!(opt, m, m.n, optns, mns, doall=doall)
+    nothing
+end
+
+function undo_birth!(m::ModelStat)
     m.n = m.n - 1
-    # updating the nonstationary kernels now
-    if opt.updatenonstat
-        copyto!(mns.K_y, CartesianIndices((mns.n, mns.n)), mns.K_y_old, CartesianIndices((mns.n, mns.n)))
-        copyto!(mns.Kstar, CartesianIndices((size(mns.Kstar_old, 1), mns.n)),
-                mns.Kstar_old, CartesianIndices((size(mns.Kstar_old, 1), mns.n)))
-    end
     nothing
 end
 
-function death!(m::ModelStat, opt::OptionsStat,
-                mns::ModelNonstat, optns::OptionsNonstat; doall=false)
+function undo_birth!(m::ModelStat, mns::ModelNonstat)
+    # stationary and nonstat together but for stat model update
+    undo_birth!(m)
+    # updating the nonstationary kernels now
+    copyto!(mns.K_y, CartesianIndices((mns.n, mns.n)), mns.K_y_old, CartesianIndices((mns.n, mns.n)))
+    copyto!(mns.Kstar, CartesianIndices((size(mns.Kstar_old, 1), mns.n)),
+                mns.Kstar_old, CartesianIndices((size(mns.Kstar_old, 1), mns.n)))
+    nothing
+end
+
+function death!(m::Model, opt::Options)
     xtrain, ftrain, K_y,  Kstar, n = m.xtrain, m.ftrain, m.K_y,  m.Kstar, m.n
     ipoint = rand(1:n)
     m.iremember = ipoint
@@ -528,12 +549,19 @@ function death!(m::ModelStat, opt::OptionsStat,
     K_y[ipoint,ipoint] = 1.0 + opt.δ^2
     calcfstar!(m.fstar, m.ftrain, opt, K_y, Kstar, n-1, m.dcvalue)
     m.n = n-1
-    # updating the nonstationary kernels now
-    opt.updatenonstat && updatenskernels!(opt, m, n, optns, mns, doall=doall)
     nothing
 end
 
-function undo_death!(m::ModelStat, opt::OptionsStat, mns::ModelNonstat)
+function death!(m::ModelStat, opt::OptionsStat,
+                mns::ModelNonstat, optns::OptionsNonstat; doall=false)
+    # stationary and nonstat together but for stat model update            
+    death!(m, opt)
+    # updating the nonstationary kernels now
+    updatenskernels!(opt, m, m.n+1, optns, mns, doall=doall)
+    nothing
+end
+
+function undo_death!(m::Model, opt::Options)
     m.n = m.n + 1
     ftrain, xtrain, Kstar, K_y, n, ipoint = m.ftrain, m.xtrain, m.Kstar, m.K_y, m.n, m.iremember
     xtrain[:,ipoint], xtrain[:,n] = xtrain[:,n], xtrain[:,ipoint]
@@ -543,17 +571,19 @@ function undo_death!(m::ModelStat, opt::OptionsStat, mns::ModelNonstat)
     K_y[1:n,ipoint] = K_y[ipoint,1:n]
     K_y[ipoint,ipoint] = 1.0 + opt.δ^2
     K_y[n,n] = 1.0 + opt.δ^2
-    # updating the nonstationary kernels now
-    if opt.updatenonstat
-        copyto!(mns.K_y, CartesianIndices((mns.n, mns.n)), mns.K_y_old, CartesianIndices((mns.n, mns.n)))
-        copyto!(mns.Kstar, CartesianIndices((size(mns.Kstar_old, 1), mns.n)),
-                mns.Kstar_old, CartesianIndices((size(mns.Kstar_old, 1), mns.n)))
-    end
     nothing
 end
 
-function property_change!(m::ModelStat, opt::OptionsStat,
-                          mns::ModelNonstat, optns::OptionsNonstat; doall=false)
+function undo_death!(m::ModelStat, opt::OptionsStat, mns::ModelNonstat)
+    undo_death!(m, opt)
+    # updating the nonstationary kernels now
+    copyto!(mns.K_y, CartesianIndices((mns.n, mns.n)), mns.K_y_old, CartesianIndices((mns.n, mns.n)))
+    copyto!(mns.Kstar, CartesianIndices((size(mns.Kstar_old, 1), mns.n)),
+            mns.Kstar_old, CartesianIndices((size(mns.Kstar_old, 1), mns.n)))
+    nothing
+end
+
+function property_change!(m::Model, opt::Options)
     ftrain, K_y, Kstar, n = m.ftrain, m.K_y, m. Kstar, m.n
     ipoint = 1 + floor(Int, rand()*n)
     m.iremember = ipoint
@@ -566,25 +596,33 @@ function property_change!(m::ModelStat, opt::OptionsStat,
         end
     end
     calcfstar!(m.fstar, m.ftrain, opt, K_y, Kstar, n, m.dcvalue)
-    # updating the nonstationary kernels now
-    opt.updatenonstat && updatenskernels!(opt, m, ipoint, optns, mns, doall=doall)
     nothing
 end
 
-function undo_property_change!(m::ModelStat, opt::OptionsStat, mns::ModelNonstat)
+function property_change!(m::ModelStat, opt::OptionsStat,
+                          mns::ModelNonstat, optns::OptionsNonstat; doall=false)
+    property_change!(m, opt)
+    # updating the nonstationary kernels now
+    updatenskernels!(opt, m, m.iremember, optns, mns, doall=doall)
+    nothing
+end
+
+function undo_property_change!(m::Model)
     ipoint, ftrain = m.iremember, m.ftrain
     ftrain[:,ipoint] = m.ftrain_old
-    # updating the nonstationary kernels now
-    if opt.updatenonstat
-        copyto!(mns.K_y, CartesianIndices((mns.n, mns.n)), mns.K_y_old, CartesianIndices((mns.n, mns.n)))
-        copyto!(mns.Kstar, CartesianIndices((size(mns.Kstar_old, 1), mns.n)),
-                mns.Kstar_old, CartesianIndices((size(mns.Kstar_old, 1), mns.n)))
-    end
     nothing
 end
 
-function position_change!(m::ModelStat, opt::OptionsStat,
-                          mns::ModelNonstat, optns::OptionsNonstat; doall=false)
+function undo_property_change!(m::ModelStat, mns::ModelNonstat)
+    undo_property_change!(m)
+    # updating the nonstationary kernels now
+    copyto!(mns.K_y, CartesianIndices((mns.n, mns.n)), mns.K_y_old, CartesianIndices((mns.n, mns.n)))
+    copyto!(mns.Kstar, CartesianIndices((size(mns.Kstar_old, 1), mns.n)),
+            mns.Kstar_old, CartesianIndices((size(mns.Kstar_old, 1), mns.n)))
+    nothing
+end
+
+function position_change!(m::ModelStat, opt::OptionsStat)
     xtrain, ftrain, K_y, Kstar, n = m.xtrain, m.ftrain, m.K_y, m.Kstar, m.n
     ipoint = 1 + floor(Int, rand()*n)
     m.iremember = ipoint
@@ -605,12 +643,18 @@ function position_change!(m::ModelStat, opt::OptionsStat,
     K_y[1:n,ipoint] = K_y[ipoint,1:n]
     K_y[ipoint,ipoint] = K_y[ipoint,ipoint] + opt.δ^2
     calcfstar!(m.fstar, m.ftrain, opt, K_y, Kstar, n, m.dcvalue)
-    # updating the nonstationary kernels now
-    opt.updatenonstat && updatenskernels!(opt, m, ipoint, optns, mns, doall=doall, isposchange=true)
     nothing
 end
 
-function undo_position_change!(m::ModelStat, opt::OptionsStat, mns::ModelNonstat)
+function position_change!(m::ModelStat, opt::OptionsStat,
+                          mns::ModelNonstat, optns::OptionsNonstat; doall=false)
+    position_change!(m, opt)
+    # updating the nonstationary kernels now
+    updatenskernels!(opt, m, m.iremember, optns, mns, doall=doall, isposchange=true)
+    nothing
+end
+
+function undo_position_change!(m::ModelStat, opt::OptionsStat)
     xtrain, K_y, Kstar, n = m.xtrain, m.K_y, m.Kstar, m.n
     ipoint = m.iremember
     xtrain[:,ipoint] = m.xtrain_old
@@ -621,12 +665,15 @@ function undo_position_change!(m::ModelStat, opt::OptionsStat, mns::ModelNonstat
     map!(x->GP.κ(opt.K, x),K_yv,colwise(WeightedEuclidean(1 ./opt.λ² ), xtrain[:,ipoint], xtrain[:,1:n]))
     K_y[1:n,ipoint] = K_y[ipoint,1:n]
     K_y[ipoint,ipoint] = K_y[ipoint,ipoint] + opt.δ^2
+    nothing
+end
+
+function undo_position_change!(m::ModelStat, opt::OptionsStat, mns::ModelNonstat)
+    undo_position_change!(m, opt)
     # updating the nonstationary kernels now
-    if opt.updatenonstat
-        copyto!(mns.K_y, CartesianIndices((mns.n, mns.n)), mns.K_y_old, CartesianIndices((mns.n, mns.n)))
-        copyto!(mns.Kstar, CartesianIndices((size(mns.Kstar_old, 1), mns.n)),
-                mns.Kstar_old, CartesianIndices((size(mns.Kstar_old, 1), mns.n)))
-    end
+    copyto!(mns.K_y, CartesianIndices((mns.n, mns.n)), mns.K_y_old, CartesianIndices((mns.n, mns.n)))
+    copyto!(mns.Kstar, CartesianIndices((size(mns.Kstar_old, 1), mns.n)),
+            mns.Kstar_old, CartesianIndices((size(mns.Kstar_old, 1), mns.n)))
     nothing
 end
 
@@ -684,23 +731,7 @@ end
 function calcfstar!(fstar::Array{Float64,2}, ftrain::Array{Float64,2},
                     opt::OptionsNonstat, K_y::Array{Float64,2},
                     Kstar::Array{Float64, 2}, n::Int, dcvalue::Array{Float64})
-    if opt.demean && n>1
-        mf = mean(ftrain[:,1:n], dims=2)
-    else
-        if opt.sampledc
-            mf = dcvalue # from what is stored in model and passed to it
-        else
-            mf = opt.dcvalue # supplied by user or mid point of prior range by default
-        end
-    end
-    rhs = ftrain[:,1:n] .- mf
-    ky = view(K_y, 1:n, 1:n)
-    ks = @view Kstar[:,1:n]
-    if opt.peskycholesky
-        U = cholesky(Positive, ky, Val{false}).U
-    else
-        U = cholesky(ky).U
-    end
+    rhs, mf, U, ks = commoncalc(ftrain, opt, K_y, Kstar, n, dcvalue)
     copy!(fstar, mf' .+ ks*(U\(U'\rhs')) )
     nothing
 end
@@ -728,56 +759,6 @@ end
 
 function undo_birth!(m::ModelNonstat)
     m.n = m.n - 1
-    nothing
-end
-
-function death!(m::ModelNonstat, opt::OptionsNonstat)
-    xtrain, ftrain, K_y,  Kstar, n = m.xtrain, m.ftrain, m.K_y,  m.Kstar, m.n
-    ipoint = rand(1:n)
-    m.iremember = ipoint
-    copy!(m.xtrain_focus, xtrain[:,ipoint])
-    xtrain[:,ipoint], xtrain[:,n] = xtrain[:,n], xtrain[:,ipoint]
-    ftrain[:,ipoint], ftrain[:,n] = ftrain[:,n], ftrain[:,ipoint]
-    Kstar[:,ipoint], Kstar[:,n] = Kstar[:,n], Kstar[:,ipoint]
-    K_y[ipoint,1:n], K_y[n,1:n] = K_y[n,1:n], K_y[ipoint,1:n]
-    K_y[1:n-1,ipoint] = K_y[ipoint,1:n-1]
-    K_y[ipoint,ipoint] = 1.0 + opt.δ^2
-    calcfstar!(m.fstar, m.ftrain, opt, K_y, Kstar, n-1, m.dcvalue)
-    m.n = n-1
-    nothing
-end
-
-function undo_death!(m::ModelNonstat, opt::OptionsNonstat)
-    m.n = m.n + 1
-    ftrain, xtrain, Kstar, K_y, n, ipoint = m.ftrain, m.xtrain, m.Kstar, m.K_y, m.n, m.iremember
-    xtrain[:,ipoint], xtrain[:,n] = xtrain[:,n], xtrain[:,ipoint]
-    ftrain[:,ipoint], ftrain[:,n] = ftrain[:,n], ftrain[:,ipoint]
-    Kstar[:,ipoint], Kstar[:,n] = Kstar[:,n], Kstar[:,ipoint]
-    K_y[ipoint,1:n], K_y[n,1:n] = K_y[n,1:n], K_y[ipoint,1:n]
-    K_y[1:n,ipoint] = K_y[ipoint,1:n]
-    K_y[ipoint,ipoint] = 1.0 + opt.δ^2
-    K_y[n,n] = 1.0 + opt.δ^2
-end
-
-function property_change!(m::ModelNonstat, opt::OptionsNonstat)
-    ftrain, K_y, Kstar, n = m.ftrain, m.K_y, m. Kstar, m.n
-    ipoint = 1 + floor(Int, rand()*n)
-    m.iremember = ipoint
-    copy!(m.ftrain_old, ftrain[:,ipoint])
-    ftrain[:,ipoint] = ftrain[:,ipoint] + opt.sdev_prop.*randn(size(opt.fbounds, 1))
-    for i in eachindex(ftrain[:,ipoint])
-        while (ftrain[i,ipoint]<opt.fbounds[i,1]) || (ftrain[i,ipoint]>opt.fbounds[i,2])
-                (ftrain[i,ipoint]<opt.fbounds[i,1]) && (ftrain[i,ipoint] = 2*opt.fbounds[i,1] - ftrain[i,ipoint])
-                (ftrain[i,ipoint]>opt.fbounds[i,2]) && (ftrain[i,ipoint] = 2*opt.fbounds[i,2] - ftrain[i,ipoint])
-        end
-    end
-    calcfstar!(m.fstar, m.ftrain, opt, K_y, Kstar, n, m.dcvalue)
-    nothing
-end
-
-function undo_property_change!(m::ModelNonstat)
-    ipoint, ftrain = m.iremember, m.ftrain
-    ftrain[:,ipoint] = m.ftrain_old
     nothing
 end
 
@@ -835,21 +816,24 @@ end
 
 function testupdate(optns::OptionsNonstat, l::ModelStat, mns::ModelNonstat)
     λ² = l.fstar
+    mf = getmean(optns, mns.n, mns.ftrain, mns.dcvalue)
     idxs = gettrainidx(optns.kdtree, mns.xtrain, mns.n)
     ftest, = GP.GPfit(optns.K, mns.ftrain[:,1:mns.n], mns.xtrain[:,1:mns.n],
             optns.xall, λ², λ²[:,idxs], optns.δ, p=2, demean=optns.demean, nogetvars=true,
-            my=mean(optns.fbounds, dims=2))
+            my=mf)
     return ftest
 end
 
 function testupdate(opt::OptionsStat, m::ModelStat)
+    mf = getmean(opt, m.n, m.ftrain, m.dcvalue)
     ftest, = GP.GPfit(opt.K, m.ftrain[:,1:m.n], m.xtrain[:,1:m.n],
             opt.xall, opt.λ², opt.δ, nogetvars=true, demean=opt.demean, p=2,
-            my=mean(opt.fbounds, dims=2))
+            my=mf)
     return ftest
 end
 
 function do_move!(mns::ModelNonstat, m::ModelStat, optns::OptionsNonstat, statns::Stats)
+    # purely nonstationary GP moves
     cumprob = [0.20, 0.40, 0.60, 0.8] # if sampledc and 5 total noves
     if !optns.sampledc
         cumprob +=  [0.05, 0.10, 0.15, 0.2] # add these if no sampledc, 4 total moves
@@ -885,6 +869,7 @@ function do_move!(mns::ModelNonstat, m::ModelStat, optns::OptionsNonstat, statns
 end
 
 function undo_move!(movetype::Int, mns::ModelNonstat, optns::OptionsNonstat, m::ModelStat)
+    # purely nonstationary GP moves
     if movetype == 1
         undo_birth!(mns)
     elseif movetype == 2
@@ -902,6 +887,7 @@ end
 
 function do_move!(m::ModelStat, opt::OptionsStat, stat::Stats,
                   mns::ModelNonstat, optns::OptionsNonstat)
+    # Stationary GP changes which update nonstationary GP              
     cumprob = [0.20, 0.40, 0.60, 0.8] # if sampledc and 5 total noves
     if !opt.sampledc
         cumprob +=  [0.05, 0.10, 0.15, 0.2] # add these if no sampledc, 4 total moves
@@ -938,14 +924,69 @@ end
 
 function undo_move!(movetype::Int, m::ModelStat, opt::OptionsStat,
                     mns::ModelNonstat, optns::OptionsNonstat)
+    # Stationary GP changes which update nonstationary GP           
     if movetype == 1
-        undo_birth!(m, opt, mns)
+        undo_birth!(m, mns)
     elseif movetype == 2
         undo_death!(m, opt, mns)
     elseif movetype == 3
         undo_position_change!(m, opt, mns)
     elseif movetype == 4
-        undo_property_change!(m, opt, mns)
+        undo_property_change!(m, mns)
+    else
+        undo_dc_change!(m)
+    end
+    sync_model!(m, opt)
+    opt.updatenonstat && sync_model!(mns, optns)
+    nothing
+end
+
+function do_move!(m::ModelStat, opt::OptionsStat, stat::Stats)
+    # purely stationary GP moves
+    cumprob = [0.20, 0.40, 0.60, 0.8] # if sampledc and 5 total noves
+    if !opt.sampledc
+        cumprob +=  [0.05, 0.10, 0.15, 0.2] # add these if no sampledc, 4 total moves
+    end
+    unifrand = rand()
+    movetype, priorviolate = 0, false
+    if unifrand<cumprob[1]
+        if m.n<opt.nmax
+            birth!(m, opt)
+        else
+            priorviolate = true
+        end
+        movetype = 1
+    elseif unifrand<cumprob[2]
+        if m.n>opt.nmin
+            death!(m, opt)
+        else
+            priorviolate = true
+        end
+        movetype = 2
+    elseif unifrand<cumprob[3]
+        position_change!(m, opt)
+        movetype = 3
+    elseif unifrand<cumprob[4]
+        property_change!(m, opt)
+        movetype = 4
+    else
+        dc_change!(m, opt)
+        movetype = 5
+    end
+    stat.move_tries[movetype] += 1
+    return movetype, priorviolate
+end
+
+function undo_move!(movetype::Int, m::ModelStat, opt::OptionsStat)
+    # purely stationary GP moves
+    if movetype == 1
+        undo_birth!(m)
+    elseif movetype == 2
+        undo_death!(m, opt)
+    elseif movetype == 3
+        undo_position_change!(m, opt)
+    elseif movetype == 4
+        undo_property_change!(m)
     else
         undo_dc_change!(m)
     end

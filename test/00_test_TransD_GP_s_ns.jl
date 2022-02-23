@@ -1,4 +1,4 @@
-## make options for the multichannel lengthscale GP
+## make options for the stationary multichannel lengthscale GP
 nminlog10λ, nmaxlog10λ = 2, 200
 pnorm = 2.
 Klog10λ = transD_GP.GP.Mat32()
@@ -62,7 +62,8 @@ opt = transD_GP.OptionsNonstat(optlog10λ,
                         K = K
                         )
 @time m = transD_GP.init(opt, log10λ)
-## run tests for the different McMC moves
+## run tests for the different McMC moves -- stationary GP changes have to update and propagate
+# to the nonstationary GP 
 fracthresh = 0.05
 @testset "GP and MCMC move do and undo state tests" begin
     @testset "init test" begin
@@ -96,7 +97,7 @@ fracthresh = 0.05
     @testset "undo birth" begin
         log10λold = deepcopy(log10λ)
         transD_GP.birth!(log10λ, optlog10λ, m, opt)
-        transD_GP.undo_birth!(log10λ, optlog10λ, m)
+        transD_GP.undo_birth!(log10λ, m)
         transD_GP.sync_model!(log10λ, optlog10λ)
         ftest = transD_GP.testupdate(optlog10λ, log10λ)
         transD_GP.sync_model!(m, opt)
@@ -111,7 +112,7 @@ fracthresh = 0.05
         transD_GP.birth!(log10λ, optlog10λ, m, opt)
         log10λold = deepcopy(log10λ)
         transD_GP.birth!(log10λ, optlog10λ, m, opt)
-        transD_GP.undo_birth!(log10λ,optlog10λ, m)
+        transD_GP.undo_birth!(log10λ, m)
         transD_GP.sync_model!(log10λ, optlog10λ)
         ftest = transD_GP.testupdate(optlog10λ, log10λ)
         transD_GP.sync_model!(m, opt)
@@ -161,7 +162,7 @@ fracthresh = 0.05
     @testset "undo property change" begin
         log10λold = deepcopy(log10λ)
         transD_GP.property_change!(log10λ, optlog10λ, m, opt)
-        transD_GP.undo_property_change!(log10λ, optlog10λ, m)
+        transD_GP.undo_property_change!(log10λ, m)
         transD_GP.sync_model!(log10λ, optlog10λ)
         ftest = transD_GP.testupdate(optlog10λ, log10λ)
         transD_GP.sync_model!(m, opt)

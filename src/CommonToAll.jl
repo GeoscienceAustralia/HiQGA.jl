@@ -701,7 +701,7 @@ function make1Dhist(F::Operator1D,
     return himage, edges, CI, meanimage, Mslope, sdevslope
 end
 
-function gethimage(F::Operator1D, M::AbstractArray, opt::Options;
+function gethimage(F::Operator, M::AbstractArray, opt::Options;
                 burninfrac = 0.5,
                 nbins = 50,
                 rhomin=Inf,
@@ -758,7 +758,7 @@ function gethimage(F::Operator1D, M::AbstractArray, opt::Options;
     himage, edges, CI
 end
 
-function stretchexists(F::Operator1D)
+function stretchexists(F::Operator)
     in(:stretch, fieldnames(typeof(F))) && F.stretch
 end
 
