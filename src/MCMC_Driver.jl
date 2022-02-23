@@ -170,7 +170,7 @@ function do_mcmc_step(m::ModelStat, mn::ModelNuisance,
     if !priorviolate
         mh_step!(m, mn, F, opt, stat, Temp, movetype, current_misfit)
     end
-    get_acceptance_stats!(isample, optns, statns)
+    get_acceptance_stats!(isample, opt, stat)
     writemodel = false
     abs(Temp-1.0) < 1e-12 && (writemodel = true)
     write_history(isample, opt, m, current_misfit[1], stat, wp, Temp, writemodel)
@@ -386,9 +386,9 @@ function init_chain_darrays(opt_in::OptionsStat,
             wp, wpns, wpn, iterlast
 end
 
-function domcmciters(iterlast, nsamples, chains, mns::ModelNonstat, m::ModelStat, 
-            mn::ModelNuisance, optns::OptionsNonstat, opt::OptionsStat,
-            optn::OptionsNuisance, statns, stat, statn, current_misfit, F, wpns, wp, wpn)
+function domcmciters(iterlast, nsamples, chains, mns::DArray{ModelNonstat}, m::DArray{ModelStat}, 
+            mn::DArray{ModelNuisance}, optns::DArray{OptionsNonstat}, opt::DArray{OptionsStat},
+            optn::DArray{OptionsNuisance}, statns, stat, statn, current_misfit, F, wpns, wp, wpn)
     # for nonstat, stat, and nuisances all together         
     
     t2 = time()
@@ -587,6 +587,8 @@ function init_chain_darrays(opt_in::OptionsStat, optn_in::OptionsNuisance,
                                 fetch(mn_[idx])[1],
                                 fetch(opt_[idx])[1],
                                 fetch(F_in_[idx])[1]) ]]
+        
+        iterlast = getlastiter(opt_in, chains, idx)                         
     end
 
     m, mn, opt, optn, stat, statn, F,
@@ -598,8 +600,8 @@ function init_chain_darrays(opt_in::OptionsStat, optn_in::OptionsNuisance,
         wp, wpn, iterlast
 end
 
-function domcmciters(iterlast, nsamples, chains, m::ModelStat, mn::ModelNuisance, 
-            opt::OptionsStat, optn::OptionsNuisance, stat, statn, 
+function domcmciters(iterlast, nsamples, chains, m::DArray{ModelStat}, mn::DArray{ModelNuisance}, 
+            opt::DArray{OptionsStat}, optn::DArray{OptionsNuisance}, stat, statn, 
             current_misfit, F, wp, wpn)
     # purely stationary GP moves + nuisance        
     
@@ -647,6 +649,20 @@ function main(opt_in       ::OptionsStat,
     close_history.([wp, wpn])
     nothing
 end
+
+function main(opt_in ::OptionsStat,
+    optn_in     ::OptionsNuisance,
+    F_in         ::Operator;
+    nchains      = 4,
+    nsamples     = 4001,
+    nchainsatone = 1,
+    Tmax         = 2.5)
+    # unnecessary but for backwards compat
+    # purely stationary GP moves + nuisance  
+    pids = workers()
+    @assert length(pids) == nchains
+    main(opt_in, optn_in, F_in, workers(), nsamples=nsamples, Tmax=Tmax, nchainsatone=nchainsatone)
+end 
 
 function init_chain_darrays(opt_in::OptionsStat, F_in::Operator, 
     chains::Array{Chain, 1})

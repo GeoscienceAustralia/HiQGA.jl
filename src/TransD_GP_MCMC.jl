@@ -199,9 +199,9 @@ function OptionsNonstat(opt::OptionsStat;
                 opt.updatenuisances, opt.peskycholesky, dcvalue, sampledc)
 end
 
-#not subtyping Options because methods that expect Options are expecting
-#options for a Gaussian process model, not fixed-dimension MCMC
 mutable struct OptionsNuisance
+    # not subtyping Options because methods that expect Options are expecting
+    # options for a Gaussian process model, not fixed-dimension MCMC
     sdev                   :: Array{Float64,1}
     bounds                 :: Array{Float64,2}
     nnu                    :: Int64
@@ -298,8 +298,9 @@ function findidxnotzero(nnu, bounds)
     idxnotzero
 end
 
-#"Model" means a Gaussian-process parametrised function
-abstract type Model end
+abstract type Model 
+    #"Model" means a Gaussian-process parametrised function
+end
 
 mutable struct ModelStat <:Model
     fstar         :: Array{Float64}
@@ -334,9 +335,9 @@ mutable struct ModelNonstat <:Model
 end
 
 mutable struct ModelNuisance
-    #"nuisances" are a fixed-dimensional part of the model, with the only
-    #allowed move being a value change. Contrasting with the GP parametrisation
-    #of the main part of the model which allows birth and death of GP nodes
+    # "nuisances" are a fixed-dimensional part of the model, with the only
+    # allowed move being a value change. Contrasting with the GP parametrisation
+    # of the main part of the model which allows birth and death of GP nodes
     nuisance      :: Array{Float64}
     nu_old        :: Array{Float64} #prev val of nidx_mem
 end
