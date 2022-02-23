@@ -444,6 +444,21 @@ function main(opt_in     ::OptionsStat,
     nothing
 end
 
+function main(opt_in ::OptionsStat,
+    optns_in     ::OptionsNonstat,
+    optn         ::OptionsNuisance,
+    F_in         ::Operator;
+    nchains      = 4,
+    nsamples     = 4001,
+    nchainsatone = 1,
+    Tmax         = 2.5)
+    # unnecessary but for backwards compat
+    # for nonstat and stat together 
+    pids = workers()
+    @assert length(pids) == nchains
+    main(opt_in, optns_in, optn, F_in, workers(), nsamples=nsamples, Tmax=Tmax, nchainsatone=nchainsatone)
+end
+
 function init_chain_darrays(opt_in::OptionsStat,
                             optns_in::OptionsNonstat,
                             F_in::Operator, chains::Array{Chain, 1})
