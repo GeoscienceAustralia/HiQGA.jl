@@ -1,6 +1,6 @@
 module CommonToAll
 using PyPlot, StatsBase, Statistics, Distances, LinearAlgebra,
-      DelimitedFiles, ..AbstractOperator, NearestNeighbors
+      DelimitedFiles, ..AbstractOperator, NearestNeighbors, CSV, DataFrames
 
 import ..Options, ..OptionsStat, ..OptionsNonstat, ..OptionsNuisance,
        ..history, ..GP.κ, ..calcfstar!, ..AbstractOperator.Sounding
@@ -10,7 +10,7 @@ export trimxft, assembleTat1, gettargtemps, checkns, getchi2forall, nicenup,
         unwrap, getn, geomprogdepth, assemblemodelsatT, getstats, gethimage,
         assemblenuisancesatT, makenuisancehists, stretchexists,
         makegrid, whichislast, makesummarygrid, makearray, plotNEWSlabels, 
-        plotprofile, gridpoints, splitsoundingsbyline
+        plotprofile, gridpoints, splitsoundingsbyline, dfn2hdr
 
 function trimxft(opt::Options, burninfrac::Float64, temperaturenum::Int)
     x_ft = assembleTat1(opt, :x_ftrain, burninfrac=burninfrac, temperaturenum=temperaturenum)
@@ -975,5 +975,22 @@ function plot1Dpatches(ax, zlist, xlist; alpha=0.25, fc="red", ec="blue", lw=2)
         ax.add_patch(matplotlib.patches.Rectangle((x0,z0),delx,delz, fill=false, ec=ec, lw=lw, linestyle="--"))
     end    
 end
+
+function dfn2hdr(dfnfile::String,hdrfile::String)
+    df = CSV.read(dfnfile, DataFrame; header=false);
+    df[!, "Combined"] = string.(df[!, "Column3"], ":", df[!, "Column4"],":", df[!, "Column5"],":", df[!, "Column6"]);
+
+    for i in 2:size(df,1)
+        regex_literal = r"NAME="
+        a1 = df[i,:].Column1[6:7]
+        a2 = split(string(df[i,:].Combined), regex_literal)
+        a2_r= first.(split.(a2[2], ":"))
+        if occursin(";END DEFN", a2_r)
+            a2_r = first.(split.(a2_r, ";"))
+        end
+        CSV.write(hdrfile,(Col_No = [a1], Col_Name = [a2_r]), append=true)
+    end
+end
+
 
 end
