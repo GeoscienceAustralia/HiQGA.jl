@@ -627,6 +627,7 @@ function plot_posterior(operator::Operator1D,
                                      pdfnormalize = pdfnormalize)
     if doplot
         fig,ax = subplots(length(hists), 1, figsize=figsize)
+        length(hists) == 1 && (ax = [ax])
         for (i, h) = enumerate(hists)
             bwidth = diff(h.edges[1])[1]
             bx = h.edges[1][1:end-1] .+ bwidth/2
