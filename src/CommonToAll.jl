@@ -10,7 +10,7 @@ export trimxft, assembleTat1, gettargtemps, checkns, getchi2forall, nicenup,
         unwrap, getn, geomprogdepth, assemblemodelsatT, getstats, gethimage,
         assemblenuisancesatT, makenuisancehists, stretchexists,
         makegrid, whichislast, makesummarygrid, makearray, plotNEWSlabels, 
-        plotprofile, gridpoints
+        plotprofile, gridpoints, splitsoundingsbyline
 
 function trimxft(opt::Options, burninfrac::Float64, temperaturenum::Int)
     x_ft = assembleTat1(opt, :x_ftrain, burninfrac=burninfrac, temperaturenum=temperaturenum)
@@ -702,7 +702,7 @@ function make1Dhist(F::Operator1D,
     return himage, edges, CI, meanimage, Mslope, sdevslope
 end
 
-function gethimage(F::Operator1D, M::AbstractArray, opt::Options;
+function gethimage(F::Operator, M::AbstractArray, opt::Options;
                 burninfrac = 0.5,
                 nbins = 50,
                 rhomin=Inf,
@@ -759,11 +759,23 @@ function gethimage(F::Operator1D, M::AbstractArray, opt::Options;
     himage, edges, CI
 end
 
-function stretchexists(F::Operator1D)
+function stretchexists(F::Operator)
     in(:stretch, fieldnames(typeof(F))) && F.stretch
 end
 
 # plotting codes for 2D sections in AEM
+
+function splitsoundingsbyline(soundings::Array{S, 1}) where S<:Sounding
+    alllines = [s.linenum for s in soundings]
+    linenum  = unique(alllines)
+    nlines   = length(linenum)
+    linestartidx = zeros(Int, nlines)
+    for i = 1:nlines
+        linestartidx[i] = findfirst(alllines .== linenum[i])
+    end
+    linestartidx
+end 
+
 function makegrid(vals::AbstractArray, soundings::Array{S, 1};
     dr=10, zall=[NaN], dz=-1) where S<:Sounding
     @assert all(.!isnan.(zall)) 

@@ -908,7 +908,7 @@ end
 function plotsummarygrids1(meangrid, phgrid, plgrid, pmgrid, gridx, gridz, topofine, R, Z, χ²mean, χ²sd, lname; qp1=0.05, qp2=0.95,
                         figsize=(10,10), fontsize=12, cmap="viridis", vmin=-2, vmax=0.5, Eislast=true, Nislast=true,
                         topowidth=2, idx=nothing, omitconvergence=false, useML=false, preferEright=false, preferNright=false,
-                        saveplot=false, yl=nothing, botadjust=[0.125, 0.05, 0.75, 0.01])
+                        saveplot=false, yl=nothing, botadjust=[0.125, 0.05, 0.75, 0.01], dpi=300, showplot=true)
     f = figure(figsize=figsize)
     dr = diff(gridx)[1]
     f.suptitle(lname*" Δx=$dr m, Fids: $(length(R))", fontsize=fontsize)
@@ -976,7 +976,8 @@ function plotsummarygrids1(meangrid, phgrid, plgrid, pmgrid, gridx, gridz, topof
     cb.ax.tick_params(labelsize=fontsize)
     (preferNright && !Nislast) && s[end].invert_xaxis()
     (preferEright && !Eislast) && s[end].invert_xaxis()
-    saveplot && savefig(lname*".png", dpi=300)
+    saveplot && savefig(lname*".png", dpi=dpi)
+    showplot || close(f)
 end
 
 function plotsummarygrids2(σmeangrid, ∇zmeangrid, ∇zsdgrid, cigrid, gridx, gridz, topofine, lname;
@@ -1014,6 +1015,47 @@ function plotsummarygrids2(σmeangrid, ∇zmeangrid, ∇zsdgrid, cigrid, gridx, 
     colorbar()
     xlim(extrema(gridx))
     nicenup(f, fsize=fontsize)
+end   
+
+function splitlinesummaryimages(soundings::Array{SkyTEMsoundingData, 1}, opt::Options;
+                        qp1=0.05,
+                        qp2=0.95,
+                        burninfrac=0.5,
+                        zstart = 0.0,
+                        extendfrac = -1,
+                        dz = -1,
+                        dr = 10,
+                        nlayers = -1,
+                        fontsize = 10,
+                        vmin = -2,
+                        vmax = 0.5,
+                        cmap="viridis",
+                        figsize=(6,10),
+                        topowidth=2,
+                        idx = nothing,
+                        showderivs = false,
+                        omitconvergence = false,
+                        useML = false,
+                        preferEright = false,
+                        preferNright = false,
+                        saveplot = true,
+                        yl = nothing,
+                        showplot = true,
+                        botadjust=[0.125, 0.05, 0.75, 0.01],
+                        dpi = 300)
+    
+    linestartidx = splitsoundingsbyline(soundings)                    
+    nlines = length(linestartidx)                   
+    for i in 1:nlines
+        a = linestartidx[i]
+        b = i != nlines ?  linestartidx[i+1]-1 : length(soundings)
+        summaryimages(soundings[a:b], opt, qp1=qp1, qp2=qp2, burninfrac=burninfrac, zstart=zstart,
+            extendfrac=extendfrac, dz=dz, dr=dr, nlayers=nlayers, fontsize=fontsize, vmin=vmin, 
+            vmax = vmax, cmap=cmap, figsize=figsize, topowidth=topowidth, idx=idx, showderivs=showderivs,
+            omitconvergence=omitconvergence, useML=useML, preferEright=preferEright, showplot=showplot,
+            preferNright=preferNright, saveplot=saveplot, yl=yl, botadjust=botadjust, dpi=dpi)
+    end
+    nothing    
 end
 
 function summaryimages(soundings::Array{SkyTEMsoundingData, 1}, opt::Options;
@@ -1039,8 +1081,9 @@ function summaryimages(soundings::Array{SkyTEMsoundingData, 1}, opt::Options;
                         preferNright = false,
                         saveplot = false,
                         yl = nothing,
-                        botadjust=[0.125, 0.05, 0.75, 0.01]
-                        )
+                        showplot = true,
+                        botadjust=[0.125, 0.05, 0.75, 0.01],
+                        dpi = 300)
     @assert !(preferNright && preferEright) # can't prefer both labels to the right
     pl, pm, ph, ρmean, vdmean, vddev, χ²mean, χ²sd, zall = summarypost(soundings, opt,
                                                                     zstart=zstart,
@@ -1060,8 +1103,8 @@ function summaryimages(soundings::Array{SkyTEMsoundingData, 1}, opt::Options;
     plotsummarygrids1(σmeangrid, phgrid, plgrid, pmgrid, gridx, gridz, topofine, R, Z, χ²mean, χ²sd, lname, qp1=qp1, qp2=qp2,
                         figsize=figsize, fontsize=fontsize, cmap=cmap, vmin=vmin, vmax=vmax, Eislast=Eislast,
                         Nislast=Nislast, topowidth=topowidth, idx=idx, omitconvergence=omitconvergence, useML=useML,
-                        preferEright=preferEright, preferNright=preferNright, saveplot=saveplot, 
-                        yl=yl, botadjust=botadjust)
+                        preferEright=preferEright, preferNright=preferNright, saveplot=saveplot, showplot=showplot, dpi=dpi,
+                        yl=yl, botadjust=botadjust)                  
     if showderivs
         cigrid = phgrid - plgrid
         plotsummarygrids2(σmeangrid, ∇zmeangrid, ∇zsdgrid, cigrid, gridx, gridz, topofine, lname, qp1=qp1, qp2=qp2,

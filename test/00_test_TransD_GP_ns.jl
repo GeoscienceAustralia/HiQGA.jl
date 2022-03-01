@@ -1,4 +1,4 @@
-## make options for the multichannel lengthscale GP
+## make options for the stationary multichannel lengthscale GP
 nminlog10λ, nmaxlog10λ = 2, 200
 pnorm = 2.
 Klog10λ = transD_GP.GP.Mat32()
@@ -40,14 +40,16 @@ optlog10λ = transD_GP.OptionsStat(nmin = nminlog10λ,
                         timesλ = 3.6
                         )
 @time  log10λ = transD_GP.init(optlog10λ)
-## make options for the nonstationary GP
+## make options for the nonstationary GP -- changes to these should not 
+# affect the stationary GP
 nmin, nmax = 2, 200
 fbounds = [-2. 2]
 δ = 0.1
 sdev_prop = [0.1]
 sdev_pos = [0.05, 0.05]
 K = transD_GP.GP.Mat32()
-demean_ns = true
+demean_ns = false
+sampledc_ns = true
 ## Initialize model for the nonstationary GP
 Random.seed!(13)
 opt = transD_GP.OptionsNonstat(optlog10λ,
@@ -56,6 +58,7 @@ opt = transD_GP.OptionsNonstat(optlog10λ,
                         fbounds = fbounds,
                         δ = δ,
                         demean = demean_ns,
+                        sampledc = sampledc_ns,
                         sdev_prop = sdev_prop,
                         sdev_pos = sdev_pos,
                         pnorm = pnorm,
@@ -164,6 +167,23 @@ ftest = transD_GP.testupdate(opt, log10λ, m)
         mold = deepcopy(m)
         transD_GP.position_change!(m, opt, log10λ)
         transD_GP.undo_position_change!(m, opt, log10λ)
+        transD_GP.sync_model!(m, opt)
+        ftest = transD_GP.testupdate(opt, log10λ, m)
+        @test norm(mean(lsc' - 0.5log10.(log10λ.fstar))) < 1e-12
+        @test mean(abs.((ftest - m.fstar)./ftest)) < fracthresh
+        @test norm(mean(mold.fstar - m.fstar)) < 1e-12
+    end
+    @testset "dc change" begin
+        transD_GP.dc_change!(m, opt)
+        transD_GP.sync_model!(m, opt)
+        ftest = transD_GP.testupdate(opt, log10λ, m)
+        @test norm(mean(lsc' - 0.5log10.(log10λ.fstar))) < 1e-12
+        @test mean(abs.((ftest - m.fstar)./ftest)) < fracthresh
+    end
+    @testset "undo dc change" begin
+        mold = deepcopy(m)
+        transD_GP.dc_change!(m, opt)
+        transD_GP.undo_dc_change!(m)
         transD_GP.sync_model!(m, opt)
         ftest = transD_GP.testupdate(opt, log10λ, m)
         @test norm(mean(lsc' - 0.5log10.(log10λ.fstar))) < 1e-12
