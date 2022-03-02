@@ -1173,7 +1173,7 @@ function plotconvandlast(soundings, delr, delz;
     ϕd, σ = readingrid(soundings, zall)
     img, gridr, gridz, topofine, R = makegrid(σ, soundings, zall=zall, dz=delz, dr=delr)
     f, ax = plt.subplots(2,1, sharex=true, figsize=figsize)
-    lname = "Line $(soundings[1].linenum)"
+    lname = "Line_$(soundings[1].linenum)"
     f.suptitle(lname*" Δx=$delr m, Fids: $(length(R))", fontsize=fontsize)
     ax[1].plot(R, ϕd)
     # ax[1].plot(R, ones(length(ϕd)), "--k")
