@@ -1132,12 +1132,38 @@ function readingrid(soundings, zall)
 end
 
 # plot the convergence and the result
+function splitlineconvandlast(soundings, delr, delz; 
+        zstart=-1, extendfrac=-1, dz=-1, nlayers=-1, cmapσ="jet", vmin=-2.5, vmax=0.5, fontsize=12,
+        figsize=(20,5),
+        topowidth=1,
+        preferEright = false,
+        preferNright = false,
+        saveplot = true,
+        showplot = true,
+        dpi=400)
+    linestartidx = splitsoundingsbyline(soundings)                    
+    nlines = length(linestartidx)                   
+    for i in 1:nlines
+        a = linestartidx[i]
+        b = i != nlines ?  linestartidx[i+1]-1 : length(soundings)
+        plotconvandlast(soundings[a:b], delr, delz, 
+            zstart=zstart, extendfrac=extendfrac, dz=dz, nlayers=nlayers, 
+            cmapσ=cmapσ, vmin=vmin, vmax=vmax, fontsize=fontsize,
+            figsize=figsize, topowidth=topowidth, preferEright=preferEright,
+            preferNright=preferNright, saveplot=saveplot, showplot=showplot, dpi=dpi)
+    end
+    nothing
+end
+
 function plotconvandlast(soundings, delr, delz; 
         zstart=-1, extendfrac=-1, dz=-1, nlayers=-1, cmapσ="jet", vmin=-2.5, vmax=0.5, fontsize=12,
         figsize=(20,5),
         topowidth=1,
         preferEright = false,
-        preferNright = false)
+        preferNright = false,
+        saveplot = true, 
+        showplot = true,
+        dpi = 400)
     @assert zstart > -1
     @assert extendfrac >-1
     @assert dz>-1
@@ -1147,7 +1173,7 @@ function plotconvandlast(soundings, delr, delz;
     ϕd, σ = readingrid(soundings, zall)
     img, gridr, gridz, topofine, R = makegrid(σ, soundings, zall=zall, dz=delz, dr=delr)
     f, ax = plt.subplots(2,1, sharex=true, figsize=figsize)
-    lname = "Line $(soundings[1].linenum)"
+    lname = "Line_$(soundings[1].linenum)"
     f.suptitle(lname*" Δx=$delr m, Fids: $(length(R))", fontsize=fontsize)
     ax[1].plot(R, ϕd)
     # ax[1].plot(R, ones(length(ϕd)), "--k")
@@ -1166,6 +1192,8 @@ function plotconvandlast(soundings, delr, delz;
     cb.ax.set_xlabel("Log₁₀ S/m")
     (preferNright && !Nislast) && ax[end].invert_xaxis()
     (preferEright && !Eislast) && ax[end].invert_xaxis()
+    saveplot && savefig(lname*".png", dpi=dpi)
+    showplot || close(f)
 end    
 
 # plot multiple grids with supplied labels

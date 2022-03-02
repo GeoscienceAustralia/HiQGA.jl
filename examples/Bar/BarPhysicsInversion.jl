@@ -1,16 +1,16 @@
 # make sure to include this file 
 # AFTER BarPhysics.jl has been included
 module BarPhysicsInversion
-using ..transD_GP.AbstractOperator
+using transD_GP.AbstractOperator
 # using AbstractOperator (above) says that transD_GP can 
 # use this kind of physics, through a misfit function
 
-import ..transD_GP.AbstractOperator.get_misfit
+import transD_GP.AbstractOperator.get_misfit
 # get_misfit (above) extends all the other misfit functions 
 # in transD_GP. Because we are extending a method
 # we must use import instead of using.
 
-import ..transD_GP.Model, ..transD_GP.Options
+import transD_GP.Model, transD_GP.Options
 # the above line now recognizes GP models and McMC options defined in src/TransD_GP_MCMC.jl
 
 # The above three lines are the bare minimum we need to use transD_GP
