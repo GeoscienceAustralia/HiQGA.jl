@@ -5,7 +5,7 @@ Random.seed!(23)
 zfixed   = [-1e5]
 ρfixed   = [1e12]
 nmax = 200
-# Note that the receiver and transmitter need to be in layer 1
+# Note that the receiver and transmitter need to be in the same layer
 zstart = 0.0
 extendfrac, dz = 1.06, 1.15
 zall, znall, zboundaries = transD_GP.setupz(zstart, extendfrac, dz=dz, n=50, showplot=true)
