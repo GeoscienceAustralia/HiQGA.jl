@@ -493,25 +493,32 @@ end
 function plot_posterior(F::Operator1D,
                         optns::OptionsNonstat,
                         opts::OptionsStat;
-    temperaturenum = 1,
-    nbins = 50,
-    burninfrac=0.5,
-    qp1=0.05,
-    qp2=0.95,
-    vmaxpc=1.0,
-    cmappdf = "inferno",
-    figsize=(12,5),
-    pdfnormalize=false,
-    fsize=14,
-    showlscale1vd=false,
-    doplot = true,
-    a = 0.25,
-    lw = 1)
+                        temperaturenum = 1,
+                        nbins = 50,
+                        burninfrac=0.5,
+                        qp1=0.05,
+                        qp2=0.95,
+                        vmaxpc=1.0,
+                        cmappdf = "inferno",
+                        figsize=(12,5),
+                        pdfnormalize=false,
+                        fsize=14,
+                        showlscale1vd=false,
+                        istothepow=false,
+                        doplot = true,
+                        a = 0.25,
+                        lw = 1)
     @assert 0<vmaxpc<=1
-    himage_ns, edges_ns, CI_ns, meanimage_ns, meandiffimage_ns, sdslope_ns = make1Dhist(F, optns, burninfrac=burninfrac, nbins = nbins, qp1=qp1, qp2=qp2,
-                                pdfnormalize=pdfnormalize, temperaturenum=temperaturenum)
-    himage, edges, CI, meanimage, meandiffimage, sdslope = make1Dhist(F, opts, burninfrac=burninfrac, nbins = nbins, qp1=qp1, qp2=qp2,
-                                pdfnormalize=pdfnormalize, temperaturenum=temperaturenum, islscale=true)
+    M = assembleTat1(optns, :fstar, burninfrac=burninfrac, temperaturenum=temperaturenum)
+    himage_ns, edges_ns, CI_ns, meanimage_ns, 
+    meandiffimage_ns, sdslope_ns, = gethimage(F, M, optns, temperaturenum=temperaturenum,
+                            nbins=nbins, qp1=qp1, qp2=qp2, istothepow=istothepow,
+                            islscale=false, pdfnormalize=pdfnormalize)
+    M = assembleTat1(opts, :fstar, burninfrac=burninfrac, temperaturenum=temperaturenum)
+    himage, edges, CI, meanimage, 
+    meandiffimage, sdslope, = gethimage(F, M, opts, temperaturenum=temperaturenum,
+                            nbins=nbins, qp1=qp1, qp2=qp2, istothepow=false,
+                            islscale=true, pdfnormalize=pdfnormalize)
     f,ax = plt.subplots(1, 3+convert(Int, showlscale1vd), sharey=true, figsize=figsize)
     xall = opts.xall
     diffs = diff(xall[:])
@@ -521,8 +528,7 @@ function plot_posterior(F::Operator1D,
     im1 = ax[1].pcolormesh(edges_ns[:], xmesh, himage_ns, cmap=cmappdf, vmax=vmax)
     cb1 = colorbar(im1, ax=ax[1])
     cb1.ax.set_xlabel("pdf \nns")
-    propmin = min(minimum(CI_ns), minimum(optns.fbounds))
-    propmax = max(maximum(CI_ns), maximum(optns.fbounds))
+    @show propmin, propmax = getbounds(CI_ns, optns.fbounds)
     ax[1].set_xlim(propmin, propmax)
     ax[2].fill_betweenx(xall[:],meandiffimage_ns[:]-sdslope_ns[:],meandiffimage_ns[:]+sdslope_ns[:],alpha=a, color="gray")
     ax[2].plot(meandiffimage_ns, xall[:], linewidth=lw, color="k")
@@ -530,10 +536,9 @@ function plot_posterior(F::Operator1D,
 
     vmin, vmax = extrema(himage)
     vmax = vmin+vmaxpc*(vmax-vmin)
-    propmin = min(minimum(CI), minimum(opts.fbounds))
-    propmax = max(maximum(CI), maximum(opts.fbounds))
     im3 = ax[3].pcolormesh(edges[:], xmesh, himage, cmap=cmappdf, vmax=vmax)
     ax[3].set_ylim(extrema(xall)...)
+    propmin, propmax = getbounds(CI, opts.fbounds)
     ax[3].set_xlim(propmin, propmax)
     ax[3].invert_yaxis()
     cb3 = colorbar(im3, ax=ax[3])
@@ -574,8 +579,12 @@ function plot_posterior(F::Operator1D,
     fsize=14,
     doplot = true)
     @assert 0<vmaxpc<=1
-    himage, edges, CI, meanimage, meandiffimage, sdslope = make1Dhist(F, opt, burninfrac=burninfrac, nbins = nbins, qp1=qp1, qp2=qp2,
-                                    pdfnormalize=pdfnormalize, temperaturenum=temperaturenum, istothepow=istothepow)
+    
+    M = assembleTat1(opt, :fstar, burninfrac=burninfrac, temperaturenum=temperaturenum)
+    himage, edges, CI, meanimage, meandiffimage, sdslope, = gethimage(F, M, opt, burninfrac=burninfrac, temperaturenum=temperaturenum,
+                nbins=nbins, qp1=qp1, qp2=qp2, istothepow=istothepow,
+                islscale=false, pdfnormalize=pdfnormalize)
+
     if doplot
         f,ax = plt.subplots(1,2, sharey=true, figsize=figsize)
         xall = opt.xall
@@ -599,9 +608,7 @@ function plot_posterior(F::Operator1D,
             bounds = [minimum(F.low) maximum(F.low + F.Δ)]
         end
         istothepow && (bounds .= 10 .^ bounds)
-        propmin = min(minimum(CI), minimum(bounds))
-        propmax = max(maximum(CI), maximum(bounds))
-
+        propmin, propmax = getbounds(CI, bounds)
         ax[1].set_xlim(propmin, propmax)
         ax[2].plot(meandiffimage[:], xall[:], linewidth=2, color="k", linestyle="-")
         zeroside = meandiffimage[:]-sdslope[:]
@@ -612,6 +619,12 @@ function plot_posterior(F::Operator1D,
     end
     CI[:,1], CI[:,2], CI[:,3], meanimage, meandiffimage, sdslope
 end
+
+function getbounds(CI, bounds)
+    propmin = min(minimum(CI), minimum(bounds))
+    propmax = max(maximum(CI), maximum(bounds))
+    propmin, propmax
+end    
 
 function plot_posterior(operator::Operator1D,
                         optn::OptionsNuisance;
@@ -674,25 +687,6 @@ function secondderiv(x)
     abs.(sd)
 end
 
-function make1Dhist(F::Operator1D,
-                opt::Options;
-                burninfrac = 0.5,
-                nbins = 50,
-                rhomin=Inf,
-                rhomax=-Inf,
-                qp1=0.05,
-                qp2=0.95,
-                islscale = false,
-                istothepow = false,
-                pdfnormalize=false,
-                temperaturenum=1)
-    M = assembleTat1(opt, :fstar, burninfrac=burninfrac, temperaturenum=temperaturenum)
-    himage, edges, CI, meanimage, Mslope, sdevslope = gethimage(F, M, opt, burninfrac=burninfrac, temperaturenum=temperaturenum,
-                nbins=nbins, rhomin=rhomin, rhomax=rhomax, qp1=qp1, qp2=qp2, istothepow=istothepow,
-                islscale = islscale, pdfnormalize=pdfnormalize)
-    return himage, edges, CI, meanimage, Mslope, sdevslope
-end
-
 function gethimage(F::Operator, M::AbstractArray, opt::Options;
                 burninfrac = 0.5,
                 nbins = 50,
@@ -712,7 +706,6 @@ function gethimage(F::Operator, M::AbstractArray, opt::Options;
                 rhomax_mm = maximum(mm)
                 rhomin_mm < rhomin && (rhomin = rhomin_mm)
                 rhomax_mm > rhomax && (rhomax = rhomax_mm)
-
             end
             if (typeof(opt) == OptionsStat && opt.needλ²fromlog) && islscale
                 T = x->0.5log10(x)
@@ -724,14 +717,14 @@ function gethimage(F::Operator, M::AbstractArray, opt::Options;
     else
         @assert rhomin < rhomax
     end
-    if istothepow
+    if istothepow && !islscale
         T = x->10. ^x
     end
     rhomin, rhomax = map(x->T(x), (rhomin, rhomax))    
     edges = LinRange(rhomin, rhomax, nbins+1)
     himage = zeros(Float64, length(M[1]), nbins)
     CI = zeros(Float64, length(M[1]), 3)
-    meanimage, Mslope, sdevslope = map(x->zeros(length(M[1])), 1:3)
+    meanimage = zeros(length(M[1]))
     for ilayer=1:length(M[1])
         if !stretchexists(F) # if no stretch
             mthislayer = [T(m[ilayer]) for m in M]
