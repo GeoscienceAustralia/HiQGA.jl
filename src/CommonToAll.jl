@@ -570,11 +570,12 @@ function plot_posterior(F::Operator1D,
     cmappdf = "inferno",
     figsize=(5,5),
     pdfnormalize=false,
+    istothepow=false,
     fsize=14,
     doplot = true)
     @assert 0<vmaxpc<=1
     himage, edges, CI, meanimage, meandiffimage, sdslope = make1Dhist(F, opt, burninfrac=burninfrac, nbins = nbins, qp1=qp1, qp2=qp2,
-                                    pdfnormalize=pdfnormalize, temperaturenum=temperaturenum)
+                                    pdfnormalize=pdfnormalize, temperaturenum=temperaturenum, istothepow=istothepow)
     if doplot
         f,ax = plt.subplots(1,2, sharey=true, figsize=figsize)
         xall = opt.xall
@@ -596,7 +597,8 @@ function plot_posterior(F::Operator1D,
         bounds = copy(opt.fbounds)
         if stretchexists(F)
             bounds = [minimum(F.low) maximum(F.low + F.Δ)]
-        end    
+        end
+        istothepow && (bounds .= 10 .^ bounds)
         propmin = min(minimum(CI), minimum(bounds))
         propmax = max(maximum(CI), maximum(bounds))
 
@@ -681,24 +683,13 @@ function make1Dhist(F::Operator1D,
                 qp1=0.05,
                 qp2=0.95,
                 islscale = false,
+                istothepow = false,
                 pdfnormalize=false,
                 temperaturenum=1)
     M = assembleTat1(opt, :fstar, burninfrac=burninfrac, temperaturenum=temperaturenum)
-    himage, edges, CI = gethimage(F, M, opt, burninfrac=burninfrac, temperaturenum=temperaturenum,
-                nbins=nbins, rhomin=rhomin, rhomax=rhomax, qp1=qp1, qp2=qp2,
-                pdfnormalize=pdfnormalize)
-    meanimage = mean(M)
-    if stretchexists(F)
-        meanimage = F.low + vec(meanimage).*F.Δ
-    end    
-    if islscale
-        Mslope = mean(firstderiv.([0.5log10.(m) for m in M]))
-        sdevslope = std(firstderiv.([0.5log10.(m) for m in M]))
-    else
-        Mslope = mean(firstderiv.(M))
-        sdevslope = std(firstderiv.(M))
-    end
-    # Mslope = secondderiv.(M)
+    himage, edges, CI, meanimage, Mslope, sdevslope = gethimage(F, M, opt, burninfrac=burninfrac, temperaturenum=temperaturenum,
+                nbins=nbins, rhomin=rhomin, rhomax=rhomax, qp1=qp1, qp2=qp2, istothepow=istothepow,
+                islscale = islscale, pdfnormalize=pdfnormalize)
     return himage, edges, CI, meanimage, Mslope, sdevslope
 end
 
@@ -711,7 +702,9 @@ function gethimage(F::Operator, M::AbstractArray, opt::Options;
                 qp2=0.95,
                 islscale = false,
                 pdfnormalize=false,
+                istothepow = false,
                 temperaturenum=1)
+    T = x->x
     if (rhomin == Inf) && (rhomax == -Inf)
         if !stretchexists(F) # if no stretch
             for (i,mm) in enumerate(M)
@@ -721,9 +714,8 @@ function gethimage(F::Operator, M::AbstractArray, opt::Options;
                 rhomax_mm > rhomax && (rhomax = rhomax_mm)
 
             end
-            if (typeof(opt) == OptionsStat && opt.needλ²fromlog) && !islscale
-                rhomin = 0.5*log10(rhomin)
-                rhomax = 0.5*log10(rhomax)
+            if (typeof(opt) == OptionsStat && opt.needλ²fromlog) && islscale
+                T = x->0.5log10(x)
             end
         else # there is a stretch
             rhomin = minimum(F.low)
@@ -732,31 +724,38 @@ function gethimage(F::Operator, M::AbstractArray, opt::Options;
     else
         @assert rhomin < rhomax
     end
+    if istothepow
+        T = x->10. ^x
+    end
+    rhomin, rhomax = map(x->T(x), (rhomin, rhomax))    
     edges = LinRange(rhomin, rhomax, nbins+1)
     himage = zeros(Float64, length(M[1]), nbins)
     CI = zeros(Float64, length(M[1]), 3)
+    meanimage, Mslope, sdevslope = map(x->zeros(length(M[1])), 1:3)
     for ilayer=1:length(M[1])
-        if (typeof(opt) == OptionsStat && opt.needλ²fromlog) && !islscale
-            himage[ilayer,:] = fit(Histogram, [0.5log10.(m[ilayer]) for m in M], edges).weights
-        else
-            if !stretchexists(F) # if no stretch
-                himage[ilayer,:] = fit(Histogram, [m[ilayer] for m in M], edges).weights
-            else # there is a stretch
-                himage[ilayer,:] = fit(Histogram, [F.low[ilayer] + m[ilayer]*F.Δ[ilayer] for m in M], edges).weights
-            end        
-        end
+        if !stretchexists(F) # if no stretch
+            mthislayer = [T(m[ilayer]) for m in M]
+            himage[ilayer,:] = fit(Histogram, mthislayer, edges).weights
+            CI[ilayer,:] = [quantile(mthislayer,(qp1, 0.5, qp2))...]
+            meanimage[ilayer] = mean(vec(mthislayer))
+        else # there is an affine stretch with depth
+            mthislayer = [m[ilayer] for m in M]
+            expandedthislayer = T.(F.low[ilayer] .+ mthislayer*F.Δ[ilayer])
+            himage[ilayer,:] = fit(Histogram, expandedthislayer, edges).weights
+            CI[ilayer,:] = [quantile(expandedthislayer,(qp1, 0.5, qp2))...]
+            meanimage[ilayer] = mean(vec(expandedthislayer))
+        end        
         himage[ilayer,:] = himage[ilayer,:]/sum(himage[ilayer,:])/(diff(edges)[1])
         pdfnormalize && (himage[ilayer,:] = himage[ilayer,:]/maximum(himage[ilayer,:]))
-        if (typeof(opt) == OptionsStat && opt.needλ²fromlog) && !islscale
-            CI[ilayer,:] = [quantile([0.5log10.(m[ilayer]) for m in M],(qp1, 0.5, qp2))...]
-        else
-            CI[ilayer,:] = [quantile([m[ilayer] for m in M],(qp1, 0.5, qp2))...]
-            if stretchexists(F)
-                CI[ilayer,:] = F.low[ilayer] .+ CI[ilayer,:]*F.Δ[ilayer]
-            end    
-        end
     end
-    himage, edges, CI
+    if !stretchexists(F)
+        Tm = [T.(m) for m in M]
+    else
+        Tm = [T.(F.low + vec(m).*F.Δ) for m in M]
+    end    
+    Mslope = mean(firstderiv.(Tm))
+    sdevslope = std(firstderiv.(Tm))
+    himage, edges, CI, meanimage, Mslope, sdevslope
 end
 
 function stretchexists(F::Operator)
