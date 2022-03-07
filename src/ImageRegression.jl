@@ -150,6 +150,7 @@ function slice_image_posterior( M::AbstractArray,
                                 rhomax=-Inf,
                                 qp1=0.05,
                                 qp2=0.95,
+                                islscale = false,
                                 pdfnormalize=false,
                                 temperaturenum=1)
     @assert temperaturenum == 1
@@ -163,7 +164,7 @@ function slice_image_posterior( M::AbstractArray,
         end
     end
     himage, edges, CI, = gethimage(img, Mslices, opt, burninfrac=0.0, temperaturenum=temperaturenum,
-                nbins=nbins, rhomin=rhomin, rhomax=rhomax, qp1=qp1, qp2=qp2,
+                nbins=nbins, rhomin=rhomin, rhomax=rhomax, qp1=qp1, qp2=qp2, islscale=islscale,
                 pdfnormalize=pdfnormalize)
 end
 
@@ -222,13 +223,13 @@ function plot_image_posterior(optns::OptionsNonstat, opts::OptionsStat,
         My[i] = M[i][2,:]
     end
     himage_x_c, edges_x_c, CI_x_c = slice_image_posterior(Mx, opts, img, :col, rowcolnum=colnum, nbins = nbins, qp1=qp1, qp2=qp2,
-                                pdfnormalize=pdfnormalize, temperaturenum=temperaturenum)
+                                pdfnormalize=pdfnormalize, temperaturenum=temperaturenum, islscale=true)
     himage_y_c, edges_y_c, CI_y_c = slice_image_posterior(My, opts, img, :col, rowcolnum=colnum, nbins = nbins, qp1=qp1, qp2=qp2,
-                                pdfnormalize=pdfnormalize, temperaturenum=temperaturenum)
+                                pdfnormalize=pdfnormalize, temperaturenum=temperaturenum, islscale=true)
     himage_x_r, edges_x_r, CI_x_r = slice_image_posterior(Mx, opts, img, :row, rowcolnum=rownum, nbins = nbins, qp1=qp1, qp2=qp2,
-                                pdfnormalize=pdfnormalize, temperaturenum=temperaturenum)
+                                pdfnormalize=pdfnormalize, temperaturenum=temperaturenum, islscale=true)
     himage_y_r, edges_y_r, CI_y_r = slice_image_posterior(My, opts, img, :row, rowcolnum=rownum, nbins = nbins, qp1=qp1, qp2=qp2,
-                                pdfnormalize=pdfnormalize, temperaturenum=temperaturenum)
+                                pdfnormalize=pdfnormalize, temperaturenum=temperaturenum, islscale=true)
     f = figure(figsize=figsizerows)
     s1 = subplot(231)
     im1 = s1.pcolormesh(img.x, img.y, mns, cmap=cmapmean)
