@@ -193,10 +193,14 @@ function read_survey_files(dfnfile::String,;
                         fid              = fid,
                         units            = units,
                         relerror         = relerror,
+                        LM_σ             = LM_σ,
+                        HM_σ             = HM_σ,
+                        figsize          = figsize,   
                         linenum          = linenum,
                         startfrom        = startfrom,
                         skipevery        = skipevery,
                         dotillsounding   = dotillsounding,
+                        multnoise        = multnoise,
                         makesounding     = makesounding)
     s_array # return sounding array
 end    
