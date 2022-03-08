@@ -172,33 +172,33 @@ function read_survey_files(dfnfile::String,;
     linenum = -1)
 
     location = findfirst(".dfn", dfnfile)[1] # get file prefix
-    @show fname_dat = dfnfile[1:location-1]*".dat" # the name of DAT file associated with DFN
+    fname_dat = dfnfile[1:location-1]*".dat" # the name of DAT file associated with DFN
     # now read the hdr file for strings supplied in this function
     # get corresponding column numbers
     # .
     # .
     # call existing read_survey file like so
 
-    # s_array = read_survey_files(fname_dat = fname_dat,
-    #                     fname_specs_halt = fname_specs_halt,
-    #                     LM_Z             = LM_Z,
-    #                     HM_Z             = HM_Z,
-    #                     frame_height     = frame_height,
-    #                     frame_dz         = frame_dz,
-    #                     frame_dy         = frame_dy,
-    #                     frame_dx         = frame_dx,
-    #                     X                = X,
-    #                     Y                = Y,
-    #                     Z                = Z,
-    #                     fid              = fid,
-    #                     units            = units,
-    #                     relerror         = relerror,
-    #                     linenum          = linenum,
-    #                     startfrom        = startfrom,
-    #                     skipevery        = skipevery,
-    #                     dotillsounding   = dotillsounding,
-    #                     makesounding     = makesounding)
-    # s_array # return sounding array
+    s_array = read_survey_files(fname_dat = fname_dat,
+                        fname_specs_halt = fname_specs_halt,
+                        LM_Z             = LM_Z,
+                        HM_Z             = HM_Z,
+                        frame_height     = frame_height,
+                        frame_dz         = frame_dz,
+                        frame_dy         = frame_dy,
+                        frame_dx         = frame_dx,
+                        X                = X,
+                        Y                = Y,
+                        Z                = Z,
+                        fid              = fid,
+                        units            = units,
+                        relerror         = relerror,
+                        linenum          = linenum,
+                        startfrom        = startfrom,
+                        skipevery        = skipevery,
+                        dotillsounding   = dotillsounding,
+                        makesounding     = makesounding)
+    s_array # return sounding array
 end    
 
 function read_survey_files(;
