@@ -1213,4 +1213,72 @@ function plotgrids()
     transD_GP.CommonToAll.nicenup(f, fsize=fsize)
 end
 
+# no nuisances e.g., SkyTEM
+function loopacrosssoundings(soundings::Array{S, 1}, opt_in::Options;
+                            nsequentialiters   =-1,
+                            nparallelsoundings =-1,
+                            zfixed             = [-1e5],
+                            ρfixed             = [1e12],
+                            useML              = false,
+                            zstart             = 0.0,
+                            extendfrac         = 1.06,
+                            dz                 = 2.,
+                            ρbg                = 10,
+                            nlayers            = 50,
+                            ntimesperdecade    = 10,
+                            nfreqsperdecade    = 5,
+                            Tmax               = -1,
+                            nsamples           = -1,
+                            nchainsatone       = -1,
+                            modelprimary       = false,
+                            nchainspersounding = -1) where S<:Sounding
+
+    @assert nsequentialiters  != -1
+    @assert nparallelsoundings != -1
+    @assert nchainspersounding != -1
+    @assert nsamples != - 1
+    @assert nchainsatone != -1
+    @assert Tmax != -1
+
+    nsoundings = length(soundings)
+    opt= deepcopy(opt_in)
+
+    for iter = 1:nsequentialiters
+        if iter<nsequentialiters
+            ss = (iter-1)*nparallelsoundings+1:iter*nparallelsoundings
+        else
+            ss = (iter-1)*nparallelsoundings+1:nsoundings
+        end
+        @info "soundings in loop $iter of $nsequentialiters", ss
+        r_nothing = Array{Nothing, 1}(undef, length(ss))
+        @sync for (i, s) in Iterators.reverse(enumerate(ss))
+            pids = (i-1)*nchainspersounding+i:i*(nchainspersounding+1)
+            @info "pids in sounding $s:", pids
+
+            aem, = makeoperator(    soundings[s],
+                                    zfixed = zfixed,
+                                    ρfixed = ρfixed,
+                                    zstart = zstart,
+                                    extendfrac = extendfrac,
+                                    dz = dz,
+                                    ρbg = ρbg,
+                                    useML = useML,
+                                    nlayers = nlayers,
+                                    modelprimary = modelprimary,
+                                    ntimesperdecade = ntimesperdecade,
+                                    nfreqsperdecade = nfreqsperdecade)
+
+            opt = deepcopy(opt_in)
+            opt.fdataname = soundings[s].sounding_string*"_"
+
+            @async r_nothing[i] = remotecall_fetch(main, pids[1], opt, aem, collect(pids[2:end]),
+                                    Tmax         = Tmax,
+                                    nsamples     = nsamples,
+                                    nchainsatone = nchainsatone)
+
+        end # @sync
+        @info "done $iter out of $nsequentialiters at $(Dates.now())"
+    end
+end
+
 end

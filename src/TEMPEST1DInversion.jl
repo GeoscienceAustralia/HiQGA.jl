@@ -1392,4 +1392,111 @@ function plotindividualsoundings(soundings::Array{TempestSoundingData, 1};
     end
 end
 
+# there are definitely nuisances, e.g. TEMPEST
+function loopacrosssoundings(soundings::Array{S, 1};
+                                nsequentialiters   = -1,
+                                nparallelsoundings = -1,
+                                zfixed             = [-1e5],
+                                ρfixed             = [1e12],
+                                zstart             = 0.0,
+                                extendfrac         = 1.06,
+                                dz                 = 2.,
+                                ρbg                = 10,
+                                nlayers            = 50,
+                                ntimesperdecade    = 10,
+                                nfreqsperdecade    = 5,
+                                Tmax               = -1,
+                                nsamples           = -1,
+                                nchainsatone       = -1,
+                                nchainspersounding = -1,
+                                nmin               = 2,
+                                nmax               = 40,
+                                K                  = GP.Mat32(),
+                                demean             = true,
+                                sampledc           = true,
+                                sddc               = 0.01,
+                                sdpos              = 0.05,
+                                sdprop             = 0.05,
+                                fbounds            = [-0.5 2.5],
+                                λ                  = [2],
+                                δ                  = 0.1,
+                                pnorm              = 2,
+                                save_freq          = 50,
+                                nuisance_sdev      = [0.],
+                                nuisance_bounds    = [0. 0.],
+                                updatenuisances    = true,
+                                dispstatstoscreen  = false,
+                                useML              = false,
+                                restart            = false,
+                                C                  = nothing,
+                                vectorsum          = false) where S<:Sounding
+
+    @assert nsequentialiters  != -1
+    @assert nparallelsoundings != -1
+    @assert nchainspersounding != -1
+    @assert nsamples != - 1
+    @assert nchainsatone != -1
+    @assert Tmax != -1
+
+    nsoundings = length(soundings)
+
+    for iter = 1:nsequentialiters
+        if iter<nsequentialiters
+            ss = (iter-1)*nparallelsoundings+1:iter*nparallelsoundings
+        else
+            ss = (iter-1)*nparallelsoundings+1:nsoundings
+        end
+        @info "soundings in loop $iter of $nsequentialiters", ss
+        r_nothing = Array{Nothing, 1}(undef, length(ss))
+        @sync for (i, s) in Iterators.reverse(enumerate(ss))
+            pids = (i-1)*nchainspersounding+i:i*(nchainspersounding+1)
+            @info "pids in sounding $s:", pids
+
+            aem, znall = makeoperator(    soundings[s],
+                                    zfixed = zfixed,
+                                    ρfixed = ρfixed,
+                                    zstart = zstart,
+                                    extendfrac = extendfrac,
+                                    dz = dz,
+                                    ρbg = ρbg,
+                                    useML = useML,
+                                    nlayers = nlayers,
+                                    ntimesperdecade = ntimesperdecade,
+                                    nfreqsperdecade = nfreqsperdecade,
+                                    vectorsum = vectorsum)
+
+            opt, optn = transD_GP.make_tdgp_opt(soundings[s],
+                                znall = znall,
+                                fileprefix = soundings[s].sounding_string,
+                                nmin = nmin,
+                                nmax = nmax,
+                                K = K,
+                                demean = demean,
+                                sampledc = sampledc,
+                                sddc = sddc,
+                                sdpos = sdpos,
+                                sdprop = sdprop,
+                                fbounds = fbounds,
+                                save_freq = save_freq,
+                                λ = λ,
+                                δ = δ,
+                                nuisance_bounds = nuisance_bounds,
+                                nuisance_sdev = nuisance_sdev,
+                                updatenuisances = updatenuisances,
+                                C = C,
+                                restart = restart,
+                                dispstatstoscreen = dispstatstoscreen
+                                )
+
+            @async r_nothing[i] = remotecall_fetch(main, pids[1], opt, optn, aem, collect(pids[2:end]),
+                                    Tmax         = Tmax,
+                                    nsamples     = nsamples,
+                                    nchainsatone = nchainsatone)
+
+        end # @sync
+        @info "done $iter out of $nsequentialiters at $(Dates.now())"
+    end
+end
+
+
 end
