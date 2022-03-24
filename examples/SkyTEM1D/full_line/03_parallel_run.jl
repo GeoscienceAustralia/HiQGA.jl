@@ -26,7 +26,7 @@ nsequentialiters = ceil(Int, nsoundings/nparallelsoundings)
 @everywhere using transD_GP
 ## do the parallel soundings
 @info "starting"
-transD_GP.loopacrosssoundings(soundings, opt;
+transD_GP.SkyTEM1DInversion.loopacrosssoundings(soundings, opt;
                     nsequentialiters   = nsequentialiters,
                     nparallelsoundings = nparallelsoundings,
                     zfixed             = zfixed,

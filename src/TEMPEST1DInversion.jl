@@ -1,11 +1,11 @@
 module TEMPEST1DInversion
-import ..AbstractOperator.get_misfit
+import ..AbstractOperator.get_misfit, ..main
 import ..AbstractOperator.Sounding
 import ..AbstractOperator.makeoperator
 import ..AbstractOperator.make_tdgp_opt
 
 using ..AbstractOperator, ..AEM_VMD_HMD, Statistics
-using PyPlot, LinearAlgebra, ..CommonToAll, Random, DelimitedFiles
+using PyPlot, LinearAlgebra, ..CommonToAll, Random, DelimitedFiles, Distributed, Dates
 
 import ..Model, ..Options, ..OptionsStat, ..OptionsNonstat
 import ..ModelNuisance, ..OptionsNuisance, ..findidxnotzero
@@ -1465,7 +1465,7 @@ function loopacrosssoundings(soundings::Array{S, 1};
                                     nfreqsperdecade = nfreqsperdecade,
                                     vectorsum = vectorsum)
 
-            opt, optn = transD_GP.make_tdgp_opt(soundings[s],
+            opt, optn = make_tdgp_opt(soundings[s],
                                 znall = znall,
                                 fileprefix = soundings[s].sounding_string,
                                 nmin = nmin,
