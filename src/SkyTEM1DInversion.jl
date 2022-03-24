@@ -1,11 +1,11 @@
 module SkyTEM1DInversion
-import ..AbstractOperator.get_misfit
+import ..AbstractOperator.get_misfit, ..main, ..gradientinv
 import ..AbstractOperator.Sounding
 import ..AbstractOperator.makeoperator
 import ..AbstractOperator.getresidual
 
 
-using ..AbstractOperator, ..AEM_VMD_HMD, Statistics, Distributed, Printf,
+using ..AbstractOperator, ..AEM_VMD_HMD, Statistics, Distributed, Printf, Dates,
       PyPlot, LinearAlgebra, ..CommonToAll, Random, DelimitedFiles, LinearMaps, SparseArrays, ..GP
 
 
@@ -1211,6 +1211,168 @@ function plotgrids()
     end
     ax[end].set_xlabel("Easting m")
     transD_GP.CommonToAll.nicenup(f, fsize=fsize)
+end
+
+# no nuisances e.g., SkyTEM, transD
+function loopacrosssoundings(soundings::Array{S, 1}, opt_in::Options;
+                            nsequentialiters   =-1,
+                            nparallelsoundings =-1,
+                            zfixed             = [-1e5],
+                            ρfixed             = [1e12],
+                            useML              = false,
+                            zstart             = 0.0,
+                            extendfrac         = 1.06,
+                            dz                 = 2.,
+                            ρbg                = 10,
+                            nlayers            = 50,
+                            ntimesperdecade    = 10,
+                            nfreqsperdecade    = 5,
+                            Tmax               = -1,
+                            nsamples           = -1,
+                            nchainsatone       = -1,
+                            modelprimary       = false,
+                            nchainspersounding = -1) where S<:Sounding
+
+    @assert nsequentialiters  != -1
+    @assert nparallelsoundings != -1
+    @assert nchainspersounding != -1
+    @assert nsamples != - 1
+    @assert nchainsatone != -1
+    @assert Tmax != -1
+
+    nsoundings = length(soundings)
+    opt= deepcopy(opt_in)
+
+    for iter = 1:nsequentialiters
+        if iter<nsequentialiters
+            ss = (iter-1)*nparallelsoundings+1:iter*nparallelsoundings
+        else
+            ss = (iter-1)*nparallelsoundings+1:nsoundings
+        end
+        @info "soundings in loop $iter of $nsequentialiters", ss
+        r_nothing = Array{Nothing, 1}(undef, length(ss))
+        @sync for (i, s) in Iterators.reverse(enumerate(ss))
+            pids = (i-1)*nchainspersounding+i:i*(nchainspersounding+1)
+            @info "pids in sounding $s:", pids
+
+            aem, = makeoperator(    soundings[s],
+                                    zfixed = zfixed,
+                                    ρfixed = ρfixed,
+                                    zstart = zstart,
+                                    extendfrac = extendfrac,
+                                    dz = dz,
+                                    ρbg = ρbg,
+                                    useML = useML,
+                                    nlayers = nlayers,
+                                    modelprimary = modelprimary,
+                                    ntimesperdecade = ntimesperdecade,
+                                    nfreqsperdecade = nfreqsperdecade)
+
+            opt = deepcopy(opt_in)
+            opt.fdataname = soundings[s].sounding_string*"_"
+
+            @async r_nothing[i] = remotecall_fetch(main, pids[1], opt, aem, collect(pids[2:end]),
+                                    Tmax         = Tmax,
+                                    nsamples     = nsamples,
+                                    nchainsatone = nchainsatone)
+
+        end # @sync
+        @info "done $iter out of $nsequentialiters at $(Dates.now())"
+    end
+end
+
+# for gradient based inversion
+function loopacrosssoundings(soundings::Array{S, 1}, σstart, σ0; 
+                            nsequentialiters   =-1,
+                            zfixed             = [-1e5],
+                            ρfixed             = [1e12],
+                            zstart             = 0.0,
+                            extendfrac         = 1.06,
+                            dz                 = 2.,
+                            ρbg                = 10,
+                            nlayers            = 50,
+                            ntimesperdecade    = 10,
+                            nfreqsperdecade    = 5,
+                            modelprimary       = false,
+                            regtype            = :R1,
+                            nstepsmax          = 10,
+                            ntries             = 6,
+                            target             = nothing,
+                            lo                 = -3.,
+                            hi                 = 1.,
+                            λ²min              = 0,
+                            λ²max              = 8,
+                            λ²frac             = 4,
+                            β²                 = 0.,
+                            ntestdivsλ²        = 50,
+                            αmin               = -4, 
+                            αmax               = 0, 
+                            αfrac              = 4, 
+                            ntestdivsα         = 32,
+                            regularizeupdate   = false,
+                            knownvalue         = 0.7,
+                            firstvalue         = :last,
+                            κ                  = GP.Mat52(),
+                            breakonknown       = true,
+                            dobo               = false,
+                            ) where S<:Sounding
+
+    @assert nsequentialiters  != -1
+    nparallelsoundings = nworkers()
+    nsoundings = length(soundings)
+    
+    for iter = 1:nsequentialiters
+        if iter<nsequentialiters
+            ss = (iter-1)*nparallelsoundings+1:iter*nparallelsoundings
+        else
+            ss = (iter-1)*nparallelsoundings+1:nsoundings
+        end
+        @info "soundings in loop $iter of $nsequentialiters", ss
+        pids = workers()
+        @sync for (i, s) in enumerate(ss)
+            aem, = makeoperator(    soundings[s],
+                                    zfixed = zfixed,
+                                    ρfixed = ρfixed,
+                                    zstart = zstart,
+                                    extendfrac = extendfrac,
+                                    dz = dz,
+                                    ρbg = ρbg,
+                                    nlayers = nlayers,
+                                    modelprimary = modelprimary,
+                                    ntimesperdecade = ntimesperdecade,
+                                    nfreqsperdecade = nfreqsperdecade,
+                                    calcjacobian = true)
+
+            fname = soundings[s].sounding_string*"_gradientinv.dat"
+            σstart_, σ0_ = map(x->x*ones(length(aem.ρ)-1), [σstart, σ0])
+            @async remotecall_wait(gradientinv, pids[i], σstart_, σ0_, aem,
+                                                regtype            = regtype         ,              
+                                                nstepsmax          = nstepsmax       ,              
+                                                ntries             = ntries          ,              
+                                                target             = target          ,              
+                                                lo                 = lo              ,              
+                                                hi                 = hi              ,              
+                                                λ²min              = λ²min           ,              
+                                                λ²max              = λ²max           ,              
+                                                λ²frac             = λ²frac          ,              
+                                                ntestdivsλ²        = ntestdivsλ²     ,              
+                                                αmin               = αmin            ,              
+                                                αmax               = αmax            ,              
+                                                αfrac              = αfrac           ,
+                                                β²                 = β²              ,
+                                                ntestdivsα         = ntestdivsα      ,              
+                                                regularizeupdate   = regularizeupdate,              
+                                                knownvalue         = knownvalue      ,              
+                                                firstvalue         = firstvalue      ,              
+                                                κ                  = κ               ,              
+                                                breakonknown       = breakonknown    ,              
+                                                dobo               = dobo            ,
+                                                fname              = fname           ) 
+                
+
+        end # @sync
+        @info "done $iter out of $nsequentialiters at $(Dates.now())"
+    end
 end
 
 end

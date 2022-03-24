@@ -1,9 +1,3 @@
-import .AbstractOperator.Operator
-import .AbstractOperator.get_misfit
-import .AbstractOperator.Sounding
-import .AbstractOperator.makeoperator
-import .AbstractOperator.make_tdgp_opt
-import .AbstractOperator.getresidual
 include("CommonToAll.jl")
 using .CommonToAll
 include("FooPhysics.jl") # example for API
