@@ -4,7 +4,7 @@ using Distributed, DistributedArrays,
 import .AbstractOperator.Operator
 import .AbstractOperator.Sounding
 import .AbstractOperator.Operator
-import .AbstractOperator.get_misfit, .AbstractOperator.main
+import .AbstractOperator.get_misfit
 import .AbstractOperator.Sounding
 import .AbstractOperator.makeoperator
 import .AbstractOperator.make_tdgp_opt
