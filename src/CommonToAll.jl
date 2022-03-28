@@ -969,9 +969,21 @@ function plot1Dpatches(ax, zlist, xlist; alpha=0.25, fc="red", ec="blue", lw=2)
     end    
 end
 
-function dfn2hdr(dfnfile::String,hdrfile::String)
+#filtering the projection added part from oasis 
+function filter_proj!(df)
+    filter!(row -> !contains(row.combined, "RT=PROJ"), df)
+end
+
+#filtering the transformation added part from oasis 
+function filter_trans!(df)
+    filter!(row -> !contains(row.combined,"RT=TRNS"), df)
+end 
+
+#function to read the *dfn file and extract the column number and column names as a *.txt file 
+function dfn2hdr(dfnfile::String)
     df = CSV.read(dfnfile, DataFrame; header=false);
     df = coalesce.(df,"")
+    
     colname = []
     for col in 1:length(names(df))
         push!(colname,names(df)[col])
@@ -981,24 +993,58 @@ function dfn2hdr(dfnfile::String,hdrfile::String)
 		t = t .* df[!, i]                  
 	end 
     df[!,"combined"] = t
+    filter_proj!(df)
+    filter_trans!(df)
+    row_number = nrow(df)
+    insertcols!(df, 1, :inc => 0)
+    insertcols!(df, 1, :first => 0)
+    insertcols!(df,1, :second => 0)
 
-    for i in 1:size(df,1)
-        regex_literal = r"NAME="
-        a1 = df[i,:].Column1[6:7]
-        if (!contains(string(df[i,:].combined),regex_literal))
+    cumulative_columns = 0  #this will set up a cumulative variable 
+    
+    for i in 2:size(df,1)   #this will do operations in row level 
+        regex_literal1 = r"NAME=" #few parameters have their names after this keyword 
+        regex_literal2 = r"RT="  #four parameters have their names after this keyword 
+        if !contains(string(df[i,:].combined),regex_literal1)
             continue
         end
-        a2 = split(string(df[i,:].combined), regex_literal)
-        a2_r = first.(split.(a2[2], ":"))
-        if occursin(";END DEFN", a2_r)
-            a2_r = first.(split.(a2_r,";"))
+
+        if contains(df[i,:].combined,"RT:A4F")
+            df[i,:].combined = replace(df[i,:].combined, ":A4F" => "AA")
+        end 
+
+        inc_regex = r":([0-9]+)F"
+        inc_match = match(inc_regex, df[i,:].combined)  #matching the keyword with the string 
+        if isnothing(inc_match)
+            inc = 0
+            idx2 =  idx2 = split(string(df[i,:].combined), regex_literal1)
+            idx2_r = first.(split.(idx2[2], ":"))
+            
         else
-            a2_r = first.(split.(a2_r,"END"))
+            inc = parse(Int64, inc_match.captures[1]) #the outcome is int64
+            idx2 =  idx2 = split(string(df[i,:].combined), regex_literal2)
+            idx2_r = first.(split.(idx2[2], ":"))
+           
         end
 
-        CSV.write(hdrfile,(Col_No = [a1], Col_Name = [a2_r]), append=true)
+        df[i,:].inc = inc
+        df[i,:].first = cumulative_columns + 1
+        df[i,:].second = df[i,:].first + inc 
+        cumulative_columns += inc + 1
+        
+        if occursin(";END DEFN", idx2_r)  #type is string 
+            idx2_r = first.(split.(idx2_r,";"))
+        else
+            idx2_r = first.(split.(idx2_r,"END"))
+        end
+
+        #start writing to a file here 
+        io = open("header.txt","a")
+        if (df[i,:].first != df[i,:].second)
+            writedlm(io,[df[i,:].first df[i,:].second idx2_r]) 
+        else
+            writedlm(io, [df[i,:].first idx2_r])
+        end
+        close(io)
     end
-end
-
-
 end
