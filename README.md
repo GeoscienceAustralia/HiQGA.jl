@@ -20,7 +20,7 @@ Some example scripts have as a dependency [Revise.jl](https://github.com/timholy
 
 ## Updating
 ```
-pkg> update transD_GP
+pkg> update HiQGA
 ```
 
 ## Developing transD_GP or modifying it for your own special forward physics
