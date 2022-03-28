@@ -1048,3 +1048,5 @@ function dfn2hdr(dfnfile::String)
         close(io)
     end
 end
+
+end # module CommonToAll
