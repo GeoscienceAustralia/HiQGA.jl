@@ -1,4 +1,4 @@
-using transD_GP, PyPlot
+using HiQGA.transD_GP, PyPlot
 ## model fixed parts, i.e., air, but only to be compatible with AEM ...
 zfixed   = [-1e5]
 ρfixed   = [1e12]

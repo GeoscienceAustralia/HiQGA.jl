@@ -21,7 +21,7 @@ nsequentialiters = ceil(Int, nsoundings/nparallelsoundings)
 @info "will require $nsequentialiters iterations of $nparallelsoundings"
 ## set up McMC
 @everywhere using Distributed
-@everywhere using transD_GP
+@everywhere using HiQGA.transD_GP
 ## do the parallel soundings
 @info "starting"
 transD_GP.TEMPEST1DInversion.loopacrosssoundings(soundings;

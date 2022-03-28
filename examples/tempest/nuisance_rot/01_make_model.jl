@@ -1,5 +1,5 @@
 using Revise
-using PyPlot, DelimitedFiles, Random, Statistics, transD_GP
+using PyPlot, DelimitedFiles, Random, Statistics, HiQGA.transD_GP
 
 Random.seed!(23)
 

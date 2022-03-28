@@ -1,5 +1,5 @@
 using PyPlot, DelimitedFiles, Random, Revise,
-      transD_GP
+      HiQGA.transD_GP
 ##
 Random.seed!(23)
 rMin = 500 #m

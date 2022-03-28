@@ -1,4 +1,4 @@
-using PyPlot, DelimitedFiles, Random, Statistics, Test, Revise, transD_GP
+using PyPlot, DelimitedFiles, Random, Statistics, Test, Revise, HiQGA.transD_GP
 
 Random.seed!(23)
 

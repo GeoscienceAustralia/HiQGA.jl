@@ -1,5 +1,5 @@
 using PyPlot, Distributed, Random
-using Revise, transD_GP
+using Revise, HiQGA.transD_GP
 ##
 img =     transD_GP.Img(
           filename         = "4.2.01.png",

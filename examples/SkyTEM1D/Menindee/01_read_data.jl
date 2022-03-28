@@ -16,7 +16,7 @@ HM_Z = [43,67]
 relerror = false
 units = 1e-12
 ##
-using transD_GP
+using HiQGA.transD_GP
 soundings = transD_GP.SkyTEM1DInversion.read_survey_files(fname_dat = fname_dat,
 						             fname_specs_halt = fname_specs_halt,
 						             LM_Z             = LM_Z,

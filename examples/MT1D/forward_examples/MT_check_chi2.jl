@@ -1,4 +1,4 @@
-using transD_GP
+using HiQGA.transD_GP
 ##
 ntimesperdecade = 2
 T = 10 .^(-3:1/ntimesperdecade:6)

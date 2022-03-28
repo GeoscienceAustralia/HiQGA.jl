@@ -1,4 +1,4 @@
-using PyPlot, transD_GP, Random, LinearAlgebra, Statistics
+using PyPlot, HiQGA.transD_GP, Random, LinearAlgebra, Statistics
 
 ## model
 Random.seed!(3)

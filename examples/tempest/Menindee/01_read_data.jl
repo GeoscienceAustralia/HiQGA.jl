@@ -1,5 +1,5 @@
 ## read the soundings
-using PyPlot, Revise, transD_GP
+using PyPlot, Revise, HiQGA.transD_GP
 soundings = transD_GP.TEMPEST1DInversion.read_survey_files(
 	fname_dat= "91010901.asc",
 	fname_specs_halt="electronics_halt.jl",

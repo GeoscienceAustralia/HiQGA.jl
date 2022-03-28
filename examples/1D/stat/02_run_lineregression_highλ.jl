@@ -39,12 +39,12 @@ opt = transD_GP.OptionsStat(nmin = nmin,
                         peskycholesky = true
                         )
 ## set up McMC
-nsamples, nchains, nchainsatone = 5001, 4, 1
+nsamples, nchains, nchainsatone = 50001, 4, 1
 Tmax = 2.50
 addprocs(nchains)
 @info "workers are $(workers())"
 @everywhere using Distributed
-@everywhere using transD_GP
+@everywhere using HiQGA.transD_GP
 ## run McMC
 @time transD_GP.main(opt, line, Tmax=Tmax, nsamples=nsamples, nchains=nchains, nchainsatone=nchainsatone)
 rmprocs(workers())

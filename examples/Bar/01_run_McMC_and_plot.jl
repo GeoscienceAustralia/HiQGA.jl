@@ -6,7 +6,7 @@ addprocs(nchains)
 @info "workers are $(workers())"
 @everywhere begin
     using Distributed
-    using transD_GP
+    using HiQGA.transD_GP
     include("BarPhysics.jl")
     include("BarPhysicsInversion.jl")
     using .BarPhysicsInversion

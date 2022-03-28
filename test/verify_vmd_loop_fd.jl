@@ -1,4 +1,4 @@
-using PyPlot, Revise, transD_GP, Random
+using PyPlot, Revise, HiQGA.transD_GP, Random
 ## frequencies
 nFreqsPerDecade     = 7
 freqLowLimit        = 1e-1

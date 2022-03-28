@@ -1,4 +1,4 @@
-using transD_GP, PyPlot
+using HiQGA.transD_GP, PyPlot
 ## model fixed parts, i.e., water
 zfixed   = [0]
 ρfixed   = [0.22]

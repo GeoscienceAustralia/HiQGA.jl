@@ -6,7 +6,7 @@ addprocs(nchains)
 ##init packages on workers
 @info "workers are $(workers())"
 @everywhere using Distributed
-@everywhere using transD_GP
+@everywhere using HiQGA.transD_GP
 ## run McMC
 @time transD_GP.main(opt, optn, tempest, Tmax=Tmax, nsamples=nsamples, nchains=nchains, nchainsatone=nchainsatone)
 

@@ -1,5 +1,5 @@
 using PyPlot, DelimitedFiles, Random, Statistics, Revise,
-      transD_GP
+HiQGA.transD_GP
 ## model fixed parts, i.e., air
 ρbg        = 100
 zfixed     = [-1e5,   0,   (20:10:200)...]
