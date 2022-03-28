@@ -1,6 +1,6 @@
-# transD_GP.jl
+# HiQGA.jl
 
-![CI status](https://github.com/a2ray/transD_GP/workflows/CI/badge.svg)
+![CI status](https://github.com/GeoscienceAustralia/HiQGA.jl/workflows/CI/badge.svg)
 
 This package implements both the nested (2-layer) and vanilla trans-dimensional Gaussian process algorithm as published in 
 - [*Bayesian inversion using nested trans-dimensional Gaussian processes*, A. Ray, Geophysical Journal International, **226(1)**, 2021](https://doi.org/10.1093/gji/ggab114).
