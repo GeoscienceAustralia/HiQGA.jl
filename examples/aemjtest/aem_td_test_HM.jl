@@ -1,4 +1,4 @@
-using PyPlot, transD_GP, Statistics, LinearAlgebra
+using PyPlot, HiQGA.transD_GP, Statistics, LinearAlgebra
 
 ## model
 ρbg        = 100

@@ -1,5 +1,5 @@
 using PyPlot, DelimitedFiles, Random, Statistics, Test, LinearAlgebra
-using Revise, transD_GP
+using HiQGA.transD_GP
 
 Random.seed!(23)
 

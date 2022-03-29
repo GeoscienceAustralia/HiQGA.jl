@@ -1,5 +1,5 @@
 ## make the surface struct
-using transD_GP, Random
+using HiQGA.transD_GP, Random
 surface = transD_GP.Surface(imagegrid;useML=false, σ=noisegrid)
 ## lengthscale GP options (stationary)
 nminlog10λ, nmaxlog10λ = 2, 150

@@ -1,4 +1,4 @@
-using PyPlot, Revise, transD_GP, Random, SpecialFunctions
+using PyPlot, Revise, HiQGA.transD_GP, Random, SpecialFunctions
 ## model
 zfixed   = [-1e5,   0,    ]
 rho      = [1e20,   1,  ]

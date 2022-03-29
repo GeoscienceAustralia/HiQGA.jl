@@ -1,4 +1,4 @@
-using transD_GP
+using HiQGA.transD_GP
 include("BarPhysics.jl")
 include("BarPhysicsInversion.jl")
 using .BarPhysicsInversion

@@ -1,4 +1,4 @@
-using PyPlot, transD_GP, Random, LinearAlgebra
+using PyPlot, HiQGA.transD_GP, Random, LinearAlgebra
 
 ## model
 ρbg        = 1000

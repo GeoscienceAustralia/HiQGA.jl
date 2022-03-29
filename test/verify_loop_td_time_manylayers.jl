@@ -1,4 +1,4 @@
-using PyPlot, Revise, transD_GP, Random, Statistics, BenchmarkTools
+using PyPlot, Revise, HiQGA.transD_GP, Random, Statistics, BenchmarkTools
 profile_within_juno  = false
 ## model
 zfixed   = [-1e5,   0,    20,   50]

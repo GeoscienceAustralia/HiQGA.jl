@@ -24,10 +24,10 @@ nsequentialiters = ceil(Int, nsoundings/ncores)
 @info "will require $nsequentialiters iterations of $ncores soundings"
 ## set up transD_GP
 @everywhere using Distributed
-@everywhere using transD_GP
+@everywhere using HiQGA.transD_GP
 ## do the parallel soundings
 @info "starting"
-transD_GP.loopacrosssoundings(soundings, σstart, σ0,
+transD_GP.SkyTEM1DInversion.loopacrosssoundings(soundings, σstart, σ0,
                             nsequentialiters   = nsequentialiters,              
                             zfixed             = zfixed          ,              
                             ρfixed             = ρfixed          ,              

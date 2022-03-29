@@ -1,4 +1,4 @@
-using PyPlot, Revise, transD_GP, Random
+using PyPlot, Revise, HiQGA.transD_GP, Random
 ## set up
 nfreqsperdecade     = 20
 ntimesperdecade     = 20

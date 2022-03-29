@@ -1,5 +1,5 @@
 using PyPlot, DelimitedFiles, Random, Statistics, Revise,
-      transD_GP
+HiQGA.transD_GP
 ## model fixed parts, i.e., air
 Random.seed!(23)
 zfixed   = [-1e5]

@@ -23,7 +23,8 @@ sdprop = 0.05 # fraction
 λ, δ = [2.], 0.1
 save_freq = 50
 Tmax = 2.50
-nchainsatone = 2
+nchainsatone = 1
+vectorsum = false
 useML = true
 ## make nuisance options
 # sdev are fractions of width
@@ -79,4 +80,5 @@ transD_GP.TEMPEST1DInversion.makeoperatorandoptions(
         nuisance_bounds    = nuisance_bounds,
         nuisance_sdev      = nuisance_sdev,
         updatenuisances    = updatenuisances,
-        useML              = useML)
+        useML              = useML,
+        vectorsum          = vectorsum)

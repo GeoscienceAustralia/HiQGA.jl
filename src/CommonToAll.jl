@@ -566,18 +566,24 @@ end
 
 function plot_posterior(F::Operator1D,
                         opt::OptionsStat;
-    temperaturenum = 1,
-    nbins = 50,
-    burninfrac=0.5,
-    qp1=0.05,
-    qp2=0.95,
-    vmaxpc=1.0,
-    cmappdf = "inferno",
-    figsize=(5,5),
-    pdfnormalize=false,
-    istothepow=false,
-    fsize=14,
-    doplot = true)
+                    temperaturenum = 1,
+                    nbins = 50,
+                    burninfrac=0.5,
+                    qp1=0.05,
+                    qp2=0.95,
+                    vmaxpc=1.0,
+                    cmappdf = "inferno",
+                    figsize=(5,5),
+                    pdfnormalize=false,
+                    istothepow=false,
+                    fsize=14,
+                    plotCI = true,
+                    plotmean = true,
+                    alpha = 1.0,
+                    CIcolor = ["w", "k"],
+                    meancolor = ["m", "r"],
+                    lwidth = 2,
+                    doplot = true)
     @assert 0<vmaxpc<=1
     
     M = assembleTat1(opt, :fstar, burninfrac=burninfrac, temperaturenum=temperaturenum)
@@ -597,10 +603,10 @@ function plot_posterior(F::Operator1D,
         ax[1].invert_yaxis()
         cb1 = colorbar(im1, ax=ax[1])
         cb1.ax.set_xlabel("pdf \nstationary")
-        ax[1].plot(CI, xall[:], linewidth=2, color="g", alpha=0.5)
-        ax[1].plot(CI, xall[:], linewidth=2, color="c", linestyle="--", alpha=0.5)
-        ax[1].plot(meanimage[:], xall[:], linewidth=2, color="w", alpha=0.5)
-        ax[1].plot(meanimage[:], xall[:], linewidth=2, color="k", linestyle="--", alpha=0.5)
+        plotCI && ax[1].plot(CI, xall[:], linewidth=lwidth, color=CIcolor[1], alpha=alpha)
+        plotCI && ax[1].plot(CI, xall[:], linewidth=lwidth, color=CIcolor[2], linestyle="--", alpha=alpha)
+        plotmean && ax[1].plot(meanimage[:], xall[:], linewidth=lwidth, color=meancolor[1], alpha=alpha)
+        plotmean && ax[1].plot(meanimage[:], xall[:], linewidth=lwidth, color=meancolor[2], linestyle="--", alpha=alpha)
         ax[1].set_xlabel(L"\log_{10} \rho")
         ax[1].set_ylabel("depth (m)")
         bounds = copy(opt.fbounds)
@@ -613,7 +619,7 @@ function plot_posterior(F::Operator1D,
         ax[2].plot(meandiffimage[:], xall[:], linewidth=2, color="k", linestyle="-")
         zeroside = meandiffimage[:]-sdslope[:]
         zeroside[zeroside .< 0] .= 0
-        ax[2].fill_betweenx(xall[:],zeroside,meandiffimage[:]+sdslope[:],alpha=.5)
+        ax[2].fill_betweenx(xall[:],zeroside,meandiffimage[:]+sdslope[:],alpha=.25)
         ax[2].set_xlabel("mean slope")
         nicenup(f, fsize=fsize)
     end

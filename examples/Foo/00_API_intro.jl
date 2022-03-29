@@ -1,4 +1,4 @@
-using transD_GP
+using HiQGA.transD_GP
 
 # Forward setttings
 # dummy physics struct defined in src/FooPhysics.jl

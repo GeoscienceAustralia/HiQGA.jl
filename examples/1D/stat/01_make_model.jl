@@ -1,5 +1,5 @@
 using PyPlot, Random, Revise, LinearAlgebra,
-      Distributed, DelimitedFiles, transD_GP
+      Distributed, DelimitedFiles, HiQGA.transD_GP
 ## 1D functions
 Random.seed!(200)
 x = readdlm("func2.txt", ',', Float64, '\n')[:,1]
