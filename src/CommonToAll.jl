@@ -10,7 +10,7 @@ export trimxft, assembleTat1, gettargtemps, checkns, getchi2forall, nicenup,
         unwrap, getn, geomprogdepth, assemblemodelsatT, getstats, gethimage,
         assemblenuisancesatT, makenuisancehists, stretchexists,
         makegrid, whichislast, makesummarygrid, makearray, plotNEWSlabels, 
-        plotprofile, gridpoints, splitsoundingsbyline, dfn2hdr
+        plotprofile, gridpoints, splitsoundingsbyline, dfn2hdr, getgdfprefix
 
 function trimxft(opt::Options, burninfrac::Float64, temperaturenum::Int)
     x_ft = assembleTat1(opt, :x_ftrain, burninfrac=burninfrac, temperaturenum=temperaturenum)
@@ -1008,6 +1008,8 @@ function dfn2hdr(dfnfile::String)
 
     cumulative_columns = 0  #this will set up a cumulative variable 
     
+    fname_hdr = getgdfprefix(dfnfile)*".hdr" # the name of HDR file associated with DFN
+    io = open(fname_hdr,"w")
     for i in 2:size(df,1)   #this will do operations in row level 
         regex_literal1 = r"NAME=" #few parameters have their names after this keyword 
         regex_literal2 = r"RT="  #four parameters have their names after this keyword 
@@ -1044,15 +1046,19 @@ function dfn2hdr(dfnfile::String)
             idx2_r = first.(split.(idx2_r,"END"))
         end
 
-        #start writing to a file here 
-        io = open("header.txt","a")
+        #start writing to a file here
         if (df[i,:].first != df[i,:].second)
             writedlm(io,[df[i,:].first df[i,:].second idx2_r]) 
         else
             writedlm(io, [df[i,:].first idx2_r])
         end
-        close(io)
     end
+    close(io)
 end
+
+function getgdfprefix(dfnfile::String)
+    location = findfirst(".dfn", lowercase(dfnfile))[1] # get file prefix
+    dfnfile[1:location-1] # the prefix
+end    
 
 end # module CommonToAll

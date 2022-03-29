@@ -171,8 +171,7 @@ function read_survey_files(dfnfile::String,;
     fid = -1,
     linenum = -1)
 
-    location = findfirst(".dfn", dfnfile)[1] # get file prefix
-    fname_dat = dfnfile[1:location-1]*".dat" # the name of DAT file associated with DFN
+    fname_dat = getgdfprefix(dfnfile)*".dat" # the name of DAT file associated with DFN
     # now read the hdr file for strings supplied in this function
     # get corresponding column numbers
     # .
