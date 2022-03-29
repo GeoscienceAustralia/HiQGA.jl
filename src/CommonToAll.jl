@@ -1,6 +1,6 @@
 module CommonToAll
 using PyPlot, StatsBase, Statistics, Distances, LinearAlgebra,
-      DelimitedFiles, ..AbstractOperator, NearestNeighbors, CSV, DataFrames
+      DelimitedFiles, ..AbstractOperator, NearestNeighbors
 
 import ..Options, ..OptionsStat, ..OptionsNonstat, ..OptionsNuisance,
        ..history, ..GP.κ, ..calcfstar!, ..AbstractOperator.Sounding
@@ -975,70 +975,40 @@ function plot1Dpatches(ax, zlist, xlist; alpha=0.25, fc="red", ec="blue", lw=2)
     end    
 end
 
-#filtering the projection added part from oasis 
-function filter_proj!(df)
-    filter!(row -> !contains(row.combined, "RT=PROJ"), df)
-end
-
-#filtering the transformation added part from oasis 
-function filter_trans!(df)
-    filter!(row -> !contains(row.combined,"RT=TRNS"), df)
-end 
-
 #function to read the *dfn file and extract the column number and column names as a *.txt file 
 function dfn2hdr(dfnfile::String)
-    df = CSV.read(dfnfile, DataFrame; header=false);
-    df = coalesce.(df,"")
-    
-    colname = []
-    for col in 1:length(names(df))
-        push!(colname,names(df)[col])
-    end 
-    t = df[!, colname[1]]
-    for i in colname[2:end]         
-		t = t .* df[!, i]                  
-	end 
-    df[!,"combined"] = t
-    filter_proj!(df)
-    filter_trans!(df)
-    row_number = nrow(df)
-    insertcols!(df, 1, :inc => 0)
-    insertcols!(df, 1, :first => 0)
-    insertcols!(df,1, :second => 0)
+    dfn = readlines(dfnfile)
+    dfn = dfn[(.!contains.(dfn, "RT=PROJ") .&& .!contains.(dfn, "RT=TRNS")
+              .&& .!contains.(dfn, "RT=COMM"))]
+
+    rectype_rgx = r"RT=([^;]*)"
+    name_rgx = r"NAME="
+    inc_regex = r":([0-9]+)F" #this will only work with floating point fields
 
     cumulative_columns = 0  #this will set up a cumulative variable 
     
     fname_hdr = getgdfprefix(dfnfile)*".hdr" # the name of HDR file associated with DFN
     io = open(fname_hdr,"w")
-    for i in 2:size(df,1)   #this will do operations in row level 
-        regex_literal1 = r"NAME=" #few parameters have their names after this keyword 
-        regex_literal2 = r"RT="  #four parameters have their names after this keyword 
-        if !contains(string(df[i,:].combined),regex_literal1)
-            continue
-        end
+    data_first = false
+    for row = dfn
+        m = match(rectype_rgx, row)
+        isnothing(m) && continue
+        data_first |= (m[1] == "DATA")
 
-        if contains(df[i,:].combined,"RT:A4F")
-            df[i,:].combined = replace(df[i,:].combined, ":A4F" => "AA")
-        end 
-
-        inc_regex = r":([0-9]+)F"
-        inc_match = match(inc_regex, df[i,:].combined)  #matching the keyword with the string 
+        inc_match = match(inc_regex, row)  #matching the keyword with the string 
         if isnothing(inc_match)
-            inc = 0
-            idx2 =  idx2 = split(string(df[i,:].combined), regex_literal1)
+            inc = 1
+            idx2 = split(row, name_rgx)
             idx2_r = first.(split.(idx2[2], ":"))
-            
         else
             inc = parse(Int64, inc_match.captures[1]) #the outcome is int64
-            idx2 =  idx2 = split(string(df[i,:].combined), regex_literal2)
+            idx2 = split(row, rectype_rgx)
             idx2_r = first.(split.(idx2[2], ":"))
-           
         end
 
-        df[i,:].inc = inc
-        df[i,:].first = cumulative_columns + 1
-        df[i,:].second = df[i,:].first + inc 
-        cumulative_columns += inc + 1
+        firstcol = cumulative_columns + 1 + data_first
+        lastcol = firstcol + inc - 1
+        cumulative_columns += inc
         
         if occursin(";END DEFN", idx2_r)  #type is string 
             idx2_r = first.(split.(idx2_r,";"))
@@ -1047,10 +1017,10 @@ function dfn2hdr(dfnfile::String)
         end
 
         #start writing to a file here
-        if (df[i,:].first != df[i,:].second)
-            writedlm(io,[df[i,:].first df[i,:].second idx2_r]) 
+        if (firstcol != lastcol)
+            writedlm(io,[firstcol lastcol idx2_r]) 
         else
-            writedlm(io, [df[i,:].first idx2_r])
+            writedlm(io, [firstcol idx2_r])
         end
     end
     close(io)
