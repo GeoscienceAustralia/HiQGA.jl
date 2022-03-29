@@ -981,7 +981,7 @@ function dfn2hdr(dfnfile::String)
     dfn = dfn[(.!contains.(dfn, "RT=PROJ") .&& .!contains.(dfn, "RT=TRNS")
               .&& .!contains.(dfn, "RT=COMM"))]
 
-    rectype_rgx = r"RT=([^;]*)"
+    rectype_rgx = r"RT=([^;]*);"
     name_rgx = r"NAME="
     inc_regex = r":([0-9]+)F" #this will only work with floating point fields
 
