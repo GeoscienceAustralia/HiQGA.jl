@@ -978,8 +978,8 @@ end
 #function to read the *dfn file and extract the column number and column names as a *.txt file 
 function dfn2hdr(dfnfile::String)
     dfn = readlines(dfnfile)
-    dfn = dfn[(.!contains.(dfn, "RT=PROJ") .&& .!contains.(dfn, "RT=TRNS")
-              .&& .!contains.(dfn, "RT=COMM"))]
+    dfn = dfn[(.!contains.(dfn, "RT=PROJ") .& .!contains.(dfn, "RT=TRNS")
+              .& .!contains.(dfn, "RT=COMM"))]
 
     rectype_rgx = r"RT=([^;]*);"
     name_rgx = r"NAME="
