@@ -24,7 +24,7 @@ pkg> update HiQGA
 ```
 
 ## Developing HiQGA or modifying it for your own special forward physics
-After you have `]add`ed HiQGA you can simply do 
+After you have `]add`ed HiQGA you can simply do: 
 ```
 pkg>dev HiQGA
 ```
