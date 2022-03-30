@@ -157,6 +157,13 @@ function read_survey_files(dfnfile::String,;
     HM_Z = [-2, -2],
     LM_σ = [-2, 2],
     HM_σ = [-2, 2],
+    X = -1,
+    Y = -1,
+    Z = -1,
+    fid = -1,
+    linenum = -1,
+    LM_drop = 0,
+    HM_drop = 0,
     relerror = false,
     units=1e-12,
     figsize = (9,7),
@@ -165,11 +172,8 @@ function read_survey_files(dfnfile::String,;
     startfrom = 1,
     skipevery = 1,
     multnoise = 0.03,
-    X = -1,
-    Y = -1,
-    Z = -1,
-    fid = -1,
-    linenum = -1)
+    )
+    #TODO throw an error if LM_drop or HM_drop == 0
 
     fname_dat = getgdfprefix(dfnfile)*".dat" # the name of DAT file associated with DFN
     # now read the hdr file for strings supplied in this function
