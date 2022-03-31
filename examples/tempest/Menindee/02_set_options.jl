@@ -24,8 +24,8 @@ sdprop = 0.05 # fraction
 save_freq = 50
 Tmax = 2.50
 nchainsatone = 1
-vectorsum = false
-useML = true
+vectorsum = true
+useML = false
 ## make nuisance options
 # sdev are fractions of width
 nuisance_sdev = [
