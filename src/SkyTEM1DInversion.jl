@@ -1198,14 +1198,13 @@ function plotconvandlast(soundings, delr, delz;
     imlast = ax[2].imshow(img, extent=[gridr[1], gridr[end], gridz[end], gridz[1]], cmap=cmapσ, aspect="auto", vmin=vmin, vmax=vmax)
     ax[2].plot(gridr, topofine, linewidth=topowidth, "-k")
     eg = extrema(gridr)
-    ax[1].set_xlim(eg)
-    ax[2].set_xlim(eg)
     ax[2].set_ylabel("mAHD")
     ax[2].set_xlabel("Distance m")
     fig.colorbar(imlast, ax=axd["C"], shrink=0.6, location="bottom", label="Log₁₀ S/m")
     nicenup(fig, fsize=fontsize)
     plotNEWSlabels(Eislast, Nislast, gridr, gridz, [ax[2]], x0, y0, xend, yend, 
                     preferEright=preferEright, preferNright=preferNright)
+    ax[1].set_xlim(ax[2].get_xlim())                
     saveplot && savefig(lname*".png", dpi=dpi)
     showplot || close(fig)
 end    
