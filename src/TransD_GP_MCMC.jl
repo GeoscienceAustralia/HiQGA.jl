@@ -239,7 +239,7 @@ function OptionsNuisance(opt::OptionsStat;
     nnu = length(sdev)
 
     # make an empty nuisance options struct
-    optn = OptionsNuisance(sdev, bounds, nnu, updatenuisances,
+    optn = OptionsNuisance(deepcopy(sdev), deepcopy(bounds), nnu, updatenuisances,
      updatenonstat, opt.debug, opt.stat_window, opt.dispstatstoscreen, opt.report_freq, opt.save_freq, opt.history_mode, "misfits_nuisance_"*opt.fdataname*".bin",
      "values_nuisance_"*opt.fdataname*".bin", opt.fdataname, [0 0.], [0], [0. 0.], [0.])
 
