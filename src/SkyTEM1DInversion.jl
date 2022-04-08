@@ -147,21 +147,30 @@ function SkyTEMsoundingData(;rRx=-12., zRxLM=12., zTxLM=12.,
     # LM_data, HM_data)
 end
 
-function read_survey_files(dfnfile::String,;
+function getlocationinhdr(str, rows)
+    for (irow, row) in enumerate(rows)
+        lasttabpos = findlast('\t', row)
+        @info str, row
+        (str == row[lasttabpos+1:end]) && return irow
+    end
+    nothing
+end
+
+function read_survey_files(dfnfile::String;
     fname_specs_halt="",
-    frame_height = -2,
-    frame_dz = -2,
-    frame_dx = -2,
-    frame_dy = -2,
-    LM_Z = [-2, -2],
-    HM_Z = [-2, -2],
-    LM_σ = [-2, 2],
-    HM_σ = [-2, 2],
-    X = -1,
-    Y = -1,
-    Z = -1,
-    fid = -1,
-    linenum = -1,
+    frame_height = "",
+    frame_dz = "",
+    frame_dx = "",
+    frame_dy = "",
+    LM_Z = "",
+    HM_Z = "",
+    LM_σ = "",
+    HM_σ = "",
+    X = "",
+    Y = "",
+    Z = "",
+    fid = "",
+    linenum = "",
     LM_drop = 0,
     HM_drop = 0,
     relerror = false,
@@ -175,37 +184,43 @@ function read_survey_files(dfnfile::String,;
     )
     #TODO throw an error if LM_drop or HM_drop == 0
 
-    fname_dat = getgdfprefix(dfnfile)*".dat" # the name of DAT file associated with DFN
-    # now read the hdr file for strings supplied in this function
-    # get corresponding column numbers
-    # .
-    # .
-    # call existing read_survey file like so
+    prefix = getgdfprefix(dfnfile)
+    dfn = readlines(prefix*".hdr")
+    frame_height, frame_dz, frame_dx,
+    frame_dy, LM_Z, HM_Z, LM_σ , HM_σ, 
+    X, Y, Z, fid, linenum = map(x->getlocationinhdr(x, dfn), [frame_height, frame_dz, frame_dx,
+    frame_dy, LM_Z, HM_Z, LM_σ , HM_σ , X, Y, Z, fid, linenum])
+    
+    # use function and map to get column numbers from dfn e.g.,
+    # findfirst('\t', dfn[x]) 
+    # map(x -> yourfunc(dfn[x]), [frame_height, frame_dz, frame_dx,
+    # frame_dy, X, Y, Z, fid, linenum])
 
-    s_array = read_survey_files(fname_dat = fname_dat,
-                        fname_specs_halt = fname_specs_halt,
-                        LM_Z             = LM_Z,
-                        HM_Z             = HM_Z,
-                        frame_height     = frame_height,
-                        frame_dz         = frame_dz,
-                        frame_dy         = frame_dy,
-                        frame_dx         = frame_dx,
-                        X                = X,
-                        Y                = Y,
-                        Z                = Z,
-                        fid              = fid,
-                        units            = units,
-                        relerror         = relerror,
-                        LM_σ             = LM_σ,
-                        HM_σ             = HM_σ,
-                        figsize          = figsize,   
-                        linenum          = linenum,
-                        startfrom        = startfrom,
-                        skipevery        = skipevery,
-                        dotillsounding   = dotillsounding,
-                        multnoise        = multnoise,
-                        makesounding     = makesounding)
-    s_array # return sounding array
+    fname_dat = prefix*".dat" # the name of DAT file associated with DFN
+    # s_array = read_survey_files(fname_dat = fname_dat,
+    #                     fname_specs_halt = fname_specs_halt,
+    #                     LM_Z             = LM_Z,
+    #                     HM_Z             = HM_Z,
+    #                     frame_height     = frame_height,
+    #                     frame_dz         = frame_dz,
+    #                     frame_dy         = frame_dy,
+    #                     frame_dx         = frame_dx,
+    #                     X                = X,
+    #                     Y                = Y,
+    #                     Z                = Z,
+    #                     fid              = fid,
+    #                     units            = units,
+    #                     relerror         = relerror,
+    #                     LM_σ             = LM_σ,
+    #                     HM_σ             = HM_σ,
+    #                     figsize          = figsize,   
+    #                     linenum          = linenum,
+    #                     startfrom        = startfrom,
+    #                     skipevery        = skipevery,
+    #                     dotillsounding   = dotillsounding,
+    #                     multnoise        = multnoise,
+    #                     makesounding     = makesounding)
+    # s_array # return sounding array
 end    
 
 function read_survey_files(;
