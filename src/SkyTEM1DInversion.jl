@@ -156,6 +156,12 @@ function getlocationinhdr(str, rows)
     nothing
 end
 
+#the following function needs to be customized for handling 4 specific parameters
+function getcolNo(str)
+	index = findfirst('\t',str)
+	value = str[1:index-1]
+end
+
 function read_survey_files(dfnfile::String;
     fname_specs_halt="",
     frame_height = "",
@@ -192,7 +198,9 @@ function read_survey_files(dfnfile::String;
     frame_dy, LM_Z, HM_Z, LM_σ , HM_σ , X, Y, Z, fid, linenum])
     
     # use function and map to get column numbers from dfn e.g.,
-    # findfirst('\t', dfn[x]) 
+    
+    # index = findfirst('\t', dfn[x]) 
+    # value = dfn[x][1:index-1]
     # map(x -> yourfunc(dfn[x]), [frame_height, frame_dz, frame_dx,
     # frame_dy, X, Y, Z, fid, linenum])
 
