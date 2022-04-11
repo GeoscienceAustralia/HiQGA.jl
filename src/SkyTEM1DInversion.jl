@@ -150,7 +150,7 @@ end
 function getlocationinhdr(str, rows)
     for (irow, row) in enumerate(rows)
         lasttabpos = findlast('\t', row)
-        @info str, row
+        #@info str, row
         (str == row[lasttabpos+1:end]) && return irow
     end
     nothing
@@ -160,7 +160,17 @@ end
 function getcolNo(str)
 	index = findfirst('\t',str)
 	value = str[1:index-1]
+    return parse(Int,value)
 end
+
+function getcolNo_except(str)
+    index1 = findall("\t",str)[1][1]
+    index2 = findall("\t",str)[2][1]
+    value1 = str[1:index1-1] #the first value in the range 
+    value2 = str[index1+1:index2-1] #the second value in the range 
+    return [parse(Int,value1), parse(Int,value2)] #handles the range corrctly
+end
+
 
 function read_survey_files(dfnfile::String;
     fname_specs_halt="",
@@ -172,6 +182,8 @@ function read_survey_files(dfnfile::String;
     HM_Z = "",
     LM_σ = "",
     HM_σ = "",
+    RUNC_HM_Z_="",
+    RUNC_LM_Z_="",
     X = "",
     Y = "",
     Z = "",
@@ -193,17 +205,21 @@ function read_survey_files(dfnfile::String;
     prefix = getgdfprefix(dfnfile)
     dfn = readlines(prefix*".hdr")
     frame_height, frame_dz, frame_dx,
-    frame_dy, LM_Z, HM_Z, LM_σ , HM_σ, 
+    frame_dy, LM_Z, HM_Z, RUNC_HM_Z_, RUNC_LM_Z_,
     X, Y, Z, fid, linenum = map(x->getlocationinhdr(x, dfn), [frame_height, frame_dz, frame_dx,
-    frame_dy, LM_Z, HM_Z, LM_σ , HM_σ , X, Y, Z, fid, linenum])
+    frame_dy, LM_Z, HM_Z, RUNC_HM_Z_, RUNC_LM_Z_, X , Y, Z, fid, linenum])
+    @show (frame_height, frame_dz, frame_dx,
+    frame_dy, LM_Z, HM_Z, RUNC_HM_Z_, RUNC_LM_Z_,
+    X, Y, Z, fid, linenum ) #why nothing FOR RUNC_LM_Z_and RUNC_HM_Z_
     
-    # use function and map to get column numbers from dfn e.g.,
+    # use function and map to get column number 
+    frame_height, frame_dz, frame_dx,
+    frame_dy,X, Y, Z, fid, linenum = map(x -> getcolNo(dfn[x]), [frame_height, frame_dz, frame_dx,
+    frame_dy, X, Y, Z, fid, linenum])
+    @show(frame_height)
+    # LM_Z, HM_Z,RUNC_HM_Z_, RUNC_LM_Z_= map(x -> getcolNo_except(dfn[x]),[LM_Z,HM_Z,RUNC_HM_Z_.RUNC_LM_Z_])
+    # @show(HM_Z)
     
-    # index = findfirst('\t', dfn[x]) 
-    # value = dfn[x][1:index-1]
-    # map(x -> yourfunc(dfn[x]), [frame_height, frame_dz, frame_dx,
-    # frame_dy, X, Y, Z, fid, linenum])
-
     fname_dat = prefix*".dat" # the name of DAT file associated with DFN
     # s_array = read_survey_files(fname_dat = fname_dat,
     #                     fname_specs_halt = fname_specs_halt,
