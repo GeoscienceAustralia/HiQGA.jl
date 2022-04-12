@@ -205,11 +205,11 @@ function read_survey_files(dfnfile::String;
     prefix = getgdfprefix(dfnfile)
     dfn = readlines(prefix*".hdr")
     frame_height, frame_dz, frame_dx,
-    frame_dy, LM_Z, HM_Z, RUNC_HM_Z_, RUNC_LM_Z_,
+    frame_dy, LM_Z, HM_Z, HM_σ,LM_σ,
     X, Y, Z, fid, linenum = map(x->getlocationinhdr(x, dfn), [frame_height, frame_dz, frame_dx,
-    frame_dy, LM_Z, HM_Z, RUNC_HM_Z_, RUNC_LM_Z_, X , Y, Z, fid, linenum])
+    frame_dy, LM_Z, HM_Z,HM_σ, LM_σ, X , Y, Z, fid, linenum])
     @show (frame_height, frame_dz, frame_dx,
-    frame_dy, LM_Z, HM_Z, RUNC_HM_Z_, RUNC_LM_Z_,
+    frame_dy, LM_Z, HM_Z,HM_σ,LM_σ,
     X, Y, Z, fid, linenum ) #why nothing FOR RUNC_LM_Z_and RUNC_HM_Z_
     
     # use function and map to get column number 
@@ -217,8 +217,8 @@ function read_survey_files(dfnfile::String;
     frame_dy,X, Y, Z, fid, linenum = map(x -> getcolNo(dfn[x]), [frame_height, frame_dz, frame_dx,
     frame_dy, X, Y, Z, fid, linenum])
     @show(frame_height)
-    # LM_Z, HM_Z,RUNC_HM_Z_, RUNC_LM_Z_= map(x -> getcolNo_except(dfn[x]),[LM_Z,HM_Z,RUNC_HM_Z_.RUNC_LM_Z_])
-    # @show(HM_Z)
+    LM_Z, HM_Z= map(x -> getcolNo_except(dfn[x]),[LM_Z,HM_Z])
+    @show(HM_Z)
     
     fname_dat = prefix*".dat" # the name of DAT file associated with DFN
     # s_array = read_survey_files(fname_dat = fname_dat,
