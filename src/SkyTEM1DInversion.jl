@@ -150,13 +150,11 @@ end
 function getlocationinhdr(str, rows)
     for (irow, row) in enumerate(rows)
         lasttabpos = findlast('\t', row)
-        #@info str, row
         (str == row[lasttabpos+1:end]) && return irow
     end
     nothing
 end
 
-#the following function needs to be customized for handling 4 specific parameters
 function getcolNo(str)
 	index = findfirst('\t',str)
 	value = str[1:index-1]
@@ -166,11 +164,10 @@ end
 function getcolNo_except(str)
     index1 = findall("\t",str)[1][1]
     index2 = findall("\t",str)[2][1]
-    value1 = str[1:index1-1] #the first value in the range 
-    value2 = str[index1+1:index2-1] #the second value in the range 
-    return [parse(Int,value1), parse(Int,value2)] #handles the range corrctly
+    value1 = str[1:index1-1]  
+    value2 = str[index1+1:index2-1] 
+    return [parse(Int,value1), parse(Int,value2)]
 end
-
 
 function read_survey_files(dfnfile::String;
     fname_specs_halt="",
@@ -198,7 +195,7 @@ function read_survey_files(dfnfile::String;
     skipevery = 1,
     multnoise = 0.03,
     )
-    #TODO throw an error if LM_drop or HM_drop == 0
+    #throw an error if LM_drop or HM_drop are not provided 
     (isnothing(LM_drop) || isnothing(HM_drop)) &&
         throw(ArgumentError("user must specify drop gates for LM and HM"))
     prefix = getgdfprefix(dfnfile)
