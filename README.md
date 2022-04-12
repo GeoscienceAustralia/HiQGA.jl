@@ -4,7 +4,7 @@
 
 This is a general purpose package for spatial statistical inference, geophysical forward modeling, Bayesian inference and inversion (both determinstic and probabilistic).
 
-Readily usable geophysical forward operators are to do with AEM, CSEM and MT physics (references underneath), **for which the time domain AEM codes are fairly production-ready**. The current EM modeling is in 1D, but the inversion framework is dimensionally agnostic (e.g., you can regress images). Adding your own geophysical operators is easy, keep reading [down here](#Developing HiQGA or modifying it for your own special forward physics).
+Readily usable geophysical forward operators are to do with AEM, CSEM and MT physics (references underneath), **for which the time domain AEM codes are fairly production-ready**. The current EM modeling is in 1D, but the inversion framework is dimensionally agnostic (e.g., you can regress images). Adding your own geophysical operators is easy, keep reading [down here](#developing-hiqga-or-modifying-it-for-your-own-special-forward-physics).
 
 This package implements both the nested (2-layer) and vanilla trans-dimensional Gaussian process algorithm as published in 
 - [*Bayesian inversion using nested trans-dimensional Gaussian processes*, A. Ray, Geophysical Journal International, **226(1)**, 2021](https://doi.org/10.1093/gji/ggab114).
