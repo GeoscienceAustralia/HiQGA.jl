@@ -182,15 +182,13 @@ function read_survey_files(dfnfile::String;
     HM_Z = "",
     LM_σ = "",
     HM_σ = "",
-    RUNC_HM_Z_="",
-    RUNC_LM_Z_="",
     X = "",
     Y = "",
     Z = "",
     fid = "",
     linenum = "",
-    LM_drop = 0,
-    HM_drop = 0,
+    LM_drop = nothing,
+    HM_drop = nothing,
     relerror = false,
     units=1e-12,
     figsize = (9,7),
@@ -201,50 +199,47 @@ function read_survey_files(dfnfile::String;
     multnoise = 0.03,
     )
     #TODO throw an error if LM_drop or HM_drop == 0
-
+    (isnothing(LM_drop) || isnothing(HM_drop)) &&
+        throw(ArgumentError("user must specify drop gates for LM and HM"))
     prefix = getgdfprefix(dfnfile)
     dfn = readlines(prefix*".hdr")
     frame_height, frame_dz, frame_dx,
     frame_dy, LM_Z, HM_Z, HM_σ,LM_σ,
     X, Y, Z, fid, linenum = map(x->getlocationinhdr(x, dfn), [frame_height, frame_dz, frame_dx,
     frame_dy, LM_Z, HM_Z,HM_σ, LM_σ, X , Y, Z, fid, linenum])
-    @show (frame_height, frame_dz, frame_dx,
-    frame_dy, LM_Z, HM_Z,HM_σ,LM_σ,
-    X, Y, Z, fid, linenum ) #why nothing FOR RUNC_LM_Z_and RUNC_HM_Z_
     
     # use function and map to get column number 
     frame_height, frame_dz, frame_dx,
     frame_dy,X, Y, Z, fid, linenum = map(x -> getcolNo(dfn[x]), [frame_height, frame_dz, frame_dx,
     frame_dy, X, Y, Z, fid, linenum])
-    @show(frame_height)
-    LM_Z, HM_Z= map(x -> getcolNo_except(dfn[x]),[LM_Z,HM_Z])
-    @show(HM_Z)
-    
+    LM_Z, HM_Z, LM_σ, HM_σ= map(x -> getcolNo_except(dfn[x]),[LM_Z,HM_Z,LM_σ, HM_σ])
+    LM_Z[1] = LM_Z[1] + LM_drop 
+    HM_Z[1] = HM_Z[1] + HM_drop 
     fname_dat = prefix*".dat" # the name of DAT file associated with DFN
-    # s_array = read_survey_files(fname_dat = fname_dat,
-    #                     fname_specs_halt = fname_specs_halt,
-    #                     LM_Z             = LM_Z,
-    #                     HM_Z             = HM_Z,
-    #                     frame_height     = frame_height,
-    #                     frame_dz         = frame_dz,
-    #                     frame_dy         = frame_dy,
-    #                     frame_dx         = frame_dx,
-    #                     X                = X,
-    #                     Y                = Y,
-    #                     Z                = Z,
-    #                     fid              = fid,
-    #                     units            = units,
-    #                     relerror         = relerror,
-    #                     LM_σ             = LM_σ,
-    #                     HM_σ             = HM_σ,
-    #                     figsize          = figsize,   
-    #                     linenum          = linenum,
-    #                     startfrom        = startfrom,
-    #                     skipevery        = skipevery,
-    #                     dotillsounding   = dotillsounding,
-    #                     multnoise        = multnoise,
-    #                     makesounding     = makesounding)
-    # s_array # return sounding array
+    s_array = read_survey_files(fname_dat = fname_dat,
+                        fname_specs_halt = fname_specs_halt,
+                        LM_Z             = LM_Z,
+                        HM_Z             = HM_Z,
+                        frame_height     = frame_height,
+                        frame_dz         = frame_dz,
+                        frame_dy         = frame_dy,
+                        frame_dx         = frame_dx,
+                        X                = X,
+                        Y                = Y,
+                        Z                = Z,
+                        fid              = fid,
+                        units            = units,
+                        relerror         = relerror,
+                        LM_σ             = LM_σ,
+                        HM_σ             = HM_σ,
+                        figsize          = figsize,   
+                        linenum          = linenum,
+                        startfrom        = startfrom,
+                        skipevery        = skipevery,
+                        dotillsounding   = dotillsounding,
+                        multnoise        = multnoise,
+                        makesounding     = makesounding)
+    s_array # return sounding array
 end    
 
 function read_survey_files(;
