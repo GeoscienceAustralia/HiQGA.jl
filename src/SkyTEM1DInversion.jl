@@ -1232,6 +1232,8 @@ function splitlineconvandlast(soundings, delr, delz;
         preferNright = false,
         saveplot = true,
         showplot = true,
+        prefix = "",
+        logscale = false,
         dpi=400)
     linestartidx = splitsoundingsbyline(soundings)                    
     nlines = length(linestartidx)                   
@@ -1240,8 +1242,8 @@ function splitlineconvandlast(soundings, delr, delz;
         b = i != nlines ?  linestartidx[i+1]-1 : length(soundings)
         plotconvandlast(soundings[a:b], delr, delz, 
             zstart=zstart, extendfrac=extendfrac, dz=dz, nlayers=nlayers, 
-            cmapσ=cmapσ, vmin=vmin, vmax=vmax, fontsize=fontsize,
-            figsize=figsize, topowidth=topowidth, preferEright=preferEright,
+            cmapσ=cmapσ, vmin=vmin, vmax=vmax, fontsize=fontsize, prefix=prefix,
+            figsize=figsize, topowidth=topowidth, preferEright=preferEright, logscale=logscale,
             preferNright=preferNright, saveplot=saveplot, showplot=showplot, dpi=dpi)
     end
     nothing
@@ -1255,6 +1257,8 @@ function plotconvandlast(soundings, delr, delz;
         preferNright = false,
         saveplot = true, 
         showplot = true,
+        logscale = false,
+        prefix = "",
         dpi = 400)
     @assert zstart > -1
     @assert extendfrac >-1
@@ -1264,28 +1268,37 @@ function plotconvandlast(soundings, delr, delz;
     zall, = setupz(zstart, extendfrac, dz=dz, n=nlayers)
     ϕd, σ = readingrid(soundings, zall)
     img, gridr, gridz, topofine, R = makegrid(σ, soundings, zall=zall, dz=delz, dr=delr)
-    f, ax = plt.subplots(2,1, sharex=true, figsize=figsize)
-    lname = "Line_$(soundings[1].linenum)"
-    f.suptitle(lname*" Δx=$delr m, Fids: $(length(R))", fontsize=fontsize)
+    fig = plt.figure(figsize=figsize)
+    axd = fig.subplot_mosaic(
+           """
+           A
+           C
+           C
+           C
+           """
+       )
+    lname = "Line_$(soundings[1].linenum)"*prefix
+    x0, y0 = soundings[1].X, soundings[1].Y
+    xend, yend = soundings[end].X, soundings[end].Y
+    fig.suptitle(lname*" Δx=$delr m, Fids: $(length(R))", fontsize=fontsize)
+    ax = fig.axes
     ax[1].plot(R, ϕd)
     # ax[1].plot(R, ones(length(ϕd)), "--k")
     ax[1].set_ylabel(L"\phi_d")
-    ax[1].set_yscale("log")
+    logscale && ax[1].set_yscale("log")
+    ax[1].plot(R, ones(length(R)), "--k")
     imlast = ax[2].imshow(img, extent=[gridr[1], gridr[end], gridz[end], gridz[1]], cmap=cmapσ, aspect="auto", vmin=vmin, vmax=vmax)
     ax[2].plot(gridr, topofine, linewidth=topowidth, "-k")
-    ax[2].set_xlim(extrema(gridr)...)
+    eg = extrema(gridr)
     ax[2].set_ylabel("mAHD")
     ax[2].set_xlabel("Distance m")
-    nicenup(f, fsize=fontsize)
-    plotNEWSlabels(Eislast, Nislast, gridr, gridz, [ax[2]])
-    f.subplots_adjust(bottom=0.25)
-    cbar_ax = f.add_axes([0.3, 0.1, 0.4, 0.02])
-    cb = f.colorbar(imlast, cax=cbar_ax, orientation="horizontal")
-    cb.ax.set_xlabel("Log₁₀ S/m")
-    (preferNright && !Nislast) && ax[end].invert_xaxis()
-    (preferEright && !Eislast) && ax[end].invert_xaxis()
+    fig.colorbar(imlast, ax=axd["C"], shrink=0.6, location="bottom", label="Log₁₀ S/m")
+    nicenup(fig, fsize=fontsize)
+    plotNEWSlabels(Eislast, Nislast, gridr, gridz, [ax[2]], x0, y0, xend, yend, 
+                    preferEright=preferEright, preferNright=preferNright)
+    ax[1].set_xlim(ax[2].get_xlim())                
     saveplot && savefig(lname*".png", dpi=dpi)
-    showplot || close(f)
+    showplot || close(fig)
 end    
 
 # plot multiple grids with supplied labels

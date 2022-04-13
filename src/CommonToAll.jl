@@ -133,9 +133,9 @@ function assemblenuisancesatT(optn::OptionsNuisance;
 end
 
 function getnchains(costs_filename)
-c = 0
+    c = 0
+    r = Regex(costs_filename)
     for fname in readdir(pwd())
-           r = Regex(costs_filename)
            c += !isa(match(r, fname), Nothing)
     end
     c
@@ -896,10 +896,33 @@ function makearray(soundings, d, zall)
     outarray
 end
 
-function plotNEWSlabels(Eislast, Nislast, gridx, gridz, axarray)
+function plotNEWSlabels(Eislast, Nislast, gridx, gridz, axarray, 
+        x0=nothing, y0=nothing, xend=nothing, yend=nothing;
+        preferEright=false, preferNright=false)
+    beginpos, endpos = "", ""
+    if !any(isnothing.([x0,y0,xend,yend]))
+        beginpos = round(Int, x0/1000), round(Int, y0/1000)
+        endpos = round(Int, xend/1000), round(Int, yend/1000)
+    end
     for s in axarray
-        Eislast ? s.text(gridx[1], minimum(s.get_ylim()), "W", backgroundcolor="w") : s.text(gridx[1], minimum(s.get_ylim()), "E", backgroundcolor="w")
-        Nislast ? s.text(gridx[end], minimum(s.get_ylim()), "N", backgroundcolor="w") : s.text(gridx[end], minimum(s.get_ylim()), "S", backgroundcolor="w")
+        minylim = minimum(s.get_ylim())
+        inverted = false
+        if (preferNright && !Nislast) || (preferEright && !Eislast) 
+            s.invert_xaxis() 
+            inverted = true
+        end 
+        ha = inverted ? "right" : "left"   
+        if Eislast 
+            s.text(gridx[1], minylim, "W $beginpos", backgroundcolor="w", ha = ha) 
+        else
+            s.text(gridx[1], minylim, "E $beginpos", backgroundcolor="w", ha = ha)
+        end
+        ha = inverted ? "left" : "right"
+        if Nislast 
+            s.text(gridx[end], minylim, "N $endpos", backgroundcolor="w") 
+        else
+            s.text(gridx[end], minylim, "S $endpos", backgroundcolor="w", ha=ha)
+        end    
     end
 end
 
