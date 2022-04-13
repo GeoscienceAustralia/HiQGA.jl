@@ -147,6 +147,98 @@ function SkyTEMsoundingData(;rRx=-12., zRxLM=12., zTxLM=12.,
     # LM_data, HM_data)
 end
 
+function getlocationinhdr(str, rows)
+    for (irow, row) in enumerate(rows)
+        lasttabpos = findlast('\t', row)
+        (str == row[lasttabpos+1:end]) && return irow
+    end
+    nothing
+end
+
+function getcolNo(str)
+	index = findfirst('\t',str)
+	value = str[1:index-1]
+    return parse(Int,value)
+end
+
+function getcolNo_except(str)
+    index1 = findall("\t",str)[1][1]
+    index2 = findall("\t",str)[2][1]
+    value1 = str[1:index1-1]  
+    value2 = str[index1+1:index2-1] 
+    return [parse(Int,value1), parse(Int,value2)]
+end
+
+function read_survey_files(dfnfile::String;
+    fname_specs_halt="",
+    frame_height = "",
+    frame_dz = "",
+    frame_dx = "",
+    frame_dy = "",
+    LM_Z = "",
+    HM_Z = "",
+    LM_σ = "",
+    HM_σ = "",
+    X = "",
+    Y = "",
+    Z = "",
+    fid = "",
+    linenum = "",
+    LM_drop = nothing,
+    HM_drop = nothing,
+    relerror = false,
+    units=1e-12,
+    figsize = (9,7),
+    makesounding = false,
+    dotillsounding = nothing,
+    startfrom = 1,
+    skipevery = 1,
+    multnoise = 0.03,
+    )
+    #throw an error if LM_drop or HM_drop are not provided 
+    (isnothing(LM_drop) || isnothing(HM_drop)) &&
+        throw(ArgumentError("user must specify drop gates for LM and HM"))
+    prefix = getgdfprefix(dfnfile)
+    dfn = readlines(prefix*".hdr")
+    frame_height, frame_dz, frame_dx,
+    frame_dy, LM_Z, HM_Z, HM_σ,LM_σ,
+    X, Y, Z, fid, linenum = map(x->getlocationinhdr(x, dfn), [frame_height, frame_dz, frame_dx,
+    frame_dy, LM_Z, HM_Z,HM_σ, LM_σ, X , Y, Z, fid, linenum])
+    
+    # use function and map to get column number 
+    frame_height, frame_dz, frame_dx,
+    frame_dy,X, Y, Z, fid, linenum = map(x -> getcolNo(dfn[x]), [frame_height, frame_dz, frame_dx,
+    frame_dy, X, Y, Z, fid, linenum])
+    LM_Z, HM_Z, LM_σ, HM_σ= map(x -> getcolNo_except(dfn[x]),[LM_Z,HM_Z,LM_σ, HM_σ])
+    LM_Z[1] = LM_Z[1] + LM_drop 
+    HM_Z[1] = HM_Z[1] + HM_drop 
+    fname_dat = prefix*".dat" # the name of DAT file associated with DFN
+    s_array = read_survey_files(fname_dat = fname_dat,
+                        fname_specs_halt = fname_specs_halt,
+                        LM_Z             = LM_Z,
+                        HM_Z             = HM_Z,
+                        frame_height     = frame_height,
+                        frame_dz         = frame_dz,
+                        frame_dy         = frame_dy,
+                        frame_dx         = frame_dx,
+                        X                = X,
+                        Y                = Y,
+                        Z                = Z,
+                        fid              = fid,
+                        units            = units,
+                        relerror         = relerror,
+                        LM_σ             = LM_σ,
+                        HM_σ             = HM_σ,
+                        figsize          = figsize,   
+                        linenum          = linenum,
+                        startfrom        = startfrom,
+                        skipevery        = skipevery,
+                        dotillsounding   = dotillsounding,
+                        multnoise        = multnoise,
+                        makesounding     = makesounding)
+    s_array # return sounding array
+end    
+
 function read_survey_files(;
     fname_dat="",
     fname_specs_halt="",

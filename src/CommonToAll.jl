@@ -10,7 +10,7 @@ export trimxft, assembleTat1, gettargtemps, checkns, getchi2forall, nicenup,
         unwrap, getn, geomprogdepth, assemblemodelsatT, getstats, gethimage,
         assemblenuisancesatT, makenuisancehists, stretchexists,
         makegrid, whichislast, makesummarygrid, makearray, plotNEWSlabels, 
-        plotprofile, gridpoints, splitsoundingsbyline
+        plotprofile, gridpoints, splitsoundingsbyline, dfn2hdr, getgdfprefix
 
 function trimxft(opt::Options, burninfrac::Float64, temperaturenum::Int)
     x_ft = assembleTat1(opt, :x_ftrain, burninfrac=burninfrac, temperaturenum=temperaturenum)
@@ -998,4 +998,60 @@ function plot1Dpatches(ax, zlist, xlist; alpha=0.25, fc="red", ec="blue", lw=2)
     end    
 end
 
+#function to read the *dfn file and extract the column number and column names as a *.txt file 
+function dfn2hdr(dfnfile::String)
+    dfn = readlines(dfnfile)
+    dfn = dfn[(.!contains.(dfn, "RT=PROJ") .& .!contains.(dfn, "RT=TRNS")
+              .& .!contains.(dfn, "RT=COMM"))]
+
+    rectype_rgx = r"RT=([^;]*);"
+    name_rgx = r"NAME="
+    inc_regex = r":([0-9]+)F" #this will only work with floating point fields
+
+    cumulative_columns = 0  #this will set up a cumulative variable 
+    
+    fname_hdr = getgdfprefix(dfnfile)*".hdr" # the name of HDR file associated with DFN
+    io = open(fname_hdr,"w")
+    data_first = false
+    for row = dfn
+        m = match(rectype_rgx, row)
+        isnothing(m) && continue
+        data_first |= (m[1] == "DATA")
+
+        inc_match = match(inc_regex, row)  #matching the keyword with the string 
+        if isnothing(inc_match)
+            inc = 1
+            idx2 = split(row, name_rgx)
+            idx2_r = first.(split.(idx2[2], ":"))
+        else
+            inc = parse(Int64, inc_match.captures[1]) #the outcome is int64
+            idx2 = split(row, rectype_rgx)
+            idx2_r = first.(split.(idx2[2], ":"))
+        end
+
+        firstcol = cumulative_columns + 1 + data_first
+        lastcol = firstcol + inc - 1
+        cumulative_columns += inc
+        
+        if occursin(";END DEFN", idx2_r)  #type is string 
+            idx2_r = first.(split.(idx2_r,";"))
+        else
+            idx2_r = first.(split.(idx2_r,"END"))
+        end
+
+        #start writing to a file here
+        if (firstcol != lastcol)
+            writedlm(io,[firstcol lastcol idx2_r]) 
+        else
+            writedlm(io, [firstcol idx2_r])
+        end
+    end
+    close(io)
 end
+
+function getgdfprefix(dfnfile::String)
+    location = findfirst(".dfn", lowercase(dfnfile))[1] # get file prefix
+    dfnfile[1:location-1] # the prefix
+end    
+
+end # module CommonToAll
