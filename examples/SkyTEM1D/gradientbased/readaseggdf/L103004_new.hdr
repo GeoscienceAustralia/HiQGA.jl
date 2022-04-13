@@ -1,0 +1,33 @@
+2	Line number
+3	Alt
+4	AngleX
+5	AngleY
+6	Curr_1
+7	Curr_2
+8	Date
+9	DateTime
+10	Dist
+11	DTM_AHD
+12	dx
+13	dy
+14	dz
+15	E
+16	Fid
+17	Flight
+18	GdSpeed
+19	Height
+20	57	HM_X_
+58	95	HM_Z_
+96	Lat
+97	Line
+98	123	LM_X_
+124	149	LM_Z_
+150	Lon
+151	MA1
+152	N
+153	PLNI
+154	191	RUNC_HM_X_
+192	229	RUNC_HM_Z_
+230	255	RUNC_LM_X_
+256	281	RUNC_LM_Z_
+282	Time
