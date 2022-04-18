@@ -1207,11 +1207,16 @@ function summaryimages(soundings::Array{SkyTEMsoundingData, 1}, opt::Options;
 end
 
 # for deterministic inversions, read in
-function compress(soundings, zall; prefix="", rmfile=true)
+function compress(soundings, zall; prefix="", rmfile=true, isfirstparalleliteration=false)
     fname = soundings[1].sounding_string*"_gradientinv.dat"    
     !isfile(fname) && throw(AssertionError("file does not exist perhaps soundings already zipped?"))
     fout = prefix == "" ? "zipped.dat" : prefix*"_zipped.dat"
-    io = open(fout, "w")
+    iomode = "w"
+    if isfile(fout)
+        isfirstparalleliteration && throw(AssertionError("Zipped file "*fout*" exists, will not overwrite!"))
+        iomode = "a"
+    end    
+    io = open(fout, iomode)
     for (i, s) in enumerate(soundings)
         fname = s.sounding_string*"_gradientinv.dat"
         A = readdlm(fname)
@@ -1247,7 +1252,7 @@ function splitlineconvandlast(soundings, delr, delz;
     nlines = length(linestartidx)
     fnamecheck = soundings[1].sounding_string*"_gradientinv.dat"
     zall, = setupz(zstart, extendfrac, dz=dz, n=nlayers)
-    isfile(fnamecheck) && compress(soundings, zall) # write everything in one file
+    isfile(fnamecheck) && compress(soundings, zall) # write everything in one file if not done yet
     fzipped = prefix == "" ? "zipped.dat" : prefix*"_zipped.dat"
     A = readdlm(fzipped)
     σ = A[:,end-nlayers:end-1]
@@ -1431,12 +1436,14 @@ function loopacrosssoundings(soundings::Array{S, 1}, σstart, σ0;
                             κ                  = GP.Mat52(),
                             breakonknown       = true,
                             dobo               = false,
+                            compresssoundings  = true,
+                            zipsaveprefix      = "",        
                             ) where S<:Sounding
 
     @assert nsequentialiters  != -1
     nparallelsoundings = nworkers()
     nsoundings = length(soundings)
-    
+    zall, = setupz(zstart, extendfrac, dz=dz, n=nlayers) # needed for sounding compression
     for iter = 1:nsequentialiters
         if iter<nsequentialiters
             ss = (iter-1)*nparallelsoundings+1:iter*nparallelsoundings
@@ -1487,6 +1494,9 @@ function loopacrosssoundings(soundings::Array{S, 1}, σstart, σ0;
                 
 
         end # @sync
+        isfirstparalleliteration = iter == 1 ? true : false
+        compresssoundings && compress(soundings[ss[1]:ss[end]], zall, 
+            isfirstparalleliteration = isfirstparalleliteration, prefix=zipsaveprefix)
         @info "done $iter out of $nsequentialiters at $(Dates.now())"
     end
 end
