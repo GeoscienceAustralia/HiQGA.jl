@@ -1288,6 +1288,9 @@ function plotconvandlast(soundings, σ, ϕd, delr, delz;
     axd = fig.subplot_mosaic(
            """
            A
+           B
+           C
+           C
            C
            C
            C
@@ -1295,24 +1298,27 @@ function plotconvandlast(soundings, σ, ϕd, delr, delz;
        )
     lname = "Line_$(soundings[1].linenum)"*postfix
     x0, y0 = soundings[1].X, soundings[1].Y
+    zTx = [s.zTxLM for s in soundings]
     xend, yend = soundings[end].X, soundings[end].Y
     fig.suptitle(lname*" Δx=$delr m, Fids: $(length(R))", fontsize=fontsize)
     ax = fig.axes
     ax[1].plot(R, ϕd)
-    # ax[1].plot(R, ones(length(ϕd)), "--k")
     ax[1].set_ylabel(L"\phi_d")
     logscale && ax[1].set_yscale("log")
     ax[1].plot(R, ones(length(R)), "--k")
-    imlast = ax[2].imshow(img, extent=[gridr[1], gridr[end], gridz[end], gridz[1]], cmap=cmapσ, aspect="auto", vmin=vmin, vmax=vmax)
-    ax[2].plot(gridr, topofine, linewidth=topowidth, "-k")
+    ax[2].plot(R, zTx)
+    ax[2].set_ylabel("zTx m")
+    [a.tick_params(labelbottom=false) for a in ax[1:2]]
+    imlast = ax[3].imshow(img, extent=[gridr[1], gridr[end], gridz[end], gridz[1]], cmap=cmapσ, aspect="auto", vmin=vmin, vmax=vmax)
+    ax[3].plot(gridr, topofine, linewidth=topowidth, "-k")
     eg = extrema(gridr)
-    ax[2].set_ylabel("mAHD")
-    ax[2].set_xlabel("Distance m")
+    ax[3].set_ylabel("mAHD")
+    ax[3].set_xlabel("Distance m")
     fig.colorbar(imlast, ax=axd["C"], location="bottom", shrink=0.6, label="Log₁₀ S/m")
     nicenup(fig, fsize=fontsize)
-    plotNEWSlabels(Eislast, Nislast, gridr, gridz, [ax[2]], x0, y0, xend, yend, 
+    plotNEWSlabels(Eislast, Nislast, gridr, gridz, [ax[3]], x0, y0, xend, yend, 
                     preferEright=preferEright, preferNright=preferNright)
-    ax[1].set_xlim(ax[2].get_xlim())                
+    [a.set_xlim(ax[3].get_xlim()) for a in ax[1:2]]
     saveplot && savefig(lname*".png", dpi=dpi)
     showplot || close(fig)
 end    
