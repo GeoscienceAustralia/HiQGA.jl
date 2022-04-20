@@ -1246,6 +1246,7 @@ function splitlineconvandlast(soundings, delr, delz;
         showplot = true,
         postfix = "",
         prefix = "",
+        markersize = 2,
         logscale = false,
         dpi=400)
     linestartidx = splitsoundingsbyline(soundings)                    
@@ -1262,7 +1263,7 @@ function splitlineconvandlast(soundings, delr, delz;
         b = i != nlines ?  linestartidx[i+1]-1 : length(soundings)
         plotconvandlast(soundings[a:b], view(σ, a:b, :)', view(ϕd, a:b), delr, delz; 
             zall = zall,
-            cmapσ=cmapσ, vmin=vmin, vmax=vmax, fontsize=fontsize, postfix=postfix,
+            cmapσ=cmapσ, vmin=vmin, vmax=vmax, fontsize=fontsize, postfix=postfix, markersize=markersize,
             figsize=figsize, topowidth=topowidth, preferEright=preferEright, logscale=logscale,
             preferNright=preferNright, saveplot=saveplot, showplot=showplot, dpi=dpi)
     end
@@ -1279,6 +1280,7 @@ function plotconvandlast(soundings, σ, ϕd, delr, delz;
         showplot = true,
         logscale = false,
         postfix = "",
+        markersize = 2,
         dpi = 400)
     @assert !isnothing(zall)
     Eislast, Nislast = whichislast(soundings)
@@ -1302,10 +1304,11 @@ function plotconvandlast(soundings, σ, ϕd, delr, delz;
     xend, yend = soundings[end].X, soundings[end].Y
     fig.suptitle(lname*" Δx=$delr m, Fids: $(length(R))", fontsize=fontsize)
     ax = fig.axes
-    ax[1].plot(R, ϕd)
+    ax[1].plot(R, ones(length(R)), "--k")
+    ax[1].plot(R, ϕd, ".", markersize=markersize)
+    ax[1].set_ylim(0.316, maximum(ax[1].get_ylim()))
     ax[1].set_ylabel(L"\phi_d")
     logscale && ax[1].set_yscale("log")
-    ax[1].plot(R, ones(length(R)), "--k")
     ax[2].plot(R, zTx)
     ax[2].set_ylabel("zTx m")
     [a.tick_params(labelbottom=false) for a in ax[1:2]]
