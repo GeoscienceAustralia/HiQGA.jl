@@ -18,7 +18,7 @@ relerror = false
 units = 1e-12
 LM_drop,HM_drop = 9,15
 ##
-soundings2 = transD_GP.SkyTEM1DInversion.read_survey_files(fname_dfn,
+soundings = transD_GP.SkyTEM1DInversion.read_survey_files(fname_dfn,
 						             fname_specs_halt = fname_specs_halt,
 						             LM_Z             = LM_Z,
 									 HM_Z             = HM_Z,
@@ -38,6 +38,6 @@ soundings2 = transD_GP.SkyTEM1DInversion.read_survey_files(fname_dfn,
 									 relerror         = relerror,
 									 linenum          = linenum,
                                      startfrom        = 1,
-									 skipevery        = 34,
+									 skipevery        = 20,
 									 dotillsounding   = nothing,
 									 makesounding     = true)

@@ -1,0 +1,13 @@
+
+======================================================================================
+                  Resource Usage on 2022-04-20 12:33:15:
+   Job Id:             38663242.gadi-pbs
+   Project:            cr78
+   Exit Status:        0
+   Service Units:      144.00
+   NCPUs Requested:    240                    NCPUs Used: 240             
+                                           CPU Time Used: 66:33:27                                   
+   Memory Requested:   960.0GB               Memory Used: 168.5GB         
+   Walltime requested: 01:00:00            Walltime Used: 00:18:00        
+   JobFS requested:    500.0MB                JobFS used: 8.16MB          
+======================================================================================
