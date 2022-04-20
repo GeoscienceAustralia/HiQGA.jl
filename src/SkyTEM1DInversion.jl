@@ -199,7 +199,13 @@ function read_survey_files(dfnfile::String;
     (isnothing(LM_drop) || isnothing(HM_drop)) &&
         throw(ArgumentError("user must specify drop gates for LM and HM"))
     prefix = getgdfprefix(dfnfile)
-    dfn = readlines(prefix*".hdr")
+    hdrfile = prefix*".hdr"
+    if !isfile(hdrfile)
+        dfn2hdr(dfnfile)
+    else
+        @warn "using existing "*hdrfile
+    end    
+    dfn = readlines(hdrfile)
     frame_height, frame_dz, frame_dx,
     frame_dy, LM_Z, HM_Z, HM_σ,LM_σ,
     X, Y, Z, fid, linenum = map(x->getlocationinhdr(x, dfn), [frame_height, frame_dz, frame_dx,

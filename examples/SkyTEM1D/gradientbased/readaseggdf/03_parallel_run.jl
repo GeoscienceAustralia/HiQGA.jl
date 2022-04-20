@@ -59,7 +59,8 @@ transD_GP.SkyTEM1DInversion.loopacrosssoundings(soundings, σstart, σ0,
                             firstvalue         = firstvalue      ,              
                             κ                  = κ               ,              
                             breakonknown       = breakonknown    ,              
-                            dobo               = dobo)                  
+                            dobo               = dobo,
+                            zipsaveprefix      = zipsaveprefix)             
 
 MPIClusterManagers.stop_main_loop(manager)
 rmprocs(workers())
