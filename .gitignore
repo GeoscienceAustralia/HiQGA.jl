@@ -10,3 +10,5 @@ Manifest.toml
 .vscode
 *_gradientinv.dat
 *DS_store*
+*zipped*
+*err*
