@@ -925,6 +925,7 @@ function writetabdelim(fname, opt::Options, soundings::Array{SkyTEMsoundingData,
             write(io, msg)
         end
         write(io, "\n")
+        flush(io) # slower but ensures write is complete
     end
     close(io)
 end    
@@ -1206,21 +1207,32 @@ function summaryimages(soundings::Array{SkyTEMsoundingData, 1}, opt::Options;
 end
 
 # for deterministic inversions, read in
-function readingrid(soundings, zall)
-    nstepsmax = 0 
-    for s in soundings
-        fname = s.sounding_string*"_gradientinv.dat"
-        nstepsmax = max(size(readdlm(fname), 1), nstepsmax)
-    end
-    ϕd = zeros(length(soundings))
-    σgrid = zeros(length(zall), length(soundings))
+function compress(soundings, zall; prefix="", rmfile=true, isfirstparalleliteration=false)
+    fname = soundings[1].sounding_string*"_gradientinv.dat"    
+    !isfile(fname) && throw(AssertionError("file does not exist perhaps soundings already zipped?"))
+    fout = prefix == "" ? "zipped.dat" : prefix*"_zipped.dat"
+    iomode = "w"
+    if isfile(fout)
+        isfirstparalleliteration && throw(AssertionError("Zipped file "*fout*" exists, will not overwrite!"))
+        iomode = "a"
+    end    
+    io = open(fout, iomode)
     for (i, s) in enumerate(soundings)
         fname = s.sounding_string*"_gradientinv.dat"
         A = readdlm(fname)
-        ϕd[i] = A[end,2]
-        σgrid[:,i] = vec(A[end,3:end])
-    end    
-    ϕd, σgrid
+        ϕd = A[end,2]
+        σgrid = vec(A[end,3:end])
+        for el in [[s.X, s.Y, s.Z, s.fid, 
+                    s.linenum, s.rRx, s.zRxLM, s.zTxLM, s.zRxHM, 
+                    s.zTxHM, s.rTx]; vec(zall); σgrid; ϕd]
+            msg = @sprintf("%e\t", el)
+            write(io, msg)
+        end
+        write(io, "\n")                
+        flush(io) # slower but ensures write is complete
+        rmfile && rm(fname)
+    end
+    close(io)    
 end
 
 # plot the convergence and the result
@@ -1232,25 +1244,34 @@ function splitlineconvandlast(soundings, delr, delz;
         preferNright = false,
         saveplot = true,
         showplot = true,
+        postfix = "",
         prefix = "",
+        markersize = 2,
         logscale = false,
         dpi=400)
     linestartidx = splitsoundingsbyline(soundings)                    
-    nlines = length(linestartidx)                   
+    nlines = length(linestartidx)
+    fnamecheck = soundings[1].sounding_string*"_gradientinv.dat"
+    zall, = setupz(zstart, extendfrac, dz=dz, n=nlayers)
+    isfile(fnamecheck) && compress(soundings, zall) # write everything in one file if not done yet
+    fzipped = prefix == "" ? "zipped.dat" : prefix*"_zipped.dat"
+    A = readdlm(fzipped)
+    σ = A[:,end-nlayers:end-1]
+    ϕd = A[:,end]
     for i in 1:nlines
         a = linestartidx[i]
         b = i != nlines ?  linestartidx[i+1]-1 : length(soundings)
-        plotconvandlast(soundings[a:b], delr, delz, 
-            zstart=zstart, extendfrac=extendfrac, dz=dz, nlayers=nlayers, 
-            cmapσ=cmapσ, vmin=vmin, vmax=vmax, fontsize=fontsize, prefix=prefix,
+        plotconvandlast(soundings[a:b], view(σ, a:b, :)', view(ϕd, a:b), delr, delz; 
+            zall = zall,
+            cmapσ=cmapσ, vmin=vmin, vmax=vmax, fontsize=fontsize, postfix=postfix, markersize=markersize,
             figsize=figsize, topowidth=topowidth, preferEright=preferEright, logscale=logscale,
             preferNright=preferNright, saveplot=saveplot, showplot=showplot, dpi=dpi)
     end
     nothing
 end
 
-function plotconvandlast(soundings, delr, delz; 
-        zstart=-1, extendfrac=-1, dz=-1, nlayers=-1, cmapσ="jet", vmin=-2.5, vmax=0.5, fontsize=12,
+function plotconvandlast(soundings, σ, ϕd, delr, delz; 
+        zall=nothing, cmapσ="jet", vmin=-2.5, vmax=0.5, fontsize=12,
         figsize=(20,5),
         topowidth=1,
         preferEright = false,
@@ -1258,45 +1279,49 @@ function plotconvandlast(soundings, delr, delz;
         saveplot = true, 
         showplot = true,
         logscale = false,
-        prefix = "",
+        postfix = "",
+        markersize = 2,
         dpi = 400)
-    @assert zstart > -1
-    @assert extendfrac >-1
-    @assert dz>-1
-    @assert nlayers>-1
+    @assert !isnothing(zall)
     Eislast, Nislast = whichislast(soundings)
-    zall, = setupz(zstart, extendfrac, dz=dz, n=nlayers)
-    ϕd, σ = readingrid(soundings, zall)
+    # ϕd, σ = readingrid(soundings, zall)
     img, gridr, gridz, topofine, R = makegrid(σ, soundings, zall=zall, dz=delz, dr=delr)
     fig = plt.figure(figsize=figsize)
     axd = fig.subplot_mosaic(
            """
            A
+           B
+           C
+           C
            C
            C
            C
            """
        )
-    lname = "Line_$(soundings[1].linenum)"*prefix
+    lname = "Line_$(soundings[1].linenum)"*postfix
     x0, y0 = soundings[1].X, soundings[1].Y
+    zTx = [s.zTxLM for s in soundings]
     xend, yend = soundings[end].X, soundings[end].Y
     fig.suptitle(lname*" Δx=$delr m, Fids: $(length(R))", fontsize=fontsize)
     ax = fig.axes
-    ax[1].plot(R, ϕd)
-    # ax[1].plot(R, ones(length(ϕd)), "--k")
+    ax[1].plot(R, ones(length(R)), "--k")
+    ax[1].plot(R, ϕd, ".", markersize=markersize)
+    ax[1].set_ylim(0.316, maximum(ax[1].get_ylim()))
     ax[1].set_ylabel(L"\phi_d")
     logscale && ax[1].set_yscale("log")
-    ax[1].plot(R, ones(length(R)), "--k")
-    imlast = ax[2].imshow(img, extent=[gridr[1], gridr[end], gridz[end], gridz[1]], cmap=cmapσ, aspect="auto", vmin=vmin, vmax=vmax)
-    ax[2].plot(gridr, topofine, linewidth=topowidth, "-k")
+    ax[2].plot(R, zTx)
+    ax[2].set_ylabel("zTx m")
+    [a.tick_params(labelbottom=false) for a in ax[1:2]]
+    imlast = ax[3].imshow(img, extent=[gridr[1], gridr[end], gridz[end], gridz[1]], cmap=cmapσ, aspect="auto", vmin=vmin, vmax=vmax)
+    ax[3].plot(gridr, topofine, linewidth=topowidth, "-k")
     eg = extrema(gridr)
-    ax[2].set_ylabel("mAHD")
-    ax[2].set_xlabel("Distance m")
-    fig.colorbar(imlast, ax=axd["C"], shrink=0.6, location="bottom", label="Log₁₀ S/m")
+    ax[3].set_ylabel("mAHD")
+    ax[3].set_xlabel("Distance m")
+    fig.colorbar(imlast, ax=axd["C"], location="bottom", shrink=0.6, label="Log₁₀ S/m")
     nicenup(fig, fsize=fontsize)
-    plotNEWSlabels(Eislast, Nislast, gridr, gridz, [ax[2]], x0, y0, xend, yend, 
+    plotNEWSlabels(Eislast, Nislast, gridr, gridz, [ax[3]], x0, y0, xend, yend, 
                     preferEright=preferEright, preferNright=preferNright)
-    ax[1].set_xlim(ax[2].get_xlim())                
+    [a.set_xlim(ax[3].get_xlim()) for a in ax[1:2]]
     saveplot && savefig(lname*".png", dpi=dpi)
     showplot || close(fig)
 end    
@@ -1420,12 +1445,14 @@ function loopacrosssoundings(soundings::Array{S, 1}, σstart, σ0;
                             κ                  = GP.Mat52(),
                             breakonknown       = true,
                             dobo               = false,
+                            compresssoundings  = true,
+                            zipsaveprefix      = "",        
                             ) where S<:Sounding
 
     @assert nsequentialiters  != -1
     nparallelsoundings = nworkers()
     nsoundings = length(soundings)
-    
+    zall, = setupz(zstart, extendfrac, dz=dz, n=nlayers) # needed for sounding compression
     for iter = 1:nsequentialiters
         if iter<nsequentialiters
             ss = (iter-1)*nparallelsoundings+1:iter*nparallelsoundings
@@ -1476,6 +1503,9 @@ function loopacrosssoundings(soundings::Array{S, 1}, σstart, σ0;
                 
 
         end # @sync
+        isfirstparalleliteration = iter == 1 ? true : false
+        compresssoundings && compress(soundings[ss[1]:ss[end]], zall, 
+            isfirstparalleliteration = isfirstparalleliteration, prefix=zipsaveprefix)
         @info "done $iter out of $nsequentialiters at $(Dates.now())"
     end
 end

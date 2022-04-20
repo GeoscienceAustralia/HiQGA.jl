@@ -1,6 +1,7 @@
 ## info to read data
 # datafile
 fname_dat = "GAB_3_lines.txt"
+zipsaveprefix = splitpath(fname_dat)[end]
 # electronics file
 fname_specs_halt = "electronics_halt.jl"
 # column numbers from hdr file
