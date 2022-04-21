@@ -41,7 +41,12 @@ Another way is to simply clone or download this repository to your `JULIA_PKG_DE
 ```
 pkg>dev HiQGA
 ```
-[Here's a gist](https://gist.github.com/a2ray/8c2c55c25fee6647501b403886bbe64d) on adding your own module if you want to modify the source code. Alternatively, if you only want to use the sampling methods in `HiQGA.transD_GP` without contributing to the source (boo! j/k) [here's another gist](https://gist.github.com/a2ray/92a8c14483c21dda6ddf56685b95fbb8) which is more appropriate. These gists were written originally for a package called `transD_GP` so you will have to modify `using transD_GP` to `using HiQGA.transD_GP`. Documentation is imprtant and we're working on improving it before a full-release. 
+[Here's a gist](https://gist.github.com/a2ray/8c2c55c25fee6647501b403886bbe64d) on adding your own module if you want to modify the source code. Alternatively, if you only want to use the sampling methods in `HiQGA.transD_GP` without contributing to the source (boo! j/k) [here's another gist](https://gist.github.com/a2ray/92a8c14483c21dda6ddf56685b95fbb8) which is more appropriate. These gists were written originally for a package called `transD_GP` so you will have to modify `using transD_GP` to `using HiQGA.transD_GP`. Documentation is important and we're working on improving it before a full-release. 
+
+## Development setup on NCI
+The preferred development and usage environment for HiQGA is [Visual Studio Code](https://code.visualstudio.com/), which provides interactive execution of Julia code through the [VSCode Julia extension](https://code.visualstudio.com/docs/languages/julia). To install VSCode on the National Computational Infrastructure (NCI), you need to extract the VSCode rpm package using the steps in [this gist](https://gist.github.com/a2ray/701347f703b72abb630d2521b43c5f22), to a location where your account has write access.
+
+It is also useful to use Revise.jl to ensure changes to the package are immediately reflected in a running Julia REPL (this is the reason that Revise is a dependency on some example scripts as noted above). More information on a workflow to use Revise during development can be found [here](https://gist.github.com/a2ray/e593751b24e45f8160ba8041fb811680).
 
 ### References for AEM and CSEM physics 
 

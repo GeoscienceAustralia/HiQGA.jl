@@ -1,5 +1,6 @@
 using HiQGA.transD_GP
-fname_dfn = "L103004_new.dfn"
+fname_dfn = "L103004.dfn"
+zipsaveprefix = splitpath(fname_dfn)[end]
 # electronics file
 fname_specs_halt = "electronics_halt.jl"
 # column numbers from hdr file
