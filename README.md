@@ -1,6 +1,7 @@
 # HiQGA.jl
 
 ![CI status](https://github.com/GeoscienceAustralia/HiQGA.jl/workflows/CI/badge.svg)
+[<img src="https://github.com/GeoscienceAustralia/HiQGA.jl/workflows/docs/badge.svg">](https://geoscienceaustralia.github.io/HiQGA.jl/)
 
 This is a general purpose package for spatial statistical inference, geophysical forward modeling, Bayesian inference and inversion (both determinstic and probabilistic).
 
