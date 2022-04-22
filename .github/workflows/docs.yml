@@ -17,17 +17,12 @@ jobs:
         uses: julia-actions/setup-julia@v1
         with:
           version: ${{ matrix.julia-version }}
-      - name: Install Documenter
+      - name: Install Documenter and hack PyPlot to use automanaged Conda
         run: julia -e 'using Pkg; Pkg.add("Documenter")'
+        run: julia -e 'ENV["PYTHON"]=""; using Pkg; Pkg.add("PyPlot")'
       - name: Install HiQGA in Julia
         run: |
           julia -e 'using Pkg; Pkg.develop(path=".")'
-      - name: Set up Python
-        uses: actions/setup-python@v2
-        with:
-          python-version: '3.x'
-      - name: Install python deps
-        run: python -m pip install matplotlib
       - name: Build docs
         run: |
           cd docs
