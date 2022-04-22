@@ -1,4 +1,4 @@
-using Documenter, SNMRForward
+using Documenter, HiQGA 
 
 makedocs(sitename="HiQGA - High Quality Geophysical Analysis",
          pages = [
