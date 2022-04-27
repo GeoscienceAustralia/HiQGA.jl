@@ -9,5 +9,5 @@
 #PBS -e grid.err
 #PBS -l storage=gdata/z67+scratch/z67
 # if there are race conditions run next line with active internet connection
-#/home/547/ar0754/bin/julia-1.6.0 --project -e 'using Pkg; Pkg.instantiate(); Pkg.precompile()'
+/home/547/ar0754/bin/julia-1.6.0 --project -e 'using Pkg; Pkg.precompile()'
 /g/data/z67/ar0754/ompi-4.1.0/bin/mpiexec -np 480 /home/547/ar0754/bin/julia-1.6.0 03_parallel_run.jl >& outfile
