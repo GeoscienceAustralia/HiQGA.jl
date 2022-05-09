@@ -5,7 +5,7 @@ import ..AbstractOperator.makeoperator
 import ..AbstractOperator.getresidual
 
 
-using ..AbstractOperator, ..AEM_VMD_HMD, Statistics, Distributed, Printf, Dates,
+using ..AbstractOperator, ..AEM_VMD_HMD, Statistics, Distributed, Printf, Dates, StatsBase,
       PyPlot, LinearAlgebra, ..CommonToAll, Random, DelimitedFiles, LinearMaps, SparseArrays, ..GP
 
 
@@ -268,7 +268,8 @@ function read_survey_files(;
     Y = -1,
     Z = -1,
     fid = -1,
-    linenum = -1)
+    linenum = -1,
+    nanchar = "*")
     @assert frame_height > 0
     @assert frame_dz > 0
     @assert frame_dx > 0
@@ -290,6 +291,7 @@ function read_survey_files(;
     else
         soundings = readdlm(fname_dat)[startfrom:skipevery:end,:]
     end
+    soundings[soundings .== nanchar] .= NaN
     easting = soundings[:,X]
     northing = soundings[:,Y]
     topo = soundings[:,Z]
@@ -1273,8 +1275,29 @@ function splitlineconvandlast(soundings, delr, delz;
             figsize=figsize, topowidth=topowidth, preferEright=preferEright, logscale=logscale,
             preferNright=preferNright, saveplot=saveplot, showplot=showplot, dpi=dpi)
     end
+    getphidhist(ϕd, doplot=true, saveplot=saveplot, prefix=prefix)
     nothing
 end
+
+function getphidhist(ϕd; doplot=false, saveplot=false, prefix="", figsize=(8,4), fontsize=11)
+    edges=[0,1.1,2, Inf]
+    ϕdcounts = fit(Histogram, filter(!isnan, ϕd), edges).weights
+    good, bad, ugly = round.(Int, ϕdcounts./sum(ϕdcounts)*100) # % for type of fit in ranges above
+    if doplot
+        fout = prefix == "" ? "summaryfits.png" : prefix*"_summaryfits.png"
+        f = figure(figsize=figsize)
+        width=[diff(edges[1:end-1]);1]
+        bar(edges[1:end-1], [good, bad, ugly], align="edge", width=width)
+        xlabel(L"\phi_d")
+        ylabel("% of soundings")
+        isgood = sum(.!isnan.(ϕd))
+        title(prefix*" total soundings: $isgood NaN: $(length(ϕd)-isgood)")
+        grid()
+        nicenup(f, fsize=fontsize)
+        saveplot && savefig(fout, dpi=400)
+    end
+    good, bad, ugly
+end    
 
 function plotconvandlast(soundings, σ, ϕd, delr, delz; 
         zall=nothing, cmapσ="jet", vmin=-2.5, vmax=0.5, fontsize=12,
@@ -1308,7 +1331,9 @@ function plotconvandlast(soundings, σ, ϕd, delr, delz;
     x0, y0 = soundings[1].X, soundings[1].Y
     zTx = [s.zTxLM for s in soundings]
     xend, yend = soundings[end].X, soundings[end].Y
-    fig.suptitle(lname*" Δx=$delr m, Fids: $(length(R))", fontsize=fontsize)
+    good, bad, ugly = getphidhist(ϕd)
+    fig.suptitle(lname*" Δx=$delr m, Fids: $(length(R)) "*L"\phi_{d_{0-1.1}}:"*" $good "*
+    L"\phi_{d_{1.1-2}}:"*" $bad "*L"\phi_{d_{2-\infty}}:"*" $ugly", fontsize=fontsize)
     ax = fig.axes
     ax[1].plot(R, ones(length(R)), "--k")
     ax[1].plot(R, ϕd, ".", markersize=markersize)
