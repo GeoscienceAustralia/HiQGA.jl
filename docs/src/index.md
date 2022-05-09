@@ -1,8 +1,7 @@
-# HiQGA.jl
+# HiQGA Documentation
+```@contents
 
-![CI status](https://github.com/GeoscienceAustralia/HiQGA.jl/workflows/CI/badge.svg)
-[<img src="https://github.com/GeoscienceAustralia/HiQGA.jl/workflows/docs/badge.svg">](https://geoscienceaustralia.github.io/HiQGA.jl/)
-
+```
 This is a general purpose package for spatial statistical inference, geophysical forward modeling, Bayesian inference and inversion (both determinstic and probabilistic).
 
 Readily usable geophysical forward operators are to do with AEM, CSEM and MT physics (references underneath), **for which the time domain AEM codes are fairly production-ready**. The current EM modeling is in 1D, but the inversion framework is dimensionally agnostic (e.g., you can regress images). Adding your own geophysical operators is easy, keep reading [down here](#developing-hiqga-or-modifying-it-for-your-own-special-forward-physics).
@@ -54,3 +53,4 @@ It is also useful to use Revise.jl to ensure changes to the package are immediat
 - [Blatter, D., Key, K., Ray, A., Foley, N., Tulaczyk, S., & Auken, E. (2018). Trans-dimensional Bayesian inversion of airborne transient EM data from Taylor Glacier, Antarctica. Geophysical Journal International, 214(3)](https://doi.org/10.1093/gji/ggy255)
 
 - [Ray, A., & Key, K. (2012). Bayesian inversion of marine CSEM data with a trans-dimensional self parametrizing algorithm. Geophysical Journal International, 191(3), 1135-1151.](https://doi.org/10.1111/j.1365-246X.2012.05677.x)
+
