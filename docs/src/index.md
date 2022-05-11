@@ -1,7 +1,5 @@
 # HiQGA Documentation
-```@contents
 
-```
 This is a general purpose package for spatial statistical inference, geophysical forward modeling, Bayesian inference and inversion (both determinstic and probabilistic).
 
 Readily usable geophysical forward operators are to do with AEM, CSEM and MT physics (references underneath), **for which the time domain AEM codes are fairly production-ready**. The current EM modeling is in 1D, but the inversion framework is dimensionally agnostic (e.g., you can regress images). Adding your own geophysical operators is easy, keep reading [down here](#developing-hiqga-or-modifying-it-for-your-own-special-forward-physics).
@@ -12,6 +10,8 @@ This package implements both the nested (2-layer) and vanilla trans-dimensional 
 - There is also a flavour of within-bounds Gauss-Newton/Occam's inversion implemented. For SkyTEM AEM, this is fully functional, but for other forward propagators you will have to provide a Jacobian (the linearization of the forward operator).
 
 ## Installation
+NCI users look [here](#development-setup-on-nci) first!
+
 To install, in a perfect world we'd use Julia's `Pkg` REPL by hitting `]` to enter `pkg>` mode. Then enter the following, at the `pkg>` prompt:
 ```
 pkg> add https://github.com/GeoscienceAustralia/HiQGA.jl.git
@@ -44,10 +44,30 @@ pkg>dev HiQGA
 [Here's a gist](https://gist.github.com/a2ray/8c2c55c25fee6647501b403886bbe64d) on adding your own module if you want to modify the source code. Alternatively, if you only want to use the sampling methods in `HiQGA.transD_GP` without contributing to the source (boo! j/k) [here's another gist](https://gist.github.com/a2ray/92a8c14483c21dda6ddf56685b95fbb8) which is more appropriate. These gists were written originally for a package called `transD_GP` so you will have to modify `using transD_GP` to `using HiQGA.transD_GP`. Documentation is important and we're working on improving it before a full-release. 
 
 ## Development setup on NCI
-The preferred development and usage environment for HiQGA is [Visual Studio Code](https://code.visualstudio.com/), which provides interactive execution of Julia code through the [VSCode Julia extension](https://code.visualstudio.com/docs/languages/julia). To install VSCode on the National Computational Infrastructure (NCI), you need to extract the VSCode rpm package using the steps in [this gist](https://gist.github.com/a2ray/701347f703b72abb630d2521b43c5f22), to a location where your account has write access.
+You will need a Julia depot, where all packages are downloaded, and the package registry resides. While it may not be large in size, it can consume a lot of your inode (file count) quota. The easiest thing to do is set up a directory like this
+```
+mkdir/g/data/myprojectwithlotsofinodes/myusername/juliadepot
+```
+and then point a symlink to it from ***BOTH*** OOD and gadi, making sure you remove any existing `.julia` in your home directory with `rm -rf .julia` in your `$HOME`
+```
+cd
+ln -s /g/data/myprojectwithlotsofinodes/myusername/juliadepot .julia
+```
+If you don't already have access to a `julia` binary, download the appropriate version `.tar.gz` from [here](https://julialang.org/downloads/) and then untar it in a location you have write access to. Then, in your `$HOME/bin` directory on ***BOTH*** OOD and gadi make a symlink to the julia binary like so:
+```
+cd ~/bin
+ln -s /g/data/somwehere/julia-x.x.x/bin/julia .
+```
+The preferred development and usage environment for HiQGA is [Visual Studio Code](https://code.visualstudio.com/), which provides interactive execution of Julia code through the [VSCode Julia extension](https://code.visualstudio.com/docs/languages/julia). To install VSCode on the National Computational Infrastructure (NCI), you need to extract the VSCode rpm package using the steps in [this gist](https://gist.github.com/a2ray/701347f703b72abb630d2521b43c5f22), to a location where your account has write access. You will NOT be using vscode on a gadi login node, but on OOD.
+
+Get Julia language support from VSCode after launching the VSCode binary by going to File->Extensions by searching for Julia. If after installation it doesn't find the Julia binary, go to File->Extensions->Julia->Manage(the little gear icon) and manually type in `/home/yourusername/bin/julia` in the "Executable Path" field.
 
 It is also useful to use Revise.jl to ensure changes to the package are immediately reflected in a running Julia REPL (this is the reason that Revise is a dependency on some example scripts as noted above). More information on a workflow to use Revise during development can be found [here](https://gist.github.com/a2ray/e593751b24e45f8160ba8041fb811680).
 
+**In your MPI job, make sure that you include in your qsub script** the `gdata` directory in which you have your julia executable and depot, e.g.,
+```
+#PBS -l storage=gdata/z67+gdata/kb5
+```
 ### References for AEM and CSEM physics 
 
 - [Blatter, D., Key, K., Ray, A., Foley, N., Tulaczyk, S., & Auken, E. (2018). Trans-dimensional Bayesian inversion of airborne transient EM data from Taylor Glacier, Antarctica. Geophysical Journal International, 214(3)](https://doi.org/10.1093/gji/ggy255)
