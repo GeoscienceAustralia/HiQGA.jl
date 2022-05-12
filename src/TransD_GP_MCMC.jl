@@ -1146,23 +1146,23 @@ function mode_history(opt::Options, mode::String)
 end
 
 function write_history(isample::Int, opt::Options, m::Model, misfit::Float64,
-                        stat::Stats, wp::Writepointers, T::Float64, writemodel::Bool)
+                        stat::Stats, wp::Writepointers, T::Float64, writemodel::Bool, master_pid::Int)
     write_history(opt, m.fstar, [m.xtrain; m.ftrain], m.dcvalue, misfit, stat.accept_rate[1],
                         stat.accept_rate[2], stat.accept_rate[3], stat.accept_rate[4], stat.accept_rate[5], m.n,
-                       isample, wp.fp_costs, wp.fp_fstar, wp.fp_x_ftrain, T, writemodel)
+                       isample, wp.fp_costs, wp.fp_fstar, wp.fp_x_ftrain, T, writemodel, master_pid)
 end
 
 function write_history(isample::Int, optn::OptionsNuisance, mn::ModelNuisance, misfit::Float64,
-                    statn::Stats, wpn::Writepointers_nuisance, T::Float64, writemodel::Bool)
+                    statn::Stats, wpn::Writepointers_nuisance, T::Float64, writemodel::Bool, master_pid::Int)
 
     write_history(optn, mn.nuisance, misfit, statn.accept_rate, isample, wpn.fp_costs,
-                wpn.fp_vals, T, writemodel)
+                wpn.fp_vals, T, writemodel, master_pid)
 end
 
 function write_history(opt::Options, fstar::AbstractArray, x_ftrain::AbstractArray, dcvalue::AbstractArray, U::Float64, acceptanceRateBirth::Float64,
                     acceptanceRateDeath::Float64, acceptanceRatePosition::Float64, acceptanceRateProperty::Float64, ARdc, nodes::Int,
                     iter::Int, fp_costs::Union{IOStream, Nothing}, fp_fstar::Union{IOStream, Nothing},
-                    fp_x_ftrain::Union{IOStream, Nothing}, T::Float64, writemodel::Bool)
+                    fp_x_ftrain::Union{IOStream, Nothing}, T::Float64, writemodel::Bool, master_pid::Int)
     if (mod(iter-1, opt.save_freq) == 0 || iter == 1)
         if fp_costs != nothing
             msg = @sprintf("%d %e %e %e %e %e %d %e %e", iter, acceptanceRateBirth, acceptanceRateDeath,
@@ -1171,17 +1171,14 @@ function write_history(opt::Options, fstar::AbstractArray, x_ftrain::AbstractArr
                 msg *= @sprintf(" %e", dc)
             end
             msg *= "\n"
-            write(fp_costs, msg)
-            flush(fp_costs)
+            @spawnat master_pid write_to_log(fp_costs, msg)
         end
         if fp_x_ftrain != nothing
-            write(fp_x_ftrain, convert(Array{eltype(Float64)},x_ftrain))
-            flush(fp_x_ftrain)
+            @spawnat master_pid write_to_log(fp_x_ftrain, convert(Array{eltype(Float64)},x_ftrain))
         end
         if writemodel
             if fp_fstar != nothing
-                write(fp_fstar, convert(Array{eltype(Float64)},fstar))
-                flush(fp_fstar)
+                @spawnat master_pid write_to_log(fp_fstar, convert(Array{eltype(Float64)},fstar))
             end
         end
     end
@@ -1189,7 +1186,7 @@ end
 
 function write_history(optn::OptionsNuisance, nvals::Array{Float64,1}, misfit::Float64,
                     acceptanceRate::Array{Float64, 1}, iter::Int, fp_costs::Union{IOStream, Nothing},
-                    fp_vals::Union{IOStream, Nothing}, T::Float64, writemodel::Bool)
+                    fp_vals::Union{IOStream, Nothing}, T::Float64, writemodel::Bool, master_pid::Int)
     if (mod(iter-1, optn.save_freq) == 0 || iter == 1)
         ars = acceptanceRate # TODO hacky for now, would like all acceptance rates
         if fp_costs != nothing
@@ -1198,8 +1195,7 @@ function write_history(optn::OptionsNuisance, nvals::Array{Float64,1}, misfit::F
                 msg *= @sprintf(" %e", ar)
             end
             msg *= "\n"
-            write(fp_costs, msg)
-            flush(fp_costs)
+            @spawnat master_pid write_to_log(fp_costs, msg)
         end
         if fp_vals != nothing
             msg = @sprintf("%d", iter)
@@ -1207,8 +1203,7 @@ function write_history(optn::OptionsNuisance, nvals::Array{Float64,1}, misfit::F
                 msg *= @sprintf(" %e", nval)
             end
             msg *= "\n"
-            write(fp_vals, msg)
-            flush(fp_vals)
+            @spawnat master_pid write_to_log(fp_vals, msg)
         end
     end
 end
