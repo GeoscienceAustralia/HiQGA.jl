@@ -781,7 +781,7 @@ function makegrid(vals::AbstractArray, soundings::Array{S, 1};
     X = [s.X for s in soundings]
     Y = [s.Y for s in soundings]
     x0, y0 = X[1], Y[1]
-    R  = sqrt.((X .- x0).^2 + (Y .- y0).^2)
+    R = cumulativelinedist(X,Y)
     rr, zz = [r for z in zall, r in R], [z for z in zall, r in R]
     topo = [s.Z for s in soundings]
     zz = topo' .- zz # mAHD
@@ -798,6 +798,12 @@ function makegrid(vals::AbstractArray, soundings::Array{S, 1};
     img[zz .>topofine'] .= NaN
     img, gridr, gridz, topofine, R
 end
+
+function cumulativelinedist(X,Y)
+    dx = diff(X)
+    dy = diff(Y)
+    R = [0.; cumsum(sqrt.(dx.^2 + dy.^2))]
+end    
 
 function makegrid(vals::AbstractArray, soundings::Array{S, 1}, XYZrho;
     dr=10, zall=[NaN], dz=-1) where S<:Sounding
