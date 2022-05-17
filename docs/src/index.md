@@ -68,7 +68,6 @@ It is also useful to use Revise.jl to ensure changes to the package are immediat
 ```
 #PBS -l storage=gdata/z67+gdata/kb5
 ```
-
 ### Installing MPI.jl and MPIClusterManagers.jl on NCI
 We have found that the safest bet for MPI.jl to work without [UCX issues](https://docs.juliahub.com/MPI/nO0XF/0.19.2/knownissues/#UCX) on NCI is to use intel-mpi. A bunch of [environment variables](https://docs.juliahub.com/MPI/nO0XF/0.19.2/configuration/#environment_variables) need to be set before building MPI.jl and MPIClusterManagers.jl. Goto your Julia depot (should be softlinked as `~/.julia`) and edit `~/.julia/prefs/MPI.toml` to enter the following lines:
 ```
@@ -130,6 +129,39 @@ and you should see output like:
 nworkers() = 2
 ```
 This is the basic recipe for all the cluster HiQGA jobs on NCI. After the call to `manager = MPIClusterManagers.start_main_loop(MPI_TRANSPORT_ALL)`, standard MPI execution stops, and we return to an explicit manager-worker mode with code execution only continuing on the manager which is Julia process 1.
+### Installing PyPlot on NCI
+Due to indode restrictions on NCI, we've resorted to using a communal matplotlib install as follows:
+- Remove Conda, PyPlot, PyCall, HiQGA from your julia environment if it already exists
+```
+pkg> rm Conda
+pkg> rm PyCall
+pkg> rm PyPlot
+pkg> rm HiQGA
+```
+- Delete the conda directory from your .julia directory (or wherever your julia depot is):
+```
+rm -rf conda/
+```
+- load python 3.8 on NCI and activate @richardt94 's virtual environment, then point julia at the python executable in this virtual env:
+```
+module load python3/3.8.5
+source /g/data/z67/matplotlib-venv/bin/activate
+PYTHON=/g/data/z67/matplotlib-venv/bin/python julia
+```
+Install and build PyCall:
+```
+pkg> add PyCall
+pkg> build PyCall
+julia> exit()
+```
+exit Julia and then restart Julia and in Pkg mode:
+```
+pkg> add PyPlot
+```
+- Install HiQGA in development mode:
+```
+pkg> dev HiQGA
+```
 ### References for AEM and CSEM physics 
 
 - [Blatter, D., Key, K., Ray, A., Foley, N., Tulaczyk, S., & Auken, E. (2018). Trans-dimensional Bayesian inversion of airborne transient EM data from Taylor Glacier, Antarctica. Geophysical Journal International, 214(3)](https://doi.org/10.1093/gji/ggy255)
