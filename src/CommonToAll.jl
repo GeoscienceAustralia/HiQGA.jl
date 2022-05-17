@@ -46,10 +46,21 @@ function assembleTat1(optin::Options, stat::Symbol; burninfrac=0.5, temperaturen
     end
     opt = deepcopy(optin)
     imodel = 0
+    opt.fstar_filename = "models_"*opt.fdataname*isns*".bin"
+    opt.x_ftrain_filename = "points_"*opt.fdataname*isns*".bin"
+    opt.costs_filename = "misfits_"*opt.fdataname*isns*".bin"
+    chain_idx = nothing
+    if isfile(opt.fstar_filename)
+        chain_idx = 1
+    end
     for ichain in 1:size(Tacrosschains, 2)
-        opt.fstar_filename = "models_"*opt.fdataname*isns*"_$ichain.bin"
-        opt.x_ftrain_filename = "points_"*opt.fdataname*isns*"_$ichain.bin"
-        opt.costs_filename = "misfits_"*opt.fdataname*isns*"_$ichain.bin"
+        if isnothing(chain_idx)
+            opt.fstar_filename = "models_"*opt.fdataname*isns*"_$ichain.bin"
+            opt.x_ftrain_filename = "points_"*opt.fdataname*isns*"_$ichain.bin"
+            opt.costs_filename = "misfits_"*opt.fdataname*isns*"_$ichain.bin"
+        else
+            chain_idx = ichain
+        end
         if stat == :fstar
             at1idx = findall(Tacrosschains[:,ichain].==ttarget) .>= start
         else
@@ -59,10 +70,10 @@ function assembleTat1(optin::Options, stat::Symbol; burninfrac=0.5, temperaturen
         ninchain = sum(at1idx)
         @info "chain $ichain has $ninchain models"
         ninchain == 0 && continue
-        mat1[imodel+1:imodel+ninchain] .= history(opt, stat=stat)[at1idx]
+        mat1[imodel+1:imodel+ninchain] .= history(opt, stat=stat, chain_idx=chain_idx)[at1idx]
         imodel += ninchain
     end
-    iters = history(opt, stat=:iter)
+    iters = history(opt, stat=:iter, chain_idx=chain_idx)
     @info "obtained models $(iters[start]) to $(iters[end]) at T=$ttarget"
     mat1
 end
@@ -124,8 +135,15 @@ function assemblenuisancesatT(optn::OptionsNuisance;
         ninchain = sum(at1idx)
         @info "chain $ichain has $ninchain models"
         ninchain == 0 && continue
-        vals_filename = "values_nuisance_"*fdataname*"$ichain.bin"
-        ndat = readdlm(vals_filename, ' ', Float64)[:,2:end]
+        vals_filename = "values_nuisance_"*fdataname*".bin"
+        if isfile(vals_filename)
+            nraw = readdlm(vals_filename, ' ', String)
+            cids = parse.(Int, nraw[:,1])
+            ndat = parse.(Float64, nraw[cids .== ichain, 2:end])
+        else
+            vals_filename = "values_nuisance_"*fdataname*"$ichain.bin"
+            ndat = readdlm(vals_filename, ' ', Float64)[:,2:end]
+        end
         mvals[imodel+1:imodel+ninchain,:] .= ndat[at1idx,:]
         imodel += ninchain
     end
@@ -133,6 +151,12 @@ function assemblenuisancesatT(optn::OptionsNuisance;
 end
 
 function getnchains(costs_filename)
+    if isfile(costs_filename*".bin")
+        data = readdlm(costs_filename * ".bin", String)
+        chids = parse.(Int, data[:,1])
+        return maximum(chids)
+    end
+
     c = 0
     r = Regex(costs_filename)
     for fname in readdir(pwd())
@@ -148,16 +172,26 @@ function gettargtemps(opt_in::Options)
     nchains = getnchains(costs_filename)
     @info "Number of chains is $nchains"
     # now look at any chain to get how many iterations
-    opt.costs_filename    = costs_filename*"_1.bin"
-    iters          = history(opt, stat=:iter)
+    multichainfile = nothing
+    if isfile(costs_filename*".bin")
+        opt.costs_filename = costs_filename*".bin"
+        multichainfile = 1 # set if all chains are in one file
+    else
+        opt.costs_filename    = costs_filename*"_1.bin"
+    end
+    iters          = history(opt, stat=:iter, chain_idx=multichainfile)
     niters         = length(iters)
     @info "McMC has run for $(iters[end]) iterations"
     # then create arrays of unsorted by temperature T
     Tacrosschains  = zeros(Float64, niters, nchains)
     # get the values into the arrays
     for ichain in 1:nchains
-        opt.costs_filename = costs_filename*"_$ichain.bin"
-        Tacrosschains[:,ichain] = history(opt, stat=:T)
+        if isnothing(multichainfile)
+            opt.costs_filename = costs_filename*"_$ichain.bin"
+            Tacrosschains[:,ichain] = history(opt, stat=:T)
+        else
+            Tacrosschains[:,ichain] = history(opt, stat=:T, chain_idx=ichain)
+        end
     end
     Tacrosschains
 end
@@ -167,14 +201,24 @@ function gettargtemps(optn_in::OptionsNuisance)
     costs_filename = "misfits_"*optn.fdataname*"nuisance"
     nchains = getnchains(costs_filename)
     @info "Number of chains is $nchains"
-    optn.costs_filename = costs_filename*"_1.bin"
-    iters = history(optn, stat=:iter)
+    multichainfile = nothing
+    if isfile(costs_filename*".bin")
+        optn.costs_filename = costs_filename*".bin"
+        multichainfile = 1 # set if all chains are in one file
+    else
+        optn.costs_filename    = costs_filename*"_1.bin"
+    end
+    iters = history(optn, stat=:iter, chain_idx=multichainfile)
     niters = length(iters)
     @info "MCMC has run for $(iters[end]) iterations"
     Tacrosschains = zeros(Float64, niters, nchains)
     for ichain in 1:nchains
-        optn.costs_filename = costs_filename*"_$ichain.bin"
-        Tacrosschains[:,ichain] = history(optn, stat=:T)
+        if isnothing(multichainfile)
+            optn.costs_filename = costs_filename*"_$ichain.bin"
+            Tacrosschains[:,ichain] = history(optn, stat=:T)
+        else
+            Tacrosschains[:,ichain] = history(optn, stat=:T, chain_idx=ichain)
+        end
     end
     Tacrosschains
 end
@@ -188,17 +232,28 @@ function getstats(optin::Options;
     nchains = getnchains(costs_filename)
     chains = 1:nchains
     @info "Number of chains is $nchains"
-    opt.costs_filename    = costs_filename*"_1.bin"
-    iters          = history(opt, stat=:iter)
+    multichainfile = nothing
+    if isfile(costs_filename*".bin")
+        opt.costs_filename = costs_filename*".bin"
+        multichainfile = 1
+    else
+        opt.costs_filename    = costs_filename*"_1.bin"
+    end
+    iters          = history(opt, stat=:iter, chain_idx=multichainfile)
     statnames = [:acceptanceRateBirth, :acceptanceRateDeath,
                  :acceptanceRatePosition, :acceptanceRateProperty, :acceptanceRateDC]
     f,ax = plt.subplots(length(statnames), 1,
                         sharex=true, sharey=true, figsize=figsize)
     maxar = 0
     for (ichain, chain) in enumerate(chains)
-        opt.costs_filename = costs_filename*"_$chain.bin"
+        if isnothing(multichainfile)
+            opt.costs_filename = costs_filename*"_$chain.bin"
+            chain_idx = nothing
+        else
+            chain_idx = ichain
+        end
         for (istat, statname) in enumerate(statnames)
-            ar = history(opt, stat=statname)
+            ar = history(opt, stat=statname, chain_idx=chain_idx)
             mx = maximum(ar[.!isnan.(ar)])
             mx > maxar && (maxar = mx)
             ax[istat].plot(iters, ar, alpha=alpha)
@@ -226,14 +281,25 @@ function getstats(optin::OptionsNuisance;
     nchains = getnchains(costs_filename)
     chains = 1:nchains
     @info "Number of chains is $nchains"
-    opt.costs_filename = costs_filename*"_1.bin"
-    iters          = history(opt, stat=:iter)
+    multichainfile = nothing
+    if isfile(costs_filename*".bin")
+        opt.costs_filename = costs_filename*".bin"
+        multichainfile = 1
+    else
+        opt.costs_filename = costs_filename*"_1.bin"
+    end
+    iters          = history(opt, stat=:iter, chain_idx=multichainfile)
     statname = :acceptanceRate
     f,ax = plt.subplots(length(optin.idxnotzero), 1, sharex=true, sharey=true, figsize=figsize)
     maxar = 0
     for (ichain, chain) in enumerate(chains)
-        opt.costs_filename = costs_filename*"_$chain.bin"
-        ar = history(opt, stat=statname)[:,optin.idxnotzero]
+        if isnothing(multichainfile)
+            opt.costs_filename = costs_filename*"_$chain.bin"
+            chain_idx = nothing
+        else
+            chain_idx = ichain
+        end
+        ar = history(opt, stat=statname, chain_idx=chain_idx)[:,optin.idxnotzero]
         for (i, idx) in enumerate(optin.idxnotzero)
             mx = maximum(ar[.!isnan.(ar)])
             mx > maxar && (maxar = mx)

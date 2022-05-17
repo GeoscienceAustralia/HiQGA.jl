@@ -1146,26 +1146,26 @@ function mode_history(opt::Options, mode::String)
 end
 
 function write_history(isample::Int, opt::Options, m::Model, misfit::Float64,
-                        stat::Stats, wp::Writepointers, T::Float64, writemodel::Bool, master_pid::Int)
+                        stat::Stats, wp::Writepointers, T::Float64, writemodel::Bool, chain_idx::Int, master_pid::Int)
     write_history(opt, m.fstar, [m.xtrain; m.ftrain], m.dcvalue, misfit, stat.accept_rate[1],
                         stat.accept_rate[2], stat.accept_rate[3], stat.accept_rate[4], stat.accept_rate[5], m.n,
-                       isample, wp.fp_costs, wp.fp_fstar, wp.fp_x_ftrain, T, writemodel, master_pid)
+                       isample, wp.fp_costs, wp.fp_fstar, wp.fp_x_ftrain, T, writemodel, chain_idx, master_pid)
 end
 
 function write_history(isample::Int, optn::OptionsNuisance, mn::ModelNuisance, misfit::Float64,
-                    statn::Stats, wpn::Writepointers_nuisance, T::Float64, writemodel::Bool, master_pid::Int)
+                    statn::Stats, wpn::Writepointers_nuisance, T::Float64, writemodel::Bool, chain_idx::Int, master_pid::Int)
 
     write_history(optn, mn.nuisance, misfit, statn.accept_rate, isample, wpn.fp_costs,
-                wpn.fp_vals, T, writemodel, master_pid)
+                wpn.fp_vals, T, writemodel, chain_idx, master_pid)
 end
 
 function write_history(opt::Options, fstar::AbstractArray, x_ftrain::AbstractArray, dcvalue::AbstractArray, U::Float64, acceptanceRateBirth::Float64,
                     acceptanceRateDeath::Float64, acceptanceRatePosition::Float64, acceptanceRateProperty::Float64, ARdc, nodes::Int,
                     iter::Int, fp_costs::Union{IOStream, Nothing}, fp_fstar::Union{IOStream, Nothing},
-                    fp_x_ftrain::Union{IOStream, Nothing}, T::Float64, writemodel::Bool, master_pid::Int)
+                    fp_x_ftrain::Union{IOStream, Nothing}, T::Float64, writemodel::Bool, chain_idx::Int, master_pid::Int)
     if (mod(iter-1, opt.save_freq) == 0 || iter == 1)
         if fp_costs != nothing
-            msg = @sprintf("%d %e %e %e %e %e %d %e %e", iter, acceptanceRateBirth, acceptanceRateDeath,
+            msg = @sprintf("%d %d %e %e %e %e %e %d %e %e", chain_idx, iter, acceptanceRateBirth, acceptanceRateDeath,
                                         acceptanceRatePosition, acceptanceRateProperty, ARdc, nodes, U, T)
             for dc in dcvalue # saves dcvalue vector after last cost in msg above on same line
                 msg *= @sprintf(" %e", dc)
@@ -1173,12 +1173,12 @@ function write_history(opt::Options, fstar::AbstractArray, x_ftrain::AbstractArr
             msg *= "\n"
             @spawnat master_pid write_to_log(fp_costs, msg)
         end
-        if fp_x_ftrain != nothing
-            @spawnat master_pid write_to_log(fp_x_ftrain, convert(Array{eltype(Float64)},x_ftrain))
+        if fp_x_ftrain != nothing            
+            @spawnat master_pid write_to_bin(fp_x_ftrain, chain_idx, convert(Array{eltype(Float64)},x_ftrain))
         end
         if writemodel
             if fp_fstar != nothing
-                @spawnat master_pid write_to_log(fp_fstar, convert(Array{eltype(Float64)},fstar))
+                @spawnat master_pid write_to_bin(fp_fstar, chain_idx, convert(Array{eltype(Float64)},fstar))
             end
         end
     end
@@ -1186,11 +1186,11 @@ end
 
 function write_history(optn::OptionsNuisance, nvals::Array{Float64,1}, misfit::Float64,
                     acceptanceRate::Array{Float64, 1}, iter::Int, fp_costs::Union{IOStream, Nothing},
-                    fp_vals::Union{IOStream, Nothing}, T::Float64, writemodel::Bool, master_pid::Int)
+                    fp_vals::Union{IOStream, Nothing}, T::Float64, writemodel::Bool, chain_idx::Int, master_pid::Int)
     if (mod(iter-1, optn.save_freq) == 0 || iter == 1)
         ars = acceptanceRate # TODO hacky for now, would like all acceptance rates
         if fp_costs != nothing
-            msg = @sprintf("%d %e %e", iter, misfit, T)
+            msg = @sprintf("%d %d %e %e", chain_idx, iter, misfit, T)
             for ar in ars
                 msg *= @sprintf(" %e", ar)
             end
@@ -1198,7 +1198,7 @@ function write_history(optn::OptionsNuisance, nvals::Array{Float64,1}, misfit::F
             @spawnat master_pid write_to_log(fp_costs, msg)
         end
         if fp_vals != nothing
-            msg = @sprintf("%d", iter)
+            msg = @sprintf("%d %d", chain_idx, iter)
             for nval = nvals
                 msg *= @sprintf(" %e", nval)
             end
@@ -1208,74 +1208,81 @@ function write_history(optn::OptionsNuisance, nvals::Array{Float64,1}, misfit::F
     end
 end
 
-function history(optn::OptionsNuisance; stat=:misfit)
-    idxlast = 0
-    for (statname, idx) in ((:iter,   1),
-                            (:misfit, 2),
-                            (:T,      3))
-        if stat == statname
-            data = readdlm(optn.costs_filename, ' ', Float64)[:,idx]
-        end
-        idxlast = idx
+stat_dict_nuisance = Dict(:iter => 1, :misfit => 2, :T => 3, :acceptanceRate => 4)
+function history(optn::OptionsNuisance; stat=:misfit, chain_idx=nothing)
+    starting_col = stat_dict_nuisance[stat]
+    isnothing(chain_idx) || (starting_col += 1)
+    if stat == :acceptanceRate
+        data = readdlm(optn.costs_filename, ' ', Float64)[:, starting_col:end]
+    else
+        data = readdlm(optn.costs_filename, ' ', Float64)[:, starting_col]
     end
     if stat == :iter
         data = Int.(data)
     end
-    if stat == :acceptanceRate
-        data = readdlm(optn.costs_filename, ' ', Float64)[:,idxlast+1:end]
+
+    if !isnothing(chain_idx)
+        #if chain_idx is provided then we are reading from a multi-chain file
+        row_chains = readdlm(optn.costs_filename, ' ', Float64)[:,1]
+        row_chains = Int.(row_chains)
+        data = selectdim(data, 1, row_chains .== chain_idx)
     end
     return data
 end
 
-function history(opt::Options; stat=:U)
-    idxlast = 0
-    for (statname, el, idx) in ((:iter,                   Int,      1),
-                                (:acceptanceRateBirth,    Float64,  2),
-                                (:acceptanceRateDeath,    Float64,  3),
-                                (:acceptanceRatePosition, Float64,  4),
-                                (:acceptanceRateProperty, Float64,  5),
-                                (:acceptanceRateDC,       Float64,  6),
-                                (:nodes,                  Int,      7),
-                                (:U,                      Float64,  8),
-                                (:T,                      Float64,  9))
-
-        if stat == statname
-            if length(opt.costs_filename) == 0
-                @warn("history, requested $(statname), but you haven't stored this information.")
-                return []
-            end
-            fp_costs = open(opt.costs_filename)
-            mark(fp_costs)
-            X = Array{el}(undef, countlines(fp_costs))
-            reset(fp_costs)
-            i = 1
-            for line in readlines(fp_costs)
-                X[i] = el == Float64 ? parse(Float64,split(line)[idx]) : parse(Int,split(line)[idx])
-                i += 1
-            end
-            return X
+stat_dict = Dict(:iter => (Int, 1), :acceptanceRateBirth => (Float64, 2), :acceptanceRateDeath => (Float64, 3),
+    :acceptanceRatePosition => (Float64, 4), :acceptanceRateProperty => (Float64, 5), :acceptanceRateDC => (Float64, 6),
+    :nodes => (Int, 7), :U => (Float64, 8), :T => (Float64, 9), :dcvalue => (Float64, 10))
+function history(opt::Options; stat=:U, chain_idx = nothing)
+    if stat in keys(stat_dict)
+        dtype, starting_col = stat_dict[stat]
+        isnothing(chain_idx) || (starting_col += 1)
+        
+        if length(opt.costs_filename) == 0
+            @warn("history, requested $(statname), but you haven't stored this information.")
+            return []
         end
-        idxlast = idx # here only if noe of the statnames in statname are met
+
+        X = readdlm(opt.costs_filename, String)
+        if stat != :dcvalue
+            data = parse.(dtype, X[:, starting_col])
+        else
+            data = parse.(dtype, X[:, starting_col:end])
+        end
+        if !isnothing(chain_idx)
+            row_chains = parse.(Int, X[:,1])
+            data = selectdim(data, 1, row_chains .== chain_idx)
+        end
+        return data
     end
-    if stat == :dcvalue # assumes dcvalue is stored last after all the regular costs
-        return readdlm(opt.costs_filename)[:,idxlast+1:end]
-    end
+
     if stat == :fstar
         if length(opt.fstar_filename) == 0
             @warn("history, requested fstar, but you haven't stored this information.")
             return []
         end
-        iters, rem = divrem(filesize(opt.fstar_filename), size(opt.xall,2) * size(opt.fbounds, 1) * sizeof(Float64))
+        fstar_size = size(opt.xall, 2) * size(opt.fbounds, 1) * sizeof(Float64)
+        iter_size = fstar_size + (!isnothing(chain_idx) * sizeof(Int))
+        iters, rem = divrem(filesize(opt.fstar_filename), iter_size)
         @assert rem == 0
         fp_models = open(opt.fstar_filename)
-        fstar = Array{Array{Float64}}(undef, iters)
+        fstar = Array{Array{Float64}}([])
         for i = 1:iters
-            if typeof(opt) == OptionsStat
-                fstar[i] = zeros(Float64, (size(opt.fbounds, 1), size(opt.xall,2)))
-            else
-                fstar[i] = zeros(Float64, (size(opt.xall,2), size(opt.fbounds, 1)))
+
+            if !isnothing(chain_idx)
+                cid = read(fp_models, Int)
+                if cid != chain_idx
+                    skip(fp_models, fstar_size)
+                    continue
+                end
             end
-            read!(fp_models, fstar[i])
+
+            if typeof(opt) == OptionsStat
+                push!(fstar, zeros(Float64, (size(opt.fbounds, 1), size(opt.xall,2))))
+            else
+                push!(fstar, zeros(Float64, (size(opt.xall,2), size(opt.fbounds, 1))))
+            end
+            read!(fp_models, fstar[end])
         end
         return fstar
     end
@@ -1284,14 +1291,23 @@ function history(opt::Options; stat=:U)
             @warn("history, requested x_ftrain, but you haven't stored this information.")
             return []
         end
-        iters, rem = divrem(filesize(opt.x_ftrain_filename), opt.nmax * sizeof(Float64) * (size(opt.fbounds, 1) +
-                                                                                        size(opt.xbounds, 1)))
+        xftsize = opt.nmax * sizeof(Float64) * (size(opt.fbounds, 1) + size(opt.xbounds, 1))
+        iter_size = xftsize + !isnothing(chain_idx) * sizeof(Int)
+        iters, rem = divrem(filesize(opt.x_ftrain_filename), iter_size)
         @assert rem == 0
         fp_models = open(opt.x_ftrain_filename)
-        x_ftrain = Array{Array{Float64,2},1}(undef, iters)
+        x_ftrain = Vector{Array{Float64,2}}([])
         for i = 1:iters
-            x_ftrain[i] = zeros(Float64, size(opt.fbounds, 1) + size(opt.xbounds, 1), opt.nmax)
-            read!(fp_models, x_ftrain[i])
+            if !isnothing(chain_idx)
+                cid = read(fp_models, Int)
+                if cid != chain_idx
+                    skip(fp_models, xftsize)
+                    continue
+                end
+            end
+
+            push!(x_ftrain, zeros(Float64, size(opt.fbounds, 1) + size(opt.xbounds, 1), opt.nmax))
+            read!(fp_models, x_ftrain[end])
         end
         return x_ftrain
     end
