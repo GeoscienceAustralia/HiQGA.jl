@@ -139,7 +139,7 @@ function assemblenuisancesatT(optn::OptionsNuisance;
         if isfile(vals_filename)
             nraw = readdlm(vals_filename, ' ', String)
             cids = parse.(Int, nraw[:,1])
-            ndat = parse.(Float64, nraw[cids .== ichain, 2:end])
+            ndat = parse.(Float64, nraw[cids .== ichain, 3:end])
         else
             vals_filename = "values_nuisance_"*fdataname*"$ichain.bin"
             ndat = readdlm(vals_filename, ' ', Float64)[:,2:end]
