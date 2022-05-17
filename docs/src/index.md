@@ -17,7 +17,7 @@ To install, in a perfect world we'd use Julia's `Pkg` REPL by hitting `]` to ent
 pkg> add https://github.com/GeoscienceAustralia/HiQGA.jl.git
 ```
 ## Usage
-Examples of how to use the package can be found in the `examples` directory. Simply `cd` to the relevant example directory and `include` the .`jl` files in the order they are named. If using VSCode make sure to do *Julia: Change to this Directory* from the three dots menu on the top right. The Markov Chain Monte Carlo sampler is configured to support parallel tempering on multiple CPUs - some of the examples accomplish this with Julia's built-in multiprocessing, and others use MPI in order to support inversions on HPC clusters that don't work with Julia's default SSH-based multiprocessing. The MPI examples require [MPI.jl](https://github.com/JuliaParallel/MPI.jl) and [MPIClusterManagers.jl](https://github.com/JuliaParallel/MPIClusterManagers.jl/), which are not installed as dependencies for this package, so you will need to ensure they are installed and configured correctly to run these examples. Please note that MPIClusterManagers.jl has issues with Julia <1.4.2, so please ensure you are using an up-to-date Julia version. 
+Examples of how to use the package can be found in the `examples` directory. Simply `cd` to the relevant example directory and `include` the .`jl` files in the order they are named. If using VSCode make sure to do *Julia: Change to this Directory* from the three dots menu on the top right. The Markov Chain Monte Carlo sampler is configured to support parallel tempering on multiple CPUs - some of the examples accomplish this with Julia's built-in multiprocessing, and others use MPI in order to support inversions on HPC clusters that don't work with Julia's default SSH-based multiprocessing. The MPI examples require [MPI.jl](https://github.com/JuliaParallel/MPI.jl) and [MPIClusterManagers.jl](https://github.com/JuliaParallel/MPIClusterManagers.jl/), which are not installed as dependencies for this package, so you will need to ensure they are installed and configured correctly to run these examples. See [here](#Installing-MPI.jl-and-MPIClusterManagers.jl-on-NCI)
 
 Some example scripts have as a dependency [Revise.jl](https://github.com/timholy/Revise.jl) as we're still actively [developing this package](https://pkgdocs.julialang.org/v1/getting-started/), so you may need to install [Revise](https://github.com/timholy/Revise.jl) if not already installed. All Julia users should be developing with [Revise](https://github.com/timholy/Revise.jl)! After installation, to run the examples, simply clone the package separately (or download as a ZIP), navigate to the `examples` folder and run the scripts in their numerical order.
 
@@ -53,7 +53,7 @@ and then point a symlink to it from ***BOTH*** OOD and gadi, making sure you rem
 cd
 ln -s /g/data/myprojectwithlotsofinodes/myusername/juliadepot .julia
 ```
-If you don't already have access to a `julia` binary, download the appropriate version `.tar.gz` from [here](https://julialang.org/downloads/) and then untar it in a location you have write access to. Then, in your `$HOME/bin` directory on ***BOTH*** OOD and gadi make a symlink to the julia binary like so:
+If you don't already have access to a `julia` binary, download the appropriate version `.tar.gz` from [here](https://julialang.org/downloads/) and then untar it in a location you have write access to. Then, in your `$HOME/bin` directory on **_BOTH_** OOD and gadi make a symlink to the julia binary like so:
 ```
 cd ~/bin
 ln -s /g/data/somwehere/julia-x.x.x/bin/julia .
@@ -67,6 +67,100 @@ It is also useful to use Revise.jl to ensure changes to the package are immediat
 **In your MPI job, make sure that you include in your qsub script** the `gdata` directory in which you have your julia executable and depot, e.g.,
 ```
 #PBS -l storage=gdata/z67+gdata/kb5
+```
+### Installing MPI.jl and MPIClusterManagers.jl on NCI
+We have found that the safest bet for MPI.jl to work without [UCX issues](https://docs.juliahub.com/MPI/nO0XF/0.19.2/knownissues/#UCX) on NCI is to use intel-mpi. A bunch of [environment variables](https://docs.juliahub.com/MPI/nO0XF/0.19.2/configuration/#environment_variables) need to be set before building MPI.jl and MPIClusterManagers.jl. Goto your Julia depot (should be softlinked as `~/.julia`) and edit `~/.julia/prefs/MPI.toml` to enter the following lines:
+```
+path = "/apps/intel-mpi/2019.8.254/intel64/"
+library = "/apps/intel-mpi/2019.8.254/intel64/lib/release/libmpi.so"
+binary = "system"
+```
+Now ensure you do a 
+```
+module load intel-mpi/2019.8.254
+```
+before running Julia and doing
+```
+pkg>add MPI, MPIClusterManagers, Distributed
+```
+Just to be safe, ensure that MPI has indeed built wth the version you have specified above:
+```
+Julia>using Pkg; Pkg.build("MPI", verbose=true)
+```
+and you should see linking information to intel-mpi 2019.8.254. To test, use an interactive NCI job with the following submission:
+```
+qsub -I -lwalltime=1:00:00,mem=16GB,ncpus=4,storage=gdata/z67+gdata/cr78
+.
+.
+.
+job is ready
+```
+now create a file called `mpitest.jl` with the following lines on some mount you have access to:
+```
+## MPI Init
+using MPIClusterManagers, Distributed
+import MPI
+MPI.Init()
+rank = MPI.Comm_rank(MPI.COMM_WORLD)
+sz = MPI.Comm_size(MPI.COMM_WORLD)
+if rank == 0
+    @info "size is $sz"
+end
+manager = MPIClusterManagers.start_main_loop(MPI_TRANSPORT_ALL)
+@info "there are $(nworkers()) workers"
+@everywhere @info gethostname()
+@show nworkers()
+MPIClusterManagers.stop_main_loop(manager)
+rmprocs(workers())
+exit()
+```
+Run the code after loading the intel-mpi module you have linked MPI.jl against with 
+```
+module load intel-mpi/2019.8.254
+mpirun -np 3 julia mpitest.jl
+```
+and you should see output like:
+```
+[ Info: size is 3
+[ Info: there are 2 workers
+[ Info: hostname1.blah
+[ Info: hostname2.blah
+[ Info: hostname3.blah
+nworkers() = 2
+```
+This is the basic recipe for all the cluster HiQGA jobs on NCI. After the call to `manager = MPIClusterManagers.start_main_loop(MPI_TRANSPORT_ALL)`, standard MPI execution stops, and we return to an explicit manager-worker mode with code execution only continuing on the manager which is Julia process 1.
+### Installing PyPlot on NCI
+Due to indode restrictions on NCI, we've resorted to using a communal matplotlib install as follows:
+- Remove Conda, PyPlot, PyCall, HiQGA from your julia environment if it already exists
+```
+pkg> rm Conda
+pkg> rm PyCall
+pkg> rm PyPlot
+pkg> rm HiQGA
+```
+- Delete the conda directory from your .julia directory (or wherever your julia depot is):
+```
+rm -rf conda/
+```
+- load python 3.8 on NCI and activate @richardt94 's virtual environment, then point julia at the python executable in this virtual env:
+```
+module load python3/3.8.5
+source /g/data/z67/matplotlib-venv/bin/activate
+PYTHON=/g/data/z67/matplotlib-venv/bin/python julia
+```
+Install and build PyCall:
+```
+pkg> add PyCall
+pkg> build PyCall
+julia> exit()
+```
+exit Julia and then restart Julia and in Pkg mode:
+```
+pkg> add PyPlot
+```
+- Install HiQGA in development mode:
+```
+pkg> dev HiQGA
 ```
 ### References for AEM and CSEM physics 
 
