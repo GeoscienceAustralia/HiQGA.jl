@@ -9,5 +9,5 @@
 #PBS -e grid.err
 #PBS -l storage=gdata/z67
 module load intel-mpi/2019.8.254
-julia --project -e 'using Pkg; Pkg.precompile()'
-mpiexec -np 960 julia parallel_run.jl >& outfile
+~/bin/julia --project -e 'using Pkg; Pkg.precompile()'
+mpiexec -np 960 ~/bin/julia parallel_run.jl >& outfile
