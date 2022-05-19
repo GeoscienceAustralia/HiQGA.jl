@@ -364,10 +364,10 @@ function init_file_pointers_and_darrays(opt_in::OptionsStat,
                             F_in::Operator, chains::Array{Chain, 1})
     # for nonstat, stat, and nuisances all together                        
     
-    for opt in (opt_in, optns_in, optn_in)
-        init_out_filenames(opt_in)
-    end
-
+    init_out_filenames(opt_in)
+    init_out_filenames(optns_in)
+    init_out_filenames(optn_in)
+    
     m_, mns_, mn_, opt_, optns_, optn_, F_in_, stat_, statns_, statn_,
     current_misfit_  = map(x -> Array{Future, 1}(undef, length(chains)), 1:11)
     
@@ -490,7 +490,6 @@ function init_file_pointers_and_darrays(opt_in::OptionsStat,
 
     init_out_filenames(opt_in)
     init_out_filenames(optns_in)
-    init_out_filenames(optn_in)
 
     m_, mns_, opt_, optns_, F_in_, stat_, statns_, 
     current_misfit_ = map(x -> Array{Future, 1}(undef, length(chains)), 1:8)
