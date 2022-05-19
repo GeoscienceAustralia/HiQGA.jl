@@ -330,34 +330,6 @@ function init_out_filenames(optn_in::OptionsNuisance)
     optn_in.vals_filename = "values_nuisance_"*optn_in.fdataname*".bin"
 end
 
-# function makewritefilenames(opt_in)
-#     costs_filename = "misfits_"*opt_in.fdataname
-#     fstar_filename = "models_"*opt_in.fdataname
-#     x_ftrain_filename = "points_"*opt_in.fdataname
-#     nu_filename = "values_nuisance_"*opt_in.fdataname
-#     costs_filename, fstar_filename, x_ftrain_filename, nu_filename
-# end
-
-# function makestatfilenames(opt_in::OptionsStat, idx)
-#     costs_filename, fstar_filename, x_ftrain_filename, = makewritefilenames(opt_in)
-#     opt_in.costs_filename      = costs_filename*"s_$idx.bin"
-#     opt_in.fstar_filename      = fstar_filename*"s_$idx.bin"
-#     opt_in.x_ftrain_filename   = x_ftrain_filename*"s_$idx.bin"
-# end    
-
-# function makenonstatfilenames(optns_in::OptionsNonstat, idx)
-#     costs_filename, fstar_filename, x_ftrain_filename, = makewritefilenames(optns_in)
-#     optns_in.costs_filename    = costs_filename*"ns_$idx.bin"
-#     optns_in.fstar_filename    = fstar_filename*"ns_$idx.bin"
-#     optns_in.x_ftrain_filename = x_ftrain_filename*"ns_$idx.bin"
-# end
-
-# function makenuisancefilenames(optn_in::OptionsNuisance, idx)
-#     costs_filename, fstar_filename, x_ftrain_filename, nu_filename = makewritefilenames(optn_in)
-#     optn_in.costs_filename     = costs_filename*"nuisance_$idx.bin"
-#     optn_in.vals_filename      = nu_filename*"$idx.bin"
-# end
-
 function init_file_pointers_and_darrays(opt_in::OptionsStat,
                             optns_in::OptionsNonstat,
                             optn_in::OptionsNuisance,
