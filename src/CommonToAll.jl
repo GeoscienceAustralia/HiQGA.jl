@@ -340,14 +340,26 @@ function getchi2forall(optn_in::OptionsNuisance;
         nchains = getnchains(costs_filename)
     end
     optn.costs_filename = costs_filename*"_1.bin"
-    iters = history(optn, stat=:iter)
+    multichainfile = false
+    if isfile(optn.costs_filename)
+        iters = history(optn, stat=:iter)
+    else
+        multichainfile = true
+        optn.costs_filename = costs_filename*".bin"
+        iters = history(optn, stat=:iter, chain_idx=1)
+    end
     niters = length(iters)
     Tacrosschains = zeros(Float64, niters, nchains)
     χ2acrosschains = zeros(Float64, niters, nchains)
+    chain_idx = nothing
     for chain in 1:nchains
-        optn.costs_filename = costs_filename*"_$(chain).bin"
-        Tacrosschains[:,chain] = history(optn, stat=:T)
-        χ2acrosschains[:,chain] = history(optn, stat=:misfit)
+        if multichainfile
+            chain_idx = ichain
+        else
+            optn.costs_filename = costs_filename*"_$(chain).bin"
+        end
+        Tacrosschains[:,chain] = history(optn, stat=:T, chain_idx=chain_idx)
+        χ2acrosschains[:,chain] = history(optn, stat=:misfit, chain_idx=chain_idx)
     end
     Torder = sort([(i,j) for i=1:niters, j=1:nchains],
                     by = ix->Tacrosschains[ix...],
@@ -386,18 +398,30 @@ function getchi2forall(opt_in::Options;
         nchains = getnchains(costs_filename)
     end
     opt.costs_filename    = costs_filename*"_1.bin"
-    iters          = history(opt, stat=:iter)
+    multichainfile = false
+    if isfile(opt.costs_filename)
+        iters          = history(opt, stat=:iter)
+    else
+        opt.costs_filename = costs_filename*".bin"
+        iters = history(opt, stat=:iter, chain_idx=1)
+        multichainfile=true
+    end
     niters         = length(iters)
     # then create arrays of unsorted by temperature T, k, and chi2
     Tacrosschains  = zeros(Float64, niters, nchains)
     kacrosschains  = zeros(Int, niters, nchains)
     X2by2inchains  = zeros(Float64, niters, nchains)
     # get the values into the arrays
+    chain_idx = nothing
     for ichain in 1:nchains
-        opt.costs_filename = costs_filename*"_$ichain.bin"
-        Tacrosschains[:,ichain] = history(opt, stat=:T)
-        kacrosschains[:,ichain] = history(opt, stat=:nodes)
-        X2by2inchains[:,ichain] = history(opt, stat=:U)
+        if multichainfile
+            chain_idx = ichain
+        else
+            opt.costs_filename = costs_filename*"_$ichain.bin"
+        end
+        Tacrosschains[:,ichain] = history(opt, stat=:T, chain_idx=chain_idx)
+        kacrosschains[:,ichain] = history(opt, stat=:nodes, chain_idx=chain_idx)
+        X2by2inchains[:,ichain] = history(opt, stat=:U, chain_idx=chain_idx)
     end
 
     f, ax = plt.subplots(3,1, sharex=true, figsize=figsize)
