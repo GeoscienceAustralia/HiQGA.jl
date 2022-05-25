@@ -298,6 +298,13 @@ function get_misfit(m::Model, opt::Options, tempest::Bfield)
 	end
 	return chi2by2
 end
+#new function for vector sum elements to be called for plotting
+function cal_vector(Bx,Bz,DBx,DBz,σx,σz)
+    fm = sqrt.(Bx.^2 + Bz.^2)
+    d = sqrt.(DBx.^2 + DBz.^2)
+    σ = sqrt.((σx.^2).*DBx.^2 + (σz.^2).*DBz.^2 )./d
+    return(fm,d,σ)
+end 
 
 function get_misfit(m::Model, mn::ModelNuisance, opt::Union{Options,OptionsNuisance}, tempest::Bfield)
 	chi2by2 = 0.0;
@@ -305,10 +312,13 @@ function get_misfit(m::Model, mn::ModelNuisance, opt::Union{Options,OptionsNuisa
 		getfield!(m, mn, tempest)
 		idxx, idxz = tempest.selectx, tempest.selectz
         if tempest.vectorsum
-            fm = sqrt.(tempest.Hx.^2 + tempest.Hz.^2)
-            d  = sqrt.(tempest.dataHx.^2 + tempest.dataHz.^2)
-            σx, σz = tempest.σx, tempest.σz
-            σ = sqrt.((σx.^2).*tempest.dataHx.^2 + (σz.^2).*tempest.dataHz.^2 )./d
+            cal_vector(tempest.Hx,tempest.Hz,
+            tempest.dataHx,tempest.dataHz,
+            tempest.σx, tempest.σz)
+            # fm = sqrt.(tempest.Hx.^2 + tempest.Hz.^2)
+            # d  = sqrt.(tempest.dataHx.^2 + tempest.dataHz.^2)
+            # σx, σz = tempest.σx, tempest.σz
+            # σ = sqrt.((σx.^2).*tempest.dataHx.^2 + (σz.^2).*tempest.dataHz.^2 )./d
             chi2by2 = getchi2by2(fm, d, σ, tempest.useML, tempest.ndatax)
         else
             chi2by2 = getchi2by2([tempest.Hx[idxx]; tempest.Hz[idxz]],
@@ -385,9 +395,17 @@ function plotmodelfield!(tempest::Bfield, Ρ::Vector{Array{Float64}},
         getfield!(ρ, mn[i,:], tempest)
         tempest.Hz[.!tempest.selectz] .= NaN
         tempest.Hx[.!tempest.selectx] .= NaN
-        ax[1].step(log10.(tempest.ρ[2:end]), tempest.z[2:end], "-k", alpha=alpha)
-        ax[2].semilogx(times,μ₀*abs.(tempest.Hz)*fTinv, "k", alpha=alpha, markersize=2)
-        ax[2].semilogx(times,μ₀*abs.(tempest.Hx)*fTinv, "k", alpha=alpha, markersize=2)
+        if tempest.vectorsum
+            #this part needs to change 
+            cal_vector(tempest.Hx,tempest.Hz,
+            tempest.dataHx,tempest.dataHz,
+            tempest.σx, tempest.σz)
+            ax[1].step(log10.(tempest.ρ[2:end]), tempest.z[2:end], "-k", alpha=alpha)
+            ax[2].semilogx(times,μ₀*abs.(fm)*fTinv, "k", alpha=alpha, markersize=2) #check with Anand
+        else
+            ax[1].step(log10.(tempest.ρ[2:end]), tempest.z[2:end], "-k", alpha=alpha)
+            ax[2].semilogx(times,μ₀*abs.(tempest.Hz)*fTinv, "k", alpha=alpha, markersize=2)
+            ax[2].semilogx(times,μ₀*abs.(tempest.Hx)*fTinv, "k", alpha=alpha, markersize=2)
     end
 	finishaxis(ax, f, z, dz, extendfrac, nfixed, fsize)
 end
