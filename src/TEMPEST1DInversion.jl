@@ -303,7 +303,7 @@ function cal_vector(Bx,Bz,DBx,DBz,σx,σz)
     fm = sqrt.(Bx.^2 + Bz.^2)
     d = sqrt.(DBx.^2 + DBz.^2)
     σ = sqrt.((σx.^2).*DBx.^2 + (σz.^2).*DBz.^2 )./d
-    return(fm,d,σ)
+    fm,d,σ
 end 
 
 function get_misfit(m::Model, mn::ModelNuisance, opt::Union{Options,OptionsNuisance}, tempest::Bfield)
@@ -397,7 +397,7 @@ function plotmodelfield!(tempest::Bfield, Ρ::Vector{Array{Float64}},
         tempest.Hx[.!tempest.selectx] .= NaN
         if tempest.vectorsum
             #this part needs to change 
-            cal_vector(tempest.Hx,tempest.Hz,
+            fm,d,σ = cal_vector(tempest.Hx,tempest.Hz,
             tempest.dataHx,tempest.dataHz,
             tempest.σx, tempest.σz)
             ax[1].step(log10.(tempest.ρ[2:end]), tempest.z[2:end], "-k", alpha=alpha)
@@ -426,6 +426,8 @@ function setupaxis(tempest::Bfield, Ρ,
     ax[1].plot([ρmin-0.1delρ,ρmax+0.1delρ], z[nfixed+1]*[1., 1], color="b")
     ax[2] = subplot(122)
 	times = tempest.F.times
+    # This part needs to be changed by addding another function returning d and \sgima and the other that is returning 
+    # fm. Make sure that the if condition is also here. 
     Hz, Hx = tempest.Hz, tempest.Hx
     dataHx, σx = tempest.dataHx, tempest.σx
 	dataHz, σz = tempest.dataHz, tempest.σz
