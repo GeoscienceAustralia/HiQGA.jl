@@ -406,6 +406,7 @@ function plotmodelfield!(tempest::Bfield, Ρ::Vector{Array{Float64}},
             ax[1].step(log10.(tempest.ρ[2:end]), tempest.z[2:end], "-k", alpha=alpha)
             ax[2].semilogx(times,μ₀*abs.(tempest.Hz)*fTinv, "k", alpha=alpha, markersize=2)
             ax[2].semilogx(times,μ₀*abs.(tempest.Hx)*fTinv, "k", alpha=alpha, markersize=2)
+        end 
     end
 	finishaxis(ax, f, z, dz, extendfrac, nfixed, fsize)
 end
