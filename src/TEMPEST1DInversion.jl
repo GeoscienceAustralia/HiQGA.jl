@@ -309,7 +309,8 @@ function get_dSigma(DBx,DBz,σx,σz)
     d,σ
 end 
 
-function get_misfit(m::Model, mn::ModelNuisance, opt::Union{Options,OptionsNuisance}, tempest::Bfield)
+function get_misfit(m::AbstractArray, mn::AbstractVector, opt::Union{Options,OptionsNuisance}, tempest::Bfield)
+    # this is useful when reading history files and debugging
 	chi2by2 = 0.0;
 	if !opt.debug
 		getfield!(m, mn, tempest)
@@ -328,6 +329,10 @@ function get_misfit(m::Model, mn::ModelNuisance, opt::Union{Options,OptionsNuisa
 	return chi2by2
 end
 
+function get_misfit(m::Model, mn::ModelNuisance, opt::Union{Options,OptionsNuisance}, tempest::Bfield)
+    # actually used in McMC
+    get_misfit(m.fstar, mn.nuisance, opt, tempest)
+end
 
 function getchi2by2(fm, d, σ, useML, ndata)
     r = (fm - d)./σ
