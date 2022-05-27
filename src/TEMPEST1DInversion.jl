@@ -299,11 +299,14 @@ function get_misfit(m::Model, opt::Options, tempest::Bfield)
 	return chi2by2
 end
 #new function for vector sum elements to be called for plotting
-function cal_vector(Bx,Bz,DBx,DBz,σx,σz)
+function get_fm(Bx,Bz)
     fm = sqrt.(Bx.^2 + Bz.^2)
+    fm
+end 
+function get_dSigma(DBx,DBz,σx,σz)
     d = sqrt.(DBx.^2 + DBz.^2)
-    σ = sqrt.((σx.^2).*DBx.^2 + (σz.^2).*DBz.^2 )./d
-    fm,d,σ
+    σ = sqrt.((σx.^2).*DBx.^2 + (σz.^2).*DBz.^2)./d
+    d,σ
 end 
 
 function get_misfit(m::Model, mn::ModelNuisance, opt::Union{Options,OptionsNuisance}, tempest::Bfield)
@@ -312,13 +315,8 @@ function get_misfit(m::Model, mn::ModelNuisance, opt::Union{Options,OptionsNuisa
 		getfield!(m, mn, tempest)
 		idxx, idxz = tempest.selectx, tempest.selectz
         if tempest.vectorsum
-            cal_vector(tempest.Hx,tempest.Hz,
-            tempest.dataHx,tempest.dataHz,
-            tempest.σx, tempest.σz)
-            # fm = sqrt.(tempest.Hx.^2 + tempest.Hz.^2)
-            # d  = sqrt.(tempest.dataHx.^2 + tempest.dataHz.^2)
-            # σx, σz = tempest.σx, tempest.σz
-            # σ = sqrt.((σx.^2).*tempest.dataHx.^2 + (σz.^2).*tempest.dataHz.^2 )./d
+            get_fm(tempest.Hx,tempest.Hz)
+            get_dSigma(tempest.dataHx,tempest.dataHz,tempest.σx,tempest.σz)
             chi2by2 = getchi2by2(fm, d, σ, tempest.useML, tempest.ndatax)
         else
             chi2by2 = getchi2by2([tempest.Hx[idxx]; tempest.Hz[idxz]],
@@ -396,10 +394,7 @@ function plotmodelfield!(tempest::Bfield, Ρ::Vector{Array{Float64}},
         tempest.Hz[.!tempest.selectz] .= NaN
         tempest.Hx[.!tempest.selectx] .= NaN
         if tempest.vectorsum
-            #this part needs to change 
-            fm,d,σ = cal_vector(tempest.Hx,tempest.Hz,
-            tempest.dataHx,tempest.dataHz,
-            tempest.σx, tempest.σz)
+            fm = get_fm(tempest.Hx,tempest.Hz)
             ax[1].step(log10.(tempest.ρ[2:end]), tempest.z[2:end], "-k", alpha=alpha)
             ax[2].semilogx(times,μ₀*abs.(fm)*fTinv, "k", alpha=alpha, markersize=2) #check with Anand
         else
@@ -426,15 +421,19 @@ function setupaxis(tempest::Bfield, Ρ,
     ax[1].plot([ρmin-0.1delρ,ρmax+0.1delρ], z[nfixed+1]*[1., 1], color="b")
     ax[2] = subplot(122)
 	times = tempest.F.times
-    # This part needs to be changed by addding another function returning d and \sgima and the other that is returning 
-    # fm. Make sure that the if condition is also here. 
     Hz, Hx = tempest.Hz, tempest.Hx
     dataHx, σx = tempest.dataHx, tempest.σx
 	dataHz, σz = tempest.dataHz, tempest.σz
-    ax[2].errorbar(times, μ₀*abs.(dataHz)*fTinv, yerr = μ₀*sigma*σz*fTinv,
+    if tempest.vectorsum
+        d,σ = get_dSigma(dataHx,dataHz,σx,σz)
+        ax[2].errorbar(times,μ₀*abs.(d)*fTinv, yerr = μ₀*sigma*σ*fTinv,
+                        linestyle="none", marker=".", elinewidth=0, capsize=5, label="B")
+    else
+        ax[2].errorbar(times, μ₀*abs.(dataHz)*fTinv, yerr = μ₀*sigma*σz*fTinv,
                         linestyle="none", marker=".", elinewidth=0, capsize=3, label="Bz")
-    ax[2].errorbar(times, μ₀*abs.(dataHx)*fTinv, yerr = μ₀*sigma*σx*fTinv,
+        ax[2].errorbar(times, μ₀*abs.(dataHx)*fTinv, yerr = μ₀*sigma*σx*fTinv,
                         linestyle="none", marker=".", elinewidth=0, capsize=3, label="Bx")
+    end
 	times, f, ax, nfixed, z
 end
 
