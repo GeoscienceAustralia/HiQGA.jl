@@ -1,4 +1,4 @@
-using transD_GP, Distributed
+using .transD_GP, Distributed
 ## make options for the stationary GP
 fileprefix = "OrstUhn_ML"
 K = transD_GP.GP.OrstUhn()
