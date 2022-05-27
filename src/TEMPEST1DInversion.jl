@@ -315,8 +315,8 @@ function get_misfit(m::Model, mn::ModelNuisance, opt::Union{Options,OptionsNuisa
 		getfield!(m, mn, tempest)
 		idxx, idxz = tempest.selectx, tempest.selectz
         if tempest.vectorsum
-            get_fm(tempest.Hx,tempest.Hz)
-            get_dSigma(tempest.dataHx,tempest.dataHz,tempest.σx,tempest.σz)
+            fm = get_fm(tempest.Hx,tempest.Hz)
+            d,σ = get_dSigma(tempest.dataHx,tempest.dataHz,tempest.σx,tempest.σz)
             chi2by2 = getchi2by2(fm, d, σ, tempest.useML, tempest.ndatax)
         else
             chi2by2 = getchi2by2([tempest.Hx[idxx]; tempest.Hz[idxz]],
