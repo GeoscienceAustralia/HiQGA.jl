@@ -13,7 +13,7 @@ To install, in a perfect world we'd use Julia's `Pkg` REPL by hitting `]` to ent
 pkg> add https://github.com/GeoscienceAustralia/HiQGA.jl.git
 ```
 ## Docs
-References, detailed instructions for installation, running examples and setting your environment on a cluster are ☞ [<img src="https://github.com/GeoscienceAustralia/HiQGA.jl/workflows/docs/badge.svg">](https://geoscienceaustralia.github.io/HiQGA.jl/)
+References, detailed instructions for installation, running examples and setting your environment on a cluster are ☞ [<img src="https://img.shields.io/badge/docs-stable-steelblue.svg">](https://geoscienceaustralia.github.io/HiQGA.jl/)
 
 ## Example AEM inversion
 ![](./aem.png)

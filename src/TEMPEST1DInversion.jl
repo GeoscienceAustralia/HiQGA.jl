@@ -298,17 +298,26 @@ function get_misfit(m::Model, opt::Options, tempest::Bfield)
 	end
 	return chi2by2
 end
+#new function for vector sum elements to be called for plotting
+function get_fm(Bx,Bz)
+    fm = sqrt.(Bx.^2 + Bz.^2)
+    fm
+end 
+function get_dSigma(DBx,DBz,σx,σz)
+    d = sqrt.(DBx.^2 + DBz.^2)
+    σ = sqrt.((σx.^2).*DBx.^2 + (σz.^2).*DBz.^2)./d
+    d,σ
+end 
 
-function get_misfit(m::Model, mn::ModelNuisance, opt::Union{Options,OptionsNuisance}, tempest::Bfield)
+function get_misfit(m::AbstractArray, mn::AbstractVector, opt::Union{Options,OptionsNuisance}, tempest::Bfield)
+    # this is useful when reading history files and debugging
 	chi2by2 = 0.0;
 	if !opt.debug
 		getfield!(m, mn, tempest)
 		idxx, idxz = tempest.selectx, tempest.selectz
         if tempest.vectorsum
-            fm = sqrt.(tempest.Hx.^2 + tempest.Hz.^2)
-            d  = sqrt.(tempest.dataHx.^2 + tempest.dataHz.^2)
-            σx, σz = tempest.σx, tempest.σz
-            σ = sqrt.((σx.^2).*tempest.dataHx.^2 + (σz.^2).*tempest.dataHz.^2 )./d
+            fm = get_fm(tempest.Hx,tempest.Hz)
+            d,σ = get_dSigma(tempest.dataHx,tempest.dataHz,tempest.σx,tempest.σz)
             chi2by2 = getchi2by2(fm, d, σ, tempest.useML, tempest.ndatax)
         else
             chi2by2 = getchi2by2([tempest.Hx[idxx]; tempest.Hz[idxz]],
@@ -320,6 +329,10 @@ function get_misfit(m::Model, mn::ModelNuisance, opt::Union{Options,OptionsNuisa
 	return chi2by2
 end
 
+function get_misfit(m::Model, mn::ModelNuisance, opt::Union{Options,OptionsNuisance}, tempest::Bfield)
+    # actually used in McMC
+    get_misfit(m.fstar, mn.nuisance, opt, tempest)
+end
 
 function getchi2by2(fm, d, σ, useML, ndata)
     r = (fm - d)./σ
@@ -385,9 +398,15 @@ function plotmodelfield!(tempest::Bfield, Ρ::Vector{Array{Float64}},
         getfield!(ρ, mn[i,:], tempest)
         tempest.Hz[.!tempest.selectz] .= NaN
         tempest.Hx[.!tempest.selectx] .= NaN
-        ax[1].step(log10.(tempest.ρ[2:end]), tempest.z[2:end], "-k", alpha=alpha)
-        ax[2].semilogx(times,μ₀*abs.(tempest.Hz)*fTinv, "k", alpha=alpha, markersize=2)
-        ax[2].semilogx(times,μ₀*abs.(tempest.Hx)*fTinv, "k", alpha=alpha, markersize=2)
+        if tempest.vectorsum
+            fm = get_fm(tempest.Hx,tempest.Hz)
+            ax[1].step(log10.(tempest.ρ[2:end]), tempest.z[2:end], "-k", alpha=alpha)
+            ax[2].semilogx(times,μ₀*abs.(fm)*fTinv, "k", alpha=alpha, markersize=2) #check with Anand
+        else
+            ax[1].step(log10.(tempest.ρ[2:end]), tempest.z[2:end], "-k", alpha=alpha)
+            ax[2].semilogx(times,μ₀*abs.(tempest.Hz)*fTinv, "k", alpha=alpha, markersize=2)
+            ax[2].semilogx(times,μ₀*abs.(tempest.Hx)*fTinv, "k", alpha=alpha, markersize=2)
+        end 
     end
 	finishaxis(ax, f, z, dz, extendfrac, nfixed, fsize)
 end
@@ -410,10 +429,16 @@ function setupaxis(tempest::Bfield, Ρ,
     Hz, Hx = tempest.Hz, tempest.Hx
     dataHx, σx = tempest.dataHx, tempest.σx
 	dataHz, σz = tempest.dataHz, tempest.σz
-    ax[2].errorbar(times, μ₀*abs.(dataHz)*fTinv, yerr = μ₀*sigma*σz*fTinv,
+    if tempest.vectorsum
+        d,σ = get_dSigma(dataHx,dataHz,σx,σz)
+        ax[2].errorbar(times,μ₀*abs.(d)*fTinv, yerr = μ₀*sigma*σ*fTinv,
+                        linestyle="none", marker=".", elinewidth=0, capsize=5, label="B")
+    else
+        ax[2].errorbar(times, μ₀*abs.(dataHz)*fTinv, yerr = μ₀*sigma*σz*fTinv,
                         linestyle="none", marker=".", elinewidth=0, capsize=3, label="Bz")
-    ax[2].errorbar(times, μ₀*abs.(dataHx)*fTinv, yerr = μ₀*sigma*σx*fTinv,
+        ax[2].errorbar(times, μ₀*abs.(dataHx)*fTinv, yerr = μ₀*sigma*σx*fTinv,
                         linestyle="none", marker=".", elinewidth=0, capsize=3, label="Bx")
+    end
 	times, f, ax, nfixed, z
 end
 
