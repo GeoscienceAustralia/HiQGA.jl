@@ -10,7 +10,8 @@ export trimxft, assembleTat1, gettargtemps, checkns, getchi2forall, nicenup,
         unwrap, getn, geomprogdepth, assemblemodelsatT, getstats, gethimage,
         assemblenuisancesatT, makenuisancehists, stretchexists,
         makegrid, whichislast, makesummarygrid, makearray, plotNEWSlabels, 
-        plotprofile, gridpoints, splitsoundingsbyline, dfn2hdr, getgdfprefix
+        plotprofile, gridpoints, splitsoundingsbyline, dfn2hdr, getgdfprefix, 
+        pairinteractionplot
 
 function trimxft(opt::Options, burninfrac::Float64, temperaturenum::Int)
     x_ft = assembleTat1(opt, :x_ftrain, burninfrac=burninfrac, temperaturenum=temperaturenum)
@@ -385,10 +386,11 @@ function getchi2forall(opt_in::Options;
                         nchains         = 1,
                         figsize         = (6,4),
                         fsize           = 8,
-                        alpha           = 0.25,
+                        alpha           = 0.5,
                         nxticks         = 0,
                         gridon          = false,
                         omittemp        = false,
+                        hidetitle       = true,
                       )
     # now look at any chain to get how many iterations
     isns = checkns(opt_in)
@@ -424,21 +426,23 @@ function getchi2forall(opt_in::Options;
         X2by2inchains[:,ichain] = history(opt, stat=:U, chain_idx=chain_idx)
     end
 
-    f, ax = plt.subplots(3,1, sharex=true, figsize=figsize)
-    ax[1].plot(iters, kacrosschains, alpha=alpha)
-    ax[1].set_xlim(extrema(iters)...)
-    ax[1].set_title(isns*" unsorted by temperature")
-    gridon && ax[1].grid()
-    ax[1].set_ylabel("# nodes")
-    ax[2].plot(iters, X2by2inchains, alpha=alpha)
-    gridon && ax[2].grid()
-    ax[2].set_ylabel("-Log L")
-    gridon && ax[3].grid()
-    ax[3].plot(iters, Tacrosschains, alpha=alpha)
-    ax[3].set_ylabel("Temperature")
-    ax[3].set_xlabel("iterations")
-    nxticks == 0 || ax[3].set_xticks(iters[1]:div(iters[end],nxticks):iters[end])
-    nicenup(f, fsize=fsize)
+    if !hidetitle # then we are usually not interested in the temperature sorting of chains    
+        f, ax = plt.subplots(3,1, sharex=true, figsize=figsize)
+        ax[1].plot(iters, kacrosschains, alpha=alpha)
+        ax[1].set_xlim(extrema(iters)...)
+        ax[1].set_title(isns*" unsorted by temperature")
+        gridon && ax[1].grid()
+        ax[1].set_ylabel("# nodes")
+        ax[2].plot(iters, X2by2inchains, alpha=alpha)
+        gridon && ax[2].grid()
+        ax[2].set_ylabel("-Log L")
+        gridon && ax[3].grid()
+        ax[3].plot(iters, Tacrosschains, alpha=alpha)
+        ax[3].set_ylabel("Temperature")
+        ax[3].set_xlabel("iterations")
+        nxticks == 0 || ax[3].set_xticks(iters[1]:div(iters[end],nxticks):iters[end])
+        nicenup(f, fsize=fsize)
+    end
 
     Tunsorted = copy(Tacrosschains)
     for jstep = 1:niters
@@ -453,7 +457,7 @@ function getchi2forall(opt_in::Options;
     ax[1].plot(iters, kacrosschains, alpha=alpha)
     ax[1].set_xlim(extrema(iters)...)
     ax[1].set_ylabel("# nuclei")
-    ax[1].set_title(isns*" sorted by temperature")
+    !hidetitle && ax[1].set_title(isns*" sorted by temperature")
     ax[1].plot(iters, kacrosschains[:,1:nchainsatone], "k", alpha=alpha)
     gridon && ax[1].grid()
     ax[2].plot(iters, X2by2inchains, alpha=alpha)
@@ -749,10 +753,8 @@ function plot_posterior(operator::Operator1D,
     if doplot
         fig,ax = subplots(length(hists), 1, figsize=figsize, squeeze=false)
         for (i, h) = enumerate(hists)
-            bwidth = diff(h.edges[1])[1]
-            bx = h.edges[1][1:end-1] .+ bwidth/2
-            denom = pdfnormalize ? maximum(h.weights) : sum(h.weights)*bwidth
-            ax[i].bar(bx, h.weights/denom, width=bwidth, edgecolor="black")
+            bwidth, bx, denom = getbinsfromhist(h, pdfnormalize=pdfnormalize)
+            ax[i].bar(bx, h.weights./denom, width=bwidth, edgecolor="black")
             !isnothing(labels) && ax[i].set_xlabel(labels[i])
             ax[i].set_ylabel("pdf")
         end
@@ -760,6 +762,13 @@ function plot_posterior(operator::Operator1D,
     end
     hists, CI
 end
+
+function getbinsfromhist(h, ;pdfnormalize=false)
+    bwidth = diff(h.edges[1])
+    bx = h.edges[1][1:end-1] + bwidth/2
+    denom = pdfnormalize ? maximum(h.weights) : sum(h.weights)*bwidth
+    bwidth, bx, denom
+end        
 
 function makenuisancehists(optn::OptionsNuisance, qp1, qp2; burninfrac = 0.5, nbins = 50,
     temperaturenum = -1)
@@ -1130,4 +1139,81 @@ function getgdfprefix(dfnfile::String)
     dfnfile[1:location-1] # the prefix
 end    
 
+function pairinteractionplot(d; varnames=nothing, figsize=(8,6), nbins=25, fontsize=8.5, 
+        cmap="bone_r", islogpdf=false, showpdf=false, vecofpoints=nothing, vecofpointscolor=nothing,
+        scattersize=1, scattercolor="k", scatteralpha=1)
+    # plot pairs of scatter, d assumed to have realisations in rows
+    # vecofpoints should be a vector of vectors if nothing
+    nvars = size(d,2)
+    f = figure(figsize=figsize)
+    T = islogpdf ? x->log(x) : x->x
+    for i=1:size(d,2)
+        for j=1:i
+            c = getrowwise(i,j,nvars)
+            ax = subplot(nvars, nvars, c)
+            if i==j && !isnothing(varnames)
+                h = fit(Histogram, d[:,i], nbins=nbins)
+                bwidth, bx, denom = getbinsfromhist(h, pdfnormalize=true)
+                ax.bar(bx, h.weights./denom, width=bwidth, edgecolor="black")
+                ax.set_ylabel("probability")
+                ax.yaxis.set_label_position("right")
+                ax.set_title(varnames[i])
+                for (iv,v) in enumerate(vecofpoints)
+                    if isnothing(vecofpointscolor) 
+                        ax.plot(v[i]*ones(2),[0, 1], markeredgewidth=3)
+                    else
+                        ax.plot(v[i]*ones(2),[0, 1], color=vecofpointscolor[iv], linewidth=3)    
+                    end
+                end        
+            else
+                h = fit(Histogram, (d[:,i], d[:,j]), nbins=nbins)
+                if showpdf
+                    ax.pcolormesh(h.edges[2], h.edges[1], T.(h.weights/maximum(h.weights)), cmap=cmap)
+                else    
+                    ax.scatter(d[:,j], d[:,i], s=scattersize, alpha=scatteralpha, c=scattercolor)
+                end
+                if !isnothing(vecofpoints)
+                    for (iv,v) in enumerate(vecofpoints)
+                        if isnothing(vecofpointscolor) 
+                            ax.plot(v[j], v[i], "+", markersize=10*scattersize, markeredgewidth=3)
+                        else
+                            ax.plot(v[j], v[i], "+", color=vecofpointscolor[iv], 
+                            markersize=10*scattersize, markeredgewidth=3)
+                        end        
+                    end
+                end        
+                j == 1 && ax.set_ylabel(varnames[i])
+            end
+            i == length(varnames) && ax.set_xlabel(varnames[j])
+            ax.ticklabel_format(useOffset=false)
+            i != length(varnames) && ax.set_xticklabels([])
+        end
+    end
+    ax = f.axes
+    for i = size(d,2)-1:-1:1
+    # align x axes    
+        for j = i:-1:1
+            this = firstval(i) + j-1
+            next = firstval(i+1) + j-1
+            ax[this].sharex(ax[next])
+        end
+    end
+    for i = size(d,2):-1:1
+        # align y axes, abundance of caution for
+        # weird histograms probably won't need this    
+        for j = i-2:-1:1
+            this = firstval(i) + j-1
+            next = this + 1
+            ax[this].sharey(ax[next])
+        end
+    end    
+    # very last histogram shares x 
+    # with y axis of previous
+    ax[end].set_xlim(ax[end-1].get_ylim())
+    nicenup(f, fsize=fontsize)
+end
+
+getrowwise(i,j,nvars) = (i-1)*nvars+j
+getcolwise(i,j,nvars) = (j-1)*nvars+i
+firstval(n) = n == 1 ? 1 : firstval(n-1) + n-1 # index number when filling rowwise upto diagonals
 end # module CommonToAll
