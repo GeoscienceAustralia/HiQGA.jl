@@ -43,7 +43,7 @@ opt = transD_GP.OptionsStat(nmin = nmin,
                         K = K,
                         timesλ = 3,
                         )
-@time m = transD_GP.init(opt)
+@time m = transD_GP.init(opt, 1)
 ## run tests for the different McMC moves
 @testset "Stationary GP and MCMC move do and undo state tests" begin
     @testset "init test" begin

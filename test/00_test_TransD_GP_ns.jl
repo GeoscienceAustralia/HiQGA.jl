@@ -39,7 +39,7 @@ optlog10λ = transD_GP.OptionsStat(nmin = nminlog10λ,
                         updatenonstat = true,
                         timesλ = 3.6
                         )
-@time  log10λ = transD_GP.init(optlog10λ)
+@time  log10λ = transD_GP.init(optlog10λ, 1)
 ## make options for the nonstationary GP -- changes to these should not 
 # affect the stationary GP
 nmin, nmax = 2, 200
@@ -64,7 +64,7 @@ opt = transD_GP.OptionsNonstat(optlog10λ,
                         pnorm = pnorm,
                         K = K
                         )
-@time m = transD_GP.init(opt, log10λ)
+@time m = transD_GP.init(opt, log10λ, 1)
 ##
 fracthresh = 0.05
 lsc = transD_GP.testupdate(optlog10λ, log10λ)

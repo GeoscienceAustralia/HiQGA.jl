@@ -45,7 +45,7 @@ opt = transD_GP.OptionsStat(nmin = nmin,
                         timesλ = 3,
                         )
 
-@time m = transD_GP.init(opt)
+@time m = transD_GP.init(opt, 1)
 
 @testset "Creation tests for OptionsNuisance" begin
     nu_sdev = [0.1, 0.2, 0.3]
