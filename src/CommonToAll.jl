@@ -673,6 +673,8 @@ function plot_posterior(F::Operator1D,
                     CIcolor = ["w", "k"],
                     meancolor = ["m", "r"],
                     lwidth = 2,
+                    pdfclim = nothing,
+                    showslope = true,
                     doplot = true)
     @assert 0<vmaxpc<=1
     
@@ -682,7 +684,11 @@ function plot_posterior(F::Operator1D,
                 islscale=false, pdfnormalize=pdfnormalize)
 
     if doplot
-        f,ax = plt.subplots(1,2, sharey=true, figsize=figsize)
+        if showslope
+            f, ax = plt.subplots(1,2, sharey=true, figsize=figsize)
+        else
+            f, ax = plt.subplots(1,1, sharey=true, figsize=figsize, squeeze=false)
+        end    
         xall = opt.xall
         diffs = diff(xall[:])
         xmesh = vcat(xall[1:end-1] - diffs/2, xall[end]-diffs[end]/2, xall[end])
@@ -691,8 +697,6 @@ function plot_posterior(F::Operator1D,
         im1 = ax[1].pcolormesh(edges[:], xmesh, himage, cmap=cmappdf, vmax=vmax)
         ax[1].set_ylim(extrema(xall)...)
         ax[1].invert_yaxis()
-        cb1 = colorbar(im1, ax=ax[1])
-        cb1.ax.set_xlabel("pdf \nstationary")
         plotCI && ax[1].plot(CI, xall[:], linewidth=lwidth, color=CIcolor[1], alpha=alpha)
         plotCI && ax[1].plot(CI, xall[:], linewidth=lwidth, color=CIcolor[2], linestyle="--", alpha=alpha)
         plotmean && ax[1].plot(meanimage[:], xall[:], linewidth=lwidth, color=meancolor[1], alpha=alpha)
@@ -706,11 +710,16 @@ function plot_posterior(F::Operator1D,
         istothepow && (bounds .= 10 .^ bounds)
         propmin, propmax = getbounds(CI, bounds)
         ax[1].set_xlim(propmin, propmax)
-        ax[2].plot(meandiffimage[:], xall[:], linewidth=2, color="k", linestyle="-")
-        zeroside = meandiffimage[:]-sdslope[:]
-        zeroside[zeroside .< 0] .= 0
-        ax[2].fill_betweenx(xall[:],zeroside,meandiffimage[:]+sdslope[:],alpha=.25)
-        ax[2].set_xlabel("mean slope")
+        cb1 = colorbar(im1, ax=ax[1])
+        cb1.ax.set_title("pdf")
+        if showslope
+            ax[2].plot(meandiffimage[:], xall[:], linewidth=2, color="k", linestyle="-")
+            zeroside = meandiffimage[:]-sdslope[:]
+            zeroside[zeroside .< 0] .= 0
+            ax[2].fill_betweenx(xall[:],zeroside,meandiffimage[:]+sdslope[:],alpha=.25)
+            ax[2].set_xlabel("mean slope")
+        end
+        !isnothing(pdfclim) && ax[1].collections[1].set_clim(pdfclim)
         nicenup(f, fsize=fsize)
     end
     CI[:,1], CI[:,2], CI[:,3], meanimage, meandiffimage, sdslope
@@ -727,22 +736,25 @@ function plot_posterior(operator::Operator1D,
                         temperaturenum = 1,
                         nbins = 50,
                         burninfrac=0.5,
-                        figsize=(8,16),
+                        figsize=(5,8),
                         pdfnormalize=false,
-                        fsize=14,
+                        fsize=10,
                         qp1 = 0.05,
                         qp2 = 0.95,
+                        labels= nothing,
                         doplot=true)
     hists, CI = makenuisancehists(optn, qp1, qp2, burninfrac = burninfrac,
                                      nbins = nbins, temperaturenum = temperaturenum,
-                                     pdfnormalize = pdfnormalize)
+                                 )
     if doplot
-        fig,ax = subplots(length(hists), 1, figsize=figsize)
-        length(hists) == 1 && (ax = [ax])
+        fig,ax = subplots(length(hists), 1, figsize=figsize, squeeze=false)
         for (i, h) = enumerate(hists)
             bwidth = diff(h.edges[1])[1]
             bx = h.edges[1][1:end-1] .+ bwidth/2
-            ax[i].bar(bx, h.weights, width=bwidth, edgecolor="black")
+            denom = pdfnormalize ? maximum(h.weights) : sum(h.weights)*bwidth
+            ax[i].bar(bx, h.weights/denom, width=bwidth, edgecolor="black")
+            !isnothing(labels) && ax[i].set_xlabel(labels[i])
+            ax[i].set_ylabel("pdf")
         end
         nicenup(fig, fsize=fsize)
     end
@@ -750,7 +762,7 @@ function plot_posterior(operator::Operator1D,
 end
 
 function makenuisancehists(optn::OptionsNuisance, qp1, qp2; burninfrac = 0.5, nbins = 50,
-    temperaturenum = -1, pdfnormalize = false)
+    temperaturenum = -1)
     @assert temperaturenum != -1 "Please explicitly specify the temperature index"
     nuisanceatT = assemblenuisancesatT(optn, burninfrac = burninfrac,
                                     temperaturenum = temperaturenum)
@@ -871,7 +883,7 @@ function makegrid(vals::AbstractArray, soundings::Array{S, 1};
     X = [s.X for s in soundings]
     Y = [s.Y for s in soundings]
     x0, y0 = X[1], Y[1]
-    R  = sqrt.((X .- x0).^2 + (Y .- y0).^2)
+    R = cumulativelinedist(X,Y)
     rr, zz = [r for z in zall, r in R], [z for z in zall, r in R]
     topo = [s.Z for s in soundings]
     zz = topo' .- zz # mAHD
@@ -889,37 +901,11 @@ function makegrid(vals::AbstractArray, soundings::Array{S, 1};
     img, gridr, gridz, topofine, R
 end
 
-function makegrid(vals::AbstractArray, soundings::Array{S, 1}, XYZrho;
-    dr=10, zall=[NaN], dz=-1) where S<:Sounding
-    @assert all(.!isnan.(zall)) 
-    @assert dz>0
-    X = [s.X for s in soundings]
-    Y = [s.Y for s in soundings]
-    x0, y0 = X[1], Y[1]
-    R  = sqrt.((X .- x0).^2 + (Y .- y0).^2)
-    rr, zz = [r for z in zall, r in R], [z for z in zall, r in R]
-    topo = [s.Z for s in soundings]
-    zz = topo' .- zz # mAHD
-    kdtree = KDTree([rr[:]'; zz[:]'])
-    gridr = range(R[1], R[end], step=dr)
-    gridz = reverse(range(extrema(zz)..., step=dz))
-    rr, zz = [r for z in gridz, r in gridr], [z for z in gridz, r in gridr]
-    idxs, = nn(kdtree, [rr[:]'; zz[:]'])
-    # comparison with ZYZrho
-    x0, y0 = XYZrho[1,1], XYZrho[1,2]
-    rrcompare = sqrt.((XYZrho[:,1] .- x0).^2 + (XYZrho[:,2] .- y0).^2)
-    kdtreecompare = KDTree([rrcompare[:]'; XYZrho[:,3]'])
-    idxscompare, = nn(kdtreecompare, [rr[:]'; zz[:]'])
-    img, imgcompare = zeros(size(rr)), zeros(size(rr))
-    for i = 1:length(img)
-        img[i] = vals[idxs[i]]
-        imgcompare[i] = XYZrho[idxscompare[i], 4]
-    end
-    topofine = gridpoints(R, gridr, topo)
-    img[zz .>topofine'] .= NaN
-    imgcompare[zz .> topofine'] .= NaN
-    img, gridr, gridz, topofine, R, imgcompare
-end
+function cumulativelinedist(X,Y)
+    dx = diff(X)
+    dy = diff(Y)
+    R = [0.; cumsum(sqrt.(dx.^2 + dy.^2))]
+end    
 
 function gridpoints(R, gridr, points::Array{Float64, 1})
     @assert length(R) == length(points)

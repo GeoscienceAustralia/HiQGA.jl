@@ -8,6 +8,7 @@
 #PBS -N juliaSkyTEM_grad
 #PBS -e grid.err
 #PBS -l storage=gdata/z67+scratch/z67
-/g/data4/z67/ar0754/julia-1.6.0/bin/julia --project -e 'using Pkg; Pkg.precompile()'
-/g/data/z67/ar0754/ompi-4.1.0/bin/mpiexec -np 240 /g/data4/z67/ar0754/julia-1.6.0/bin/julia 03_parallel_run.jl >& outfile
+module load intel-mpi/2019.8.254
+~/bin/julia --project -e 'using Pkg; Pkg.precompile()'
+mpiexec -np 240 ~/bin/julia 03_parallel_run.jl >& outfile
 
