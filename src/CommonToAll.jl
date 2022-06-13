@@ -1139,11 +1139,12 @@ function getgdfprefix(dfnfile::String)
     dfnfile[1:location-1] # the prefix
 end    
 
-function pairinteractionplot(d; varnames=nothing, figsize=(8,6), nbins=25, fontsize=8.5, 
+function pairinteractionplot(d; varnames=nothing, figsize=(8.5,6), nbins=25, fontsize=8, fbounds=nothing,
         cmap="bone_r", islogpdf=false, showpdf=false, vecofpoints=nothing, vecofpointscolor=nothing,
-        scattersize=1, scattercolor="k", scatteralpha=1)
+        scattersize=1, scattercolor="yellowgreen", scatteralpha=1)
     # plot pairs of scatter, d assumed to have realisations in rows
     # vecofpoints should be a vector of vectors if nothing
+    @assert !isnothing(varnames)
     nvars = size(d,2)
     f = figure(figsize=figsize)
     T = islogpdf ? x->log(x) : x->x
@@ -1151,20 +1152,26 @@ function pairinteractionplot(d; varnames=nothing, figsize=(8,6), nbins=25, fonts
         for j=1:i
             c = getrowwise(i,j,nvars)
             ax = subplot(nvars, nvars, c)
-            if i==j && !isnothing(varnames)
+            if i==j 
                 h = fit(Histogram, d[:,i], nbins=nbins)
                 bwidth, bx, denom = getbinsfromhist(h, pdfnormalize=true)
-                ax.bar(bx, h.weights./denom, width=bwidth, edgecolor="black")
+                ax.bar(bx, h.weights./denom, width=bwidth, edgecolor="none", color="yellowgreen")
                 ax.set_ylabel("probability")
                 ax.yaxis.set_label_position("right")
-                ax.set_title(varnames[i])
-                for (iv,v) in enumerate(vecofpoints)
-                    if isnothing(vecofpointscolor) 
-                        ax.plot(v[i]*ones(2),[0, 1], markeredgewidth=3)
-                    else
-                        ax.plot(v[i]*ones(2),[0, 1], color=vecofpointscolor[iv], linewidth=3)    
+                ax.tick_params(axis="y", labelright=true, labelleft=false, right=true, left=false)
+                if !isnothing(vecofpoints)    
+                    for (iv,v) in enumerate(vecofpoints)
+                        if isnothing(vecofpointscolor) 
+                            ax.plot(v[i]*ones(2),[0, 1], markeredgewidth=3)
+                        else
+                            ax.plot(v[i]*ones(2),[0, 1], color=vecofpointscolor[iv], linewidth=3)    
+                        end
                     end
-                end        
+                end
+                if !isnothing(fbounds)    
+                    ax.plot(fbounds[i, 1]*ones(2),[0, 1], "--k", linewidth=1)
+                    ax.plot(fbounds[i, 2]*ones(2),[0, 1], "--k", linewidth=1)   
+                end            
             else
                 h = fit(Histogram, (d[:,i], d[:,j]), nbins=nbins)
                 if showpdf
@@ -1181,12 +1188,19 @@ function pairinteractionplot(d; varnames=nothing, figsize=(8,6), nbins=25, fonts
                             markersize=10*scattersize, markeredgewidth=3)
                         end        
                     end
-                end        
+                end
+                if !isnothing(fbounds)    
+                    ax.plot(fbounds[j,1]*ones(2),fbounds[i,:], "--k", linewidth=1)
+                    ax.plot(fbounds[j,2]*ones(2),fbounds[i,:], "--k", linewidth=1)
+                    ax.plot(fbounds[j,:],fbounds[i,1]*ones(2), "--k", linewidth=1)
+                    ax.plot(fbounds[j,:],fbounds[i,2]*ones(2), "--k", linewidth=1)
+                end         
                 j == 1 && ax.set_ylabel(varnames[i])
+                j == 1 || ax.tick_params(labelleft=false)
             end
-            i == length(varnames) && ax.set_xlabel(varnames[j])
-            ax.ticklabel_format(useOffset=false)
-            i != length(varnames) && ax.set_xticklabels([])
+            (i == nvars) && ax.set_xlabel(varnames[j])
+            ax.ticklabel_format(useOffset=false) 
+            (i == nvars) ||  ax.tick_params(labelbottom=false)
         end
     end
     ax = f.axes
