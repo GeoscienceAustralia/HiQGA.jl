@@ -364,8 +364,8 @@ mutable struct Writepointers_nuisance
 end
 
 # Stationary GP functions, i.e., for λ
-function init(opt::OptionsStat)
-    n, xtrain, ftrain, dcvalue = initvalues(opt)
+function init(opt::OptionsStat, chain_idx::Int)
+    n, xtrain, ftrain, dcvalue = initvalues(opt, chain_idx)
     K_y = zeros(opt.nmax, opt.nmax)
     map!(x->GP.κ(opt.K, x),K_y,pairwise(WeightedEuclidean(1 ./opt.λ² ), xtrain, dims=2))
     K_y[diagind(K_y)] .+= opt.δ^2
@@ -379,15 +379,18 @@ function init(opt::OptionsStat)
                  zeros(Float64, size(opt.xbounds, 1)), dcvalue, copy(dcvalue))
 end
 
-function init(opt::OptionsNuisance)
+function init(opt::OptionsNuisance, chain_idx::Int)
     nuisance = zeros(0)
     if opt.nnu > 0 # not a dummy option
         if opt.history_mode == "w" # fresh start
             nuisance = opt.bounds[:,1] + diff(opt.bounds, dims = 2)[:].*rand(opt.nnu)
         else # is a restart
             # TODO hacky I don't like this
+            # TODO modify for a single file with multiple chains
             @info "reading $(opt.vals_filename)"
-            nuisance = vec(readdlm(opt.vals_filename)[end,2:1+opt.nnu])
+            nuisance_data = vec(readdlm(opt.vals_filename, String))
+            row = findlast(parse.(Int, nuisance_data[:,1]) .== chain_idx)
+            nuisance = parse.(Float64, vec(nuisance_data[row, 3:2+opt.nnu]))
         end
     end
     return ModelNuisance(nuisance, copy(nuisance))
@@ -432,7 +435,7 @@ function calcfstar!(fstar::Array{Float64,2}, ftrain::Array{Float64,2},
     nothing
 end
 
-function initvalues(opt::Options)
+function initvalues(opt::Options, chain_idx::Int)
     xtrain = zeros(Float64, size(opt.xbounds,1), opt.nmax)
     ftrain = zeros(Float64, size(opt.fbounds,1), opt.nmax)
     if opt.history_mode == "w" # new start
@@ -442,9 +445,9 @@ function initvalues(opt::Options)
         dcvalue       = opt.fbounds[:,1] .+ diff(opt.fbounds, dims=2).*rand(size(opt.fbounds, 1), 1)
     else # restart
         @info "opening $(opt.x_ftrain_filename)"
-        n = history(opt, stat=:nodes)[end]
-        xft = history(opt, stat=:x_ftrain)[end]
-        dcvalue = history(opt, stat=:dcvalue)[end,:]
+        n = history(opt, stat=:nodes, chain_idx=chain_idx)[end]
+        xft = history(opt, stat=:x_ftrain, chain_idx=chain_idx)[end]
+        dcvalue = history(opt, stat=:dcvalue, chain_idx=chain_idx)[end,:]
         xtrain[:,1:n] = xft[1:size(opt.xall, 1), 1:n]
         ftrain[:,1:n] = xft[size(opt.xall, 1)+1:end, 1:n]
     end
@@ -701,11 +704,11 @@ function gettrainidx(kdtree::KDTree, xtrain::Array{Float64, 2}, n::Int)
     reduce(vcat, idxs)
 end
 
-function init(opt::OptionsNonstat, m::ModelStat)
+function init(opt::OptionsNonstat, m::ModelStat, chain_idx::Int)
     donotinit = !opt.needλ²fromlog && !opt.updatenonstat
     if !donotinit
         λ² = m.fstar
-        n, xtrain, ftrain, dcvalue = initvalues(opt)
+        n, xtrain, ftrain, dcvalue = initvalues(opt, chain_idx)
         K_y = zeros(opt.nmax, opt.nmax)
         idxs = gettrainidx(opt.kdtree, xtrain, n)
         ky = view(K_y, 1:n, 1:n)

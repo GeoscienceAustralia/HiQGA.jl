@@ -356,9 +356,9 @@ function init_file_pointers_and_darrays(opt_in::OptionsStat,
         optns_[idx]          = @spawnat chain.pid [optns_in]
         optn_[idx]           = @spawnat chain.pid [optn_in]
 
-        m_[idx]              = @spawnat chain.pid [init(opt_in)]
-        mns_[idx]            = @spawnat chain.pid [init(optns_in, fetch(m_[idx])[1])]
-        mn_[idx]             = @spawnat chain.pid [init(optn_in)]
+        m_[idx]              = @spawnat chain.pid [init(opt_in, idx)]
+        mns_[idx]            = @spawnat chain.pid [init(optns_in, fetch(m_[idx])[1], idx)]
+        mn_[idx]             = @spawnat chain.pid [init(optn_in, idx)]
 
         stat_[idx]           = @spawnat chain.pid [Stats()]
         statns_[idx]         = @spawnat chain.pid [Stats()]
@@ -477,8 +477,8 @@ function init_file_pointers_and_darrays(opt_in::OptionsStat,
         opt_[idx]            = @spawnat chain.pid [opt_in]
         optns_[idx]          = @spawnat chain.pid [optns_in]
 
-        m_[idx]              = @spawnat chain.pid [init(opt_in)]
-        mns_[idx]            = @spawnat chain.pid [init(optns_in, fetch(m_[idx])[1])]
+        m_[idx]              = @spawnat chain.pid [init(opt_in, idx)]
+        mns_[idx]            = @spawnat chain.pid [init(optns_in, fetch(m_[idx])[1], idx)]
 
         stat_[idx]           = @spawnat chain.pid [Stats()]
         statns_[idx]         = @spawnat chain.pid [Stats()]
@@ -586,8 +586,8 @@ function init_file_pointers_and_darrays(opt_in::OptionsStat, optn_in::OptionsNui
         opt_[idx]            = @spawnat chain.pid [opt_in]
         optn_[idx]           = @spawnat chain.pid [optn_in]
 
-        m_[idx]              = @spawnat chain.pid [init(opt_in)]
-        mn_[idx]             = @spawnat chain.pid [init(optn_in)]
+        m_[idx]              = @spawnat chain.pid [init(opt_in, idx)]
+        mn_[idx]             = @spawnat chain.pid [init(optn_in, idx)]
 
         stat_[idx]           = @spawnat chain.pid [Stats()]
         statn_[idx]          = @spawnat chain.pid [Stats(nmoves=optn_in.nnu)]
@@ -692,7 +692,7 @@ function init_file_pointers_and_darrays(opt_in::OptionsStat, F_in::Operator,
     @sync for(idx, chain) in enumerate(chains)
 
         opt_[idx]            = @spawnat chain.pid [opt_in]
-        m_[idx]              = @spawnat chain.pid [init(opt_in)]
+        m_[idx]              = @spawnat chain.pid [init(opt_in, idx)]
         stat_[idx]           = @spawnat chain.pid [Stats()]
         F_in_[idx]           = @spawnat chain.pid [F_in]    
         current_misfit_[idx] = @spawnat chain.pid [[ get_misfit(fetch(m_[idx])[1],
