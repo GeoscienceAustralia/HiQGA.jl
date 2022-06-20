@@ -402,7 +402,7 @@ function get_misfit(m::Model, opt::Options, aem::dBzdt)
     get_misfit(m.fstar, opt, aem)
 end
 
-function get_misfit(m::Vector{Float64}, opt::Options, aem::dBzdt)
+function get_misfit(m::AbstractArray, opt::Options, aem::dBzdt)
     chi2by2 = 0.0
     if !opt.debug
         getfield!(m, aem)
