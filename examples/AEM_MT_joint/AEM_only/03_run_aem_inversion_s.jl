@@ -1,3 +1,4 @@
+using Distributed
 ## set up McMC
 nsamples, nchains, nchainsatone = 100001, 5, 1
 Tmax = 2.50
