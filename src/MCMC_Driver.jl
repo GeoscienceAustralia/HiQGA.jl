@@ -306,9 +306,9 @@ function getlastiter(opt_in::Options, chains, idx)
         # only the value of iterlast at last chain is used
         # as we want to avoid history reads
         if idx == length(chains)
-            iterlast = history(opt_in, stat=:iter)[end]
+            iterlast = history(opt_in, stat=:iter, chain_idx=idx)[end]
         end
-        chains[idx].T = history(opt_in, stat=:T)[end]
+        chains[idx].T = history(opt_in, stat=:T, chain_idx=idx)[end]
     end
     iterlast 
 end
