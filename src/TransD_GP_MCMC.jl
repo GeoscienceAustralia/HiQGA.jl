@@ -385,8 +385,6 @@ function init(opt::OptionsNuisance, chain_idx::Int)
         if opt.history_mode == "w" # fresh start
             nuisance = opt.bounds[:,1] + diff(opt.bounds, dims = 2)[:].*rand(opt.nnu)
         else # is a restart
-            # TODO hacky I don't like this
-            # TODO modify for a single file with multiple chains
             @info "reading $(opt.vals_filename)"
             nuisance_data = readdlm(opt.vals_filename, String)
             row = findlast(parse.(Int, nuisance_data[:,1]) .== chain_idx)
