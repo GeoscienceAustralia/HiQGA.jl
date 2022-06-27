@@ -388,7 +388,7 @@ function init(opt::OptionsNuisance, chain_idx::Int)
             # TODO hacky I don't like this
             # TODO modify for a single file with multiple chains
             @info "reading $(opt.vals_filename)"
-            nuisance_data = vec(readdlm(opt.vals_filename, String))
+            nuisance_data = readdlm(opt.vals_filename, String)
             row = findlast(parse.(Int, nuisance_data[:,1]) .== chain_idx)
             nuisance = parse.(Float64, vec(nuisance_data[row, 3:2+opt.nnu]))
         end
