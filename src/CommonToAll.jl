@@ -10,7 +10,8 @@ export trimxft, assembleTat1, gettargtemps, checkns, getchi2forall, nicenup,
         unwrap, getn, geomprogdepth, assemblemodelsatT, getstats, gethimage,
         assemblenuisancesatT, makenuisancehists, stretchexists,
         makegrid, whichislast, makesummarygrid, makearray, plotNEWSlabels, 
-        plotprofile, gridpoints, splitsoundingsbyline, dfn2hdr, getgdfprefix
+        plotprofile, gridpoints, splitsoundingsbyline, dfn2hdr, getgdfprefix, 
+        pairinteractionplot
 
 function trimxft(opt::Options, burninfrac::Float64, temperaturenum::Int)
     x_ft = assembleTat1(opt, :x_ftrain, burninfrac=burninfrac, temperaturenum=temperaturenum)
@@ -46,10 +47,21 @@ function assembleTat1(optin::Options, stat::Symbol; burninfrac=0.5, temperaturen
     end
     opt = deepcopy(optin)
     imodel = 0
+    opt.fstar_filename = "models_"*opt.fdataname*isns*".bin"
+    opt.x_ftrain_filename = "points_"*opt.fdataname*isns*".bin"
+    opt.costs_filename = "misfits_"*opt.fdataname*isns*".bin"
+    chain_idx = nothing
+    if isfile(opt.fstar_filename)
+        chain_idx = 1
+    end
     for ichain in 1:size(Tacrosschains, 2)
-        opt.fstar_filename = "models_"*opt.fdataname*isns*"_$ichain.bin"
-        opt.x_ftrain_filename = "points_"*opt.fdataname*isns*"_$ichain.bin"
-        opt.costs_filename = "misfits_"*opt.fdataname*isns*"_$ichain.bin"
+        if isnothing(chain_idx)
+            opt.fstar_filename = "models_"*opt.fdataname*isns*"_$ichain.bin"
+            opt.x_ftrain_filename = "points_"*opt.fdataname*isns*"_$ichain.bin"
+            opt.costs_filename = "misfits_"*opt.fdataname*isns*"_$ichain.bin"
+        else
+            chain_idx = ichain
+        end
         if stat == :fstar
             at1idx = findall(Tacrosschains[:,ichain].==ttarget) .>= start
         else
@@ -59,10 +71,10 @@ function assembleTat1(optin::Options, stat::Symbol; burninfrac=0.5, temperaturen
         ninchain = sum(at1idx)
         @info "chain $ichain has $ninchain models"
         ninchain == 0 && continue
-        mat1[imodel+1:imodel+ninchain] .= history(opt, stat=stat)[at1idx]
+        mat1[imodel+1:imodel+ninchain] .= history(opt, stat=stat, chain_idx=chain_idx)[at1idx]
         imodel += ninchain
     end
-    iters = history(opt, stat=:iter)
+    iters = history(opt, stat=:iter, chain_idx=chain_idx)
     @info "obtained models $(iters[start]) to $(iters[end]) at T=$ttarget"
     mat1
 end
@@ -124,8 +136,15 @@ function assemblenuisancesatT(optn::OptionsNuisance;
         ninchain = sum(at1idx)
         @info "chain $ichain has $ninchain models"
         ninchain == 0 && continue
-        vals_filename = "values_nuisance_"*fdataname*"$ichain.bin"
-        ndat = readdlm(vals_filename, ' ', Float64)[:,2:end]
+        vals_filename = "values_nuisance_"*fdataname*".bin"
+        if isfile(vals_filename)
+            nraw = readdlm(vals_filename, ' ', String)
+            cids = parse.(Int, nraw[:,1])
+            ndat = parse.(Float64, nraw[cids .== ichain, 3:end])
+        else
+            vals_filename = "values_nuisance_"*fdataname*"$ichain.bin"
+            ndat = readdlm(vals_filename, ' ', Float64)[:,2:end]
+        end
         mvals[imodel+1:imodel+ninchain,:] .= ndat[at1idx,:]
         imodel += ninchain
     end
@@ -133,6 +152,12 @@ function assemblenuisancesatT(optn::OptionsNuisance;
 end
 
 function getnchains(costs_filename)
+    if isfile(costs_filename*".bin")
+        data = readdlm(costs_filename * ".bin", String)
+        chids = parse.(Int, data[:,1])
+        return maximum(chids)
+    end
+
     c = 0
     r = Regex(costs_filename)
     for fname in readdir(pwd())
@@ -148,16 +173,26 @@ function gettargtemps(opt_in::Options)
     nchains = getnchains(costs_filename)
     @info "Number of chains is $nchains"
     # now look at any chain to get how many iterations
-    opt.costs_filename    = costs_filename*"_1.bin"
-    iters          = history(opt, stat=:iter)
+    multichainfile = nothing
+    if isfile(costs_filename*".bin")
+        opt.costs_filename = costs_filename*".bin"
+        multichainfile = 1 # set if all chains are in one file
+    else
+        opt.costs_filename    = costs_filename*"_1.bin"
+    end
+    iters          = history(opt, stat=:iter, chain_idx=multichainfile)
     niters         = length(iters)
     @info "McMC has run for $(iters[end]) iterations"
     # then create arrays of unsorted by temperature T
     Tacrosschains  = zeros(Float64, niters, nchains)
     # get the values into the arrays
     for ichain in 1:nchains
-        opt.costs_filename = costs_filename*"_$ichain.bin"
-        Tacrosschains[:,ichain] = history(opt, stat=:T)
+        if isnothing(multichainfile)
+            opt.costs_filename = costs_filename*"_$ichain.bin"
+            Tacrosschains[:,ichain] = history(opt, stat=:T)
+        else
+            Tacrosschains[:,ichain] = history(opt, stat=:T, chain_idx=ichain)
+        end
     end
     Tacrosschains
 end
@@ -167,14 +202,24 @@ function gettargtemps(optn_in::OptionsNuisance)
     costs_filename = "misfits_"*optn.fdataname*"nuisance"
     nchains = getnchains(costs_filename)
     @info "Number of chains is $nchains"
-    optn.costs_filename = costs_filename*"_1.bin"
-    iters = history(optn, stat=:iter)
+    multichainfile = nothing
+    if isfile(costs_filename*".bin")
+        optn.costs_filename = costs_filename*".bin"
+        multichainfile = 1 # set if all chains are in one file
+    else
+        optn.costs_filename    = costs_filename*"_1.bin"
+    end
+    iters = history(optn, stat=:iter, chain_idx=multichainfile)
     niters = length(iters)
     @info "MCMC has run for $(iters[end]) iterations"
     Tacrosschains = zeros(Float64, niters, nchains)
     for ichain in 1:nchains
-        optn.costs_filename = costs_filename*"_$ichain.bin"
-        Tacrosschains[:,ichain] = history(optn, stat=:T)
+        if isnothing(multichainfile)
+            optn.costs_filename = costs_filename*"_$ichain.bin"
+            Tacrosschains[:,ichain] = history(optn, stat=:T)
+        else
+            Tacrosschains[:,ichain] = history(optn, stat=:T, chain_idx=ichain)
+        end
     end
     Tacrosschains
 end
@@ -188,17 +233,28 @@ function getstats(optin::Options;
     nchains = getnchains(costs_filename)
     chains = 1:nchains
     @info "Number of chains is $nchains"
-    opt.costs_filename    = costs_filename*"_1.bin"
-    iters          = history(opt, stat=:iter)
+    multichainfile = nothing
+    if isfile(costs_filename*".bin")
+        opt.costs_filename = costs_filename*".bin"
+        multichainfile = 1
+    else
+        opt.costs_filename    = costs_filename*"_1.bin"
+    end
+    iters          = history(opt, stat=:iter, chain_idx=multichainfile)
     statnames = [:acceptanceRateBirth, :acceptanceRateDeath,
                  :acceptanceRatePosition, :acceptanceRateProperty, :acceptanceRateDC]
     f,ax = plt.subplots(length(statnames), 1,
                         sharex=true, sharey=true, figsize=figsize)
     maxar = 0
     for (ichain, chain) in enumerate(chains)
-        opt.costs_filename = costs_filename*"_$chain.bin"
+        if isnothing(multichainfile)
+            opt.costs_filename = costs_filename*"_$chain.bin"
+            chain_idx = nothing
+        else
+            chain_idx = ichain
+        end
         for (istat, statname) in enumerate(statnames)
-            ar = history(opt, stat=statname)
+            ar = history(opt, stat=statname, chain_idx=chain_idx)
             mx = maximum(ar[.!isnan.(ar)])
             mx > maxar && (maxar = mx)
             ax[istat].plot(iters, ar, alpha=alpha)
@@ -226,14 +282,25 @@ function getstats(optin::OptionsNuisance;
     nchains = getnchains(costs_filename)
     chains = 1:nchains
     @info "Number of chains is $nchains"
-    opt.costs_filename = costs_filename*"_1.bin"
-    iters          = history(opt, stat=:iter)
+    multichainfile = nothing
+    if isfile(costs_filename*".bin")
+        opt.costs_filename = costs_filename*".bin"
+        multichainfile = 1
+    else
+        opt.costs_filename = costs_filename*"_1.bin"
+    end
+    iters          = history(opt, stat=:iter, chain_idx=multichainfile)
     statname = :acceptanceRate
     f,ax = plt.subplots(length(optin.idxnotzero), 1, sharex=true, sharey=true, figsize=figsize)
     maxar = 0
     for (ichain, chain) in enumerate(chains)
-        opt.costs_filename = costs_filename*"_$chain.bin"
-        ar = history(opt, stat=statname)[:,optin.idxnotzero]
+        if isnothing(multichainfile)
+            opt.costs_filename = costs_filename*"_$chain.bin"
+            chain_idx = nothing
+        else
+            chain_idx = ichain
+        end
+        ar = history(opt, stat=statname, chain_idx=chain_idx)[:,optin.idxnotzero]
         for (i, idx) in enumerate(optin.idxnotzero)
             mx = maximum(ar[.!isnan.(ar)])
             mx > maxar && (maxar = mx)
@@ -274,14 +341,26 @@ function getchi2forall(optn_in::OptionsNuisance;
         nchains = getnchains(costs_filename)
     end
     optn.costs_filename = costs_filename*"_1.bin"
-    iters = history(optn, stat=:iter)
+    multichainfile = false
+    if isfile(optn.costs_filename)
+        iters = history(optn, stat=:iter)
+    else
+        multichainfile = true
+        optn.costs_filename = costs_filename*".bin"
+        iters = history(optn, stat=:iter, chain_idx=1)
+    end
     niters = length(iters)
     Tacrosschains = zeros(Float64, niters, nchains)
     χ2acrosschains = zeros(Float64, niters, nchains)
+    chain_idx = nothing
     for chain in 1:nchains
-        optn.costs_filename = costs_filename*"_$(chain).bin"
-        Tacrosschains[:,chain] = history(optn, stat=:T)
-        χ2acrosschains[:,chain] = history(optn, stat=:misfit)
+        if multichainfile
+            chain_idx = ichain
+        else
+            optn.costs_filename = costs_filename*"_$(chain).bin"
+        end
+        Tacrosschains[:,chain] = history(optn, stat=:T, chain_idx=chain_idx)
+        χ2acrosschains[:,chain] = history(optn, stat=:misfit, chain_idx=chain_idx)
     end
     Torder = sort([(i,j) for i=1:niters, j=1:nchains],
                     by = ix->Tacrosschains[ix...],
@@ -307,10 +386,11 @@ function getchi2forall(opt_in::Options;
                         nchains         = 1,
                         figsize         = (6,4),
                         fsize           = 8,
-                        alpha           = 0.25,
+                        alpha           = 0.5,
                         nxticks         = 0,
                         gridon          = false,
                         omittemp        = false,
+                        hidetitle       = true,
                       )
     # now look at any chain to get how many iterations
     isns = checkns(opt_in)
@@ -320,35 +400,49 @@ function getchi2forall(opt_in::Options;
         nchains = getnchains(costs_filename)
     end
     opt.costs_filename    = costs_filename*"_1.bin"
-    iters          = history(opt, stat=:iter)
+    multichainfile = false
+    if isfile(opt.costs_filename)
+        iters          = history(opt, stat=:iter)
+    else
+        opt.costs_filename = costs_filename*".bin"
+        iters = history(opt, stat=:iter, chain_idx=1)
+        multichainfile=true
+    end
     niters         = length(iters)
     # then create arrays of unsorted by temperature T, k, and chi2
     Tacrosschains  = zeros(Float64, niters, nchains)
     kacrosschains  = zeros(Int, niters, nchains)
     X2by2inchains  = zeros(Float64, niters, nchains)
     # get the values into the arrays
+    chain_idx = nothing
     for ichain in 1:nchains
-        opt.costs_filename = costs_filename*"_$ichain.bin"
-        Tacrosschains[:,ichain] = history(opt, stat=:T)
-        kacrosschains[:,ichain] = history(opt, stat=:nodes)
-        X2by2inchains[:,ichain] = history(opt, stat=:U)
+        if multichainfile
+            chain_idx = ichain
+        else
+            opt.costs_filename = costs_filename*"_$ichain.bin"
+        end
+        Tacrosschains[:,ichain] = history(opt, stat=:T, chain_idx=chain_idx)
+        kacrosschains[:,ichain] = history(opt, stat=:nodes, chain_idx=chain_idx)
+        X2by2inchains[:,ichain] = history(opt, stat=:U, chain_idx=chain_idx)
     end
 
-    f, ax = plt.subplots(3,1, sharex=true, figsize=figsize)
-    ax[1].plot(iters, kacrosschains, alpha=alpha)
-    ax[1].set_xlim(extrema(iters)...)
-    ax[1].set_title(isns*" unsorted by temperature")
-    gridon && ax[1].grid()
-    ax[1].set_ylabel("# nodes")
-    ax[2].plot(iters, X2by2inchains, alpha=alpha)
-    gridon && ax[2].grid()
-    ax[2].set_ylabel("-Log L")
-    gridon && ax[3].grid()
-    ax[3].plot(iters, Tacrosschains, alpha=alpha)
-    ax[3].set_ylabel("Temperature")
-    ax[3].set_xlabel("iterations")
-    nxticks == 0 || ax[3].set_xticks(iters[1]:div(iters[end],nxticks):iters[end])
-    nicenup(f, fsize=fsize)
+    if !hidetitle # then we are usually not interested in the temperature sorting of chains    
+        f, ax = plt.subplots(3,1, sharex=true, figsize=figsize)
+        ax[1].plot(iters, kacrosschains, alpha=alpha)
+        ax[1].set_xlim(extrema(iters)...)
+        ax[1].set_title(isns*" unsorted by temperature")
+        gridon && ax[1].grid()
+        ax[1].set_ylabel("# nodes")
+        ax[2].plot(iters, X2by2inchains, alpha=alpha)
+        gridon && ax[2].grid()
+        ax[2].set_ylabel("-Log L")
+        gridon && ax[3].grid()
+        ax[3].plot(iters, Tacrosschains, alpha=alpha)
+        ax[3].set_ylabel("Temperature")
+        ax[3].set_xlabel("iterations")
+        nxticks == 0 || ax[3].set_xticks(iters[1]:div(iters[end],nxticks):iters[end])
+        nicenup(f, fsize=fsize)
+    end
 
     Tunsorted = copy(Tacrosschains)
     for jstep = 1:niters
@@ -363,7 +457,7 @@ function getchi2forall(opt_in::Options;
     ax[1].plot(iters, kacrosschains, alpha=alpha)
     ax[1].set_xlim(extrema(iters)...)
     ax[1].set_ylabel("# nuclei")
-    ax[1].set_title(isns*" sorted by temperature")
+    !hidetitle && ax[1].set_title(isns*" sorted by temperature")
     ax[1].plot(iters, kacrosschains[:,1:nchainsatone], "k", alpha=alpha)
     gridon && ax[1].grid()
     ax[2].plot(iters, X2by2inchains, alpha=alpha)
@@ -583,6 +677,8 @@ function plot_posterior(F::Operator1D,
                     CIcolor = ["w", "k"],
                     meancolor = ["m", "r"],
                     lwidth = 2,
+                    pdfclim = nothing,
+                    showslope = true,
                     doplot = true)
     @assert 0<vmaxpc<=1
     
@@ -592,7 +688,11 @@ function plot_posterior(F::Operator1D,
                 islscale=false, pdfnormalize=pdfnormalize)
 
     if doplot
-        f,ax = plt.subplots(1,2, sharey=true, figsize=figsize)
+        if showslope
+            f, ax = plt.subplots(1,2, sharey=true, figsize=figsize)
+        else
+            f, ax = plt.subplots(1,1, sharey=true, figsize=figsize, squeeze=false)
+        end    
         xall = opt.xall
         diffs = diff(xall[:])
         xmesh = vcat(xall[1:end-1] - diffs/2, xall[end]-diffs[end]/2, xall[end])
@@ -601,8 +701,6 @@ function plot_posterior(F::Operator1D,
         im1 = ax[1].pcolormesh(edges[:], xmesh, himage, cmap=cmappdf, vmax=vmax)
         ax[1].set_ylim(extrema(xall)...)
         ax[1].invert_yaxis()
-        cb1 = colorbar(im1, ax=ax[1])
-        cb1.ax.set_xlabel("pdf \nstationary")
         plotCI && ax[1].plot(CI, xall[:], linewidth=lwidth, color=CIcolor[1], alpha=alpha)
         plotCI && ax[1].plot(CI, xall[:], linewidth=lwidth, color=CIcolor[2], linestyle="--", alpha=alpha)
         plotmean && ax[1].plot(meanimage[:], xall[:], linewidth=lwidth, color=meancolor[1], alpha=alpha)
@@ -616,11 +714,16 @@ function plot_posterior(F::Operator1D,
         istothepow && (bounds .= 10 .^ bounds)
         propmin, propmax = getbounds(CI, bounds)
         ax[1].set_xlim(propmin, propmax)
-        ax[2].plot(meandiffimage[:], xall[:], linewidth=2, color="k", linestyle="-")
-        zeroside = meandiffimage[:]-sdslope[:]
-        zeroside[zeroside .< 0] .= 0
-        ax[2].fill_betweenx(xall[:],zeroside,meandiffimage[:]+sdslope[:],alpha=.25)
-        ax[2].set_xlabel("mean slope")
+        cb1 = colorbar(im1, ax=ax[1])
+        cb1.ax.set_title("pdf")
+        if showslope
+            ax[2].plot(meandiffimage[:], xall[:], linewidth=2, color="k", linestyle="-")
+            zeroside = meandiffimage[:]-sdslope[:]
+            zeroside[zeroside .< 0] .= 0
+            ax[2].fill_betweenx(xall[:],zeroside,meandiffimage[:]+sdslope[:],alpha=.25)
+            ax[2].set_xlabel("mean slope")
+        end
+        !isnothing(pdfclim) && ax[1].collections[1].set_clim(pdfclim)
         nicenup(f, fsize=fsize)
     end
     CI[:,1], CI[:,2], CI[:,3], meanimage, meandiffimage, sdslope
@@ -637,30 +740,38 @@ function plot_posterior(operator::Operator1D,
                         temperaturenum = 1,
                         nbins = 50,
                         burninfrac=0.5,
-                        figsize=(8,16),
+                        figsize=(5,8),
                         pdfnormalize=false,
-                        fsize=14,
+                        fsize=10,
                         qp1 = 0.05,
                         qp2 = 0.95,
+                        labels= nothing,
                         doplot=true)
     hists, CI = makenuisancehists(optn, qp1, qp2, burninfrac = burninfrac,
                                      nbins = nbins, temperaturenum = temperaturenum,
-                                     pdfnormalize = pdfnormalize)
+                                 )
     if doplot
-        fig,ax = subplots(length(hists), 1, figsize=figsize)
-        length(hists) == 1 && (ax = [ax])
+        fig,ax = subplots(length(hists), 1, figsize=figsize, squeeze=false)
         for (i, h) = enumerate(hists)
-            bwidth = diff(h.edges[1])[1]
-            bx = h.edges[1][1:end-1] .+ bwidth/2
-            ax[i].bar(bx, h.weights, width=bwidth, edgecolor="black")
+            bwidth, bx, denom = getbinsfromhist(h, pdfnormalize=pdfnormalize)
+            ax[i].bar(bx, h.weights./denom, width=bwidth, edgecolor="black")
+            !isnothing(labels) && ax[i].set_xlabel(labels[i])
+            ax[i].set_ylabel("pdf")
         end
         nicenup(fig, fsize=fsize)
     end
     hists, CI
 end
 
+function getbinsfromhist(h, ;pdfnormalize=false)
+    bwidth = diff(h.edges[1])
+    bx = h.edges[1][1:end-1] + bwidth/2
+    denom = pdfnormalize ? maximum(h.weights) : sum(h.weights)*bwidth
+    bwidth, bx, denom
+end        
+
 function makenuisancehists(optn::OptionsNuisance, qp1, qp2; burninfrac = 0.5, nbins = 50,
-    temperaturenum = -1, pdfnormalize = false)
+    temperaturenum = -1)
     @assert temperaturenum != -1 "Please explicitly specify the temperature index"
     nuisanceatT = assemblenuisancesatT(optn, burninfrac = burninfrac,
                                     temperaturenum = temperaturenum)
@@ -1028,4 +1139,95 @@ function getgdfprefix(dfnfile::String)
     dfnfile[1:location-1] # the prefix
 end    
 
+function pairinteractionplot(d; varnames=nothing, figsize=(8.5,6), nbins=25, fontsize=8, fbounds=nothing,
+        cmap="bone_r", islogpdf=false, showpdf=false, vecofpoints=nothing, vecofpointscolor=nothing,
+        scattersize=1, scattercolor="yellowgreen", scatteralpha=1)
+    # plot pairs of scatter, d assumed to have realisations in rows
+    # vecofpoints should be a vector of vectors if nothing
+    @assert !isnothing(varnames)
+    nvars = size(d,2)
+    f = figure(figsize=figsize)
+    T = islogpdf ? x->log(x) : x->x
+    for i=1:size(d,2)
+        for j=1:i
+            c = getrowwise(i,j,nvars)
+            ax = subplot(nvars, nvars, c)
+            if i==j 
+                h = fit(Histogram, d[:,i], nbins=nbins)
+                bwidth, bx, denom = getbinsfromhist(h, pdfnormalize=true)
+                ax.bar(bx, h.weights./denom, width=bwidth, edgecolor="none", color="yellowgreen")
+                ax.set_ylabel("probability")
+                ax.yaxis.set_label_position("right")
+                ax.tick_params(axis="y", labelright=true, labelleft=false, right=true, left=false)
+                if !isnothing(vecofpoints)    
+                    for (iv,v) in enumerate(vecofpoints)
+                        if isnothing(vecofpointscolor) 
+                            ax.plot(v[i]*ones(2),[0, 1], markeredgewidth=3)
+                        else
+                            ax.plot(v[i]*ones(2),[0, 1], color=vecofpointscolor[iv], linewidth=3)    
+                        end
+                    end
+                end
+                if !isnothing(fbounds)    
+                    ax.plot(fbounds[i, 1]*ones(2),[0, 1], "--k", linewidth=1)
+                    ax.plot(fbounds[i, 2]*ones(2),[0, 1], "--k", linewidth=1)   
+                end            
+            else
+                h = fit(Histogram, (d[:,i], d[:,j]), nbins=nbins)
+                if showpdf
+                    ax.pcolormesh(h.edges[2], h.edges[1], T.(h.weights/maximum(h.weights)), cmap=cmap)
+                else    
+                    ax.scatter(d[:,j], d[:,i], s=scattersize, alpha=scatteralpha, c=scattercolor)
+                end
+                if !isnothing(vecofpoints)
+                    for (iv,v) in enumerate(vecofpoints)
+                        if isnothing(vecofpointscolor) 
+                            ax.plot(v[j], v[i], "+", markersize=10*scattersize, markeredgewidth=3)
+                        else
+                            ax.plot(v[j], v[i], "+", color=vecofpointscolor[iv], 
+                            markersize=10*scattersize, markeredgewidth=3)
+                        end        
+                    end
+                end
+                if !isnothing(fbounds)    
+                    ax.plot(fbounds[j,1]*ones(2),fbounds[i,:], "--k", linewidth=1)
+                    ax.plot(fbounds[j,2]*ones(2),fbounds[i,:], "--k", linewidth=1)
+                    ax.plot(fbounds[j,:],fbounds[i,1]*ones(2), "--k", linewidth=1)
+                    ax.plot(fbounds[j,:],fbounds[i,2]*ones(2), "--k", linewidth=1)
+                end         
+                j == 1 && ax.set_ylabel(varnames[i])
+                j == 1 || ax.tick_params(labelleft=false)
+            end
+            (i == nvars) && ax.set_xlabel(varnames[j])
+            ax.ticklabel_format(useOffset=false) 
+            (i == nvars) ||  ax.tick_params(labelbottom=false)
+        end
+    end
+    ax = f.axes
+    for i = size(d,2)-1:-1:1
+    # align x axes    
+        for j = i:-1:1
+            this = firstval(i) + j-1
+            next = firstval(i+1) + j-1
+            ax[this].sharex(ax[next])
+        end
+    end
+    for i = size(d,2):-1:1
+        # align y axes, abundance of caution for
+        # weird histograms probably won't need this    
+        for j = i-2:-1:1
+            this = firstval(i) + j-1
+            next = this + 1
+            ax[this].sharey(ax[next])
+        end
+    end    
+    # very last histogram shares x 
+    # with y axis of previous
+    ax[end].set_xlim(ax[end-1].get_ylim())
+    nicenup(f, fsize=fontsize)
+end
+
+getrowwise(i,j,nvars) = (i-1)*nvars+j
+getcolwise(i,j,nvars) = (j-1)*nvars+i
+firstval(n) = n == 1 ? 1 : firstval(n-1) + n-1 # index number when filling rowwise upto diagonals
 end # module CommonToAll

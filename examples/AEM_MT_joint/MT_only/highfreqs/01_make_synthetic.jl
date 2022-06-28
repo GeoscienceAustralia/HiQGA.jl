@@ -23,7 +23,10 @@ z, ρ, nfixed = transD_GP.makezρ(zboundaries; zfixed=zfixed, ρfixed=ρfixed)
 ρ[(z.>=120) .&(z.<140)] .= 2
 ρ[(z.>=140) .&(z.<250)] .= 100.
 ρ[(z.>=250) .&(z.<270)] .= 100.
-ρ[(z.>=270)]            .= 150
+ρ[(z.>=270) .&(z.<600)] .= 150
+ρ[(z.>=600) .&(z.<800)] .= 2
+ρ[(z.>=800) .&(z.<5000)] .= 500
+ρ[z.>=5000] .= 700
 # add jitter to model in log10 domain
 Random.seed!(11)
 ρ[1:50] = 10 .^(0.1*randn(length(ρ[1:50])) + log10.(ρ[1:50]))

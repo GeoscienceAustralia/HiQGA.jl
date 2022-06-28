@@ -39,7 +39,7 @@ optlog10λ = transD_GP.OptionsStat(nmin = nminlog10λ,
                         needλ²fromlog = true,
                         updatenonstat = true,
                         )
-@time  log10λ = transD_GP.init(optlog10λ)
+@time  log10λ = transD_GP.init(optlog10λ, 1)
 ## make options for the nonstationary GP
 nmin, nmax = 2, 200
 fbounds = [-2. 2]
@@ -61,7 +61,7 @@ opt = transD_GP.OptionsNonstat(optlog10λ,
                         pnorm = pnorm,
                         K = K
                         )
-@time m = transD_GP.init(opt, log10λ)
+@time m = transD_GP.init(opt, log10λ, 1)
 ## run tests for the different McMC moves -- stationary GP changes have to update and propagate
 # to the nonstationary GP 
 fracthresh = 0.05

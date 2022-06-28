@@ -399,6 +399,10 @@ function getfield!(m::Array{Float64}, aem::dBzdt)
 end
 
 function get_misfit(m::Model, opt::Options, aem::dBzdt)
+    get_misfit(m.fstar, opt, aem)
+end
+
+function get_misfit(m::AbstractArray, opt::Options, aem::dBzdt)
     chi2by2 = 0.0
     if !opt.debug
         getfield!(m, aem)
@@ -499,11 +503,12 @@ end
 
 function plotmodelfield!(Flow::AEM_VMD_HMD.HField, Fhigh::AEM_VMD_HMD.HField,
                         z, ρ, dlow, dhigh, σlow, σhigh;
-                        figsize=(10,5), nfixed=-1, dz=-1., extendfrac=-1.)
+                        figsize=(10,5), nfixed=-1, dz=-1., extendfrac=-1., revax=true)
     # expects data and noise in units of H, i.e. B/μ
     @assert all((nfixed, dz, extendfrac) .> 0)
     f, ax = plt.subplots(1, 2, figsize=figsize)
-    ax[1].step(log10.(ρ[2:end]), z[2:end])
+    ext = 5 # extend plot a little lower than last interface
+    ax[1].step(log10.([ρ[2:end];ρ[end]]), [z[2:end]; z[end]+ext])
     if dz > 0
         axn = ax[1].twinx()
         ax[1].get_shared_y_axes().join(ax[1],axn)
@@ -528,13 +533,14 @@ function plotmodelfield!(Flow::AEM_VMD_HMD.HField, Fhigh::AEM_VMD_HMD.HField,
                         linestyle="none", marker=".", elinewidth=0, capsize=3)
     end
     ax[1].grid()
-    ax[2].grid()
-        ax[1].step(log10.(ρ[2:end]), z[2:end])
+    ax[2].grid(which="both")
+    ax[1].set_ylim(z[end]+ext, z[2])
     ax[1].set_xlabel("log₁₀ρ")
     ax[2].set_xlabel("time s")
     ax[1].set_ylabel("depth m")
     ax[2].set_ylabel("V/Am⁴")
     axn.set_ylabel("index no.")
+    revax && ax[1].invert_xaxis()
     nicenup(f)
 end
 

@@ -343,32 +343,37 @@ function getchi2by2(fm, d, σ, useML, ndata)
     end
 end
 
-function plotmodelfield!(tempest::Bfield, z::Array{Float64,1}, ρ::Array{Float64,1})
+function plotmodelfield!(tempest::Bfield, z::Array{Float64,1}, ρ::Array{Float64,1}; figsize=(8,5), 
+    extendfrac=nothing, dz=nothing, fontsize=8)
 	getfieldTD!(tempest, z, ρ)
-	figure(figsize=(8,6))
+	figure(figsize=figsize)
 	s = subplot(121)
-	s.step(vcat(ρ[2:end],ρ[end]), vcat(z[2:end], z[end]+50))
-	s.set_xscale("log")
+    ext = 5 # extend plot a little lower than last interface
+	s.step(log10.([ρ[2:end];ρ[end]]), [z[2:end]; z[end]+ext])
 	s.invert_xaxis()
 	s.invert_yaxis()
-	xlabel("ρ")
+	xlabel("log₁₀ ρ")
 	ylabel("depth m")
-	grid(true, which="both")
-	s1 = subplot(122)
+    if !isnothing(dz)
+        makeindexaxis([s], tempest.z, dz, extendfrac, tempest.nfixed)
+    end    
+	s.grid(true, which="both")
+	s2 = subplot(122)
 	semilogx(tempest.F.times, abs.(μ₀*tempest.Hz)*fTinv, label="Bz")
 	semilogx(tempest.F.times, abs.(μ₀*tempest.Hx)*fTinv, label="Bx")
 	if !isempty(tempest.σx)
 		errorbar(tempest.F.times, μ₀*abs.(vec(tempest.dataHz))*fTinv, yerr = μ₀*2vec(tempest.σz)*fTinv,
-                         linestyle="none", marker=".", elinewidth=0, capsize=3)
+        linestyle="none", marker=".", elinewidth=0, capsize=3)
 		errorbar(tempest.F.times, μ₀*abs.(vec(tempest.dataHx))*fTinv, yerr = μ₀*2vec(tempest.σx)*fTinv,
-						 linestyle="none", marker=".", elinewidth=0, capsize=3)
+        linestyle="none", marker=".", elinewidth=0, capsize=3)
 	end
 	xlabel("time s")
 	ylabel("B field 10⁻¹⁵ T")
+    s.set_ylim(z[end]+ext, z[2])
 	legend()
-	grid(true, which="both")
+	s2.grid(true, which="both")
 	!tempest.addprimary && s1.set_yscale("log")
-	nicenup(gcf())
+	nicenup(gcf(), fsize=fontsize)
 	nothing
 end
 function plotmodelfield!(tempest::Bfield, Ρ::Vector{Array{Float64}};
@@ -387,10 +392,10 @@ function plotmodelfield!(tempest::Bfield, Ρ::Vector{Array{Float64}};
 	finishaxis(ax, f, z, dz, extendfrac, nfixed, fsize)
 end
 
-function plotmodelfield!(tempest::Bfield, Ρ::Vector{Array{Float64}},
+function plotmodelfield!(tempest::Bfield, Ρ::Vector{T},
 						mn::Array{Float64,2};
                         figsize=(8,5), dz=-1., onesigma=true,
-                        extendfrac=-1., fsize=10, alpha=0.1)
+                        extendfrac=-1., fsize=10, alpha=0.1) where T<:AbstractArray
 	@assert length(Ρ) == size(mn, 1)
 	times, f, ax, nfixed, z  = setupaxis(tempest, Ρ, figsize, dz, onesigma,
                           extendfrac, fsize, alpha)
@@ -446,15 +451,7 @@ function finishaxis(ax, f, z, dz, extendfrac, nfixed, fsize)
 	ax[1].grid()
     ax[1].set_ylabel("Depth m")
     ax[1].plot(xlim(), z[nfixed+1]*[1, 1], "--k")
-    if dz > 0
-        axn = ax[1].twinx()
-        ax[1].get_shared_y_axes().join(ax[1],axn)
-        yt = ax[1].get_yticks()[ax[1].get_yticks().>=z[nfixed+1]]
-        axn.set_yticks(yt)
-        axn.set_ylim(ax[1].get_ylim()[end:-1:1])
-        axn.set_yticklabels(string.(Int.(round.(getn.(yt .- z[nfixed+1], dz, extendfrac)))))
-    end
-    axn.set_ylabel("Depth index", rotation=-90)
+    makeindexaxis(ax, z, dz, extendfrac, nfixed)
     ax[1].set_xlabel("Log₁₀ρ")
     ax[1].set_title("Model")
     ax[2].set_ylabel("B field 10¹⁵")
@@ -466,9 +463,22 @@ function finishaxis(ax, f, z, dz, extendfrac, nfixed, fsize)
     nicenup(f, fsize=fsize)
 end
 
+function makeindexaxis(ax, z, dz, extendfrac, nfixed)
+    if dz > 0
+        axn = ax[1].twinx()
+        ax[1].get_shared_y_axes().join(ax[1],axn)
+        yt = ax[1].get_yticks()[ax[1].get_yticks().>=z[nfixed+1]]
+        axn.set_yticks(yt)
+        axn.set_ylim(ax[1].get_ylim()[end:-1:1])
+        axn.set_yticklabels(string.(Int.(round.(getn.(yt .- z[nfixed+1], dz, extendfrac)))))
+    end
+    axn.set_ylabel("Depth index", rotation=-90, labelpad=10)
+    nothing   
+end
+
 #for synthetics
 function set_noisy_data!(tempest::Bfield, z::Array{Float64,1}, ρ::Array{Float64,1};
-	noisefracx = 0.02, noisefracz = 0.02, rseed=123,
+	noisefracx = 0.02, noisefracz = 0.02, rseed=123, figsize=(8,5),
 	halt_X = nothing, halt_Z = nothing)
 	if halt_X != nothing
         @assert length(halt_X) == length(tempest.F.times)
@@ -492,7 +502,7 @@ function set_noisy_data!(tempest::Bfield, z::Array{Float64,1}, ρ::Array{Float64
 	# reset the tempest primary field modeling flag to original
 	tempest.addprimary = primaryflag
 	set_noisy_data!(tempest, z, ρ, σx, σz, rseed=rseed)
-	plotmodelfield!(tempest, z, ρ)
+	plotmodelfield!(tempest, z, ρ, figsize=figsize)
 	nothing
 end
 
