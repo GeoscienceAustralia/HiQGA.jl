@@ -1,6 +1,6 @@
 # # Example - Bayesian nonlinear regression
 # ## Setup
-using PyPlot, Random, Revise, LinearAlgebra,
+using PyPlot, Random, LinearAlgebra,
       Distributed, DelimitedFiles, HiQGA.transD_GP
 # Import data representing the "true" function
 ##
