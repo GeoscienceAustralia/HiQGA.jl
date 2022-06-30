@@ -13,3 +13,4 @@ Manifest.toml
 *zipped*
 *err*
 docs/build/
+docs/src/generated/
