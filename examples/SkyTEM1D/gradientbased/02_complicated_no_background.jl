@@ -10,13 +10,13 @@ zstart = 0.0
 extendfrac, dz = 1.03, 1.5
 zall, znall, zboundaries = transD_GP.setupz(zstart, extendfrac, dz=dz, n=65)
 z, ρ, nfixed = transD_GP.makezρ(zboundaries; zfixed=zfixed, ρfixed=ρfixed)
-calcjacobian = true
 ##  geometry and modeling parameters
 rRx = 13.
 zRx = -42.0
 zTx = -40.0
 freqlow = 1e-3
 include("electronics_halt.jl")
+calcjacobian = true
 ## LM operator
 Flm = transD_GP.AEM_VMD_HMD.HFieldDHT(
                       lowpassfcs = lowpassfcs,
@@ -57,7 +57,7 @@ Random.seed!(11)
 transD_GP.plotmodelfield_skytem!(Flm, Fhm, z, ρ)
 #remember to specify halt noise if it is in pV
 dlow, dhigh, σlow, σhigh = transD_GP.addnoise_skytem(Flm, Fhm,
-                z, ρ, noisefrac=0.03, halt_LM = LM_noise*1e-12, halt_HM = HM_noise*1e-12, rseed=21,
+                z, ρ, noisefrac=0.03, halt_LM = LM_noise*1e-12, halt_HM = HM_noise*1e-12,
                 dz=dz, extendfrac=extendfrac, nfixed=nfixed)
 ## create operator
 # but with a coarser grid
@@ -74,17 +74,13 @@ regtype = :R1
 ## do it
 m, χ², λ², idx = transD_GP.gradientinv(σstart, σ0, aem, nstepsmax=20, 
                             regularizeupdate=false, 
-                            λ²min=0, 
-                            λ²max=7, 
-                            β² = 0.,
+                            λ²min=-0.5, 
+                            λ²max=7,
+                            β² = 0.0,
                             ntries=6,
                             knownvalue=0.7, 
-                            λ²frac=4,
-                            αfrac=4, 
-                            dobo = true,
                             breakonknown = true,
                             firstvalue=:last, 
-                            κ = transD_GP.GP.Mat52(),
                             regtype = regtype);
 ## debug plots: all in each
 alpha = 0.1

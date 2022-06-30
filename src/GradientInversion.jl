@@ -1,4 +1,5 @@
-using LinearMaps, SparseArrays, PositiveFactorizations, Roots
+using LinearMaps, SparseArrays, PositiveFactorizations
+using Roots:find_zero
 using .AbstractOperator, .GP
 
 function makeregR0(F::Operator1D)
