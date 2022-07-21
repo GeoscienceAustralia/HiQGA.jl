@@ -946,8 +946,8 @@ end
 
 function plotindividualsoundings(soundings::Array{SkyTEMsoundingData, 1}, opt::Options;
     burninfrac=0.5,
-    nbins=100,
-    figsize  = (12,6),
+    nbins = 50,
+    figsize  = (6,6),
     zfixed   = [-1e5],
     ρfixed   = [1e12],
     zstart = 0.0,
@@ -955,6 +955,11 @@ function plotindividualsoundings(soundings::Array{SkyTEMsoundingData, 1}, opt::O
     dz = 2.,
     ρbg = 10,
     omittemp = false,
+    showslope = false,
+    plotmean = false,
+    pdfclim = nothing,
+    qp1=0.05,
+    qp2=0.95,
     nlayers = 40,
     ntimesperdecade = 10,
     nfreqsperdecade = 5,
@@ -989,7 +994,8 @@ function plotindividualsoundings(soundings::Array{SkyTEMsoundingData, 1}, opt::O
             if !onlygetMLsampled
                 getchi2forall(opt, alpha=0.8, omittemp=omittemp)
                 CommonToAll.getstats(opt)
-                plot_posterior(aem, opt, burninfrac=burninfrac, nbins=nbins, figsize=figsize)
+                plot_posterior(aem, opt, burninfrac=burninfrac, nbins=nbins, figsize=figsize; 
+                    showslope, pdfclim, plotmean, qp1, qp2)
                 ax = gcf().axes
                 ax[1].invert_xaxis()
             end    

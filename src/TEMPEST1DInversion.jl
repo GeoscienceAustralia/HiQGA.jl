@@ -1182,7 +1182,8 @@ function plotsummarygrids3(nuhigh, nulow, numid, phgrid, plgrid, pmgrid, gridx, 
     f = figure(figsize=figsize)
     dr = diff(gridx)[1]
     f.suptitle(lname*" Δx=$dr m, Fids: $(length(R))", fontsize=fontsize)
-    nrows = 4 + size(nulow, 1) # add the number of nuisances == no. of rows in nuhigh
+    nnu = min(size(nulow, 1), size(nunominal, 1)) # in case we've inverted a zero bounds nuisance by mistech...
+    nrows = 4 + nnu # add the number of nuisances == no. of rows in nuhigh
     icol = 1
     s = Array{Any, 1}(undef, nrows)
     s[icol] = subplot(nrows, 1, icol)
@@ -1239,7 +1240,7 @@ function plotsummarygrids3(nuhigh, nulow, numid, phgrid, plgrid, pmgrid, gridx, 
 end
 
 function plotnuquant(nqlow, nqmid, nqhigh, nunominal, s, gridx, icol, nrows, ms=2, labelnu=[""])
-    nnu = size(nqlow, 1)
+    nnu = min(size(nqlow, 1), size(nunominal, 1)) # in case we've inverted a zero bounds nuisance by mistech...
     labelnu[1] == "" || @assert length(labelnu) == nnu
     for inu = 1:nnu
         s[icol] = subplot(nrows, 1, icol, sharex=s[icol-1])
@@ -1364,8 +1365,8 @@ function plotindividualsoundings(soundings::Array{TempestSoundingData, 1};
                         nuisance_sdev   = [0.],
                         nuisance_bounds = [0. 0.],
                         updatenuisances = true,
-                        nbins=100,
-                        figsize  = (12,6),
+                        nbins=50,
+                        figsize  = (6,6),
                         zfixed   = [-1e5],
                         ρfixed   = [1e12],
                         ntimesperdecade = 10,
@@ -1373,6 +1374,10 @@ function plotindividualsoundings(soundings::Array{TempestSoundingData, 1};
                         computeforwards = false,
                         nforwards = 100,
                         vectorsum = false,
+                        omittemp = false,
+                        showslope = false,
+                        plotmean = false,
+                        pdfclim = nothing,
                       idxcompute = [1])
     for idx = 1:length(soundings)
         if in(idx, idxcompute)
@@ -1408,10 +1413,10 @@ function plotindividualsoundings(soundings::Array{TempestSoundingData, 1};
                                         dispstatstoscreen = false)
             zall, znall, = setupz(zstart, extendfrac, dz=dz, n=nlayers)    
             opt.xall[:] .= zall       
-            getchi2forall(opt, alpha=0.8) # chi2 errors
+            getchi2forall(opt, alpha=0.8; omittemp) # chi2 errors
             CommonToAll.getstats(opt) # ARs for GP model
             CommonToAll.getstats(optn) # ARs for nuisances
-            plot_posterior(aem, opt, burninfrac=burninfrac, nbins=nbins, figsize=figsize) # GP models
+            plot_posterior(aem, opt, burninfrac=burninfrac, nbins=nbins, figsize=figsize;  showslope, pdfclim, plotmean) # GP models
             ax = gcf().axes
             ax[1].invert_xaxis()
             plot_posterior(aem, optn, burninfrac=burninfrac, nbins=nbins, figsize=figsize) # nuisances
