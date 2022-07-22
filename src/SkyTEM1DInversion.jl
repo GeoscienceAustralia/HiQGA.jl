@@ -1268,6 +1268,9 @@ function splitlineconvandlast(soundings, delr, delz;
         prefix = "",
         markersize = 2,
         logscale = false,
+        lnames = nothing,
+        idx = nothing, # array of arrrays per line
+        yl = nothing,
         dpi=400)
     linestartidx = splitsoundingsbyline(soundings)                    
     nlines = length(linestartidx)
@@ -1281,8 +1284,16 @@ function splitlineconvandlast(soundings, delr, delz;
     for i in 1:nlines
         a = linestartidx[i]
         b = i != nlines ?  linestartidx[i+1]-1 : length(soundings)
+        idspec = nothing
+        if !isnothing(lnames) # only specific lines wanted, nothing means all lines
+            @assert length(lnames) == length(idx)
+            doesmatch = findfirst(lnames .== soundings[a].linenum) 
+            isnothing(doesmatch) && continue
+            @info lnames[doesmatch]
+            @show idspec = idx[doesmatch]
+        end    
         plotconvandlast(soundings[a:b], view(σ, a:b, :)', view(ϕd, a:b), delr, delz; 
-            zall = zall,
+            zall = zall, idx=idspec, yl=yl,
             cmapσ=cmapσ, vmin=vmin, vmax=vmax, fontsize=fontsize, postfix=postfix, markersize=markersize,
             figsize=figsize, topowidth=topowidth, preferEright=preferEright, logscale=logscale,
             preferNright=preferNright, saveplot=saveplot, showplot=showplot, dpi=dpi)
@@ -1312,6 +1323,7 @@ function getphidhist(ϕd; doplot=false, saveplot=false, prefix="", figsize=(8,4)
 end    
 
 function plotconvandlast(soundings, σ, ϕd, delr, delz; 
+        idx = nothing, #array of sounding indexes at a line to draw profile
         zall=nothing, cmapσ="jet", vmin=-2.5, vmax=0.5, fontsize=12,
         figsize=(20,5),
         topowidth=1,
@@ -1321,6 +1333,7 @@ function plotconvandlast(soundings, σ, ϕd, delr, delz;
         showplot = true,
         logscale = false,
         postfix = "",
+        yl = nothing,
         markersize = 2,
         dpi = 400)
     @assert !isnothing(zall)
@@ -1343,6 +1356,7 @@ function plotconvandlast(soundings, σ, ϕd, delr, delz;
     x0, y0 = soundings[1].X, soundings[1].Y
     zTx = [s.zTxLM for s in soundings]
     xend, yend = soundings[end].X, soundings[end].Y
+    Z = [s.Z for s in soundings]
     good, bad, ugly = getphidhist(ϕd)
     fig.suptitle(lname*" Δx=$delr m, Fids: $(length(R)) "*L"\phi_{d_{0-1.1}}:"*" $good "*
     L"\phi_{d_{1.1-2}}:"*" $bad "*L"\phi_{d_{2-\infty}}:"*" $ugly", fontsize=fontsize)
@@ -1357,7 +1371,9 @@ function plotconvandlast(soundings, σ, ϕd, delr, delz;
     [a.tick_params(labelbottom=false) for a in ax[1:2]]
     imlast = ax[3].imshow(img, extent=[gridr[1], gridr[end], gridz[end], gridz[1]], cmap=cmapσ, aspect="auto", vmin=vmin, vmax=vmax)
     ax[3].plot(gridr, topofine, linewidth=topowidth, "-k")
-    eg = extrema(gridr)
+    isnothing(idx) || plotprofile(ax[3], idx, Z, R)
+    # eg = extrema(gridr)
+    isa(yl, Nothing) || ax[3].set_ylim(yl...)
     ax[3].set_ylabel("mAHD")
     ax[3].set_xlabel("Distance m")
     fig.colorbar(imlast, ax=axd["C"], location="bottom", shrink=0.6, label="Log₁₀ S/m")
