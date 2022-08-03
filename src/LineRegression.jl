@@ -1,9 +1,10 @@
 module LineRegression
 import ..AbstractOperator.get_misfit
 using ..AbstractOperator, ..CommonToAll
-using PyPlot, LinearAlgebra, StatsBase
+using PyPlot, LinearAlgebra, StatsBase, SparseArrays
 
 import ..Model, ..Options
+import ..AbstractOperator.getresidual
 
 export Line, makehist
 
@@ -12,23 +13,46 @@ mutable struct Line<:Operator1D
     useML  :: Bool
     σ      :: Union{Array{Float64, 1}, Float64}
     select :: Array{Bool, 1}
+    # for gradient based inversion
+    J      :: AbstractArray
+    W      :: SparseMatrixCSC
+    res    :: Vector
+    nfixed :: Int
+    ρ      
 end
 
-function Line(d::Array{Float64, 1} ;useML=false, σ=1.0)
+function Line(d::Array{Float64, 1} ;useML=false, σ=1.0, calcjacobian=false)
     if isa(σ, Array)
         @assert length(d) == length(σ)
     else
         σ = σ*ones(length(d))    
     end
     select = .!isnan.(d[:])
-    Line(d, useML, σ, select)
+    if calcjacobian
+        J = getA(d)
+        Wdiag = 1 ./σ[select]
+        res = copy(d[select])
+    else    
+        res, J, Wdiag = zeros(0), zeros(0), zeros(0)
+    end 
+    W = sparse(diagm(Wdiag))
+    nfixed = 0 # only needed for gradient based
+    Line(d, useML, σ, select, J, W, res, nfixed, copy(d))
 end
+
+function getA(v::AbstractVector)
+    m = length(v)
+    n = sum(.!isnan.(v))
+    @assert n<m
+    sparse(1:n,findall(.!isnan.(v)),ones(n),n,m)
+end  
 
 function get_misfit(m::Model, opt::Options, line::Line)
     chi2by2 = 0.0
     if !opt.debug
-        d, σ, select = line.d, line.σ, line.select
-        r = (m.fstar[:][select] - d[select])./σ[select]
+        getr!(line, m.fstar[line.select])
+        res, σ, select = line.res, line.σ, line.select     
+        r = res./σ[select]
         chi2 = r'*r
         if line.useML
             N = sum(select)
@@ -38,6 +62,16 @@ function get_misfit(m::Model, opt::Options, line::Line)
         end
     end
     return chi2by2
+end
+
+function getr!(line, m)
+    d, σ, select = line.d, line.σ, line.select
+    line.res[:] = (m - d[select])
+    nothing
+end
+
+function getresidual(line::Line, m::Vector{Float64}; computeJ=false)
+    getr!(line, m[line.select])
 end
 
 function makehist(line::Line, opt::Options;

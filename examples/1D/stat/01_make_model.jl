@@ -13,7 +13,7 @@ ntrain = round(Int, fractrain*length(y))
 ynoisy = similar(y) .+ NaN
 linidx = randperm(length(y))[1:ntrain]
 ynoisy[linidx] = y[linidx] + σ*randn(ntrain)
-line = transD_GP.Line(ynoisy;useML=false, σ=σ)
+line = transD_GP.Line(ynoisy;useML=false, σ=σ, calcjacobian=true)
 figure(figsize=(4,3))
 plot(x[:], y)
 plot(x[:], ynoisy, ".m", alpha=0.5)
