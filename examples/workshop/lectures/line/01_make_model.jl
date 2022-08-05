@@ -112,32 +112,11 @@ for (i, mi) in enumerate(m)
 end
 step(m[idxlast][idx[idxlast]], z, color="r", linewidth=2)
 step(log10.(ρ), z, color="k", linewidth=2, linestyle="--")
-step(m_mle, z, color="orange", linewidth=2)
 gca().invert_yaxis()
 gca().invert_xaxis()
 ylabel("depth m")
 xlabel("Log₁₀ ρ")
 plt.tight_layout()
-ax = gca()
-## Compare with posterior model covariance
-plotcov = false
-if plotcov
-    using LinearAlgebra
-    F = line
-    R = transD_GP.makereg(regtype, F)
-    JtW, Wr = F.J'*F.W, F.W*F.res
-    H = JtW*(JtW)' + λ²[idxlast][idx[idxlast]][1]*R'R
-    Cpost = inv(Hermitian(Matrix(H)))
-    figure()
-    zplot = [z; z[end] + 5]
-    pcolormesh(zplot, zplot, Cpost)
-    xlabel("Depth m")
-    ylabel("Depth m")
-    colorbar()
-    sd = sqrt.(diag(Cpost))
-    ax.fill_betweenx(zplot[1:end-1]+diff(zplot)/2, m[idxlast][idx[idxlast]] -sd, m[idxlast][idx[idxlast]] +sd, alpha=0.2)
-    ax.set_xlim(lo, hi)
-end
 ## compare MLE, truth and Occam
 ocm = m[idxlast][idx[idxlast]]    
 figure(figsize=(16,5))

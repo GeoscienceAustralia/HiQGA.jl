@@ -457,6 +457,7 @@ function plotmodelfield_skytem!(Flow::AEM_VMD_HMD.HField, Fhigh::AEM_VMD_HMD.HFi
     ax[2].loglog(Fhigh.times,μ₀*Fhigh.dBzdt, label="high moment")
     ax[1].grid()
     ax[1].invert_yaxis()
+    ax[1].invert_xaxis()
     ax[2].grid()
     nicenup(f)
 end

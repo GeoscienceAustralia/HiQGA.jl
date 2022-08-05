@@ -63,7 +63,7 @@ mutable struct HFieldDHT <: HField
 end
 
 function HFieldDHT(;
-      nmax      = 200,
+      nmax      = 80,
       rTx       = nothing,
       rRx       = 17.0,
       freqs     = [],
