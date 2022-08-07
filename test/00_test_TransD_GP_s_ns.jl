@@ -38,6 +38,7 @@ optlog10λ = transD_GP.OptionsStat(nmin = nminlog10λ,
                         timesλ = 3,
                         needλ²fromlog = true,
                         updatenonstat = true,
+                        sampledc = false # must be false when representing length scales with this GP
                         )
 @time  log10λ = transD_GP.init(optlog10λ, 1)
 ## make options for the nonstationary GP
@@ -47,7 +48,6 @@ fbounds = [-2. 2]
 sdev_prop = [0.1]
 sdev_pos = [0.05, 0.05]
 K = transD_GP.GP.Mat32()
-demean_ns = true
 ## Initialize model for the nonstationary GP
 Random.seed!(13)
 opt = transD_GP.OptionsNonstat(optlog10λ,
@@ -55,7 +55,6 @@ opt = transD_GP.OptionsNonstat(optlog10λ,
                         nmax = nmax,
                         fbounds = fbounds,
                         δ = δ,
-                        demean = demean_ns,
                         sdev_prop = sdev_prop,
                         sdev_pos = sdev_pos,
                         pnorm = pnorm,
