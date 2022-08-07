@@ -11,4 +11,4 @@ ax = gcf().axes
 ax[1].invert_xaxis()
 ax[1].step(log10.(ρ[2:end]), z[2:end], color="k", linewidth=3)
 ax[1].step(log10.(ρ[2:end]), z[2:end], color="y", linewidth=1.5)
-ax[2].set_ylim(280,0)
+ax[1].set_ylim(280,0)

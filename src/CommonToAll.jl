@@ -670,7 +670,7 @@ function plot_posterior(F::Operator1D,
                     meancolor = ["m", "r"],
                     lwidth = 2,
                     pdfclim = nothing,
-                    showslope = true,
+                    showslope = false,
                     doplot = true)
     @assert 0<vmaxpc<=1
     

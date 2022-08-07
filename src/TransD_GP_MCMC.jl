@@ -50,7 +50,7 @@ function OptionsStat(;
         xall               = nothing,
         λ                 = [0.3],
         δ                 = 0.1,
-        demean             = true,
+        demean             = false,
         sdev_prop          = [0.01],
         sdev_pos           = [0.05;0.05],
         sdev_dc            = nothing,
@@ -71,7 +71,7 @@ function OptionsStat(;
         updatenuisances    = false,
         peskycholesky      = true,
         dcvalue            = nothing,
-        sampledc           = false
+        sampledc           = true
         )
 
         @assert xall != nothing
@@ -158,7 +158,7 @@ function OptionsNonstat(opt::OptionsStat;
         nmax               = 50,
         fbounds            = [-1 1],
         δ                  = 0.1,
-        demean             = true,
+        demean             = false,
         sdev_prop          = [0.01],
         sdev_pos           = [0.05;0.05],
         sdev_dc            = nothing,
@@ -166,7 +166,7 @@ function OptionsNonstat(opt::OptionsStat;
         influenceradius    = [-9.9],
         K                  = SqEuclidean(),
         dcvalue            = nothing,
-        sampledc           = false
+        sampledc           = true
         )
 
         @assert all(diff(fbounds, dims=2) .> 0)
