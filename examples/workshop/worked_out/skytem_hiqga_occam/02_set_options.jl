@@ -1,27 +1,38 @@
-# model discretization
+## make gradientinv options same for all soundings
+σstart, σ0         = -2, -2
 zfixed             = [-1e5]
 ρfixed             = [1e12]
 zstart             = 0.0
 extendfrac, dz     = 1.06, 1.25
 nlayers            = 52
-# make gradientinv options same for all soundings
-σstart, σ0         = -2, -2
-ρbg                = 10 # test linear resistivity for forward model before inversion
+ρbg                = 10
+ntimesperdecade    = 10
+nfreqsperdecade    = 5
+modelprimary       = false
 regtype            = :R1
-nstepsmax          = 4 # total iterations of Occam (outer)
-ntries             = 6 # tries per outer iteration
+nstepsmax          = 40
+ntries             = 6
 target             = nothing
-lo                 = -2.5 # log10 conductivity min
-hi                 = 0.5  # log10 conductivity max
+lo                 = -2.5
+hi                 = 0.5
 λ²min              = -0.5
 λ²max              = 8
+λ²frac             = 4
+ntestdivsλ²        = 50
+αmin               = -4 
+αmax               = 0 
+αfrac              = 4
 β²                 = 0.1
-knownvalue         = 0.7 # exit inner loop at this much misfit reduction
-breakonknown       = true # exit inner loop at knownvalue
-showgeomplot       = true # show model discretization
+ntestdivsα         = 32
+regularizeupdate   = false
+knownvalue         = 0.7
+firstvalue         = :last
+κ                  = transD_GP.GP.Mat52()
+breakonknown       = true
+dobo               = false
 ## plot n random soundings and a background response
 using Random
-nplot = 1
+nplot = 2
 nplot = min(nplot, length(soundings))
 opt = transD_GP.SkyTEM1DInversion.makeoperatorandoptions(
                             soundings,
@@ -33,6 +44,6 @@ opt = transD_GP.SkyTEM1DInversion.makeoperatorandoptions(
                             dz = dz,
                             ρbg = ρbg,
                             nlayers = nlayers,
-                            nplot = nplot,
-                            showgeomplot = showgeomplot)
+                            ntimesperdecade = ntimesperdecade,
+                            nfreqsperdecade = nfreqsperdecade)
 

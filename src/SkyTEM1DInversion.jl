@@ -1419,7 +1419,7 @@ function loopacrosssoundings(soundings::Array{S, 1}, opt_in::Options;
                             nfreqsperdecade    = 5,
                             Tmax               = -1,
                             nsamples           = -1,
-                            nchainsatone       = -1,
+                            nchainsatone       =  1,
                             modelprimary       = false,
                             nchainspersounding = -1) where S<:Sounding
 
@@ -1427,7 +1427,6 @@ function loopacrosssoundings(soundings::Array{S, 1}, opt_in::Options;
     @assert nparallelsoundings != -1
     @assert nchainspersounding != -1
     @assert nsamples != - 1
-    @assert nchainsatone != -1
     @assert Tmax != -1
 
     nsoundings = length(soundings)
