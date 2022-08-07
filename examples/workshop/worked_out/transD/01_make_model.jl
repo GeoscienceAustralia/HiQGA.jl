@@ -16,7 +16,7 @@ rRx = 13. # radial distance to Rx
 zRx = -42.0 # distance above ground to Rx 
 zTx = -40.0 # distance above ground to Tx
 calcjacobian = false # turn OFF for transD otherwise very slow. Must be on for gradient-based
-include("../gradientbased/electronics_halt.jl") # waveforms, gates, etc.
+include("../../exercises/synth/gradientbased/electronics_halt.jl") # waveforms, gates, etc.
 ## LM operator
 Flm = transD_GP.AEM_VMD_HMD.HFieldDHT(
                       lowpassfcs = lowpassfcs,
