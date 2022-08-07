@@ -1,5 +1,5 @@
 using Distributed
-addprocs(4) # number of parallel cores
+addprocs(7) # number of parallel cores
 # split into sequential iterations of parallel soundings
 nsoundings = length(soundings)
 ncores = nworkers()
