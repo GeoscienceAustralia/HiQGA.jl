@@ -1,46 +1,45 @@
-using PyPlot, DelimitedFiles, Random, Statistics, Revise,
-      HiQGA.transD_GP
-## model fixed parts, i.e., air
-Random.seed!(23)
+using PyPlot, DelimitedFiles, Random, Statistics, Printf
+using HiQGA.transD_GP
+## model description
+# fixed parts, i.e., air
 zfixed   = [-1e5]
 ρfixed   = [1e12]
-nmax = 200
-# Note that the receiver and transmitter need to be in layer 1
-zstart = 0.0
-extendfrac, dz = 1.03, 1.5
-zall, znall, zboundaries = transD_GP.setupz(zstart, extendfrac, dz=dz, n=65, showplot=true)
+# part to be inverted
+zstart = 0.0 # surface height, i.e., ground
+dz = 1.5 # first cell thickness
+extendfrac = 1.03 # extend each cell by this much with depth
+# make a 65 layer model
+zall, znall, zboundaries = transD_GP.setupz(zstart, extendfrac, dz=dz, showplot=true, n=65)
 z, ρ, nfixed = transD_GP.makezρ(zboundaries; zfixed=zfixed, ρfixed=ρfixed)
 ##  geometry and modeling parameters
-rRx = 13.
-zRx = -42.0
-zTx = -40.0
-freqlow = 1e-3
-include("electronics_halt.jl")
+rRx = 13. # radial distance to Rx 
+zRx = -42.0 # distance above ground to Rx 
+zTx = -40.0 # distance above ground to Tx
+calcjacobian = true # must be turned on for gradient-based inversion
+include("electronics_halt.jl") # waveforms, gates, etc.
 ## LM operator
 Flm = transD_GP.AEM_VMD_HMD.HFieldDHT(
                       lowpassfcs = lowpassfcs,
                       times  = LM_times,
                       ramp   = LM_ramp,
-                      nmax   = nmax,
                       zTx    = zTx,
                       rRx    = rRx,
                       rTx    = rTx,
                       zRx    = zRx,
-                      freqlow = freqlow
+                      calcjacobian = calcjacobian
                       )
 ## HM operator
 Fhm = transD_GP.AEM_VMD_HMD.HFieldDHT(
                       lowpassfcs = lowpassfcs,
                       times  = HM_times,
                       ramp   = HM_ramp,
-                      nmax   = nmax,
                       zTx    = zTx,
                       rRx    = rRx,
                       rTx    = rTx,
                       zRx    = zRx,
-                      freqlow = freqlow
+                      calcjacobian = calcjacobian
                       )
-## fill in detail in ohm-m
+## define model and plot the forward response
 ρ[(z.>=zstart) .& (z.<50)] .= 20.
 ρ[(z.>=50) .&(z.<80)] .= 1
 ρ[(z.>=80) .&(z.<100)] .= 20
@@ -50,16 +49,14 @@ Fhm = transD_GP.AEM_VMD_HMD.HFieldDHT(
 # add jitter to model in log10 domain
 Random.seed!(11)
 ρ = 10 .^(0.1*randn(length(ρ)) + log10.(ρ))
-## add noise to data
+# plot the forward calculation
 transD_GP.plotmodelfield_skytem!(Flm, Fhm, z, ρ)
-#remember to specify halt noise if it is in pV
+## add noise to data
+# remember to specify halt noise if it is in pV
 dlow, dhigh, σlow, σhigh = transD_GP.addnoise_skytem(Flm, Fhm,
-                z, ρ, noisefrac=0.03, halt_LM = LM_noise*1e-12, halt_HM = HM_noise*1e-12,
-                dz=dz, extendfrac=extendfrac, nfixed=nfixed)
-## create operator
-# but with a coarser grid
-extendfrac, dz = 1.06, 1.15
-zall, znall, zboundaries = transD_GP.setupz(zstart, extendfrac, dz=dz, n=50, showplot=true)
-zgrid, ρgrid, nfixed = transD_GP.makezρ(zboundaries; zfixed=zfixed, ρfixed=ρfixed)
+    z, ρ, noisefrac=0.03, halt_LM = LM_noise*1e-12, halt_HM = HM_noise*1e-12,
+    dz=dz, extendfrac=extendfrac, nfixed=nfixed)
+# EM data for inversion are always in units of H = B/μ
 dlow, dhigh, σlow, σhigh = (dlow, dhigh, σlow, σhigh)./transD_GP.SkyTEM1DInversion.μ₀
-aem = transD_GP.dBzdt(Flm, Fhm, dlow, dhigh, σlow, σhigh, z=zgrid, ρ=ρgrid, nfixed=nfixed)
+## create inversion operator with physics, data, noise and model discretization 
+aem = transD_GP.dBzdt(Flm, Fhm, dlow, dhigh, σlow, σhigh, z=z, ρ=ρ, nfixed=nfixed)

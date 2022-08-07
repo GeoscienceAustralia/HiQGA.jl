@@ -6,7 +6,6 @@ Klog10λ = transD_GP.GP.Mat32()
 x = 0:(0.005λx):λx
 y = 0:(0.005λy):0.5λy
 λlog10λ = [0.05maximum(x), 0.05maximum(y)]
-demean = false
 sdev_poslog10λ = [0.01maximum(y), 0.01maximum(x)]
 log10bounds = [-1 -0.69; -1 -0.69]
 δlog10λ = 0.1
@@ -29,7 +28,6 @@ optlog10λ = transD_GP.OptionsStat(nmin = nminlog10λ,
                         xall = xall,
                         λ = λlog10λ,
                         δ = δlog10λ,
-                        demean = demean,
                         sdev_prop = sdev_proplog10λ,
                         sdev_pos = sdev_poslog10λ,
                         pnorm = pnorm,
@@ -37,6 +35,7 @@ optlog10λ = transD_GP.OptionsStat(nmin = nminlog10λ,
                         K = Klog10λ,
                         needλ²fromlog = true,
                         updatenonstat = true,
+                        sampledc = false, # cannot sampledc for length scales
                         timesλ = 3.6
                         )
 @time  log10λ = transD_GP.init(optlog10λ, 1)

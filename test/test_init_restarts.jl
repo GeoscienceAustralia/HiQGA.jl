@@ -16,7 +16,6 @@ nminlog10λ, nmaxlog10λ = 2, 30
 pnorm = 2.
 Klog10λ = transD_GP.GP.Mat32()
 λlog10λ = [0.02abs(diff([extrema(x)...])[1])]
-demean = false
 sdev_poslog10λ = [0.05abs(diff([extrema(x)...])[1])]
 sdev_proplog10λ = 0.05*diff(log10bounds, dims=2)[:]
 xall = permutedims(collect(x))
@@ -31,6 +30,7 @@ optlog10λ = transD_GP.OptionsStat(nmin = nminlog10λ,
                         λ = λlog10λ,
                         δ = δlog10λ,
                         demean = demean,
+                        sampledc = false, # a must for length scale GPs
                         sdev_prop = sdev_proplog10λ,
                         sdev_pos = sdev_poslog10λ,
                         needλ²fromlog = true,
