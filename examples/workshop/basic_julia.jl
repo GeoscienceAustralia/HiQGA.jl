@@ -11,7 +11,7 @@ a = ones(3)
 println(a)
 @info "you can also do" a
 println()
-println("and also this to show the contents of the lasst element of a $(a[end])")
+println("and also this to show the contents of the last element of a $(a[end])")
 ## BIG GOTCHA
 b = a # assign alias b to a
 b[2] = 2
