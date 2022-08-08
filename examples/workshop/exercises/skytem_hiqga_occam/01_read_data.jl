@@ -1,8 +1,8 @@
 ## info to read data
 # datafile
-fname_dat = "../skytem_hiqga_transd/coincidewithtempest.dat"
+fname_dat = "../../worked_out/skytem_hiqga_transd/coincidewithtempest.dat"
 # electronics file
-fname_specs_halt = "../skytem_hiqga_transd/electronics_halt.jl"
+fname_specs_halt = "../../worked_out/skytem_hiqga_transd/electronics_halt.jl"
 # column numbers from hdr file
 X, Y, Z = 12, 13, 15
 fid = 1
