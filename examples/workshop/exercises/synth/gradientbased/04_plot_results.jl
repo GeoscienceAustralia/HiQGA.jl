@@ -31,16 +31,23 @@ for (i, mi) in enumerate(m)
     transD_GP.nicenup(gcf(), fsize=12)
 end
 ## debug plots best in each
-figure(figsize=(3,6))
+f, s = plt.subplots(1, 2, gridspec_kw=Dict("width_ratios" => [1,1.5]),
+        figsize=(8,6))
 alpha = 0.1
+χ²best = zeros(0)
 for (i, mi) in enumerate(m)
-    step(-mi[idx[i]], aem.z[2:end], alpha=alpha)
+    s[1].step(-mi[idx[i]], aem.z[2:end], alpha=alpha)
+    push!(χ²best, minimum(χ²[i]))
     i == idxlast && break
 end
-step(-m[idxlast][idx[idxlast]], aem.z[2:end], color="r", linewidth=2)
-step(log10.(ρ[2:end]), z[2:end], color="k", linewidth=2, linestyle="--")
-gca().invert_yaxis()
-gca().invert_xaxis()
-ylabel("depth m")
-xlabel("Log₁₀ ρ")
-plt.tight_layout()
+s[1].step(-m[idxlast][idx[idxlast]], aem.z[2:end], color="r", linewidth=2)
+s[1].step(log10.(ρ[2:end]), z[2:end], color="k", linewidth=2, linestyle="--")
+s[1].invert_yaxis()
+s[1].invert_xaxis()
+s[1].set_ylabel("depth m")
+s[1].set_xlabel("Log₁₀ ρ")
+s[2].plot(1:idxlast, χ²best/ndata, ".-", ms=10)
+s[2].set_xlabel("Outer iteration #")
+s[2].set_ylabel(L"ϕ_d"*" best")
+f.tight_layout()
+
