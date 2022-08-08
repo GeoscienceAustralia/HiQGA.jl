@@ -1,4 +1,4 @@
-## debug plots: all in each
+## one plot for each outer iteration
 alpha = 0.3
 idxlast=length(m)
 ndata = length(aem.res)
