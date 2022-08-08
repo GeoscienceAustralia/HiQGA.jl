@@ -30,7 +30,7 @@ for (i, mi) in enumerate(m)
     plt.suptitle("Iteration $i, α=$(hps[idx[i],2])")
     transD_GP.nicenup(gcf(), fsize=12)
 end
-## debug plots best in each
+## plots for best in each
 f, s = plt.subplots(1, 2, gridspec_kw=Dict("width_ratios" => [1,1.5]),
         figsize=(8,6))
 alpha = 0.1
