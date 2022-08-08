@@ -51,7 +51,3 @@ s[2].plot([1, idxlast], [1, 1], "--k")
 s[2].set_xlabel("Outer iteration #")
 s[2].set_ylabel(L"ϕ_d"*" best")
 f.tight_layout()
-## plot a few forwards
-mprob = transD_GP.CommonToAll.assembleTat1(opt, :fstar, temperaturenum=1) # get the posterior models
-transD_GP.SkyTEM1DInversion.plotmodelfield!(aem, m[1:10:end], dz=dz, extendfrac=extendfrac, 
-    onesigma=false, alpha=0.15)
