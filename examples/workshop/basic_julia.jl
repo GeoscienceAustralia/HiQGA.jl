@@ -30,3 +30,5 @@ plot(rand(10))
 f2, ax = plt.subplots(1, 2, sharex=true, figsize=(8,4))
 ax[1].imshow(rand(10,10))
 ax[2].plot(1:10, 1:10)
+# you will use this command a lot
+close("all")
