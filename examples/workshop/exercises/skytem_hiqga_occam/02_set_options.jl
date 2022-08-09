@@ -34,5 +34,5 @@ opt = transD_GP.SkyTEM1DInversion.makeoperatorandoptions(
                             ρbg = ρbg,
                             nlayers = nlayers,
                             nplot = nplot,
-                            showgeomplot = showgeomplot)
+                            showgeomplot = showgeomplot);
 

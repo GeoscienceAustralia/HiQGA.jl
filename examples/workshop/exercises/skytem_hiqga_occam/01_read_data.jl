@@ -33,4 +33,5 @@ soundings = transD_GP.SkyTEM1DInversion.read_survey_files(fname_dat = fname_dat,
 									 skipevery        = 10,
 									 dotillsounding   = nothing,
 									 units            = units,     
-									 makesounding     = true)
+									 makesounding     = true,
+									 figsize          = (9,5));
