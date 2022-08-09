@@ -45,5 +45,5 @@ opt = transD_GP.SkyTEM1DInversion.makeoperatorandoptions(
                             ρbg = ρbg,
                             nlayers = nlayers,
                             ntimesperdecade = ntimesperdecade,
-                            nfreqsperdecade = nfreqsperdecade)
+                            nfreqsperdecade = nfreqsperdecade);
 

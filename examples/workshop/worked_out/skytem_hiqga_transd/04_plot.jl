@@ -16,7 +16,7 @@ transD_GP.SkyTEM1DInversion.summaryimages(soundings, opt,
                    burninfrac = burninfrac,
                    saveplot=true,
                    topowidth = 1,
-                   figsize=(12,12),
-                   omitconvergence = false,
-                   yl = [-50,100]
+                   figsize=(8,5),
+                   omitconvergence = true,
+                   yl = [-250,80]
                    )

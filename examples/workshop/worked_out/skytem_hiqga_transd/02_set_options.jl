@@ -57,4 +57,4 @@ opt = transD_GP.SkyTEM1DInversion.makeoperatorandoptions(
                             showgeomplot = showgeomplot,
                             λ = λ,
                             δ = δ,
-                            restart = restart)
+                            restart = restart);

@@ -8,7 +8,7 @@ for (i, mi) in enumerate(m)
         break
     end    
     f, s = plt.subplots(1, 2, gridspec_kw=Dict("width_ratios" => [1,1.5]),
-        figsize=(8,6))
+        figsize=(8,5))
     for ii in 1:length(χ²[i])
         s[1].step(-mi[ii], aem.z[2:end], alpha=alpha) 
     end
@@ -32,7 +32,7 @@ for (i, mi) in enumerate(m)
 end
 ## plots for best in each
 f, s = plt.subplots(1, 2, gridspec_kw=Dict("width_ratios" => [1,1.5]),
-        figsize=(8,6))
+        figsize=(8,5))
 alpha = 0.1
 χ²best = zeros(0)
 for (i, mi) in enumerate(m)
