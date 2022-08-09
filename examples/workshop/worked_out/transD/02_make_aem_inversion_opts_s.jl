@@ -28,4 +28,4 @@ opt = transD_GP.OptionsStat(nmin = nmin,
                         quasimultid = false,
                         save_freq = 50,
                         K = K
-                        )
+                        );
