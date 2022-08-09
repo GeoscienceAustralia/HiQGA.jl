@@ -14,5 +14,5 @@ ax[1].step(log10.(ρ[2:end]), z[2:end], color="y", linewidth=1.5)
 ax[1].set_ylim(280,0)
 ## plot a few forwards
 mprob = transD_GP.CommonToAll.assembleTat1(opt, :fstar, temperaturenum=1) # get the posterior models
-transD_GP.SkyTEM1DInversion.plotmodelfield!(aem, m[1:10:end], dz=dz, extendfrac=extendfrac, 
+transD_GP.SkyTEM1DInversion.plotmodelfield!(aem, mprob[1:10:end], dz=dz, extendfrac=extendfrac, 
     onesigma=false, alpha=0.15)
