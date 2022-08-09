@@ -59,4 +59,4 @@ dlow, dhigh, σlow, σhigh = transD_GP.addnoise_skytem(Flm, Fhm,
 # EM data for inversion are always in units of H = B/μ
 dlow, dhigh, σlow, σhigh = (dlow, dhigh, σlow, σhigh)./transD_GP.SkyTEM1DInversion.μ₀
 ## create inversion operator with physics, data, noise and model discretization 
-aem = transD_GP.dBzdt(Flm, Fhm, dlow, dhigh, σlow, σhigh, z=z, ρ=ρ, nfixed=nfixed)
+aem = transD_GP.dBzdt(Flm, Fhm, dlow, dhigh, σlow, σhigh, z=z, ρ=ρ, nfixed=nfixed);
