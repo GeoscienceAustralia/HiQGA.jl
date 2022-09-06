@@ -1082,12 +1082,12 @@ function plotsummarygrids1(meangrid, phgrid, plgrid, pmgrid, gridx, gridz, topof
     map(x->x.grid(), s)
     nicenup(f, fsize=fontsize)
     isa(yl, Nothing) || s[end].set_ylim(yl...)
-    plotNEWSlabels(Eislast, Nislast, gridx, gridz, s)
     f.subplots_adjust(bottom=0.125)
     cbar_ax = f.add_axes(botadjust)
     cb = f.colorbar(imlast, cax=cbar_ax, orientation="horizontal",)
     cb.ax.set_xlabel("Log₁₀ S/m", fontsize=fontsize)
     cb.ax.tick_params(labelsize=fontsize)
+    plotNEWSlabels(Eislast, Nislast, gridx, gridz, s; preferEright, preferNright)
     (preferNright && !Nislast) && s[end].invert_xaxis()
     (preferEright && !Eislast) && s[end].invert_xaxis()
     saveplot && savefig(lname*".png", dpi=dpi)
@@ -1338,21 +1338,11 @@ function plotconvandlast(soundings, σ, ϕd, delr, delz;
         markersize = 2,
         dpi = 400)
     @assert !isnothing(zall)
-    Eislast, Nislast = whichislast(soundings)
+    @show Eislast, Nislast = whichislast(soundings)
     # ϕd, σ = readingrid(soundings, zall)
     img, gridr, gridz, topofine, R = makegrid(σ, soundings, zall=zall, dz=delz, dr=delr)
-    fig = plt.figure(figsize=figsize)
-    axd = fig.subplot_mosaic(
-           """
-           A
-           B
-           C
-           C
-           C
-           C
-           C
-           """
-       )
+    fig, ax = plt.subplots(3, 1, gridspec_kw=Dict("height_ratios" => [1,1,4]),
+        figsize=figsize, sharex=true)
     lname = "Line_$(soundings[1].linenum)"*postfix
     x0, y0 = soundings[1].X, soundings[1].Y
     zTx = [s.zTxLM for s in soundings]
@@ -1377,11 +1367,13 @@ function plotconvandlast(soundings, σ, ϕd, delr, delz;
     isa(yl, Nothing) || ax[3].set_ylim(yl...)
     ax[3].set_ylabel("mAHD")
     ax[3].set_xlabel("Distance m")
-    fig.colorbar(imlast, ax=axd["C"], location="bottom", shrink=0.6, label="Log₁₀ S/m")
+    fig.colorbar(imlast, ax=ax[3], location="bottom", shrink=0.6, label="Log₁₀ S/m")
     nicenup(fig, fsize=fontsize)
     plotNEWSlabels(Eislast, Nislast, gridr, gridz, [ax[3]], x0, y0, xend, yend, 
                     preferEright=preferEright, preferNright=preferNright)
-    [a.set_xlim(ax[3].get_xlim()) for a in ax[1:2]]
+    ax[3].set_xlim(extrema(gridr))
+    (preferNright && !Nislast) && ax[end].invert_xaxis()
+    (preferEright && !Eislast) && ax[end].invert_xaxis()
     saveplot && savefig(lname*".png", dpi=dpi)
     showplot || close(fig)
 end    

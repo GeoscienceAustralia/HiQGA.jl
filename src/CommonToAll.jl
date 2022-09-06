@@ -929,6 +929,10 @@ end
 function whichislast(soundings::AbstractArray)
     X = [s.X for s in soundings]
     Y = [s.Y for s in soundings]
+    Eislast, Nislast = findwhichislast(X, Y)
+end
+
+function findwhichislast(X, Y)
     Eislast, Nislast = true, true
     X[1]>X[end] && (Eislast = false)
     Y[1]>Y[end] && (Nislast = false)
@@ -985,20 +989,29 @@ function plotNEWSlabels(Eislast, Nislast, gridx, gridz, axarray,
         minylim = minimum(s.get_ylim())
         inverted = false
         if (preferNright && !Nislast) || (preferEright && !Eislast) 
-            s.invert_xaxis() 
             inverted = true
         end 
-        ha = inverted ? "right" : "left"   
-        if Eislast 
-            s.text(gridx[1], minylim, "W $beginpos", backgroundcolor="w", ha = ha) 
-        else
-            s.text(gridx[1], minylim, "E $beginpos", backgroundcolor="w", ha = ha)
-        end
-        ha = inverted ? "left" : "right"
-        if Nislast 
-            s.text(gridx[end], minylim, "N $endpos", backgroundcolor="w") 
-        else
-            s.text(gridx[end], minylim, "S $endpos", backgroundcolor="w", ha=ha)
+        
+        if Eislast & Nislast # old WN
+            ha = inverted ? "right" : "left"
+            s.text(gridx[1], minylim, "SW $beginpos", backgroundcolor="w", ha = ha)
+            ha = inverted ? "left" : "right"
+            s.text(gridx[end], minylim, "NE $endpos", backgroundcolor="w", ha = ha)  
+        elseif !Eislast & Nislast # old EN
+            ha = inverted ? "right" : "left"  
+            s.text(gridx[1], minylim, "SE $beginpos", backgroundcolor="w", ha = ha)
+            ha = inverted ? "left" : "right"
+            s.text(gridx[end], minylim, "NW $endpos", backgroundcolor="w", ha = ha) 
+        elseif Eislast & !Nislast # old WS
+            ha = inverted ? "right" : "left"
+            s.text(gridx[1], minylim, "NW $beginpos", backgroundcolor="w", ha = ha)
+            ha = inverted ? "left" : "right"
+            s.text(gridx[end], minylim, "SE $endpos", backgroundcolor="w", ha = ha)
+        else # old ES
+            ha = inverted ? "right" : "left"   
+            s.text(gridx[1], minylim, "NE $beginpos", backgroundcolor="w", ha = ha)
+            ha = inverted ? "left" : "right"
+            s.text(gridx[end], minylim, "SW $endpos", backgroundcolor="w", ha = ha)
         end    
     end
 end
