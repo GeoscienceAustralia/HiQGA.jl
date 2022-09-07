@@ -11,7 +11,7 @@ export trimxft, assembleTat1, gettargtemps, checkns, getchi2forall, nicenup,
         assemblenuisancesatT, makenuisancehists, stretchexists,
         makegrid, whichislast, makesummarygrid, makearray, plotNEWSlabels, 
         plotprofile, gridpoints, splitsoundingsbyline, dfn2hdr, getgdfprefix, 
-        pairinteractionplot
+        pairinteractionplot, flipline
 
 function trimxft(opt::Options, burninfrac::Float64, temperaturenum::Int)
     x_ft = assembleTat1(opt, :x_ftrain, burninfrac=burninfrac, temperaturenum=temperaturenum)
@@ -929,14 +929,20 @@ end
 function whichislast(soundings::AbstractArray)
     X = [s.X for s in soundings]
     Y = [s.Y for s in soundings]
-    Eislast, Nislast = findwhichislast(X, Y)
-end
-
-function findwhichislast(X, Y)
+    ΔX = X[end] - X[1]
+    ΔY = Y[end] - Y[1]
+    NSline, EWline = false, false
+    if abs(ΔX/ΔY) < 0.05
+        NSline = true
+    elseif abs(ΔY/ΔX) < 0.05
+        EWline = true
+    end    
+    
     Eislast, Nislast = true, true
-    X[1]>X[end] && (Eislast = false)
-    Y[1]>Y[end] && (Nislast = false)
-    Eislast, Nislast
+    ΔX<0 && (Eislast = false)
+    ΔY<0 && (Nislast = false)
+
+    Eislast, Nislast, EWline, NSline
 end
 
 function makesummarygrid(soundings, pl, pm, ph, ρmean, vdmean, vddev, zall, dz; dr=10)
@@ -977,9 +983,10 @@ function makearray(soundings, d, zall)
     outarray
 end
 
-function plotNEWSlabels(Eislast, Nislast, gridx, gridz, axarray, 
+function plotNEWSlabels(soundings, gridx, gridz, axarray, 
         x0=nothing, y0=nothing, xend=nothing, yend=nothing;
         preferEright=false, preferNright=false)
+    Eislast, Nislast, EWline, NSline = whichislast(soundings)
     beginpos, endpos = "", ""
     if !any(isnothing.([x0,y0,xend,yend]))
         beginpos = round(Int, x0/1000), round(Int, y0/1000)
@@ -993,27 +1000,46 @@ function plotNEWSlabels(Eislast, Nislast, gridx, gridz, axarray,
         end 
         
         if Eislast & Nislast # old WN
-            ha = inverted ? "right" : "left"
-            s.text(gridx[1], minylim, "SW $beginpos", backgroundcolor="w", ha = ha)
-            ha = inverted ? "left" : "right"
-            s.text(gridx[end], minylim, "NE $endpos", backgroundcolor="w", ha = ha)  
+            dir1, dir2 = "SW", "NE"
+            if EWline
+                dir1, dir2 = "W", "E"
+            elseif NSline
+                dir1, dir2 = "S", "N"
+            end    
         elseif !Eislast & Nislast # old EN
-            ha = inverted ? "right" : "left"  
-            s.text(gridx[1], minylim, "SE $beginpos", backgroundcolor="w", ha = ha)
-            ha = inverted ? "left" : "right"
-            s.text(gridx[end], minylim, "NW $endpos", backgroundcolor="w", ha = ha) 
+            dir1, dir2 = "SE", "NW"
+            if EWline
+                dir1, dir2 = "E", "W"
+            elseif NSline
+                dir1, dir2 = "S", "N"
+            end 
         elseif Eislast & !Nislast # old WS
-            ha = inverted ? "right" : "left"
-            s.text(gridx[1], minylim, "NW $beginpos", backgroundcolor="w", ha = ha)
-            ha = inverted ? "left" : "right"
-            s.text(gridx[end], minylim, "SE $endpos", backgroundcolor="w", ha = ha)
+            dir1, dir2 = "NW", "SE"
+            if EWline
+                dir1, dir2 = "W", "E"
+            elseif NSline
+                dir1, dir2 = "N", "S"
+            end 
         else # old ES
-            ha = inverted ? "right" : "left"   
-            s.text(gridx[1], minylim, "NE $beginpos", backgroundcolor="w", ha = ha)
-            ha = inverted ? "left" : "right"
-            s.text(gridx[end], minylim, "SW $endpos", backgroundcolor="w", ha = ha)
-        end    
+            dir1, dir2 = "NE", "SW"
+            if EWline
+                dir1, dir2 = "E", "W"
+            elseif NSline
+                dir1, dir2 = "N", "S"
+            end 
+        end
+        ha = inverted ? "right" : "left"
+        s.text(gridx[1], minylim, dir1*" $beginpos", backgroundcolor="w", ha = ha)
+        ha = inverted ? "left" : "right"
+        s.text(gridx[end], minylim, dir2*" $endpos", backgroundcolor="w", ha = ha)      
     end
+    flipline(preferNright, preferEright, Nislast, Eislast, axarray[end])
+end
+
+function flipline(preferNright, preferEright, Nislast, Eislast, ax)
+    @assert !(preferEright & preferNright) #both true means don't know what you're doing
+    (preferNright && !Nislast) && ax.invert_xaxis()
+    (preferEright && !Eislast) && ax.invert_xaxis()
 end
 
 function plotprofile(ax, idxs, Z, R)

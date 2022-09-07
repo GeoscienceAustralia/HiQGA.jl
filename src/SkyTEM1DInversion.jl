@@ -1019,11 +1019,10 @@ function plotindividualsoundings(soundings::Array{SkyTEMsoundingData, 1}, opt::O
     end    
 end
 
-function plotsummarygrids1(meangrid, phgrid, plgrid, pmgrid, gridx, gridz, topofine, R, Z, χ²mean, χ²sd, lname; qp1=0.05, qp2=0.95,
-                        figsize=(10,10), fontsize=12, cmap="turbo", vmin=-2, vmax=0.5, Eislast=true, Nislast=true,
+function plotsummarygrids1(soundings, meangrid, phgrid, plgrid, pmgrid, gridx, gridz, topofine, R, Z, χ²mean, χ²sd, lname; qp1=0.05, qp2=0.95,
+                        figsize=(10,10), fontsize=12, cmap="turbo", vmin=-2, vmax=0.5, 
                         topowidth=2, idx=nothing, omitconvergence=false, useML=false, preferEright=false, preferNright=false,
                         saveplot=false, yl=nothing, dpi=300, showplot=true, showmean=false)
-    
     dr = diff(gridx)[1]
     nrows = omitconvergence ? 5 : 6
     height_ratios = omitconvergence ? [1, 1, 1, 1, 0.1] : [0.4, 1, 1, 1, 1, 0.1]
@@ -1092,9 +1091,7 @@ function plotsummarygrids1(meangrid, phgrid, plgrid, pmgrid, gridx, gridz, topof
     map(x->x.tick_params(labelbottom=false), s[1:end-2])
     map(x->x.grid(), s[1:end-1])
     isa(yl, Nothing) || s[end-1].set_ylim(yl...)
-    plotNEWSlabels(Eislast, Nislast, gridx, gridz, s[1:end-1]; preferEright, preferNright)
-    (preferNright && !Nislast) && s[end-1].invert_xaxis()
-    (preferEright && !Eislast) && s[end-1].invert_xaxis()
+    plotNEWSlabels(soundings, gridx, gridz, s[1:end-1]; preferEright, preferNright)
     f.colorbar(imlast, cax=s[end], orientation="horizontal", label="Log₁₀ S/m")
     nicenup(f, fsize=fontsize)
     saveplot && savefig(lname*".png", dpi=dpi)
@@ -1220,10 +1217,9 @@ function summaryimages(soundings::Array{SkyTEMsoundingData, 1}, opt::Options;
                                                             vdmean, vddev, zall, dz, dr=dr)
 
     lname = "Line $(soundings[1].linenum)"
-    Eislast, Nislast = whichislast(soundings)
-    plotsummarygrids1(σmeangrid, phgrid, plgrid, pmgrid, gridx, gridz, topofine, R, Z, χ²mean, χ²sd, lname, qp1=qp1, qp2=qp2,
-                        figsize=figsize, fontsize=fontsize, cmap=cmap, vmin=vmin, vmax=vmax, Eislast=Eislast,
-                        Nislast=Nislast, topowidth=topowidth, idx=idx, omitconvergence=omitconvergence, useML=useML,
+    plotsummarygrids1(soundings, σmeangrid, phgrid, plgrid, pmgrid, gridx, gridz, topofine, R, Z, χ²mean, χ²sd, lname, qp1=qp1, qp2=qp2,
+                        figsize=figsize, fontsize=fontsize, cmap=cmap, vmin=vmin, vmax=vmax, 
+                        topowidth=topowidth, idx=idx, omitconvergence=omitconvergence, useML=useML,
                         preferEright=preferEright, preferNright=preferNright, saveplot=saveplot, showplot=showplot, dpi=dpi,
                         yl=yl; showmean)                  
     if showderivs
@@ -1265,7 +1261,7 @@ end
 
 # plot the convergence and the result
 function splitlineconvandlast(soundings, delr, delz; 
-        zstart=-1, extendfrac=-1, dz=-1, nlayers=-1, cmapσ="jet", vmin=-2.5, vmax=0.5, fontsize=12,
+        zstart=-1, extendfrac=-1, dz=-1, nlayers=-1, cmapσ="turbo", vmin=-2.5, vmax=0.5, fontsize=12,
         figsize=(20,5),
         topowidth=1,
         preferEright = false,
@@ -1332,7 +1328,7 @@ end
 
 function plotconvandlast(soundings, σ, ϕd, delr, delz; 
         idx = nothing, #array of sounding indexes at a line to draw profile
-        zall=nothing, cmapσ="jet", vmin=-2.5, vmax=0.5, fontsize=12,
+        zall=nothing, cmapσ="turbo", vmin=-2.5, vmax=0.5, fontsize=12,
         figsize=(20,5),
         topowidth=1,
         preferEright = false,
@@ -1345,7 +1341,6 @@ function plotconvandlast(soundings, σ, ϕd, delr, delz;
         markersize = 2,
         dpi = 400)
     @assert !isnothing(zall)
-    @show Eislast, Nislast = whichislast(soundings)
     # ϕd, σ = readingrid(soundings, zall)
     img, gridr, gridz, topofine, R = makegrid(σ, soundings, zall=zall, dz=delz, dr=delr)
     fig, ax = plt.subplots(3, 1, gridspec_kw=Dict("height_ratios" => [1,1,4]),
@@ -1376,11 +1371,9 @@ function plotconvandlast(soundings, σ, ϕd, delr, delz;
     ax[3].set_xlabel("Distance m")
     fig.colorbar(imlast, ax=ax[3], location="bottom", shrink=0.6, label="Log₁₀ S/m")
     nicenup(fig, fsize=fontsize)
-    plotNEWSlabels(Eislast, Nislast, gridr, gridz, [ax[3]], x0, y0, xend, yend, 
-                    preferEright=preferEright, preferNright=preferNright)
     ax[3].set_xlim(extrema(gridr))
-    (preferNright && !Nislast) && ax[end].invert_xaxis()
-    (preferEright && !Eislast) && ax[end].invert_xaxis()
+    plotNEWSlabels(soundings, gridr, gridz, [ax[3]], x0, y0, xend, yend, 
+                    preferEright=preferEright, preferNright=preferNright)
     saveplot && savefig(lname*".png", dpi=dpi)
     showplot || close(fig)
 end    
