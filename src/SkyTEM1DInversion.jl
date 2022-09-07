@@ -1019,122 +1019,6 @@ function plotindividualsoundings(soundings::Array{SkyTEMsoundingData, 1}, opt::O
     end    
 end
 
-function plotsummarygrids1(soundings, meangrid, phgrid, plgrid, pmgrid, gridx, gridz, topofine, R, Z, χ²mean, χ²sd, lname; qp1=0.05, qp2=0.95,
-                        figsize=(10,10), fontsize=12, cmap="turbo", vmin=-2, vmax=0.5, 
-                        topowidth=2, idx=nothing, omitconvergence=false, useML=false, preferEright=false, preferNright=false,
-                        saveplot=false, yl=nothing, dpi=300, showplot=true, showmean=false)
-    dr = diff(gridx)[1]
-    nrows = omitconvergence ? 5 : 6
-    height_ratios = omitconvergence ? [1, 1, 1, 1, 0.1] : [0.4, 1, 1, 1, 1, 0.1]
-    if !showmean 
-        height_ratios = [height_ratios[1:2]..., height_ratios[4:end]...]
-        nrows-=1
-    end    
-    f, s = plt.subplots(nrows, 1, gridspec_kw=Dict("height_ratios" => height_ratios),
-                        figsize=figsize)
-    f.suptitle(lname*" Δx=$dr m, Fids: $(length(R))", fontsize=fontsize)
-    icol = 1
-    if !omitconvergence
-        s[icol] = subplot(nrows, 1, icol)
-        if useML
-            s[icol].plot(R, exp.(χ²mean))
-            s[icol].semilogy(R, ones(length(R)), "--k")
-            s[icol].set_ylabel("variance factor")
-            s[icol].set_title("Max likelihood variance adjustment")
-        else
-            s[icol].plot(R, χ²mean)
-            s[icol].plot(R, ones(length(R)), "--k")
-            s[icol].fill_between(R, vec(χ²mean-χ²sd), vec(χ²mean+χ²sd), alpha=0.5)
-            s[icol].set_ylabel(L"ϕ_d")
-            s[icol].set_title("Data misfit")
-        end
-        icol += 1
-    end
-    s[icol].imshow(plgrid, cmap=cmap, aspect="auto", vmax=vmax, vmin = vmin,
-                extent=[gridx[1], gridx[end], gridz[end], gridz[1]])
-    s[icol].plot(gridx, topofine, linewidth=topowidth, "-k")
-    idx == nothing || plotprofile(s[icol], idx, Z, R)
-    s[icol].set_title("Percentile $(round(Int, 100*qp1)) conductivity")
-    s[icol].set_ylabel("Height m")
-    omitconvergence || s[icol].sharex(s[icol-1])
-    icol += 1
-    s[icol].imshow(pmgrid, cmap=cmap, aspect="auto", vmax=vmax, vmin = vmin,
-                extent=[gridx[1], gridx[end], gridz[end], gridz[1]])
-    s[icol].plot(gridx, topofine, linewidth=topowidth, "-k")
-    s[icol].set_title("Percentile 50 conductivity")
-    idx == nothing || plotprofile(s[icol], idx, Z, R)
-    s[icol].set_ylabel("Height m")
-    s[icol].sharex(s[icol-1])
-    s[icol].sharey(s[icol-1])
-    icol += 1
-    if showmean
-        s[icol].imshow(meangrid, cmap=cmap, aspect="auto", vmax=vmax, vmin = vmin,
-                    extent=[gridx[1], gridx[end], gridz[end], gridz[1]])
-        s[icol].plot(gridx, topofine, linewidth=topowidth, "-k")
-        s[icol].set_title("Mean conductivity")
-        s[icol].set_ylabel("Height m")
-        idx == nothing || plotprofile(s[icol], idx, Z, R)
-        s[icol].sharex(s[icol-1])
-        s[icol].sharey(s[icol-1])
-        icol +=1
-    end    
-    imlast = s[icol].imshow(phgrid, cmap=cmap, aspect="auto", vmax=vmax, vmin = vmin,
-                extent=[gridx[1], gridx[end], gridz[end], gridz[1]])
-    s[icol].plot(gridx, topofine, linewidth=topowidth, "-k")
-    s[icol].set_xlabel("Line distance m")
-    s[icol].set_title("Percentile $(round(Int, 100*qp2)) conductivity")
-    s[icol].set_ylabel("Height m")
-    idx == nothing || plotprofile(s[icol], idx, Z, R)
-    s[icol].sharex(s[icol-1])
-    s[icol].sharey(s[icol-1])
-    s[icol].set_xlim(extrema(gridx))
-    map(x->x.tick_params(labelbottom=false), s[1:end-2])
-    map(x->x.grid(), s[1:end-1])
-    isa(yl, Nothing) || s[end-1].set_ylim(yl...)
-    plotNEWSlabels(soundings, gridx, gridz, s[1:end-1]; preferEright, preferNright)
-    f.colorbar(imlast, cax=s[end], orientation="horizontal", label="Log₁₀ S/m")
-    nicenup(f, fsize=fontsize)
-    saveplot && savefig(lname*".png", dpi=dpi)
-    showplot || close(f)
-end
-
-function plotsummarygrids2(σmeangrid, ∇zmeangrid, ∇zsdgrid, cigrid, gridx, gridz, topofine, lname;
-        qp1=0.05, qp2=0.95, Eislast=true, Nislast=true,
-        figsize=(10,10), fontsize=12, cmap="viridis", vmin=-2, vmax=0.5, topowidth=2)
-    f = figure(figsize=figsize)
-    f.suptitle(lname, fontsize=fontsize)
-    s1 = subplot(411)
-    imshow(σmeangrid, cmap=cmap, aspect="auto", vmax=vmax, vmin = vmin,
-                extent=[gridx[1], gridx[end], gridz[end], gridz[1]])
-    title("Mean conductivity")
-    ylabel("Height m")
-    colorbar()
-    s2 = subplot(412, sharex=s1)
-    imshow(abs.(cigrid), cmap=cmap, aspect="auto",
-                extent=[gridx[1], gridx[end], gridz[end], gridz[1]])
-    plot(gridx, topofine, linewidth=topowidth, "-k")
-    title("CI: $(round(Int, 100*(qp2-qp1))) conductivity")
-    ylabel("Height m")
-    colorbar()
-    s3 = subplot(413, sharex=s2, sharey=s2)
-    imshow(∇zmeangrid, cmap=cmap, aspect="auto",
-                extent=[gridx[1], gridx[end], gridz[end], gridz[1]])
-    plot(gridx, topofine, linewidth=topowidth, "-k")
-    title("Mean conductivity vertical derivative")
-    ylabel("Height m")
-    colorbar()
-    s4 = subplot(414, sharex=s2, sharey=s2)
-    imlast = imshow(∇zsdgrid, cmap=cmap, aspect="auto",
-                extent=[gridx[1], gridx[end], gridz[end], gridz[1]])
-    plot(gridx, topofine, linewidth=topowidth, "-k")
-    xlabel("Line distance m")
-    title("Std dev of conductivity vertical derivative")
-    ylabel("Height m")
-    colorbar()
-    xlim(extrema(gridx))
-    nicenup(f, fsize=fontsize)
-end   
-
 function splitlinesummaryimages(soundings::Array{SkyTEMsoundingData, 1}, opt::Options;
                         qp1=0.05,
                         qp2=0.95,
@@ -1192,7 +1076,6 @@ function summaryimages(soundings::Array{SkyTEMsoundingData, 1}, opt::Options;
                         figsize=(6,10),
                         topowidth=2,
                         idx = nothing,
-                        showderivs = false,
                         omitconvergence = false,
                         useML = false,
                         preferEright = false,
@@ -1217,17 +1100,11 @@ function summaryimages(soundings::Array{SkyTEMsoundingData, 1}, opt::Options;
                                                             vdmean, vddev, zall, dz, dr=dr)
 
     lname = "Line $(soundings[1].linenum)"
-    plotsummarygrids1(soundings, σmeangrid, phgrid, plgrid, pmgrid, gridx, gridz, topofine, R, Z, χ²mean, χ²sd, lname, qp1=qp1, qp2=qp2,
-                        figsize=figsize, fontsize=fontsize, cmap=cmap, vmin=vmin, vmax=vmax, 
-                        topowidth=topowidth, idx=idx, omitconvergence=omitconvergence, useML=useML,
-                        preferEright=preferEright, preferNright=preferNright, saveplot=saveplot, showplot=showplot, dpi=dpi,
-                        yl=yl; showmean)                  
-    if showderivs
-        cigrid = phgrid - plgrid
-        plotsummarygrids2(σmeangrid, ∇zmeangrid, ∇zsdgrid, cigrid, gridx, gridz, topofine, lname, qp1=qp1, qp2=qp2,
-                        figsize=figsize, fontsize=fontsize, cmap=cmap, vmin=vmin, vmax=vmax, topowidth=topowidth,
-                        Eislast=Eislast, Nislast=Nislast)
-    end
+    plotsummarygrids1(soundings, σmeangrid, phgrid, plgrid, pmgrid, gridx, gridz, topofine, R, Z, χ²mean, χ²sd, lname; qp1, qp2,
+                        figsize, fontsize, cmap, vmin, vmax, 
+                        topowidth, idx, omitconvergence, useML,
+                        preferEright, preferNright, saveplot, showplot, dpi,
+                        yl, showmean)                  
 end
 
 # for deterministic inversions, read in

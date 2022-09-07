@@ -11,7 +11,7 @@ export trimxft, assembleTat1, gettargtemps, checkns, getchi2forall, nicenup,
         assemblenuisancesatT, makenuisancehists, stretchexists,
         makegrid, whichislast, makesummarygrid, makearray, plotNEWSlabels, 
         plotprofile, gridpoints, splitsoundingsbyline, dfn2hdr, getgdfprefix, 
-        pairinteractionplot, flipline
+        pairinteractionplot, flipline, summaryconductivity, plotsummarygrids1
 
 function trimxft(opt::Options, burninfrac::Float64, temperaturenum::Int)
     x_ft = assembleTat1(opt, :x_ftrain, burninfrac=burninfrac, temperaturenum=temperaturenum)
@@ -1047,6 +1047,93 @@ function plotprofile(ax, idxs, Z, R)
         ax.plot(R[idx]*[1,1], [ax.get_ylim()[1], Z[idx]], "-w")
         ax.plot(R[idx]*[1,1], [ax.get_ylim()[1], Z[idx]], "--k")
     end
+end
+
+function plotsummarygrids1(soundings, meangrid, phgrid, plgrid, pmgrid, gridx, gridz, topofine, R, Z, χ²mean, χ²sd, lname; qp1=0.05, qp2=0.95,
+                        figsize=(10,10), fontsize=12, cmap="turbo", vmin=-2, vmax=0.5, 
+                        topowidth=2, idx=nothing, omitconvergence=false, useML=false, preferEright=false, preferNright=false,
+                        saveplot=false, yl=nothing, dpi=300, showplot=true, showmean=false)
+    dr = diff(gridx)[1]
+    nrows = omitconvergence ? 5 : 6
+    height_ratios = omitconvergence ? [1, 1, 1, 1, 0.1] : [0.4, 1, 1, 1, 1, 0.1]
+    if !showmean 
+        height_ratios = [height_ratios[1:2]..., height_ratios[4:end]...]
+        nrows-=1
+    end    
+    f, s = plt.subplots(nrows, 1, gridspec_kw=Dict("height_ratios" => height_ratios),
+                        figsize=figsize)
+    f.suptitle(lname*" Δx=$dr m, Fids: $(length(R))", fontsize=fontsize)
+    icol = 1
+    if !omitconvergence
+        if useML
+            s[icol].plot(R, exp.(χ²mean))
+            s[icol].semilogy(R, ones(length(R)), "--k")
+            s[icol].set_ylabel("variance factor")
+            s[icol].set_title("Max likelihood variance adjustment")
+        else
+            s[icol].plot(R, χ²mean)
+            s[icol].plot(R, ones(length(R)), "--k")
+            s[icol].fill_between(R, vec(χ²mean-χ²sd), vec(χ²mean+χ²sd), alpha=0.5)
+            s[icol].set_ylabel(L"ϕ_d")
+            s[icol].set_title("Data misfit")
+        end
+        icol += 1
+    end
+
+    summaryconductivity(s, icol, f, soundings, meangrid, phgrid, plgrid, pmgrid, gridx, gridz, topofine, R, Z, ; qp1, qp2, fontsize, 
+        cmap, vmin, vmax, topowidth, idx, omitconvergence, preferEright, preferNright, yl, showmean)
+    
+    saveplot && savefig(lname*".png", dpi=dpi)
+    showplot || close(f)
+end
+
+function summaryconductivity(s, icol, f, soundings, meangrid, phgrid, plgrid, pmgrid, gridx, gridz, topofine, R, Z, ; qp1=0.05, qp2=0.95,
+    fontsize=12, cmap="turbo", vmin=-2, vmax=0.5, topowidth=2, idx=nothing, omitconvergence=false, preferEright=false, preferNright=false,
+    yl=nothing,showmean=false)
+    s[icol].imshow(plgrid, cmap=cmap, aspect="auto", vmax=vmax, vmin = vmin,
+                extent=[gridx[1], gridx[end], gridz[end], gridz[1]])
+    s[icol].plot(gridx, topofine, linewidth=topowidth, "-k")
+    idx == nothing || plotprofile(s[icol], idx, Z, R)
+    s[icol].set_title("Percentile $(round(Int, 100*qp1)) conductivity")
+    s[icol].set_ylabel("Height m")
+    omitconvergence || s[icol].sharex(s[icol-1])
+    icol += 1
+    s[icol].imshow(pmgrid, cmap=cmap, aspect="auto", vmax=vmax, vmin = vmin,
+                extent=[gridx[1], gridx[end], gridz[end], gridz[1]])
+    s[icol].plot(gridx, topofine, linewidth=topowidth, "-k")
+    s[icol].set_title("Percentile 50 conductivity")
+    idx == nothing || plotprofile(s[icol], idx, Z, R)
+    s[icol].set_ylabel("Height m")
+    s[icol].sharex(s[icol-1])
+    s[icol].sharey(s[icol-1])
+    icol += 1
+    if showmean
+        s[icol].imshow(meangrid, cmap=cmap, aspect="auto", vmax=vmax, vmin = vmin,
+                    extent=[gridx[1], gridx[end], gridz[end], gridz[1]])
+        s[icol].plot(gridx, topofine, linewidth=topowidth, "-k")
+        s[icol].set_title("Mean conductivity")
+        s[icol].set_ylabel("Height m")
+        idx == nothing || plotprofile(s[icol], idx, Z, R)
+        s[icol].sharex(s[icol-1])
+        s[icol].sharey(s[icol-1])
+        icol +=1
+    end    
+    imlast = s[icol].imshow(phgrid, cmap=cmap, aspect="auto", vmax=vmax, vmin = vmin,
+                extent=[gridx[1], gridx[end], gridz[end], gridz[1]])
+    s[icol].plot(gridx, topofine, linewidth=topowidth, "-k")
+    s[icol].set_xlabel("Line distance m")
+    s[icol].set_title("Percentile $(round(Int, 100*qp2)) conductivity")
+    s[icol].set_ylabel("Height m")
+    idx == nothing || plotprofile(s[icol], idx, Z, R)
+    s[icol].sharex(s[icol-1])
+    s[icol].sharey(s[icol-1])
+    s[icol].set_xlim(extrema(gridx))
+    map(x->x.set_xticklabels([]), s[1:end-2])
+    map(x->x.grid(), s[1:end-1])
+    isa(yl, Nothing) || s[end-1].set_ylim(yl...)
+    plotNEWSlabels(soundings, gridx, gridz, s[1:end-1]; preferEright, preferNright)
+    f.colorbar(imlast, cax=s[end], orientation="horizontal", label="Log₁₀ S/m")
+    nicenup(f, fsize=fontsize)
 end
 
 function selectwithin1Dinterval(M::AbstractVector, z, 
