@@ -1108,6 +1108,7 @@ function plotnuquant(nqlow, nqmid, nqhigh, nunominal, s, gridx, icol, nrows, ms=
         s[icol].plot(gridx, nqmid[inu,:])
         s[icol].plot(gridx, nunominal[inu,:], "o", markersize=ms)
         labelnu[1] == "" || s[icol].set_title(labelnu[inu])
+        labelnu[1] == "" || s[icol].set_ylabel(labelnu[inu])
         icol += 1
     end
     icol    

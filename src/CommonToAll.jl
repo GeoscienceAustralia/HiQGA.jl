@@ -1,6 +1,6 @@
 module CommonToAll
 using PyPlot, StatsBase, Statistics, Distances, LinearAlgebra,
-      DelimitedFiles, ..AbstractOperator, NearestNeighbors
+      DelimitedFiles, ..AbstractOperator, NearestNeighbors, Printf
 
 import ..Options, ..OptionsStat, ..OptionsNonstat, ..OptionsNuisance,
        ..history, ..GP.κ, ..calcfstar!, ..AbstractOperator.Sounding
@@ -561,7 +561,7 @@ function makezρ(zboundaries::Array{Float64, 1};
     z, ρ, nfixed
 end
 
-function nicenup(g::PyPlot.Figure;fsize=16)
+function nicenup(g::PyPlot.Figure;fsize=16, h_pad=nothing)
     for ax in gcf().axes
         ax.tick_params("both",labelsize=fsize)
         ax.xaxis.label.set_fontsize(fsize)
@@ -573,7 +573,11 @@ function nicenup(g::PyPlot.Figure;fsize=16)
             ax.legend(loc="best", fontsize=fsize)
         end
     end
-    g.tight_layout()
+    if isnothing(h_pad)
+        g.tight_layout()
+    else
+        g.tight_layout(;h_pad)
+    end        
 end
 
 function plot_posterior(F::Operator1D,
@@ -1121,19 +1125,36 @@ function summaryconductivity(s, icol, f, soundings, meangrid, phgrid, plgrid, pm
     imlast = s[icol].imshow(phgrid, cmap=cmap, aspect="auto", vmax=vmax, vmin = vmin,
                 extent=[gridx[1], gridx[end], gridz[end], gridz[1]])
     s[icol].plot(gridx, topofine, linewidth=topowidth, "-k")
-    s[icol].set_xlabel("Line distance m")
+    s[icol].set_xlabel("Line distance m", labelpad=0)
     s[icol].set_title("Percentile $(round(Int, 100*qp2)) conductivity")
     s[icol].set_ylabel("Height m")
     idx == nothing || plotprofile(s[icol], idx, Z, R)
     s[icol].sharex(s[icol-1])
     s[icol].sharey(s[icol-1])
     s[icol].set_xlim(extrema(gridx))
-    map(x->x.set_xticklabels([]), s[1:end-2])
-    map(x->x.grid(), s[1:end-1])
+    # map(x->x.set_xticklabels([]), s[1:end-2])
+    map(x->x.tick_params(labelbottom=false), s[1:end-2])
+    # map(x->x.grid(), s[1:end-1])
     isa(yl, Nothing) || s[end-1].set_ylim(yl...)
     plotNEWSlabels(soundings, gridx, gridz, s[1:end-1]; preferEright, preferNright)
-    f.colorbar(imlast, cax=s[end], orientation="horizontal", label="Log₁₀ S/m")
-    nicenup(f, fsize=fontsize)
+    cb = f.colorbar(imlast, cax=s[end], orientation="horizontal")
+    cb.set_label("Log₁₀ S/m", labelpad=0)
+    nicenup(f, fsize=fontsize, h_pad=0)
+    label = f._suptitle.get_text()
+    VE = getVE(s[end-1])
+    f.suptitle(label*", VE=$(@sprintf("%.2f", VE))X")
+end
+
+function getVE(ax)
+    figW, figH = ax.get_figure().get_size_inches()
+    # Axis size on figure
+    _, _, w, h = ax.get_position().bounds
+    # Ratio of display units
+    disp_ratio = (figH * h) / (figW * w)
+    # Ratio of data units
+    # Negative over negative because of the order of subtraction
+    data_ratio = abs.(diff([ax.get_ylim()...])[1] / diff([ax.get_xlim()...])[1])
+    return disp_ratio / data_ratio
 end
 
 function selectwithin1Dinterval(M::AbstractVector, z, 
