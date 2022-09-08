@@ -1053,7 +1053,7 @@ function splitlinesummaryimages(soundings::Array{SkyTEMsoundingData, 1}, opt::Op
         b = i != nlines ?  linestartidx[i+1]-1 : length(soundings)
         summaryimages(soundings[a:b], opt, qp1=qp1, qp2=qp2, burninfrac=burninfrac, zstart=zstart,
             extendfrac=extendfrac, dz=dz, dr=dr, nlayers=nlayers, fontsize=fontsize, vmin=vmin, 
-            vmax = vmax, cmap=cmap, figsize=figsize, topowidth=topowidth, idx=idx, showderivs=showderivs,
+            vmax = vmax, cmap=cmap, figsize=figsize, topowidth=topowidth, idx=idx, 
             omitconvergence=omitconvergence, useML=useML, preferEright=preferEright, showplot=showplot,
             preferNright=preferNright, saveplot=saveplot, yl=yl, dpi=dpi; showmean)
     end
