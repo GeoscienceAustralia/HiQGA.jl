@@ -1071,6 +1071,7 @@ function plotsummarygrids1(soundings, meangrid, phgrid, plgrid, pmgrid, gridx, g
     if !omitconvergence
         if useML
             s[icol].plot(R, exp.(χ²mean))
+            s[icol].fill_between(R, vec(exp.(χ²mean)-exp.(χ²sd)), vec(exp.(χ²mean)+exp.(χ²sd)), alpha=0.5)
             s[icol].semilogy(R, ones(length(R)), "--k")
             s[icol].set_ylabel("variance factor")
             s[icol].set_title("Max likelihood variance adjustment")
