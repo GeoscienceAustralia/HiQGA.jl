@@ -1019,118 +1019,6 @@ function plotindividualsoundings(soundings::Array{SkyTEMsoundingData, 1}, opt::O
     end    
 end
 
-function plotsummarygrids1(meangrid, phgrid, plgrid, pmgrid, gridx, gridz, topofine, R, Z, χ²mean, χ²sd, lname; qp1=0.05, qp2=0.95,
-                        figsize=(10,10), fontsize=12, cmap="viridis", vmin=-2, vmax=0.5, Eislast=true, Nislast=true,
-                        topowidth=2, idx=nothing, omitconvergence=false, useML=false, preferEright=false, preferNright=false,
-                        saveplot=false, yl=nothing, botadjust=[0.125, 0.05, 0.75, 0.01], dpi=300, showplot=true)
-    f = figure(figsize=figsize)
-    dr = diff(gridx)[1]
-    f.suptitle(lname*" Δx=$dr m, Fids: $(length(R))", fontsize=fontsize)
-    nrows = omitconvergence ? 4 : 5
-    icol = 1
-    s = Array{Any, 1}(undef, nrows)
-    if !omitconvergence
-        s[icol] = subplot(nrows, 1, icol)
-        if useML
-            plot(R, exp.(χ²mean))
-            semilogy(R, ones(length(R)), "--k")
-            ylabel("variance factor")
-            title("Max likelihood variance adjustment")
-        else
-            plot(R, χ²mean)
-            plot(R, ones(length(R)), "--k")
-            fill_between(R, vec(χ²mean-χ²sd), vec(χ²mean+χ²sd), alpha=0.5)
-            ylabel(L"ϕ_d")
-            title("Data misfit")
-        end
-        icol += 1
-    end
-    s[icol] = omitconvergence ? subplot(nrows, 1, icol) : subplot(nrows, 1, icol, sharex=s[icol-1])
-    imshow(plgrid, cmap=cmap, aspect="auto", vmax=vmax, vmin = vmin,
-                extent=[gridx[1], gridx[end], gridz[end], gridz[1]])
-    plot(gridx, topofine, linewidth=topowidth, "-k")
-    idx == nothing || plotprofile(s[icol], idx, Z, R)
-    title("Percentile $(round(Int, 100*qp1)) conductivity")
-    ylabel("Height m")
-    icol += 1
-    s[icol] = subplot(nrows, 1, icol, sharex=s[icol-1], sharey=s[icol-1])
-    imshow(pmgrid, cmap=cmap, aspect="auto", vmax=vmax, vmin = vmin,
-                extent=[gridx[1], gridx[end], gridz[end], gridz[1]])
-    plot(gridx, topofine, linewidth=topowidth, "-k")
-    title("Percentile 50 conductivity")
-    idx == nothing || plotprofile(s[icol], idx, Z, R)
-    ylabel("Height m")
-    icol += 1
-    s[icol] = subplot(nrows, 1, icol, sharex=s[icol-1], sharey=s[icol-1])
-    imshow(meangrid, cmap=cmap, aspect="auto", vmax=vmax, vmin = vmin,
-                extent=[gridx[1], gridx[end], gridz[end], gridz[1]])
-    plot(gridx, topofine, linewidth=topowidth, "-k")
-    title("Mean conductivity")
-    ylabel("Height m")
-    idx == nothing || plotprofile(s[icol], idx, Z, R)
-    icol +=1
-    s[icol] = subplot(nrows, 1, icol, sharex=s[icol-1], sharey=s[icol-1])
-    imlast = imshow(phgrid, cmap=cmap, aspect="auto", vmax=vmax, vmin = vmin,
-                extent=[gridx[1], gridx[end], gridz[end], gridz[1]])
-    plot(gridx, topofine, linewidth=topowidth, "-k")
-    xlabel("Line distance m")
-    title("Percentile $(round(Int, 100*qp2)) conductivity")
-    ylabel("Height m")
-    idx == nothing || plotprofile(s[icol], idx, Z, R)
-    xlim(extrema(gridx))
-    map(x->x.tick_params(labelbottom=false), s[1:end-1])
-    map(x->x.grid(), s)
-    nicenup(f, fsize=fontsize)
-    isa(yl, Nothing) || s[end].set_ylim(yl...)
-    plotNEWSlabels(Eislast, Nislast, gridx, gridz, s)
-    f.subplots_adjust(bottom=0.125)
-    cbar_ax = f.add_axes(botadjust)
-    cb = f.colorbar(imlast, cax=cbar_ax, orientation="horizontal",)
-    cb.ax.set_xlabel("Log₁₀ S/m", fontsize=fontsize)
-    cb.ax.tick_params(labelsize=fontsize)
-    (preferNright && !Nislast) && s[end].invert_xaxis()
-    (preferEright && !Eislast) && s[end].invert_xaxis()
-    saveplot && savefig(lname*".png", dpi=dpi)
-    showplot || close(f)
-end
-
-function plotsummarygrids2(σmeangrid, ∇zmeangrid, ∇zsdgrid, cigrid, gridx, gridz, topofine, lname;
-        qp1=0.05, qp2=0.95, Eislast=true, Nislast=true,
-        figsize=(10,10), fontsize=12, cmap="viridis", vmin=-2, vmax=0.5, topowidth=2)
-    f = figure(figsize=figsize)
-    f.suptitle(lname, fontsize=fontsize)
-    s1 = subplot(411)
-    imshow(σmeangrid, cmap=cmap, aspect="auto", vmax=vmax, vmin = vmin,
-                extent=[gridx[1], gridx[end], gridz[end], gridz[1]])
-    title("Mean conductivity")
-    ylabel("Height m")
-    colorbar()
-    s2 = subplot(412, sharex=s1)
-    imshow(abs.(cigrid), cmap=cmap, aspect="auto",
-                extent=[gridx[1], gridx[end], gridz[end], gridz[1]])
-    plot(gridx, topofine, linewidth=topowidth, "-k")
-    title("CI: $(round(Int, 100*(qp2-qp1))) conductivity")
-    ylabel("Height m")
-    colorbar()
-    s3 = subplot(413, sharex=s2, sharey=s2)
-    imshow(∇zmeangrid, cmap=cmap, aspect="auto",
-                extent=[gridx[1], gridx[end], gridz[end], gridz[1]])
-    plot(gridx, topofine, linewidth=topowidth, "-k")
-    title("Mean conductivity vertical derivative")
-    ylabel("Height m")
-    colorbar()
-    s4 = subplot(414, sharex=s2, sharey=s2)
-    imlast = imshow(∇zsdgrid, cmap=cmap, aspect="auto",
-                extent=[gridx[1], gridx[end], gridz[end], gridz[1]])
-    plot(gridx, topofine, linewidth=topowidth, "-k")
-    xlabel("Line distance m")
-    title("Std dev of conductivity vertical derivative")
-    ylabel("Height m")
-    colorbar()
-    xlim(extrema(gridx))
-    nicenup(f, fsize=fontsize)
-end   
-
 function splitlinesummaryimages(soundings::Array{SkyTEMsoundingData, 1}, opt::Options;
                         qp1=0.05,
                         qp2=0.95,
@@ -1143,7 +1031,7 @@ function splitlinesummaryimages(soundings::Array{SkyTEMsoundingData, 1}, opt::Op
                         fontsize = 10,
                         vmin = -2,
                         vmax = 0.5,
-                        cmap="viridis",
+                        cmap="turbo",
                         figsize=(6,10),
                         topowidth=2,
                         idx = nothing,
@@ -1155,7 +1043,7 @@ function splitlinesummaryimages(soundings::Array{SkyTEMsoundingData, 1}, opt::Op
                         saveplot = true,
                         yl = nothing,
                         showplot = true,
-                        botadjust=[0.125, 0.05, 0.75, 0.01],
+                        showmean = false,
                         dpi = 300)
     
     linestartidx = splitsoundingsbyline(soundings)                    
@@ -1165,9 +1053,9 @@ function splitlinesummaryimages(soundings::Array{SkyTEMsoundingData, 1}, opt::Op
         b = i != nlines ?  linestartidx[i+1]-1 : length(soundings)
         summaryimages(soundings[a:b], opt, qp1=qp1, qp2=qp2, burninfrac=burninfrac, zstart=zstart,
             extendfrac=extendfrac, dz=dz, dr=dr, nlayers=nlayers, fontsize=fontsize, vmin=vmin, 
-            vmax = vmax, cmap=cmap, figsize=figsize, topowidth=topowidth, idx=idx, showderivs=showderivs,
+            vmax = vmax, cmap=cmap, figsize=figsize, topowidth=topowidth, idx=idx, 
             omitconvergence=omitconvergence, useML=useML, preferEright=preferEright, showplot=showplot,
-            preferNright=preferNright, saveplot=saveplot, yl=yl, botadjust=botadjust, dpi=dpi)
+            preferNright=preferNright, saveplot=saveplot, yl=yl, dpi=dpi; showmean)
     end
     nothing    
 end
@@ -1184,11 +1072,10 @@ function summaryimages(soundings::Array{SkyTEMsoundingData, 1}, opt::Options;
                         fontsize = 10,
                         vmin = -2,
                         vmax = 0.5,
-                        cmap="viridis",
+                        cmap="turbo",
                         figsize=(6,10),
                         topowidth=2,
                         idx = nothing,
-                        showderivs = false,
                         omitconvergence = false,
                         useML = false,
                         preferEright = false,
@@ -1196,7 +1083,7 @@ function summaryimages(soundings::Array{SkyTEMsoundingData, 1}, opt::Options;
                         saveplot = false,
                         yl = nothing,
                         showplot = true,
-                        botadjust=[0.125, 0.05, 0.75, 0.01],
+                        showmean = false,
                         dpi = 300)
     @assert !(preferNright && preferEright) # can't prefer both labels to the right
     pl, pm, ph, ρmean, vdmean, vddev, χ²mean, χ²sd, zall = summarypost(soundings, opt,
@@ -1213,18 +1100,11 @@ function summaryimages(soundings::Array{SkyTEMsoundingData, 1}, opt::Options;
                                                             vdmean, vddev, zall, dz, dr=dr)
 
     lname = "Line $(soundings[1].linenum)"
-    Eislast, Nislast = whichislast(soundings)
-    plotsummarygrids1(σmeangrid, phgrid, plgrid, pmgrid, gridx, gridz, topofine, R, Z, χ²mean, χ²sd, lname, qp1=qp1, qp2=qp2,
-                        figsize=figsize, fontsize=fontsize, cmap=cmap, vmin=vmin, vmax=vmax, Eislast=Eislast,
-                        Nislast=Nislast, topowidth=topowidth, idx=idx, omitconvergence=omitconvergence, useML=useML,
-                        preferEright=preferEright, preferNright=preferNright, saveplot=saveplot, showplot=showplot, dpi=dpi,
-                        yl=yl, botadjust=botadjust)                  
-    if showderivs
-        cigrid = phgrid - plgrid
-        plotsummarygrids2(σmeangrid, ∇zmeangrid, ∇zsdgrid, cigrid, gridx, gridz, topofine, lname, qp1=qp1, qp2=qp2,
-                        figsize=figsize, fontsize=fontsize, cmap=cmap, vmin=vmin, vmax=vmax, topowidth=topowidth,
-                        Eislast=Eislast, Nislast=Nislast)
-    end
+    plotsummarygrids1(soundings, σmeangrid, phgrid, plgrid, pmgrid, gridx, gridz, topofine, R, Z, χ²mean, χ²sd, lname; qp1, qp2,
+                        figsize, fontsize, cmap, vmin, vmax, 
+                        topowidth, idx, omitconvergence, useML,
+                        preferEright, preferNright, saveplot, showplot, dpi,
+                        yl, showmean)                  
 end
 
 # for deterministic inversions, read in
@@ -1258,7 +1138,7 @@ end
 
 # plot the convergence and the result
 function splitlineconvandlast(soundings, delr, delz; 
-        zstart=-1, extendfrac=-1, dz=-1, nlayers=-1, cmapσ="jet", vmin=-2.5, vmax=0.5, fontsize=12,
+        zstart=-1, extendfrac=-1, dz=-1, nlayers=-1, cmapσ="turbo", vmin=-2.5, vmax=0.5, fontsize=12,
         figsize=(20,5),
         topowidth=1,
         preferEright = false,
@@ -1325,7 +1205,7 @@ end
 
 function plotconvandlast(soundings, σ, ϕd, delr, delz; 
         idx = nothing, #array of sounding indexes at a line to draw profile
-        zall=nothing, cmapσ="jet", vmin=-2.5, vmax=0.5, fontsize=12,
+        zall=nothing, cmapσ="turbo", vmin=-2.5, vmax=0.5, fontsize=12,
         figsize=(20,5),
         topowidth=1,
         preferEright = false,
@@ -1338,21 +1218,10 @@ function plotconvandlast(soundings, σ, ϕd, delr, delz;
         markersize = 2,
         dpi = 400)
     @assert !isnothing(zall)
-    Eislast, Nislast = whichislast(soundings)
     # ϕd, σ = readingrid(soundings, zall)
     img, gridr, gridz, topofine, R = makegrid(σ, soundings, zall=zall, dz=delz, dr=delr)
-    fig = plt.figure(figsize=figsize)
-    axd = fig.subplot_mosaic(
-           """
-           A
-           B
-           C
-           C
-           C
-           C
-           C
-           """
-       )
+    fig, ax = plt.subplots(3, 1, gridspec_kw=Dict("height_ratios" => [1,1,4]),
+        figsize=figsize, sharex=true)
     lname = "Line_$(soundings[1].linenum)"*postfix
     x0, y0 = soundings[1].X, soundings[1].Y
     zTx = [s.zTxLM for s in soundings]
@@ -1377,11 +1246,14 @@ function plotconvandlast(soundings, σ, ϕd, delr, delz;
     isa(yl, Nothing) || ax[3].set_ylim(yl...)
     ax[3].set_ylabel("mAHD")
     ax[3].set_xlabel("Distance m")
-    fig.colorbar(imlast, ax=axd["C"], location="bottom", shrink=0.6, label="Log₁₀ S/m")
+    fig.colorbar(imlast, ax=ax[3], location="bottom", shrink=0.6, label="Log₁₀ S/m")
+    ax[3].set_xlim(extrema(gridr))
+    plotNEWSlabels(soundings, gridr, gridz, [ax[3]], x0, y0, xend, yend, 
+    preferEright=preferEright, preferNright=preferNright)
     nicenup(fig, fsize=fontsize)
-    plotNEWSlabels(Eislast, Nislast, gridr, gridz, [ax[3]], x0, y0, xend, yend, 
-                    preferEright=preferEright, preferNright=preferNright)
-    [a.set_xlim(ax[3].get_xlim()) for a in ax[1:2]]
+    label = fig._suptitle.get_text()
+    VE = round(Int, getVE(ax[end-1]))
+    fig.suptitle(label*", VE=$(VE)X")
     saveplot && savefig(lname*".png", dpi=dpi)
     showplot || close(fig)
 end    

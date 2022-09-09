@@ -1060,183 +1060,43 @@ function summarypost(soundings::Array{TempestSoundingData, 1};
     pl, pm, ph, ρmean, vdmean, vddev, χ²mean, χ²sd, zall, nulow, numid, nuhigh, nunominal
 end
 
-function plotsummarygrids1(meangrid, phgrid, plgrid, pmgrid, gridx, gridz, topofine, R, Z, χ²mean, χ²sd, lname; qp1=0.05, qp2=0.95,
-    figsize=(10,10), fontsize=12, cmap="viridis", vmin=-2, vmax=0.5, Eislast=true, Nislast=true,
-    topowidth=2, idx=nothing, omitconvergence=false, useML=false, preferEright=false, preferNright=false,
-    saveplot=false)
-
-    f = figure(figsize=figsize)
-    dr = diff(gridx)[1]
-    f.suptitle(lname*" Δx=$dr m, Fids: $(length(R))", fontsize=fontsize)
-    nrows = omitconvergence ? 4 : 5
-    icol = 1
-    s = Array{Any, 1}(undef, nrows)
-    if !omitconvergence
-        s[icol] = subplot(nrows, 1, icol)
-        if useML
-            plot(R, exp.(χ²mean))
-            semilogy(R, ones(length(R)), "--k")
-            ylabel("variance factor")
-            title("Max likelihood variance adjustment")
-        else
-            plot(R, χ²mean)
-            plot(R, ones(length(R)), "--k")
-            fill_between(R, vec(χ²mean-χ²sd), vec(χ²mean+χ²sd), alpha=0.5)
-            ylabel(L"ϕ_d")
-            title("Data misfit")
-        end
-        icol += 1
-    end
-    s[icol] = omitconvergence ? subplot(nrows, 1, icol) : subplot(nrows, 1, icol, sharex=s[icol-1])
-    imshow(plgrid, cmap=cmap, aspect="auto", vmax=vmax, vmin = vmin,
-    extent=[gridx[1], gridx[end], gridz[end], gridz[1]])
-    plot(gridx, topofine, linewidth=topowidth, "-k")
-    idx == nothing || plotprofile(s[icol], idx, Z, R)
-    title("Percentile $(round(Int, 100*qp1)) conductivity")
-    ylabel("Height m")
-    icol += 1
-    s[icol] = subplot(nrows, 1, icol, sharex=s[icol-1], sharey=s[icol-1])
-    imshow(pmgrid, cmap=cmap, aspect="auto", vmax=vmax, vmin = vmin,
-    extent=[gridx[1], gridx[end], gridz[end], gridz[1]])
-    plot(gridx, topofine, linewidth=topowidth, "-k")
-    title("Percentile 50 conductivity")
-    idx == nothing || plotprofile(s[icol], idx, Z, R)
-    ylabel("Height m")
-    icol += 1
-    s[icol] = subplot(nrows, 1, icol, sharex=s[icol-1], sharey=s[icol-1])
-    imshow(meangrid, cmap=cmap, aspect="auto", vmax=vmax, vmin = vmin,
-    extent=[gridx[1], gridx[end], gridz[end], gridz[1]])
-    plot(gridx, topofine, linewidth=topowidth, "-k")
-    title("Mean conductivity")
-    ylabel("Height m")
-    idx == nothing || plotprofile(s[icol], idx, Z, R)
-    icol +=1
-    s[icol] = subplot(nrows, 1, icol, sharex=s[icol-1], sharey=s[icol-1])
-    imlast = imshow(phgrid, cmap=cmap, aspect="auto", vmax=vmax, vmin = vmin,
-    extent=[gridx[1], gridx[end], gridz[end], gridz[1]])
-    plot(gridx, topofine, linewidth=topowidth, "-k")
-    xlabel("Line distance m")
-    title("Percentile $(round(Int, 100*qp2)) conductivity")
-    ylabel("Height m")
-    idx == nothing || plotprofile(s[icol], idx, Z, R)
-    xlim(extrema(gridx))
-    map(x->x.tick_params(labelbottom=false), s[1:end-1])
-    map(x->x.grid(), s)
-    nicenup(f, fsize=fontsize)
-    plotNEWSlabels(Eislast, Nislast, gridx, gridz, s[(omitconvergence ? 1 : 2 ): end])
-    f.subplots_adjust(bottom=0.125)
-    cbar_ax = f.add_axes([0.125, 0.05, 0.75, 0.01])
-    cb = f.colorbar(imlast, cax=cbar_ax, orientation="horizontal")
-    cb.ax.set_xlabel("Log₁₀ S/m")
-    (preferNright && !Nislast) && s[end].invert_xaxis()
-    (preferEright && !Eislast) && s[end].invert_xaxis()
-    saveplot && savefig(lname*".png", dpi=300)
-end
-
-function plotsummarygrids2(σmeangrid, ∇zmeangrid, ∇zsdgrid, cigrid, gridx, gridz, topofine, lname;
-    qp1=0.05, qp2=0.95, Eislast=true, Nislast=true,
-    figsize=(10,10), fontsize=12, cmap="viridis", vmin=-2, vmax=0.5, topowidth=2)
-
-    f = figure(figsize=figsize)
-    f.suptitle(lname, fontsize=fontsize)
-    s1 = subplot(411)
-    imshow(σmeangrid, cmap=cmap, aspect="auto", vmax=vmax, vmin = vmin,
-                extent=[gridx[1], gridx[end], gridz[end], gridz[1]])
-    title("Mean conductivity")
-    ylabel("Height m")
-    colorbar()
-    s2 = subplot(412, sharex=s1)
-    imshow(abs.(cigrid), cmap=cmap, aspect="auto",
-                extent=[gridx[1], gridx[end], gridz[end], gridz[1]])
-    plot(gridx, topofine, linewidth=topowidth, "-k")
-    title("CI: $(round(Int, 100*(qp2-qp1))) conductivity")
-    ylabel("Height m")
-    colorbar()
-    s3 = subplot(413, sharex=s2, sharey=s2)
-    imshow(∇zmeangrid, cmap=cmap, aspect="auto",
-                extent=[gridx[1], gridx[end], gridz[end], gridz[1]])
-    plot(gridx, topofine, linewidth=topowidth, "-k")
-    title("Mean conductivity vertical derivative")
-    ylabel("Height m")
-    colorbar()
-    s4 = subplot(414, sharex=s2, sharey=s2)
-    imlast = imshow(∇zsdgrid, cmap=cmap, aspect="auto",
-                extent=[gridx[1], gridx[end], gridz[end], gridz[1]])
-    plot(gridx, topofine, linewidth=topowidth, "-k")
-    xlabel("Line distance m")
-    title("Std dev of conductivity vertical derivative")
-    ylabel("Height m")
-    colorbar()
-    xlim(extrema(gridx))
-    nicenup(f, fsize=fontsize)
-end
-
-function plotsummarygrids3(nuhigh, nulow, numid, phgrid, plgrid, pmgrid, gridx, gridz, topofine, R, Z, χ²mean, χ²sd, lname, nunominal, numsize=2; qp1=0.05, qp2=0.95,
-    figsize=(10,10), fontsize=12, cmap="viridis", vmin=-2, vmax=0.5, Eislast=true, Nislast=true,
-    topowidth=2, idx=nothing, useML=false, preferEright=false, preferNright=false, labelnu=[""],
-    saveplot=false)
+function plotsummarygrids3(soundings, nuhigh, nulow, numid, phgrid, plgrid, pmgrid, gridx, gridz, topofine, R, Z, χ²mean, χ²sd, lname, nunominal, numsize=2; qp1=0.05, qp2=0.95,
+    figsize=(10,10), fontsize=12, cmap="viridis", vmin=-2, vmax=0.5, Eislast=true, Nislast=true, 
+    topowidth=2, idx=nothing, useML=false, preferEright=false, preferNright=false, labelnu=[""], yl = nothing, dpi=300,
+    saveplot=true)
     
     # get the finely interpolated nuisances
     # nuhighfine, nulowfine, numidfine = map(X->gridpoints(R, gridx, X), [nuhigh, nulow, numid])
-
-    f = figure(figsize=figsize)
+    
     dr = diff(gridx)[1]
-    f.suptitle(lname*" Δx=$dr m, Fids: $(length(R))", fontsize=fontsize)
     nnu = min(size(nulow, 1), size(nunominal, 1)) # in case we've inverted a zero bounds nuisance by mistech...
-    nrows = 4 + nnu # add the number of nuisances == no. of rows in nuhigh
+    nrows = 1 + nnu + 3 + 1 # add the number of nuisances == no. of rows in nuhigh and 1 for chi2 and 1 for colorbar, not showing mean
+    height_ratios = [0.4ones(1+nnu)...,1,1,1,0.1]
+    f, s = plt.subplots(nrows, 1, gridspec_kw=Dict("height_ratios" => height_ratios),
+                        figsize=figsize)
+    f.suptitle(lname*" Δx=$dr m, Fids: $(length(R))", fontsize=fontsize)
     icol = 1
-    s = Array{Any, 1}(undef, nrows)
-    s[icol] = subplot(nrows, 1, icol)
     if useML
-        plot(R, exp.(χ²mean))
-        semilogy(R, ones(length(R)), "--k")
-        ylabel("variance factor")
-        title("Max likelihood noise variance adjustment")
+        s[icol].plot(R, exp.(χ²mean))
+        s[icol].semilogy(R, ones(length(R)), "--k")
+        s[icol].set_ylabel("variance factor")
+        s[icol].set_title("Max likelihood variance adjustment")
     else
-        plot(R, χ²mean)
-        plot(R, ones(length(R)), "--k")
-        fill_between(R, vec(χ²mean-χ²sd), vec(χ²mean+χ²sd), alpha=0.5)
-        ylabel(L"ϕ_d")
-        title("Data misfit")
+        s[icol].plot(R, χ²mean)
+        s[icol].plot(R, ones(length(R)), "--k")
+        s[icol].fill_between(R, vec(χ²mean-χ²sd), vec(χ²mean+χ²sd), alpha=0.5)
+        s[icol].set_ylabel(L"ϕ_d")
+        s[icol].set_title("Data misfit")
     end
     icol += 1
+    
     icol = plotnuquant(nulow, numid, nuhigh, nunominal, s, R, icol, nrows, numsize, labelnu)
-    s[icol] = subplot(nrows, 1, icol, sharex=s[icol-1])
-    imshow(plgrid, cmap=cmap, aspect="auto", vmax=vmax, vmin = vmin,
-    extent=[gridx[1], gridx[end], gridz[end], gridz[1]])
-    plot(gridx, topofine, linewidth=topowidth, "-k")
-    idx == nothing || plotprofile(s[icol], idx, Z, R)
-    title("Percentile $(round(Int, 100*qp1)) conductivity")
-    ylabel("Height m")
-    icol += 1
-    s[icol] = subplot(nrows, 1, icol, sharex=s[icol-1], sharey=s[icol-1])
-    imshow(pmgrid, cmap=cmap, aspect="auto", vmax=vmax, vmin = vmin,
-    extent=[gridx[1], gridx[end], gridz[end], gridz[1]])
-    plot(gridx, topofine, linewidth=topowidth, "-k")
-    title("Percentile 50 conductivity")
-    idx == nothing || plotprofile(s[icol], idx, Z, R)
-    ylabel("Height m")
-    icol += 1
-    s[icol] = subplot(nrows, 1, icol, sharex=s[icol-1], sharey=s[icol-1])
-    imlast = imshow(phgrid, cmap=cmap, aspect="auto", vmax=vmax, vmin = vmin,
-    extent=[gridx[1], gridx[end], gridz[end], gridz[1]])
-    plot(gridx, topofine, linewidth=topowidth, "-k")
-    xlabel("Line distance m")
-    title("Percentile $(round(Int, 100*qp2)) conductivity")
-    ylabel("Height m")
-    idx == nothing || plotprofile(s[icol], idx, Z, R)
-    xlim(extrema(gridx))
-    map(x->x.tick_params(labelbottom=false), s[1:end-1])
-    map(x->x.grid(), s)
-    nicenup(f, fsize=fontsize)
-    plotNEWSlabels(Eislast, Nislast, gridx, gridz, s[size(nulow, 1)+1:end])
-    f.subplots_adjust(bottom=0.125)
-    cbar_ax = f.add_axes([0.125, 0.05, 0.75, 0.01])
-    cb = f.colorbar(imlast, cax=cbar_ax, orientation="horizontal")
-    cb.ax.set_xlabel("Log₁₀ S/m")
-    (preferNright && !Nislast) && s[end].invert_xaxis()
-    (preferEright && !Eislast) && s[end].invert_xaxis()
-    saveplot && savefig(lname*"_with_nu.png", dpi=300)
+    
+    # pmgrid repeated as mean not shown in this plot
+    summaryconductivity(s, icol, f, soundings, pmgrid, phgrid, plgrid, pmgrid, gridx, gridz, topofine, R, Z, ; qp1, qp2, fontsize, 
+        cmap, vmin, vmax, topowidth, idx, omitconvergence=false, preferEright, preferNright, yl, showmean=false)
+
+    saveplot && savefig(lname*"_with_nu.png", dpi=dpi)
 end
 
 function plotnuquant(nqlow, nqmid, nqhigh, nunominal, s, gridx, icol, nrows, ms=2, labelnu=[""])
@@ -1248,6 +1108,7 @@ function plotnuquant(nqlow, nqmid, nqhigh, nunominal, s, gridx, icol, nrows, ms=
         s[icol].plot(gridx, nqmid[inu,:])
         s[icol].plot(gridx, nunominal[inu,:], "o", markersize=ms)
         labelnu[1] == "" || s[icol].set_title(labelnu[inu])
+        labelnu[1] == "" || s[icol].set_ylabel(labelnu[inu])
         icol += 1
     end
     icol    
@@ -1285,13 +1146,16 @@ function summaryimages(soundings::Array{TempestSoundingData, 1};
                         figsize=(6,10),
                         topowidth=2,
                         idx = nothing,
-                        showderivs = false,
                         omitconvergence = false,
                         preferEright = false,
                         preferNright = false,
-                        saveplot = false,
                         numsize=1,
-                        labelnu = [""]
+                        labelnu = [""],
+                        dpi = 300,
+                        saveplot = true,
+                        yl = nothing,
+                        showplot = true,
+                        showmean = false,
                         )
     @assert !(preferNright && preferEright) # can't prefer both labels to the right
     pl, pm, ph, ρmean, vdmean, vddev, χ²mean, χ²sd, zall, 
@@ -1326,22 +1190,17 @@ function summaryimages(soundings::Array{TempestSoundingData, 1};
 
     lname = "Line $(soundings[1].linenum)"
     Eislast, Nislast = whichislast(soundings)
-    plotsummarygrids1(σmeangrid, phgrid, plgrid, pmgrid, gridx, gridz, topofine, R, Z, χ²mean, χ²sd, lname, qp1=qp1, qp2=qp2,
-        figsize=figsize, fontsize=fontsize, cmap=cmap, vmin=vmin, vmax=vmax, Eislast=Eislast,
-        Nislast=Nislast, topowidth=topowidth, idx=idx, omitconvergence=omitconvergence, useML=useML,
-        preferEright=preferEright, preferNright=preferNright, saveplot=saveplot)
+    plotsummarygrids1(soundings, σmeangrid, phgrid, plgrid, pmgrid, gridx, gridz, topofine, R, Z, χ²mean, χ²sd, lname; qp1, qp2,
+                        figsize, fontsize, cmap, vmin, vmax, 
+                        topowidth, idx, omitconvergence, useML,
+                        preferEright, preferNright, saveplot, showplot, dpi,
+                        yl, showmean)  
 
-    plotsummarygrids3(nuhigh, nulow, numid, phgrid, plgrid, pmgrid, gridx, gridz, topofine, R, Z, χ²mean, χ²sd, lname, nunominal, numsize, labelnu=labelnu, qp1=qp1, qp2=qp2,
+    plotsummarygrids3(soundings, nuhigh, nulow, numid, phgrid, plgrid, pmgrid, gridx, gridz, topofine, R, Z, χ²mean, χ²sd, lname, nunominal, numsize, labelnu=labelnu, qp1=qp1, qp2=qp2,
     figsize=figsize, fontsize=fontsize, cmap=cmap, vmin=vmin, vmax=vmax, Eislast=Eislast,
-    Nislast=Nislast, topowidth=topowidth, idx=idx, useML=useML,
+    Nislast=Nislast, topowidth=topowidth, idx=idx, useML=useML, yl=yl,
     preferEright=preferEright, preferNright=preferNright, saveplot=saveplot)
 
-    if showderivs
-    cigrid = phgrid - plgrid
-    plotsummarygrids2(σmeangrid, ∇zmeangrid, ∇zsdgrid, cigrid, gridx, gridz, topofine, lname, qp1=qp1, qp2=qp2,
-        figsize=figsize, fontsize=fontsize, cmap=cmap, vmin=vmin, vmax=vmax, topowidth=topowidth,
-        Eislast=Eislast, Nislast=Nislast)
-    end
 end
 
 function plotindividualsoundings(soundings::Array{TempestSoundingData, 1};

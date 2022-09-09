@@ -1,6 +1,6 @@
 module CommonToAll
 using PyPlot, StatsBase, Statistics, Distances, LinearAlgebra,
-      DelimitedFiles, ..AbstractOperator, NearestNeighbors
+      DelimitedFiles, ..AbstractOperator, NearestNeighbors, Printf
 
 import ..Options, ..OptionsStat, ..OptionsNonstat, ..OptionsNuisance,
        ..history, ..GP.κ, ..calcfstar!, ..AbstractOperator.Sounding
@@ -11,7 +11,7 @@ export trimxft, assembleTat1, gettargtemps, checkns, getchi2forall, nicenup,
         assemblenuisancesatT, makenuisancehists, stretchexists,
         makegrid, whichislast, makesummarygrid, makearray, plotNEWSlabels, 
         plotprofile, gridpoints, splitsoundingsbyline, dfn2hdr, getgdfprefix, 
-        pairinteractionplot
+        pairinteractionplot, flipline, summaryconductivity, plotsummarygrids1, getVE
 
 function trimxft(opt::Options, burninfrac::Float64, temperaturenum::Int)
     x_ft = assembleTat1(opt, :x_ftrain, burninfrac=burninfrac, temperaturenum=temperaturenum)
@@ -561,7 +561,7 @@ function makezρ(zboundaries::Array{Float64, 1};
     z, ρ, nfixed
 end
 
-function nicenup(g::PyPlot.Figure;fsize=16)
+function nicenup(g::PyPlot.Figure;fsize=16, h_pad=nothing)
     for ax in gcf().axes
         ax.tick_params("both",labelsize=fsize)
         ax.xaxis.label.set_fontsize(fsize)
@@ -573,7 +573,11 @@ function nicenup(g::PyPlot.Figure;fsize=16)
             ax.legend(loc="best", fontsize=fsize)
         end
     end
-    g.tight_layout()
+    if isnothing(h_pad)
+        g.tight_layout()
+    else
+        g.tight_layout(;h_pad)
+    end        
 end
 
 function plot_posterior(F::Operator1D,
@@ -929,10 +933,20 @@ end
 function whichislast(soundings::AbstractArray)
     X = [s.X for s in soundings]
     Y = [s.Y for s in soundings]
+    ΔX = X[end] - X[1]
+    ΔY = Y[end] - Y[1]
+    NSline, EWline = false, false
+    if abs(ΔX/ΔY) < 0.05
+        NSline = true
+    elseif abs(ΔY/ΔX) < 0.05
+        EWline = true
+    end    
+    
     Eislast, Nislast = true, true
-    X[1]>X[end] && (Eislast = false)
-    Y[1]>Y[end] && (Nislast = false)
-    Eislast, Nislast
+    ΔX<0 && (Eislast = false)
+    ΔY<0 && (Nislast = false)
+
+    Eislast, Nislast, EWline, NSline
 end
 
 function makesummarygrid(soundings, pl, pm, ph, ρmean, vdmean, vddev, zall, dz; dr=10)
@@ -973,34 +987,63 @@ function makearray(soundings, d, zall)
     outarray
 end
 
-function plotNEWSlabels(Eislast, Nislast, gridx, gridz, axarray, 
+function plotNEWSlabels(soundings, gridx, gridz, axarray, 
         x0=nothing, y0=nothing, xend=nothing, yend=nothing;
         preferEright=false, preferNright=false)
+    Eislast, Nislast, EWline, NSline = whichislast(soundings)
     beginpos, endpos = "", ""
     if !any(isnothing.([x0,y0,xend,yend]))
-        beginpos = round(Int, x0/1000), round(Int, y0/1000)
-        endpos = round(Int, xend/1000), round(Int, yend/1000)
+        beginpos = @sprintf(" %.2f", x0/1000)*@sprintf(" %.2f", y0/1000)
+        endpos = @sprintf(" %.2f", xend/1000)*@sprintf(" %.2f", yend/1000)
     end
     for s in axarray
         minylim = minimum(s.get_ylim())
         inverted = false
         if (preferNright && !Nislast) || (preferEright && !Eislast) 
-            s.invert_xaxis() 
             inverted = true
         end 
-        ha = inverted ? "right" : "left"   
-        if Eislast 
-            s.text(gridx[1], minylim, "W $beginpos", backgroundcolor="w", ha = ha) 
-        else
-            s.text(gridx[1], minylim, "E $beginpos", backgroundcolor="w", ha = ha)
+        
+        if Eislast & Nislast # old WN
+            dir1, dir2 = "SW", "NE"
+            if EWline
+                dir1, dir2 = "W", "E"
+            elseif NSline
+                dir1, dir2 = "S", "N"
+            end    
+        elseif !Eislast & Nislast # old EN
+            dir1, dir2 = "SE", "NW"
+            if EWline
+                dir1, dir2 = "E", "W"
+            elseif NSline
+                dir1, dir2 = "S", "N"
+            end 
+        elseif Eislast & !Nislast # old WS
+            dir1, dir2 = "NW", "SE"
+            if EWline
+                dir1, dir2 = "W", "E"
+            elseif NSline
+                dir1, dir2 = "N", "S"
+            end 
+        else # old ES
+            dir1, dir2 = "NE", "SW"
+            if EWline
+                dir1, dir2 = "E", "W"
+            elseif NSline
+                dir1, dir2 = "N", "S"
+            end 
         end
+        ha = inverted ? "right" : "left"
+        s.text(gridx[1], minylim, dir1*beginpos, backgroundcolor="w", ha = ha)
         ha = inverted ? "left" : "right"
-        if Nislast 
-            s.text(gridx[end], minylim, "N $endpos", backgroundcolor="w") 
-        else
-            s.text(gridx[end], minylim, "S $endpos", backgroundcolor="w", ha=ha)
-        end    
+        s.text(gridx[end], minylim, dir2*endpos, backgroundcolor="w", ha = ha)      
     end
+    flipline(preferNright, preferEright, Nislast, Eislast, axarray[end])
+end
+
+function flipline(preferNright, preferEright, Nislast, Eislast, ax)
+    @assert !(preferEright & preferNright) #both true means don't know what you're doing
+    (preferNright && !Nislast) && ax.invert_xaxis()
+    (preferEright && !Eislast) && ax.invert_xaxis()
 end
 
 function plotprofile(ax, idxs, Z, R)
@@ -1008,6 +1051,110 @@ function plotprofile(ax, idxs, Z, R)
         ax.plot(R[idx]*[1,1], [ax.get_ylim()[1], Z[idx]], "-w")
         ax.plot(R[idx]*[1,1], [ax.get_ylim()[1], Z[idx]], "--k")
     end
+end
+
+function plotsummarygrids1(soundings, meangrid, phgrid, plgrid, pmgrid, gridx, gridz, topofine, R, Z, χ²mean, χ²sd, lname; qp1=0.05, qp2=0.95,
+                        figsize=(10,10), fontsize=12, cmap="turbo", vmin=-2, vmax=0.5, 
+                        topowidth=2, idx=nothing, omitconvergence=false, useML=false, preferEright=false, preferNright=false,
+                        saveplot=false, yl=nothing, dpi=300, showplot=true, showmean=false)
+    dr = diff(gridx)[1]
+    nrows = omitconvergence ? 5 : 6
+    height_ratios = omitconvergence ? [1, 1, 1, 1, 0.1] : [0.4, 1, 1, 1, 1, 0.1]
+    if !showmean 
+        height_ratios = [height_ratios[1:2]..., height_ratios[4:end]...]
+        nrows-=1
+    end    
+    f, s = plt.subplots(nrows, 1, gridspec_kw=Dict("height_ratios" => height_ratios),
+                        figsize=figsize)
+    f.suptitle(lname*" Δx=$dr m, Fids: $(length(R))", fontsize=fontsize)
+    icol = 1
+    if !omitconvergence
+        if useML
+            s[icol].plot(R, exp.(χ²mean))
+            s[icol].semilogy(R, ones(length(R)), "--k")
+            s[icol].set_ylabel("variance factor")
+            s[icol].set_title("Max likelihood variance adjustment")
+        else
+            s[icol].plot(R, χ²mean)
+            s[icol].plot(R, ones(length(R)), "--k")
+            s[icol].fill_between(R, vec(χ²mean-χ²sd), vec(χ²mean+χ²sd), alpha=0.5)
+            s[icol].set_ylabel(L"ϕ_d")
+            s[icol].set_title("Data misfit")
+        end
+        icol += 1
+    end
+
+    summaryconductivity(s, icol, f, soundings, meangrid, phgrid, plgrid, pmgrid, gridx, gridz, topofine, R, Z, ; qp1, qp2, fontsize, 
+        cmap, vmin, vmax, topowidth, idx, omitconvergence, preferEright, preferNright, yl, showmean)
+    
+    saveplot && savefig(lname*".png", dpi=dpi)
+    showplot || close(f)
+end
+
+function summaryconductivity(s, icol, f, soundings, meangrid, phgrid, plgrid, pmgrid, gridx, gridz, topofine, R, Z, ; qp1=0.05, qp2=0.95,
+    fontsize=12, cmap="turbo", vmin=-2, vmax=0.5, topowidth=2, idx=nothing, omitconvergence=false, preferEright=false, preferNright=false,
+    yl=nothing,showmean=false)
+    s[icol].imshow(plgrid, cmap=cmap, aspect="auto", vmax=vmax, vmin = vmin,
+                extent=[gridx[1], gridx[end], gridz[end], gridz[1]])
+    s[icol].plot(gridx, topofine, linewidth=topowidth, "-k")
+    idx == nothing || plotprofile(s[icol], idx, Z, R)
+    s[icol].set_title("Percentile $(round(Int, 100*qp1)) conductivity")
+    s[icol].set_ylabel("Height m")
+    omitconvergence || s[icol].sharex(s[icol-1])
+    icol += 1
+    s[icol].imshow(pmgrid, cmap=cmap, aspect="auto", vmax=vmax, vmin = vmin,
+                extent=[gridx[1], gridx[end], gridz[end], gridz[1]])
+    s[icol].plot(gridx, topofine, linewidth=topowidth, "-k")
+    s[icol].set_title("Percentile 50 conductivity")
+    idx == nothing || plotprofile(s[icol], idx, Z, R)
+    s[icol].set_ylabel("Height m")
+    s[icol].sharex(s[icol-1])
+    s[icol].sharey(s[icol-1])
+    icol += 1
+    if showmean
+        s[icol].imshow(meangrid, cmap=cmap, aspect="auto", vmax=vmax, vmin = vmin,
+                    extent=[gridx[1], gridx[end], gridz[end], gridz[1]])
+        s[icol].plot(gridx, topofine, linewidth=topowidth, "-k")
+        s[icol].set_title("Mean conductivity")
+        s[icol].set_ylabel("Height m")
+        idx == nothing || plotprofile(s[icol], idx, Z, R)
+        s[icol].sharex(s[icol-1])
+        s[icol].sharey(s[icol-1])
+        icol +=1
+    end    
+    imlast = s[icol].imshow(phgrid, cmap=cmap, aspect="auto", vmax=vmax, vmin = vmin,
+                extent=[gridx[1], gridx[end], gridz[end], gridz[1]])
+    s[icol].plot(gridx, topofine, linewidth=topowidth, "-k")
+    s[icol].set_xlabel("Line distance m", labelpad=0)
+    s[icol].set_title("Percentile $(round(Int, 100*qp2)) conductivity")
+    s[icol].set_ylabel("Height m")
+    idx == nothing || plotprofile(s[icol], idx, Z, R)
+    s[icol].sharex(s[icol-1])
+    s[icol].sharey(s[icol-1])
+    s[icol].set_xlim(extrema(gridx))
+    # map(x->x.set_xticklabels([]), s[1:end-2])
+    map(x->x.tick_params(labelbottom=false), s[1:end-2])
+    # map(x->x.grid(), s[1:end-1])
+    isa(yl, Nothing) || s[end-1].set_ylim(yl...)
+    plotNEWSlabels(soundings, gridx, gridz, s[1:end-1]; preferEright, preferNright)
+    cb = f.colorbar(imlast, cax=s[end], orientation="horizontal")
+    cb.set_label("Log₁₀ S/m", labelpad=0)
+    nicenup(f, fsize=fontsize, h_pad=0)
+    label = f._suptitle.get_text()
+    VE = round(Int, getVE(s[end-1]))
+    f.suptitle(label*", VE=$(VE)X")
+end
+
+function getVE(ax)
+    figW, figH = ax.get_figure().get_size_inches()
+    # Axis size on figure
+    _, _, w, h = ax.get_position().bounds
+    # Ratio of display units
+    disp_ratio = (figH * h) / (figW * w)
+    # Ratio of data units
+    # Negative over negative because of the order of subtraction
+    data_ratio = abs.(diff([ax.get_ylim()...])[1] / diff([ax.get_xlim()...])[1])
+    return disp_ratio / data_ratio
 end
 
 function selectwithin1Dinterval(M::AbstractVector, z, 
