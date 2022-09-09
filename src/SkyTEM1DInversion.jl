@@ -1247,10 +1247,13 @@ function plotconvandlast(soundings, σ, ϕd, delr, delz;
     ax[3].set_ylabel("mAHD")
     ax[3].set_xlabel("Distance m")
     fig.colorbar(imlast, ax=ax[3], location="bottom", shrink=0.6, label="Log₁₀ S/m")
-    nicenup(fig, fsize=fontsize)
     ax[3].set_xlim(extrema(gridr))
     plotNEWSlabels(soundings, gridr, gridz, [ax[3]], x0, y0, xend, yend, 
-                    preferEright=preferEright, preferNright=preferNright)
+    preferEright=preferEright, preferNright=preferNright)
+    nicenup(fig, fsize=fontsize)
+    label = fig._suptitle.get_text()
+    VE = round(Int, getVE(ax[end-1]))
+    fig.suptitle(label*", VE=$(VE)X")
     saveplot && savefig(lname*".png", dpi=dpi)
     showplot || close(fig)
 end    

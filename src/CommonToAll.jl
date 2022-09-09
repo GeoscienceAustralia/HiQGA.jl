@@ -11,7 +11,7 @@ export trimxft, assembleTat1, gettargtemps, checkns, getchi2forall, nicenup,
         assemblenuisancesatT, makenuisancehists, stretchexists,
         makegrid, whichislast, makesummarygrid, makearray, plotNEWSlabels, 
         plotprofile, gridpoints, splitsoundingsbyline, dfn2hdr, getgdfprefix, 
-        pairinteractionplot, flipline, summaryconductivity, plotsummarygrids1
+        pairinteractionplot, flipline, summaryconductivity, plotsummarygrids1, getVE
 
 function trimxft(opt::Options, burninfrac::Float64, temperaturenum::Int)
     x_ft = assembleTat1(opt, :x_ftrain, burninfrac=burninfrac, temperaturenum=temperaturenum)
@@ -993,8 +993,8 @@ function plotNEWSlabels(soundings, gridx, gridz, axarray,
     Eislast, Nislast, EWline, NSline = whichislast(soundings)
     beginpos, endpos = "", ""
     if !any(isnothing.([x0,y0,xend,yend]))
-        beginpos = round(Int, x0/1000), round(Int, y0/1000)
-        endpos = round(Int, xend/1000), round(Int, yend/1000)
+        beginpos = @sprintf(" %.2f", x0/1000)*@sprintf(" %.2f", y0/1000)
+        endpos = @sprintf(" %.2f", xend/1000)*@sprintf(" %.2f", yend/1000)
     end
     for s in axarray
         minylim = minimum(s.get_ylim())
@@ -1033,9 +1033,9 @@ function plotNEWSlabels(soundings, gridx, gridz, axarray,
             end 
         end
         ha = inverted ? "right" : "left"
-        s.text(gridx[1], minylim, dir1*" $beginpos", backgroundcolor="w", ha = ha)
+        s.text(gridx[1], minylim, dir1*beginpos, backgroundcolor="w", ha = ha)
         ha = inverted ? "left" : "right"
-        s.text(gridx[end], minylim, dir2*" $endpos", backgroundcolor="w", ha = ha)      
+        s.text(gridx[end], minylim, dir2*endpos, backgroundcolor="w", ha = ha)      
     end
     flipline(preferNright, preferEright, Nislast, Eislast, axarray[end])
 end
@@ -1141,8 +1141,8 @@ function summaryconductivity(s, icol, f, soundings, meangrid, phgrid, plgrid, pm
     cb.set_label("Log₁₀ S/m", labelpad=0)
     nicenup(f, fsize=fontsize, h_pad=0)
     label = f._suptitle.get_text()
-    VE = getVE(s[end-1])
-    f.suptitle(label*", VE=$(@sprintf("%.2f", VE))X")
+    VE = round(Int, getVE(s[end-1]))
+    f.suptitle(label*", VE=$(VE)X")
 end
 
 function getVE(ax)
