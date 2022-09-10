@@ -1038,13 +1038,13 @@ function summarypost(soundings::Array{TempestSoundingData, 1};
             numid[:, idx]  .= nuquants[:, 2]
             nuhigh[:, idx] .= nuquants[:, 3]
             χ² = 2*CommonToAll.assembleTat1(opt, :U, temperaturenum=1, burninfrac=burninfrac)
-            ndata = sum(.!isnan.(soundings[idx].Hx_data)) +
+            ndata = useML ? sum(.!isnan.(soundings[idx].Hx_data)) : sum(.!isnan.(soundings[idx].Hx_data)) +
                     sum(.!isnan.(soundings[idx].Hz_data))
             χ²mean[idx] = mean(χ²)/ndata
             χ²sd[idx]   = std(χ²)/ndata
             if useML 
-                χ²mean[idx] -= log(ndata)
-                χ²sd[idx]   -= log(ndata) # I think, need to check
+                χ²mean[idx] = exp(χ²mean[idx]-log(ndata))
+                χ²sd[idx]   = exp(χ²sd[idx]-log(ndata)) # I think, need to check
             end    
         end
         # write in grid format
@@ -1076,18 +1076,12 @@ function plotsummarygrids3(soundings, nuhigh, nulow, numid, phgrid, plgrid, pmgr
                         figsize=figsize)
     f.suptitle(lname*" Δx=$dr m, Fids: $(length(R))", fontsize=fontsize)
     icol = 1
-    if useML
-        s[icol].plot(R, exp.(χ²mean))
-        s[icol].semilogy(R, ones(length(R)), "--k")
-        s[icol].set_ylabel("variance factor")
-        s[icol].set_title("Max likelihood variance adjustment")
-    else
-        s[icol].plot(R, χ²mean)
-        s[icol].plot(R, ones(length(R)), "--k")
-        s[icol].fill_between(R, vec(χ²mean-χ²sd), vec(χ²mean+χ²sd), alpha=0.5)
-        s[icol].set_ylabel(L"ϕ_d")
-        s[icol].set_title("Data misfit")
-    end
+    s[icol].plot(R, χ²mean)
+    s[icol].plot(R, ones(length(R)), "--k")
+    s[icol].fill_between(R, vec(χ²mean-χ²sd), vec(χ²mean+χ²sd), alpha=0.5)
+    s[icol].set_ylabel(L"ϕ_d")
+    titlestring = useML ? "Max likelihood variance adjustment" : "Data misfit"
+    s[icol].set_title(titlestring)
     icol += 1
     
     icol = plotnuquant(nulow, numid, nuhigh, nunominal, s, R, icol, nrows, numsize, labelnu)

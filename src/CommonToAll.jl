@@ -1069,19 +1069,12 @@ function plotsummarygrids1(soundings, meangrid, phgrid, plgrid, pmgrid, gridx, g
     f.suptitle(lname*" Δx=$dr m, Fids: $(length(R))", fontsize=fontsize)
     icol = 1
     if !omitconvergence
-        if useML
-            s[icol].plot(R, exp.(χ²mean))
-            s[icol].fill_between(R, vec(exp.(χ²mean)-exp.(χ²sd)), vec(exp.(χ²mean)+exp.(χ²sd)), alpha=0.5)
-            s[icol].semilogy(R, ones(length(R)), "--k")
-            s[icol].set_ylabel("variance factor")
-            s[icol].set_title("Max likelihood variance adjustment")
-        else
-            s[icol].plot(R, χ²mean)
-            s[icol].plot(R, ones(length(R)), "--k")
-            s[icol].fill_between(R, vec(χ²mean-χ²sd), vec(χ²mean+χ²sd), alpha=0.5)
-            s[icol].set_ylabel(L"ϕ_d")
-            s[icol].set_title("Data misfit")
-        end
+        s[icol].plot(R, χ²mean)
+        s[icol].plot(R, ones(length(R)), "--k")
+        s[icol].fill_between(R, vec(χ²mean-χ²sd), vec(χ²mean+χ²sd), alpha=0.5)
+        s[icol].set_ylabel(L"ϕ_d")
+        titlestring = useML ? "Max likelihood variance adjustment" : "Data misfit"
+        s[icol].set_title(titlestring)
         icol += 1
     end
 

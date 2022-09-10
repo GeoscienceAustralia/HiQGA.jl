@@ -895,7 +895,11 @@ function summarypost(soundings::Array{SkyTEMsoundingData, 1}, opt::Options;
                     sum(.!isnan.(soundings[idx].HM_data))
             χ²mean[idx] = mean(χ²)/ndata
             χ²sd[idx]   = std(χ²)/ndata
-            useML && (χ²mean[idx] -= log(ndata))
+            if useML
+                # this is approximate as HM and LM have different ML factors sampled 
+                χ²mean[idx] = exp(χ²mean[idx]-log(ndata))
+                χ²sd[idx]   = exp(χ²sd[idx]-log(ndata)) # I think, need to check
+            end    
         end
         # write in grid format
         for (fname, vals) in Dict(zip(fnames, [pl, pm, ph, ρmean, vdmean, vddev, χ²mean, χ²sd]))
