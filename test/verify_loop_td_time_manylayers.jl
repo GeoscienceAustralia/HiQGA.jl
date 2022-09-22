@@ -1,5 +1,6 @@
 using PyPlot, Revise, HiQGA.transD_GP, Random, Statistics, BenchmarkTools
-profile_within_juno  = false
+profile_within_vscode = false
+calcjacobian = false
 ## model
 zfixed   = [-1e5,   0,    20,   50]
 rho      = [1e12,   10,   1,   100]
@@ -42,7 +43,8 @@ Flm = transD_GP.AEM_VMD_HMD.HFieldDHT(
                       rRx    = rRx,
                       rTx    = rTx,
                       zRx    = zRx,
-		      freqlow = freqlow
+		      freqlow = freqlow;
+              calcjacobian
 		      )
 ## HM operator
 Fhm = transD_GP.AEM_VMD_HMD.HFieldDHT(
@@ -56,7 +58,9 @@ Fhm = transD_GP.AEM_VMD_HMD.HFieldDHT(
                       rRx    = rRx,
                       rTx    = rTx,
                       zRx    = zRx,
-		      freqlow = freqlow)
+		      freqlow = freqlow;
+              calcjacobian
+              )
 ## get the fields in place
 μ = transD_GP.AEM_VMD_HMD.μ
 @time transD_GP.AEM_VMD_HMD.getfieldTD!(Flm, zfixed, rho)
@@ -67,7 +71,7 @@ loglog(Flm.times,μ*abs.(Flm.dBzdt), label="lm")
 loglog(Fhm.times,μ*abs.(Fhm.dBzdt), label="hm")
 grid()
 ## timing FD
-ntimes = 1000
+ntimes = calcjacobian ? 100 : 5
 t = time()
 for i = 1:ntimes
     transD_GP.AEM_VMD_HMD.getfieldFD!(Flm, zfixed, rho)
@@ -76,7 +80,6 @@ end
 t = time() - t
 @info "FD timing is $(t/ntimes) s"
 ## timing TD
-ntimes = 1000
 t = time()
 for i = 1:ntimes
     transD_GP.AEM_VMD_HMD.getfieldTD!(Flm, zfixed, rho)
@@ -93,7 +96,6 @@ figure()
 step(log10.(ρ[2:end]), z[2:end])
 xlim(-0.5,1)
 grid(); gca().invert_yaxis()
-ntimes = 100
 ## solely timing
 function mytest(Fl, Fh, zz, rr)
    transD_GP.AEM_VMD_HMD.getfieldTD!(Fl, zz, rr)
@@ -102,12 +104,33 @@ end
 @info "timing for a $(length(z)) layer model is:"
 @btime mytest($Flm, $Fhm, $z, $ρ)
 ## using Profile
-if profile_within_juno
-    using Profile
+if profile_within_vscode
     function doprofile(ntimes::Int)
         for i = 1:ntimes
             transD_GP.AEM_VMD_HMD.getfieldTD!(Flm, z, ρ)
         end
     end
-    @profiler doprofile(ntimes) combine=true
+    @profview doprofile(ntimes)
 end
+## Jacobian comparisons
+# δ = 1e-2
+# JoutHM = zeros(ComplexF64, length(ρ)-1, length(HM_times))
+# JoutLM = zeros(ComplexF64, length(ρ)-1, length(LM_times))
+# function getJ_TD!(Fin, zin, ρ, Δ, Jout)
+#     # sensitivities computed in log10σ
+#     # same as in AEM_VMD_HMD code
+#     modelfd = copy(ρ)
+#     for i = 2:length(zin)
+#         modelfd[:] = ρ
+#         modelfd[i] = 10 .^-(-log10(ρ[i]) .+ Δ/2)
+#         transD_GP.AEM_VMD_HMD.getfieldTD!(Fin, zin, modelfd)
+#         Jout[i-1,:] = Fin.dBzdt[:]
+#         modelfd[i] = 10 .^-(-log10(ρ[i]) .- Δ/2)
+#         transD_GP.AEM_VMD_HMD.getfieldTD!(Fin, zin, modelfd)  
+#         Jout[i-1,:] = (Jout[i-1,:] - Fin.dBzdt) / Δ
+#     end
+# end
+# @btime begin
+#     getJ_TD!($Flm, $z, $ρ, $δ, $JoutLM)
+#     getJ_TD!($Fhm, $z, $ρ, $δ, $JoutHM)
+# end    
