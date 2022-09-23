@@ -1,6 +1,6 @@
 using PyPlot, Revise, HiQGA.transD_GP, Random, Statistics, BenchmarkTools
-profile_within_vscode = false
-calcjacobian = false
+profile_within_vscode = true
+calcjacobian = true
 ## model
 zfixed   = [-1e5,   0,    20,   50]
 rho      = [1e12,   10,   1,   100]
@@ -71,7 +71,7 @@ loglog(Flm.times,μ*abs.(Flm.dBzdt), label="lm")
 loglog(Fhm.times,μ*abs.(Fhm.dBzdt), label="hm")
 grid()
 ## timing FD
-ntimes = calcjacobian ? 100 : 5
+ntimes = calcjacobian ? 100 : 2
 t = time()
 for i = 1:ntimes
     transD_GP.AEM_VMD_HMD.getfieldFD!(Flm, zfixed, rho)
@@ -103,7 +103,7 @@ function mytest(Fl, Fh, zz, rr)
 end
 @info "timing for a $(length(z)) layer model is:"
 @btime mytest($Flm, $Fhm, $z, $ρ)
-## using Profile
+## using ProfileView
 if profile_within_vscode
     function doprofile(ntimes::Int)
         for i = 1:ntimes

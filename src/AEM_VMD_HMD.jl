@@ -256,16 +256,16 @@ function stacks!(F::HField, iTxLayer::Int, nlayers::Int, ω::Float64)
             end
             b[k+1] = exp(2im*kznext*d[k+1])
             partial_bnext = getpartial_bwithnext(b[k+1], d[k+1], partialkznext)
-            S *= 1 - (Rlowerstack_TE*b[k+1])^2
+            S *= 1.0 - (Rlowerstack_TE*b[k+1])^2
             kznextplus = ω*pz[k+2]
             partial_rTE_next = getpartial_rTE(partialkznext, kznext, kznextplus)
             a = Rlowerstack_plus_TE*b[k+2]
             partialRnext = getpartialRstack(partial_rTE_next, rTE[k+1], a)
             denom = (1+rTE[k]*Rlowerstack_TE*b[k+1])^2
-            S += (1-rTE[k]^2)*(partialRnext*b[k+1] + partial_bnext*Rlowerstack_TE) 
+            S += (1.0-rTE[k]^2)*(partialRnext*b[k+1] + partial_bnext*Rlowerstack_TE) 
             S /= denom
             J[k+1] = S
-            c = b[k+1]*(1-rTE[k]^2)/denom
+            c = b[k+1]*(1.0-rTE[k]^2)/denom
             for kk = nlayers:-1:k+2
                 J[kk] *= c
             end    
@@ -409,40 +409,42 @@ function getfieldFD!(F::HFieldDHT, z::Array{Float64, 1}, ρ::Array{Float64, 1})
                 F.J1_kernel_h[ikᵣ,ifreq] = getAEM1DKernelsH!(F, kᵣ, freq, z, ρ)
             end
         end # kᵣ loop
-        if F.rxwithinloop
-            splreal = CubicSpline(real(F.J1_kernel_v[:,ifreq]), F.log10interpkᵣ)
-            splimag = CubicSpline(imag(F.J1_kernel_v[:,ifreq]), F.log10interpkᵣ)
-            J1_kernel_v = splreal.(F.log10Filter_base) + 1im*splimag.(F.log10Filter_base)
-            F.HFD_z[ifreq] = dot(J1_kernel_v, Filter_J1)/F.rTx
-        else
-            # Vertical component
-            splreal = CubicSpline(real(F.J0_kernel_v[:,ifreq]), F.log10interpkᵣ)
-            splimag = CubicSpline(imag(F.J0_kernel_v[:,ifreq]), F.log10interpkᵣ)
-            J0_kernel_v = splreal.(F.log10Filter_base) + 1im*splimag.(F.log10Filter_base)
-            F.HFD_z[ifreq] = dot(J0_kernel_v, Filter_J0)/F.rRx
-                if F.calcjacobian
-                    for ilayer = 2:length(ρ)
-                        splreal = CubicSpline(real(vec(F.derivmatrix[:,ilayer])), F.log10interpkᵣ)
-                        splimag = CubicSpline(imag(vec(F.derivmatrix[:,ilayer])), F.log10interpkᵣ)
-                        J0_kernel_v_prime = splreal.(F.log10Filter_base) + 1im*splimag.(F.log10Filter_base)
-                        F.HFD_z_J[ilayer, ifreq] = dot(J0_kernel_v_prime, Filter_J0)/F.rRx
-                    end    
-                end    
-            # radial component
-            if F.getradialH
+        @views begin
+            if F.rxwithinloop
                 splreal = CubicSpline(real(F.J1_kernel_v[:,ifreq]), F.log10interpkᵣ)
                 splimag = CubicSpline(imag(F.J1_kernel_v[:,ifreq]), F.log10interpkᵣ)
                 J1_kernel_v = splreal.(F.log10Filter_base) + 1im*splimag.(F.log10Filter_base)
-                F.HFD_r[ifreq] = dot(J1_kernel_v, Filter_J1)/F.rRx
+                F.HFD_z[ifreq] = dot(J1_kernel_v, Filter_J1)/F.rTx
+            else
+                # Vertical component
+                splreal = CubicSpline(real(F.J0_kernel_v[:,ifreq]), F.log10interpkᵣ)
+                splimag = CubicSpline(imag(F.J0_kernel_v[:,ifreq]), F.log10interpkᵣ)
+                J0_kernel_v = splreal.(F.log10Filter_base) + 1im*splimag.(F.log10Filter_base)
+                F.HFD_z[ifreq] = dot(J0_kernel_v, Filter_J0)/F.rRx
+                    if F.calcjacobian
+                        for ilayer = 2:length(ρ)
+                            splreal = CubicSpline(real(vec(F.derivmatrix[:,ilayer])), F.log10interpkᵣ)
+                            splimag = CubicSpline(imag(vec(F.derivmatrix[:,ilayer])), F.log10interpkᵣ)
+                            J0_kernel_v_prime = splreal.(F.log10Filter_base) + 1im*splimag.(F.log10Filter_base)
+                            F.HFD_z_J[ilayer, ifreq] = dot(J0_kernel_v_prime, Filter_J0)/F.rRx
+                        end    
+                    end    
+                # radial component
+                if F.getradialH
+                    splreal = CubicSpline(real(F.J1_kernel_v[:,ifreq]), F.log10interpkᵣ)
+                    splimag = CubicSpline(imag(F.J1_kernel_v[:,ifreq]), F.log10interpkᵣ)
+                    J1_kernel_v = splreal.(F.log10Filter_base) + 1im*splimag.(F.log10Filter_base)
+                    F.HFD_r[ifreq] = dot(J1_kernel_v, Filter_J1)/F.rRx
+                end
+                # for HMD
+                if F.getazimH
+                    splreal = CubicSpline(real(F.J1_kernel_h[:,ifreq]), F.log10interpkᵣ)
+                    splimag = CubicSpline(imag(F.J1_kernel_h[:,ifreq]), F.log10interpkᵣ)
+                    J1_kernel_h = splreal.(F.log10Filter_base) + 1im*splimag.(F.log10Filter_base)
+                    F.HFD_az[ifreq] = dot(J1_kernel_h, Filter_J1)/F.rRx
+                end
             end
-            # for HMD
-            if F.getazimH
-                splreal = CubicSpline(real(F.J1_kernel_h[:,ifreq]), F.log10interpkᵣ)
-                splimag = CubicSpline(imag(F.J1_kernel_h[:,ifreq]), F.log10interpkᵣ)
-                J1_kernel_h = splreal.(F.log10Filter_base) + 1im*splimag.(F.log10Filter_base)
-                F.HFD_az[ifreq] = dot(J1_kernel_h, Filter_J1)/F.rRx
-            end
-        end
+        end #views
     end # freq loop
 end
 
@@ -519,7 +521,10 @@ end
 
 function convramp!(F::HFieldDHT, splz::CubicSpline, splr::CubicSpline, splaz::CubicSpline, nlayers)
     fill!(F.dBzdt, 0.)
-    F.calcjacobian && fill!(F.dBzdt_J, 0.)
+    if F.calcjacobian 
+        fill!(F.dBzdt_J, 0.)
+        splz_J = [CubicSpline(F.HTD_z_J_interp[ilayer,:], log10.(F.interptimes)) for ilayer = 2:nlayers]
+    end    
     F.getradialH && fill!(F.dBrdt, 0.)
     F.getazimH && fill!(F.dBazdt, 0.)
     for itime = 1:length(F.times)
@@ -542,11 +547,11 @@ function convramp!(F::HFieldDHT, splz::CubicSpline, splr::CubicSpline, splaz::Cu
             x, w = F.quadnodes, F.quadweights
             F.dBzdt[itime] += (b-a)/2*dot(getrampresponse((b-a)/2*x .+ (a+b)/2, splz), w)*dIdt
             if F.calcjacobian
-                    for ilayer = 2:nlayers
-                        splz_J = CubicSpline(F.HTD_z_J_interp[ilayer,:], log10.(F.interptimes)) # TODO preallocate
-                        F.dBzdt_J[ilayer,itime] += (b-a)/2*dot(getrampresponse((b-a)/2*x .+ (a+b)/2, splz_J), w)*dIdt
-                    end    
-                end
+                for ilayer = 2:nlayers
+                    # ilayer - 1 because splaz only has nlayers-1 entries 
+                    F.dBzdt_J[ilayer,itime] += (b-a)/2*dot(getrampresponse((b-a)/2*x .+ (a+b)/2, splz_J[ilayer-1]), w)*dIdt
+                end    
+            end
             if F.getradialH
                 F.dBrdt[itime] += (b-a)/2*dot(getrampresponse((b-a)/2*x .+ (a+b)/2, splr), w)*dIdt
             end
