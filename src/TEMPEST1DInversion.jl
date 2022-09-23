@@ -372,7 +372,7 @@ function plotmodelfield!(tempest::Bfield, z::Array{Float64,1}, ρ::Array{Float64
     s.set_ylim(z[end]+ext, z[2])
 	legend()
 	s2.grid(true, which="both")
-	!tempest.addprimary && s1.set_yscale("log")
+	!tempest.addprimary && s2.set_yscale("log")
 	nicenup(gcf(), fsize=fontsize)
 	nothing
 end
