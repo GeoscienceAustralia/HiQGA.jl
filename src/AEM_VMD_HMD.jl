@@ -56,7 +56,7 @@ mutable struct HFieldDHT <: HField
     calcjacobian    :: Bool
     Jtemp           :: Vector
     b               :: Vector # Another Jtemp
-    derivmatrix     :: Vector
+    derivmatrix     :: Array{ComplexF64, 2}
     HFD_z_J         :: Array{ComplexF64, 2}
     HTD_z_J_interp  :: Array{Float64, 2}
     dBzdt_J         :: Array{Float64, 2}
@@ -137,7 +137,7 @@ function HFieldDHT(;
     dBzdt_J     = calcjacobian ? zeros(Float64, nmax, length(times)) : zeros(0, 0)
     HTD_z_J_interp = calcjacobian ? zeros(Float64, nmax, length(interptimes)) : zeros(0, 0)
     Jtemp = calcjacobian ? zeros(ComplexF64, nmax) : zeros(0)
-    Jac = calcjacobian ? map(x->zeros(ComplexF64, nkᵣeval, nmax), 1:length(freqs)) : zeros(0)
+    Jac = calcjacobian ? zeros(ComplexF64, nkᵣeval, nmax) : zeros(0, 0)
     useprimary = modelprimary ? one(Float64) : zero(Float64)
     HFieldDHT(thickness, pz, ϵᵢ, zintfc, rTE, rTM, zRx, zTx, rTx, rRx, freqs, times, ramp, log10ω, interptimes,
             HFD_z, HFD_r, HFD_az, HFD_z_interp, HFD_r_interp, HFD_az_interp,
@@ -378,11 +378,10 @@ function getAEM1DKernelsH!(F::HField, kᵣ::Float64, f::Float64, zz::Array{Float
         lf_gA_TE *= loopfactor(F.rTx, kᵣ)
     end
     if F.calcjacobian
-        ifreq = findfirst(isapprox.(ω, 2pi*F.freqs))
         ikᵣ = findfirst(isapprox.(kᵣ, F.interpkᵣ))
         for ilayer = 2:nlayers
             curlyRAprime, = getCurlyR(F.Jtemp[ilayer], pz[iTxLayer], zRx, z, iTxLayer, ω, 0.)# cannot model primary for deriv
-            F.derivmatrix[ifreq][ikᵣ,ilayer] = 1/pz[iTxLayer]*curlyRAprime*lf_gA_TE*1im/(ω)*log(10)/ρ[ilayer]
+            F.derivmatrix[ikᵣ,ilayer] = 1/pz[iTxLayer]*curlyRAprime*lf_gA_TE*1im/(ω)*log(10)/ρ[ilayer]
         end    
     end  
     gA_TE            = μ/pz[iTxLayer]*curlyRA*lf_gA_TE
@@ -423,8 +422,8 @@ function getfieldFD!(F::HFieldDHT, z::Array{Float64, 1}, ρ::Array{Float64, 1})
             F.HFD_z[ifreq] = dot(J0_kernel_v, Filter_J0)/F.rRx
                 if F.calcjacobian
                     for ilayer = 2:length(ρ)
-                        splreal = CubicSpline(real(vec(F.derivmatrix[ifreq][:,ilayer])), F.log10interpkᵣ)
-                        splimag = CubicSpline(imag(vec(F.derivmatrix[ifreq][:,ilayer])), F.log10interpkᵣ)
+                        splreal = CubicSpline(real(vec(F.derivmatrix[:,ilayer])), F.log10interpkᵣ)
+                        splimag = CubicSpline(imag(vec(F.derivmatrix[:,ilayer])), F.log10interpkᵣ)
                         J0_kernel_v_prime = splreal.(F.log10Filter_base) + 1im*splimag.(F.log10Filter_base)
                         F.HFD_z_J[ilayer, ifreq] = dot(J0_kernel_v_prime, Filter_J0)/F.rRx
                     end    
