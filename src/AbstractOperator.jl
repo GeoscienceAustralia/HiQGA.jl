@@ -19,5 +19,5 @@ function makeoperator end
 # for nuisances this may change from sounding to sounding
 function make_tdgp_opt end
 
-export Operator, Operator1D, Operator2D
+export Operator, Operator1D, Operator2D, Sounding, get_misfit, getresidual, makeoperator, make_tdgp_opt
 end

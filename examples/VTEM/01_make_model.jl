@@ -11,7 +11,7 @@ zall, znall, zboundaries = transD_GP.setupz(zstart, extendfrac, dz=dz, n=65, sho
 z, ρ, nfixed = transD_GP.makezρ(zboundaries; zfixed=zfixed, ρfixed=ρfixed)
 ##  geometry and modeling parameters
 rRx = 0.0
-zRx = -30.5
+zRx = -30.01
 zTx = -30.0
 freqlow = 1e-3
 calcjacobian = true
