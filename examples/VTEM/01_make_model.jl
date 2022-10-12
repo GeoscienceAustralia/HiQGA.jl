@@ -3,7 +3,7 @@ using PyPlot, DelimitedFiles, Random, Statistics, Revise,
 ## model fixed parts, i.e., air
 zfixed   = [-1e5]
 ρfixed   = [1e12]
-nmax = 200
+nmax = 70
 # Note that the receiver and transmitter need to be in layer 1
 zstart = 0.0
 extendfrac, dz = 1.03, 1.5

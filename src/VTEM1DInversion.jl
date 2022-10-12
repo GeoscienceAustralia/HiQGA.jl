@@ -39,10 +39,7 @@ function dBzdt(      ;times           = [1.],
                       d               = zeros(0),
                       σ_halt          = zeros(0)
                       )
-    if !@isdefined σ_halt    
-        σ_halt = zeros(size(d))
-    end                      
-    σ = sqrt.((multnoise*abs.(d)).^2 + σ_halt.^2)
+   
     @assert size(σ)  == size(d)
     ndata      = sum(.!isnan.(d))
     select     = .!isnan.(d)
@@ -292,7 +289,7 @@ function plotmodelfield!(ax, iaxis, aem, ρ; color=nothing, alpha=1, model_lw=1,
     plotsoundingcurve(ax[iaxis+1], aem.F.dBzdt, aem.F.times; color, alpha, lw=forward_lw)
 end    
 
-function plotmodelfield!(aem;  onesigma=true, figsize=(8,8))
+function initmodelfield!(aem;  onesigma=true, figsize=(8,8))
     f, ax = plt.subplots(1, 2; figsize)
     if !isempty(aem.d)
         plotdata(ax[2], aem.d, aem.σ, aem.F.times; onesigma)
@@ -301,16 +298,12 @@ function plotmodelfield!(aem;  onesigma=true, figsize=(8,8))
 end    
 
 function plotmodelfield!(aem, ρ; onesigma=true, color=nothing, alpha=1, model_lw=1, forward_lw=1, figsize=(8,8), revax=true)
-    ax = plotmodelfield!(aem; onesigma, figsize)
-    plotmodelfield!(ax, 1, aem, ρ; alpha, model_lw, forward_lw, color)
-    ax[1].invert_yaxis()
-    revax && ax[1].invert_xaxis()
-    ax
+    plotmodelfield!(aem, [ρ]; onesigma, color, alpha, model_lw, forward_lw, figsize, revax) 
 end  
 
 function plotmodelfield!(aem, manyρ::Vector{T}; onesigma=true, 
         color=nothing, alpha=1, model_lw=1, forward_lw=1, figsize=(8,8), revax=true) where T<:AbstractArray
-    ax = plotmodelfield!(aem; onesigma, figsize)
+    ax = initmodelfield!(aem; onesigma, figsize)
     for ρ in manyρ
         plotmodelfield!(ax, 1, aem, ρ; alpha, model_lw, forward_lw, color)
     end
@@ -318,5 +311,13 @@ function plotmodelfield!(aem, manyρ::Vector{T}; onesigma=true,
     revax && ax[1].invert_xaxis()
     ax
 end 
+
+# noisy synthetic model making
+function makenoisydata!(aem, ρ; rseed, noisefrac, σ_halt)
+    # σ_halt always assumed in Bfield units of pV
+    getfield!(ρ, aem)
+    aem.σ = sqrt.((multnoise*abs.(d)).^2 + (1/pVinv*σ_halt/μ).^2)
+    
+end    
 
 end
