@@ -989,7 +989,7 @@ end
 
 function plotNEWSlabels(soundings, gridx, gridz, axarray, 
         x0=nothing, y0=nothing, xend=nothing, yend=nothing;
-        preferEright=false, preferNright=false)
+        preferEright=false, preferNright=false, fontsize=12)
     Eislast, Nislast, EWline, NSline = whichislast(soundings)
     beginpos, endpos = "", ""
     if !any(isnothing.([x0,y0,xend,yend]))
@@ -1033,9 +1033,9 @@ function plotNEWSlabels(soundings, gridx, gridz, axarray,
             end 
         end
         ha = inverted ? "right" : "left"
-        s.text(gridx[1], minylim, dir1*beginpos, backgroundcolor="w", ha = ha)
+        s.text(gridx[1], minylim, dir1*beginpos, backgroundcolor="w", ha = ha; fontsize)
         ha = inverted ? "left" : "right"
-        s.text(gridx[end], minylim, dir2*endpos, backgroundcolor="w", ha = ha)      
+        s.text(gridx[end], minylim, dir2*endpos, backgroundcolor="w", ha = ha; fontsize)      
     end
     flipline(preferNright, preferEright, Nislast, Eislast, axarray[end])
 end
@@ -1088,6 +1088,7 @@ end
 function summaryconductivity(s, icol, f, soundings, meangrid, phgrid, plgrid, pmgrid, gridx, gridz, topofine, R, Z, ; qp1=0.05, qp2=0.95,
     fontsize=12, cmap="turbo", vmin=-2, vmax=0.5, topowidth=2, idx=nothing, omitconvergence=false, preferEright=false, preferNright=false,
     yl=nothing,showmean=false)
+    icolstart = icol
     s[icol].imshow(plgrid, cmap=cmap, aspect="auto", vmax=vmax, vmin = vmin,
                 extent=[gridx[1], gridx[end], gridz[end], gridz[1]])
     s[icol].plot(gridx, topofine, linewidth=topowidth, "-k")
@@ -1130,13 +1131,13 @@ function summaryconductivity(s, icol, f, soundings, meangrid, phgrid, plgrid, pm
     map(x->x.tick_params(labelbottom=false), s[1:end-2])
     # map(x->x.grid(), s[1:end-1])
     isa(yl, Nothing) || s[end-1].set_ylim(yl...)
-    plotNEWSlabels(soundings, gridx, gridz, s[1:end-1]; preferEright, preferNright)
+    plotNEWSlabels(soundings, gridx, gridz, s[icolstart:end-1]; preferEright, preferNright, fontsize)
     cb = f.colorbar(imlast, cax=s[end], orientation="horizontal")
     cb.set_label("Log₁₀ S/m", labelpad=0)
     nicenup(f, fsize=fontsize, h_pad=0)
     label = f._suptitle.get_text()
     VE = round(Int, getVE(s[end-1]))
-    f.suptitle(label*", VE=$(VE)X")
+    f.suptitle(label*", VE=$(VE)X", fontsize=0.8*fontsize)
 end
 
 function getVE(ax)
