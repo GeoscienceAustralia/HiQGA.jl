@@ -1,8 +1,10 @@
 module VTEM1DInversion
 using ..AbstractOperator, ..CommonToAll
-# import ..AbstractOperator.get_misfit
+import ..AbstractOperator.get_misfit
+import ..main # for McMC
 import ..Model, ..Options
 using ..AEM_VMD_HMD
+import ..AbstractOperator.Sounding # for storing real data
 using Random, PyPlot, DelimitedFiles, LinearMaps, SparseArrays, ..GP, LinearAlgebra
 
 μ = AEM_VMD_HMD.μ
@@ -23,26 +25,24 @@ mutable struct dBzdt<:Operator1D
     res        :: Vector
 end
 
-function dBzdt(      ;times           = [1.],
-                      ramp            = [0. 1],
-                      rTx             = 10.,  
-                      zTx             = -30.,
-                      useML           = false,
-                      z               = [-1.],
-                      ρ               = [-1.],
-                      nfixed          = 1,
-                      multnoise       = 0.03,
-                      nmax            = 70,
-                      calcjacobian    = false,
-                      nfreqsperdecade = 6,
-                      ntimesperdecade = 10,
-                      d               = zeros(0),
-                      σ_halt          = zeros(0)
-                      )
+function dBzdt(;times           = [1.],
+        ramp            = [0. 1],
+        rTx             = 10.,  
+        zTx             = -30.,
+        useML           = false,
+        z               = [-1.],
+        ρ               = [-1.],
+        nfixed          = 1,
+        nmax            = 70,
+        calcjacobian    = false,
+        nfreqsperdecade = 6,
+        ntimesperdecade = 10,
+        d               = zeros(0),
+        σ               = zeros(0)
+        )
    
     @assert size(σ)  == size(d)
-    ndata      = sum(.!isnan.(d))
-    select     = .!isnan.(d)
+    ndata, select = getndata(d)
 
     F = AEM_VMD_HMD.HFieldDHT(;
         times,
@@ -58,17 +58,27 @@ function dBzdt(      ;times           = [1.],
     )
     @assert length(F.thickness) >= length(z)
     # for Gauss-Newton
-    res = d[select]
+    res, J, W = allocateJ(F.dBzdt_J, σ, select, nfixed, length(ρ), calcjacobian)
+    dBzdt(d, useML, σ, F, z, nfixed, copy(ρ), select, ndata, J, W, res)
+end
+
+function allocateJ(FJt, σ, select, nfixed, nmodel, calcjacobian)
     if calcjacobian
-        J = F.dBzdt_J'
-        J = J[select,nfixed+1:length(ρ)]
+        J = FJt'
+        J = J[select,nfixed+1:nmodel]
         Wdiag = [1 ./σ[select]]
         res = d[select]
     else    
         res, J, Wdiag = zeros(0), zeros(0), zeros(0)
-    end    
-    W = sparse(diagm(Wdiag))
-    dBzdt(d, useML, σ, F, z, nfixed, copy(ρ), select, ndata, J, W, res)
+    end
+    W = sparse(diagm(Wdiag))        
+    return res, J, W
+end
+
+function getndata(d)
+    select = .!isnan.(d)
+    ndata  = sum(select)
+    ndata, select
 end
 
 function getresidual(aem::dBzdt, log10σ::Vector{Float64}; computeJ=false)
@@ -229,15 +239,19 @@ function get_misfit(m::Model, opt::Options, aem::dBzdt)
 end
 
 function get_misfit(m::AbstractArray, opt::Options, aem::dBzdt)
+    calcmisfit(m, opt.debug, aem)
+end
+
+function calcmisfit(m, debug, aem)
     chi2by2 = 0.0
-    if !opt.debug
+    if !debug
         getfield!(m, aem)
         if aem.ndata>0 
             chi2by2 += getchi2by2(aem.F.dBzdt, aem.d,
                     aem.σ, aem.select, aem.useML, aem.ndata)
         end            
     end
-    return chi2by2
+    return chi2by2    
 end
 
 function getchi2by2(dBzdt, d, σ, select, useML, ndata)
@@ -278,7 +292,7 @@ end
 
 function plotdata(ax, d, σ, t; onesigma=true)
     sigma = onesigma ? 1 : 2
-    ax.errorbar(t, μ*d, yerr = μ*sigma*abs.(σ),
+    ax.errorbar(t, μ*d*pVinv, yerr = μ*sigma*pVinv*abs.(σ),
     linestyle="none", marker=".", elinewidth=0, capsize=3)
 end
 
@@ -305,7 +319,7 @@ function plotmodelfield!(aem, manyρ::Vector{T}; onesigma=true,
         color=nothing, alpha=1, model_lw=1, forward_lw=1, figsize=(8,8), revax=true) where T<:AbstractArray
     ax = initmodelfield!(aem; onesigma, figsize)
     for ρ in manyρ
-        plotmodelfield!(ax, 1, aem, ρ; alpha, model_lw, forward_lw, color)
+        plotmodelfield!(ax, 1, aem, vec(ρ); alpha, model_lw, forward_lw, color)
     end
     ax[1].invert_yaxis()
     revax && ax[1].invert_xaxis()
@@ -313,11 +327,23 @@ function plotmodelfield!(aem, manyρ::Vector{T}; onesigma=true,
 end 
 
 # noisy synthetic model making
-function makenoisydata!(aem, ρ; rseed, noisefrac, σ_halt)
+function makenoisydata!(aem, ρ; 
+        rseed=123, noisefrac=0.03, σ_halt=nothing, useML=false,
+        onesigma=true, color=nothing, alpha=1, model_lw=1, forward_lw=1, figsize=(8,8), revax=true)
     # σ_halt always assumed in Bfield units of pV
     getfield!(ρ, aem)
-    aem.σ = sqrt.((multnoise*abs.(d)).^2 + (1/pVinv*σ_halt/μ).^2)
-    
+    f = aem.F.dBzdt
+    σ_halt = isnothing(σ_halt) ? zeros(size(f)) : 1/pVinv*σ_halt/μ
+    σ = sqrt.((noisefrac*abs.(f)).^2 + σ_halt.^2)
+    Random.seed!(rseed)
+    aem.d = f + σ.*randn(size(f))
+    aem.σ = σ
+    aem.useML = useML
+    aem.ndata, aem.select = getndata(aem.d)
+    aem.res, aem.J, aem.W = allocateJ(aem.F.dBzdt_J, aem.σ, aem.select, 
+        aem.nfixed, length(aem.ρ), aem.F.calcjacobian)
+    plotmodelfield!(aem, ρ; onesigma, color, alpha, model_lw, forward_lw, figsize, revax)
+    nothing
 end    
 
 end
