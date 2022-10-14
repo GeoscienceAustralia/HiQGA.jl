@@ -4,7 +4,7 @@ calcjacobian = true
 ## model
 zfixed   = [-1e5,   0,    20,   50]
 rho      = [1e12,   10,   1,   100]
-nmax = 100
+nmax = 51
 ##  geometry and modeling parameters
 rRx = 17.
 zRx = -37.0

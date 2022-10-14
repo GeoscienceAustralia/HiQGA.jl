@@ -37,6 +37,7 @@ mutable struct HFieldDHT <: HField
     J1_kernel_h     :: Array{ComplexF64, 2}
     J0_kernel_v     :: Array{ComplexF64, 2}
     J1_kernel_v     :: Array{ComplexF64, 2}
+    J01kernelhold   :: Vector
     lowpassfcs      :: Array{Float64, 1}
     quadnodes       :: Array{Float64, 1}
     quadweights     :: Array{Float64, 1}
@@ -105,6 +106,7 @@ function HFieldDHT(;
     end
     interpkᵣ = 10 .^range(minimum(log10.(Filter_base))-0.5, maximum(log10.(Filter_base))+0.5, length = nkᵣeval)
     J0_kernel_h, J1_kernel_h, J0_kernel_v, J1_kernel_v = map(x->zeros(ComplexF64, length(interpkᵣ), length(freqs)), 1:4)
+    J01kernelhold = zeros(ComplexF64, length(Filter_base))
     log10ω = log10.(2*pi*freqs)
     interptimes = 10 .^(minimum(log10.(times))-1:1/ntimesperdecade:maximum(log10.(times))+1)
     HFD_z       = zeros(ComplexF64, length(freqs)) # space domain fields in freq
@@ -141,7 +143,7 @@ function HFieldDHT(;
     useprimary = modelprimary ? one(Float64) : zero(Float64)
     HFieldDHT(thickness, pz, ϵᵢ, zintfc, rTE, rTM, zRx, zTx, rTx, rRx, freqs, times, ramp, log10ω, interptimes,
             HFD_z, HFD_r, HFD_az, HFD_z_interp, HFD_r_interp, HFD_az_interp,
-            HTD_z_interp, HTD_r_interp, HTD_az_interp, dBzdt, dBrdt, dBazdt, J0_kernel_h, J1_kernel_h, J0_kernel_v, J1_kernel_v, lowpassfcs,
+            HTD_z_interp, HTD_r_interp, HTD_az_interp, dBzdt, dBrdt, dBazdt, J0_kernel_h, J1_kernel_h, J0_kernel_v, J1_kernel_v, J01kernelhold, lowpassfcs,
             quadnodes, quadweights, preallocate_ω_Hsc(interptimes, lowpassfcs)..., rxwithinloop, provideddt, doconvramp, useprimary,
             nkᵣeval, interpkᵣ, log10interpkᵣ, log10Filter_base, getradialH, getazimH, 
             calcjacobian, Jtemp, similar(Jtemp), Jac, HFD_z_J, HTD_z_J_interp, dBzdt_J)
@@ -411,42 +413,51 @@ function getfieldFD!(F::HFieldDHT, z::Array{Float64, 1}, ρ::Array{Float64, 1})
         end # kᵣ loop
         @views begin
             if F.rxwithinloop
-                splreal = CubicSpline(real(F.J1_kernel_v[:,ifreq]), F.log10interpkᵣ)
-                splimag = CubicSpline(imag(F.J1_kernel_v[:,ifreq]), F.log10interpkᵣ)
-                J1_kernel_v = splreal.(F.log10Filter_base) + 1im*splimag.(F.log10Filter_base)
-                F.HFD_z[ifreq] = dot(J1_kernel_v, Filter_J1)/F.rTx
+                # splreal = CubicSpline(real(F.J1_kernel_v[:,ifreq]), F.log10interpkᵣ)
+                # splimag = CubicSpline(imag(F.J1_kernel_v[:,ifreq]), F.log10interpkᵣ)
+                # J1_kernel_v = splreal.(F.log10Filter_base) + 1im*splimag.(F.log10Filter_base)
+                # F.HFD_z[ifreq] = dot(J1_kernel_v, Filter_J1)/F.rTx
+                dohankeltx!(F.HFD_z, ifreq, Filter_J1, F.rTx, F.J01kernelhold, F.J1_kernel_v[:,ifreq], F.log10interpkᵣ, F.log10Filter_base)
+                calcfreqdomainjacobian!(F.calcjacobian, ifreq, F.HFD_z_J, F.J01kernelhold, F.derivmatrix, F.log10interpkᵣ, F.log10Filter_base, ρ, Filter_J1, F.rTx)
             else
                 # Vertical component
-                splreal = CubicSpline(real(F.J0_kernel_v[:,ifreq]), F.log10interpkᵣ)
-                splimag = CubicSpline(imag(F.J0_kernel_v[:,ifreq]), F.log10interpkᵣ)
-                J0_kernel_v = splreal.(F.log10Filter_base) + 1im*splimag.(F.log10Filter_base)
-                F.HFD_z[ifreq] = dot(J0_kernel_v, Filter_J0)/F.rRx
-                    if F.calcjacobian
-                        for ilayer = 2:length(ρ)
-                            splreal = CubicSpline(real(vec(F.derivmatrix[:,ilayer])), F.log10interpkᵣ)
-                            splimag = CubicSpline(imag(vec(F.derivmatrix[:,ilayer])), F.log10interpkᵣ)
-                            J0_kernel_v_prime = splreal.(F.log10Filter_base) + 1im*splimag.(F.log10Filter_base)
-                            F.HFD_z_J[ilayer, ifreq] = dot(J0_kernel_v_prime, Filter_J0)/F.rRx
-                        end    
-                    end    
+                dohankeltx!(F.HFD_z, ifreq, Filter_J0, F.rRx, F.J01kernelhold, F.J0_kernel_v[:,ifreq], F.log10interpkᵣ, F.log10Filter_base)
+                calcfreqdomainjacobian!(F.calcjacobian, ifreq, F.HFD_z_J, F.J01kernelhold, F.derivmatrix, F.log10interpkᵣ, F.log10Filter_base, ρ, Filter_J0, F.rRx)
                 # radial component
                 if F.getradialH
-                    splreal = CubicSpline(real(F.J1_kernel_v[:,ifreq]), F.log10interpkᵣ)
-                    splimag = CubicSpline(imag(F.J1_kernel_v[:,ifreq]), F.log10interpkᵣ)
-                    J1_kernel_v = splreal.(F.log10Filter_base) + 1im*splimag.(F.log10Filter_base)
-                    F.HFD_r[ifreq] = dot(J1_kernel_v, Filter_J1)/F.rRx
+                    dohankeltx!(F.HFD_r, ifreq, Filter_J1, F.rRx, F.J01kernelhold, F.J1_kernel_v[:,ifreq], F.log10interpkᵣ, F.log10Filter_base)
                 end
                 # for HMD
                 if F.getazimH
-                    splreal = CubicSpline(real(F.J1_kernel_h[:,ifreq]), F.log10interpkᵣ)
-                    splimag = CubicSpline(imag(F.J1_kernel_h[:,ifreq]), F.log10interpkᵣ)
-                    J1_kernel_h = splreal.(F.log10Filter_base) + 1im*splimag.(F.log10Filter_base)
-                    F.HFD_az[ifreq] = dot(J1_kernel_h, Filter_J1)/F.rRx
+                    dohankeltx!(F.HFD_az, ifreq, Filter_J1, F.rRx, F.J01kernelhold, F.J1_kernel_h[:,ifreq], F.log10interpkᵣ, F.log10Filter_base)
                 end
             end
         end #views
     end # freq loop
 end
+
+function docomplexinterp(cmplxarray, xgiven, xwanted)
+    splreal = CubicSpline(real(cmplxarray), xgiven)
+    splimag = CubicSpline(imag(cmplxarray), xgiven)
+    splreal.(xwanted) + 1im*splimag.(xwanted)
+end    
+
+function dohankeltx!(HFD_component, ifreq, filtercoeff, rscale, kernelhold, kernelgiven, krgiven, krwanted)
+    kernelhold[:] = docomplexinterp(kernelgiven, krgiven, krwanted)
+    HFD_component[ifreq] = dot(kernelhold, filtercoeff)/rscale
+end
+
+function calcfreqdomainjacobian!(doit, ifreq, HFD_component_J, kernelhold, derivmatrix, 
+    log10interpkᵣ, log10Filter_base, ρ, filtercoeff, rscale)
+    if doit
+        for ilayer = 2:length(ρ)
+            @views begin
+                dohankeltx!(HFD_component_J[ilayer,:], ifreq, filtercoeff, 
+                rscale, kernelhold, derivmatrix[:,ilayer], log10interpkᵣ, log10Filter_base)
+            end
+        end    
+    end
+end    
 
 function getfieldTD!(F::HFieldDHT, z::Array{Float64, 1}, ρ::Array{Float64, 1})
     getfieldFD!(F, z, ρ)
