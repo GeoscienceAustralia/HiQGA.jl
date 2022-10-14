@@ -11,10 +11,10 @@ z, ρ, nfixed = transD_GP.makezρ(zboundaries; zfixed=zfixed, ρfixed=ρfixed)
 ## geometry and modeling parameters
 zTx = -30.0
 calcjacobian = true
-include("electronics_halt.jl")
+include("../electronics_halt.jl")
 ## make LM operator
 aem = transD_GP.VTEM1DInversion.dBzdt(;
-times, ramp, rTx, zTx, z, ρ)
+times, ramp, rTx, zTx, z, ρ, calcjacobian)
 ## make a model
 ρ[(z.>=zstart) .& (z.<50)] .= 20.
 ρ[(z.>=50) .&(z.<80)]      .= 1

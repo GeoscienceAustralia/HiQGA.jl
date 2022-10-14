@@ -2,6 +2,8 @@ module VTEM1DInversion
 using ..AbstractOperator, ..CommonToAll
 import ..AbstractOperator.get_misfit
 import ..main # for McMC
+import ..gradientinv # for gradientbased
+import ..AbstractOperator.getresidual # for gradientbased
 import ..Model, ..Options
 using ..AEM_VMD_HMD
 import ..AbstractOperator.Sounding # for storing real data
@@ -63,11 +65,11 @@ function dBzdt(;times           = [1.],
 end
 
 function allocateJ(FJt, σ, select, nfixed, nmodel, calcjacobian)
-    if calcjacobian
+    if calcjacobian && !isempty(select)
         J = FJt'
         J = J[select,nfixed+1:nmodel]
-        Wdiag = [1 ./σ[select]]
-        res = d[select]
+        Wdiag = 1 ./σ[select]
+        res = similar(Wdiag)
     else    
         res, J, Wdiag = zeros(0), zeros(0), zeros(0)
     end
@@ -87,7 +89,7 @@ function getresidual(aem::dBzdt, log10σ::Vector{Float64}; computeJ=false)
     getfield!(-log10σ, aem)
     f = F.dBzdt[aem.select]
     d = aem.d[aem.select]
-    aem.res[:] = [f-d]
+    aem.res[:] = f-d
     if computeJ
         select, nfixed = aem.select, aem.nfixed
         copy!(aem.J, F.dBzdt_J'[select, nfixed+1:nfixed+length(log10σ)])
