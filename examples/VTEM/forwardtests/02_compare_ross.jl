@@ -19,7 +19,7 @@ nkᵣeval = 50
 ntimesperdecade = 10
 nfreqsperdecade = 6
 calcjacobian = true
-include("electronics_halt.jl")
+include("../waveletapprox/electronics_halt.jl")
 ## LM operator
 F = transD_GP.AEM_VMD_HMD.HFieldDHT(;
                       times,

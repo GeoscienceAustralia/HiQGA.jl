@@ -11,7 +11,7 @@ z, ρ, nfixed = transD_GP.makezρ(zboundaries; zfixed=zfixed, ρfixed=ρfixed)
 ## geometry and modeling parameters
 zTx = -30.0
 calcjacobian = true
-include("../electronics_halt.jl")
+include("../waveletapprox/electronics_halt.jl")
 ## make LM operator
 aem = transD_GP.VTEM1DInversion.dBzdt(;
 times, ramp, rTx, zTx, z, ρ, calcjacobian)
@@ -27,4 +27,3 @@ Random.seed!(11)
 ρ = 10 .^(0.1*randn(length(ρ)) + log10.(ρ))
 ## make noisy synthetic
 transD_GP.VTEM1DInversion.makenoisydata!(aem, log10.(ρ[2:end]); σ_halt)
-   

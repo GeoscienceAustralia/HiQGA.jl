@@ -14,8 +14,8 @@ rRx = 0.0
 zRx = -30.01
 zTx = -30.0
 freqlow = 1e-3
-calcjacobian = true
-include("electronics_halt.jl")
+calcjacobian = false
+include("../waveletapprox/electronics_halt.jl")
 ## LM operator
 F = transD_GP.AEM_VMD_HMD.HFieldDHT(;
                       times,

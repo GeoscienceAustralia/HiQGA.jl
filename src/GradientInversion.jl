@@ -71,7 +71,9 @@ function occamstep(m::AbstractVector, m0::AbstractVector, Δm::AbstractVector, m
             λ²[i] = nu
             χ²[i] <= knownvalue && (count = countmax; break)
         end
-        all(χ² .>= χ²₀) && (α = α/2)
+        if all(χ² .>= χ²₀)
+           α = count < countmax - 1 ? α/2 : 0. # make sure we don't start going uphill again
+        end    
         count += 1        
         count > countmax && break                    
     end
@@ -209,7 +211,8 @@ function gradientinv(   m::AbstractVector,
                         ntestdivsλ²=50,
                         αmin=-4, 
                         αmax=0, 
-                        αfrac=4, 
+                        αfrac=4,
+                        improvfrac=0.02, 
                         ntestdivsα=32,
                         regularizeupdate = false,
                         knownvalue=0.7,
@@ -248,7 +251,16 @@ function gradientinv(   m::AbstractVector,
         oidx[istep] = idx
         isa(io, Nothing) || write_history(io, [istep; χ²[istep][idx]/target₀; vec(m)])
         foundroot && break
-        istep == nstepsmax - 1 && (target = χ²[istep][idx]) # exit with smoothest
+        noimprovement = false
+        if (istep>1)
+            χ²prev = χ²[istep-1][oidx[istep-1]]
+            if (χ²prev-χ²[istep][idx])/χ²prev < improvfrac
+                noimprovement = true
+            end
+        end
+        if (istep == nstepsmax - 1) || noimprovement 
+            target = χ²[istep][idx] # exit with smoothest
+        end    
         istep += 1
         istep > nstepsmax && break
     end
