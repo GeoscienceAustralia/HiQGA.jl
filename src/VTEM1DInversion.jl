@@ -7,7 +7,7 @@ import ..AbstractOperator.getresidual # for gradientbased
 import ..Model, ..Options
 using ..AEM_VMD_HMD
 import ..AbstractOperator.Sounding # for storing real data
-using Random, PyPlot, DelimitedFiles, LinearMaps, SparseArrays, ..GP, LinearAlgebra
+using Random, PyPlot, DelimitedFiles, LinearMaps, SparseArrays, ..GP, LinearAlgebra, Statistics
 
 μ = AEM_VMD_HMD.μ
 const pVinv = 1e12
@@ -40,7 +40,8 @@ function dBzdt(;times           = [1.],
         nfreqsperdecade = 6,
         ntimesperdecade = 10,
         d               = zeros(0),
-        σ               = zeros(0)
+        σ               = zeros(0),
+        showgates       = false
         )
    
     @assert size(σ)  == size(d)
@@ -61,7 +62,9 @@ function dBzdt(;times           = [1.],
     @assert length(F.thickness) >= length(z)
     # for Gauss-Newton
     res, J, W = allocateJ(F.dBzdt_J, σ, select, nfixed, length(ρ), calcjacobian)
-    dBzdt(d, useML, σ, F, z, nfixed, copy(ρ), select, ndata, J, W, res)
+    aem = dBzdt(d, useML, σ, F, z, nfixed, copy(ρ), select, ndata, J, W, res)
+    showgates && plotwaveformgates(aem)
+    aem
 end
 
 function allocateJ(FJt, σ, select, nfixed, nmodel, calcjacobian)
@@ -104,8 +107,6 @@ mutable struct VTEMsoundingData <: Sounding
     Z               :: Float64
     fid             :: Float64
     linenum         :: Int
-    rRx             :: Float64
-    zRx             :: Float64
     zTx             :: Float64
     rTx             :: Float64
     lowpassfcs      :: Array{Float64, 1}
@@ -125,12 +126,12 @@ function VTEMsoundingData(;rRx=nothing, zRx=nothing, zTx=12.,
     @assert zTx < 0 # my coordinate system z down 
     isnothing(rRx) && (rRx = 0.)
     isnothing(zRx) && (zRx = zTx-0.1) # place receiver just above tx centre
-    !isempty(lowpassfc) && @assert all(lowpassfcs .> 0)
+    !isempty(lowpassfcs) && @assert all(lowpassfcs .> 0)
     @assert all(diff(times) .>0 )
     @assert all(diff(ramp[:,1]) .>0 )
     @assert all((noise .>0) .| isnan.(noise))
     @assert length(data) == length(noise)
-    VTEMsoundingData(sounding_string, X, Y, Z, fid, linenum, rRx, zRx, zTx, rTx,
+    VTEMsoundingData(sounding_string, X, Y, Z, fid, linenum, zTx, rTx,
         lowpassfcs, times, ramp, noise, data)
 end
 
@@ -141,6 +142,7 @@ function read_survey_files(;
     d        = [-2, -2],
     units=1e-12,
     figsize = (8,4),
+    fontsize = 10,
     makesounding = false,
     dotillsounding = nothing,
     startfrom = 1,
@@ -182,10 +184,10 @@ function read_survey_files(;
     @assert size(d, 2) == length(σ_halt)
     σ_halt[:] .*= units
     d[:]      .*= units
-    σ           = sqrt.((multnoise*d).^2 .+ σ_halt.^2)
+    σ           = sqrt.((multnoise*d).^2 .+ (σ_halt').^2)
 
-    plotsoundingdata(d, σ, times, zTx, figsize)
-
+    plotsoundingdata(d, σ, times, zTx; figsize, fontsize)
+    nsoundings = size(d, 1)
     if makesounding
         s_array = Array{VTEMsoundingData, 1}(undef, nsoundings)
         for is in 1:nsoundings
@@ -201,22 +203,27 @@ function read_survey_files(;
     end
 end
 
-function plotsoundingdata(d, σ, times, zTx, figsize)
-    f, ax = plt.subplots(2, 1, figsize=figsize, sharex=true)
-    nsoundings = size(soundings, 1)
+function plotsoundingdata(d, σ, times, zTx; figsize=(8,4), fontsize=1)
+    f, ax = plt.subplots(2, 2, figsize=figsize, gridspec_kw=Dict("width_ratios" => [1,0.01]))
+    nsoundings = size(d, 1)
     plot_d = permutedims(d)
-    plot_d[plot_dLM .<0] .= NaN
+    plot_d[plot_d .<0] .= NaN
     img = ax[1].pcolormesh(1:nsoundings, times, log10.(plot_d), shading="nearest")
-    cbLM = colorbar(img)
-    cbLM.set_label("log10(dBzdt)")
+    ax[1].invert_yaxis()
+    cb = colorbar(img, cax=ax[1,2])
+    cb.set_label("log10(dBz/dt)")
     ax[1].set_ylabel("time s")
+    ax[1].tick_params(labelbottom=false)
     axx = ax[1].twiny()
-    axx.semilogy(mean(σ), times)
-    axx.set_xlabel("avg high alt noise")
-    ax[2].plot(1:nsoundings, zTx, label="Tx")
+    axx.semilogy(mean(σ./abs.(d), dims=1)[:], times)
+    axx.set_xlabel("avg high alt noise fraction")
+    ax[2].plot(1:nsoundings, zTx, label="zTx")
     ax[2].set_xlabel("sounding #")
     ax[2].set_ylabel("height m")
+    ax[2].sharex(ax[1])
     ax[2].legend()
+    ax[2,2].axis("off")
+    nicenup(f, fsize=fontsize)
     nothing
 end
 
@@ -346,6 +353,139 @@ function makenoisydata!(aem, ρ;
         aem.nfixed, length(aem.ρ), aem.F.calcjacobian)
     plotmodelfield!(aem, ρ; onesigma, color, alpha, model_lw, forward_lw, figsize, revax)
     nothing
+end
+
+function makeoperator(sounding::VTEMsoundingData; 
+            useML         = false,
+            zfixed        = [-1e5],
+            ρfixed        = [1e12],
+            extendfrac    = 1.06,
+            dz            = 2.,
+            ρbg           = 10, #linear ohm-m
+            nlayers       = 40,
+            ntimesperdecade = 10,
+            nfreqsperdecade = 5,
+            showgeomplot = false,
+            calcjacobian = false,
+            plotfield    = false
+            )
+    
+    zall, znall, zboundaries = setupz(zstart, extendfrac, dz=dz, n=nlayers, showplot=showgeomplot)
+    z, ρ, = makezρ(zboundaries; zfixed, ρfixed)
+    aem = transD_GP.VTEM1DInversion.dBzdt(;d=sounding.data/μ, σ=sounding.noise/μ,
+        times=sounding.times, ramp=sounding.ramp, ntimesperdecade, nfreqsperdecade,
+        rTx=sounding.rTx, zTx=sounding.zTx, z, ρ, calcjacobian, useML, showgates=plotfield)
+    
+    plotfield && plotmodelfield!(aem, log10.(ρ[2:end]))
+    aem, zall, znall
+end
+
+function plotwaveformgates(aem::dBzdt; figsize=(5,5))
+    figure(;figsize)
+    plot(aem.ramp[:,1]*1e6, aem.ramp[:,2], "-or")
+    stem(aem.times*1e6, ones(length(aem.times)))
+    ylabel("Amplitude")
+    xlabel("time μs")
+    title("Ramp and gates linear time")
 end    
+
+# for gradient based inversion
+function loopacrosssoundings(soundings::Array{S, 1}, σstart, σ0; 
+                            nsequentialiters   =-1,
+                            zfixed             = [-1e5],
+                            ρfixed             = [1e12],
+                            zstart             = 0.0,
+                            extendfrac         = 1.06,
+                            dz                 = 2.,
+                            ρbg                = 10,
+                            nlayers            = 50,
+                            ntimesperdecade    = 10,
+                            nfreqsperdecade    = 5,
+                            modelprimary       = false,
+                            regtype            = :R1,
+                            nstepsmax          = 10,
+                            ntries             = 6,
+                            target             = nothing,
+                            lo                 = -3.,
+                            hi                 = 1.,
+                            λ²min              = 0,
+                            λ²max              = 8,
+                            λ²frac             = 4,
+                            β²                 = 0.,
+                            ntestdivsλ²        = 50,
+                            αmin               = -4, 
+                            αmax               = 0, 
+                            αfrac              = 4, 
+                            ntestdivsα         = 32,
+                            regularizeupdate   = false,
+                            knownvalue         = 0.7,
+                            firstvalue         = :last,
+                            κ                  = GP.Mat52(),
+                            breakonknown       = true,
+                            dobo               = false,
+                            compresssoundings  = true,
+                            zipsaveprefix      = "",        
+                            ) where S<:Sounding
+
+    @assert nsequentialiters  != -1
+    nparallelsoundings = nworkers()
+    nsoundings = length(soundings)
+    zall, = setupz(zstart, extendfrac, dz=dz, n=nlayers) # needed for sounding compression
+    for iter = 1:nsequentialiters
+        if iter<nsequentialiters
+            ss = (iter-1)*nparallelsoundings+1:iter*nparallelsoundings
+        else
+            ss = (iter-1)*nparallelsoundings+1:nsoundings
+        end
+        @info "soundings in loop $iter of $nsequentialiters", ss
+        pids = workers()
+        @sync for (i, s) in enumerate(ss)
+            aem, = makeoperator(    soundings[s],
+                                    zfixed = zfixed,
+                                    ρfixed = ρfixed,
+                                    zstart = zstart,
+                                    extendfrac = extendfrac,
+                                    dz = dz,
+                                    ρbg = ρbg,
+                                    nlayers = nlayers,
+                                    modelprimary = modelprimary,
+                                    ntimesperdecade = ntimesperdecade,
+                                    nfreqsperdecade = nfreqsperdecade,
+                                    calcjacobian = true)
+
+            fname = soundings[s].sounding_string*"_gradientinv.dat"
+            σstart_, σ0_ = map(x->x*ones(length(aem.ρ)-1), [σstart, σ0])
+            @async remotecall_wait(gradientinv, pids[i], σstart_, σ0_, aem,
+                                                regtype            = regtype         ,              
+                                                nstepsmax          = nstepsmax       ,              
+                                                ntries             = ntries          ,              
+                                                target             = target          ,              
+                                                lo                 = lo              ,              
+                                                hi                 = hi              ,              
+                                                λ²min              = λ²min           ,              
+                                                λ²max              = λ²max           ,              
+                                                λ²frac             = λ²frac          ,              
+                                                ntestdivsλ²        = ntestdivsλ²     ,              
+                                                αmin               = αmin            ,              
+                                                αmax               = αmax            ,              
+                                                αfrac              = αfrac           ,
+                                                β²                 = β²              ,
+                                                ntestdivsα         = ntestdivsα      ,              
+                                                regularizeupdate   = regularizeupdate,              
+                                                knownvalue         = knownvalue      ,              
+                                                firstvalue         = firstvalue      ,              
+                                                κ                  = κ               ,              
+                                                breakonknown       = breakonknown    ,              
+                                                dobo               = dobo            ,
+                                                fname              = fname           ) 
+                
+
+        end # @sync
+        isfirstparalleliteration = iter == 1 ? true : false
+        compresssoundings && compress(soundings[ss[1]:ss[end]], zall, 
+            isfirstparalleliteration = isfirstparalleliteration, prefix=zipsaveprefix)
+        @info "done $iter out of $nsequentialiters at $(Dates.now())"
+    end
+end
 
 end
