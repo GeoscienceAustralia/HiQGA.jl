@@ -6,6 +6,8 @@ module transD_GP
     include("MCMC_Driver.jl")
     include("GradientInversion.jl")
     include("GeophysOperator.jl")
+    include("AEMnoNuisanceGradientInversionTools.jl")
+    using .AEMnoNuisanceGradientInversionTools
 end
 export transD_GP
 end

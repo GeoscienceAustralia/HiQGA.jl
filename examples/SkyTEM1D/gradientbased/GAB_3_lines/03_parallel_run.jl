@@ -27,7 +27,7 @@ nsequentialiters = ceil(Int, nsoundings/ncores)
 @everywhere using HiQGA.transD_GP
 ## do the parallel soundings
 @info "starting"
-transD_GP.SkyTEM1DInversion.loopacrosssoundings(soundings, σstart, σ0,
+transD_GP.loopacrossAEMsoundings(soundings, σstart, σ0,
                             nsequentialiters   = nsequentialiters,              
                             zfixed             = zfixed          ,              
                             ρfixed             = ρfixed          ,              
