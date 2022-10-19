@@ -3,7 +3,7 @@ import ..AbstractOperator.get_misfit, ..main
 import ..AbstractOperator.Sounding
 import ..AbstractOperator.makeoperator
 import ..AbstractOperator.getresidual
-
+import ..AbstractOperator.returnforwrite
 
 using ..AbstractOperator, ..AEM_VMD_HMD, Statistics, Distributed, Printf, Dates, StatsBase,
       PyPlot, LinearAlgebra, ..CommonToAll, Random, DelimitedFiles, LinearMaps, SparseArrays, ..GP
@@ -119,6 +119,10 @@ mutable struct SkyTEMsoundingData <: Sounding
     LM_data :: Array{Float64, 1}
     HM_data :: Array{Float64, 1}
 end
+
+returnforwrite(s::SkyTEMsoundingData) = [s.X, s.Y, s.Z, s.fid, 
+    s.linenum, s.rRx, s.zRxLM, s.zTxLM, s.zRxHM, 
+    s.zTxHM, s.rTx]
 
 function SkyTEMsoundingData(;rRx=-12., zRxLM=12., zTxLM=12.,
                             zRxHM=12., zTxHM=12., rTx=-12.,lowpassfcs=[-1, -2.],

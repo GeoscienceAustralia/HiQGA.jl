@@ -13,6 +13,8 @@ function getresidual end
 
 # many geophysics data types require a sounding type
 abstract type Sounding end
+# we sometimes return things from a sounding in an inversion file
+function returnforwrite end
 # these soundings often need to be fed into a function
 # to make a physics operator with the relevant sounding data
 function makeoperator end

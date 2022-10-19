@@ -3,6 +3,7 @@ using Distributed, Dates, Printf, PyPlot, DelimitedFiles, StatsBase
 using ..AbstractOperator, ..CommonToAll
 import ..AbstractOperator.makeoperator
 import ..AbstractOperator.Sounding
+import ..AbstractOperator.returnforwrite
 import ..gradientinv
 export plotconvandlast, loopacrossAEMsoundings
 # for deterministic inversions, read in
@@ -21,10 +22,8 @@ function compress(soundings, zall; prefix="", rmfile=true, isfirstparalleliterat
         A = readdlm(fname)
         ϕd = A[end,2]
         σgrid = vec(A[end,3:end])
-        for el in [[s.X, s.Y, s.Z, s.fid, 
-                    s.linenum, s.rRx, s.zRxLM, s.zTxLM, s.zRxHM, 
-                    s.zTxHM, s.rTx]; vec(zall); σgrid; ϕd]
-            msg = @sprintf("%e\t", el)
+        for el in [returnforwrite(s)...; vec(zall); σgrid; ϕd]
+            msg = @sprintf("%.4f\t", el)
             write(io, msg)
         end
         write(io, "\n")                
@@ -122,7 +121,11 @@ function plotconvandlasteachline(soundings, σ, ϕd, delr, delz;
         figsize=figsize, sharex=true)
     lname = "Line_$(soundings[1].linenum)"*postfix
     x0, y0 = soundings[1].X, soundings[1].Y
-    zTx = [s.zTxLM for s in soundings]
+    if isdefined(soundings[1], :zTx)
+        zTx = [s.zTx for s in soundings]
+    else
+        zTx = [s.zTxLM for s in soundings]
+    end    
     xend, yend = soundings[end].X, soundings[end].Y
     Z = [s.Z for s in soundings]
     good, bad, ugly = getphidhist(ϕd)
