@@ -8,6 +8,8 @@ module transD_GP
     include("GeophysOperator.jl")
     include("AEMnoNuisanceGradientInversionTools.jl")
     using .AEMnoNuisanceGradientInversionTools
+    include("AEMnoNuisanceMcMCinversionTools.jl")
+    using .AEMnoNuisanceMcMCinversionTools
 end
 export transD_GP
 end

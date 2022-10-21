@@ -4,6 +4,7 @@ using ..AbstractOperator, ..CommonToAll
 import ..AbstractOperator.makeoperator
 import ..AbstractOperator.Sounding
 import ..AbstractOperator.returnforwrite
+import ..AbstractOperator.loopacrossAEMsoundings
 import ..gradientinv
 export plotconvandlast, loopacrossAEMsoundings
 # for deterministic inversions, read in

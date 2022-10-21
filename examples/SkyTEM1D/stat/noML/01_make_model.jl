@@ -4,7 +4,6 @@ using PyPlot, DelimitedFiles, Random, Statistics, Revise,
 Random.seed!(23)
 zfixed   = [-1e5]
 ρfixed   = [1e12]
-nmax = 200
 # Note that the receiver and transmitter need to be in layer 1
 zstart = 0.0
 extendfrac, dz = 1.03, 1.5
@@ -16,6 +15,7 @@ zRx = -42.0
 zTx = -40.0
 freqlow = 1e-3
 include("electronics_halt.jl")
+nmax = length(z)
 ## LM operator
 Flm = transD_GP.AEM_VMD_HMD.HFieldDHT(
                       lowpassfcs = lowpassfcs,

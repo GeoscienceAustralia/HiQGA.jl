@@ -2,7 +2,7 @@ module AEM_VMD_HMD
 include("DigFilters.jl")
 include("TDcossin.jl")
 using LinearAlgebra, SpecialFunctions, FastGaussQuadrature, DataInterpolations
-
+export getfreqsperdec, gettimesperdec
 abstract type HField end
 
 mutable struct HFieldDHT <: HField
@@ -185,6 +185,15 @@ function update_ZR!(F::HFieldDHT, zTx, zRx, rTx, rRx)
     F.zRx = zRx
 
 end
+
+function getfreqsperdec(freqvec)
+    fmin, fmax = extrema(log10.(freqvec))
+    ndiv = length(freqvec)-1
+    freqinterval = (fmax-fmin)/ndiv
+    round(1/freqinterval;sigdigits=5)
+end
+
+gettimesperdec(timevec) = getfreqsperdec(timevec) # same calculation in time
 
 function preallocate_ω_Hsc(interptimes, lowpassfcs)
     ω   = zeros(length(Filter_t_base), length(interptimes))

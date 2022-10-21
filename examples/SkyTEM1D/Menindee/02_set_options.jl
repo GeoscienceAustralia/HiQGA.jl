@@ -6,13 +6,14 @@ ppn = 48
 zfixed   = [-1e5]
 ρfixed   = [1e12]
 zstart = 0.0
-showgeomplot = false
+showgeomplot = true
+plotfield = true
 extendfrac, dz = 1.06, 1.25
 nlayers = 52
 ρbg = 5.
 ntimesperdecade = 10
 nfreqsperdecade = 5
-useML = true
+useML = false
 ## make transD options
 nmin, nmax = 2, 40
 K = transD_GP.GP.OrstUhn()
@@ -26,13 +27,9 @@ sddc = 0.01
 save_freq = 100
 Tmax = 2.50
 nchainsatone = 1
-## plot n random soundings and a background response
-using Random
-nplot = 2
-nplot = min(nplot, length(soundings))
-opt = transD_GP.SkyTEM1DInversion.makeoperatorandoptions(
-                            rseed = 2,
-                            soundings,
+## plot 1 random sounding and a background response
+aem, opt = transD_GP.makeaemoperatorandoptions(
+                            soundings[rand(1:length(soundings))];
                             zfixed = zfixed,
                             ρfixed = ρfixed,
                             zstart = zstart,
@@ -54,6 +51,7 @@ opt = transD_GP.SkyTEM1DInversion.makeoperatorandoptions(
                             fbounds = fbounds,
                             save_freq = save_freq,
                             showgeomplot = showgeomplot,
+                            plotfield,
                             λ = λ,
                             δ = δ
 )

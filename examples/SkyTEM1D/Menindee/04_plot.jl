@@ -2,7 +2,7 @@ dr = 20
 idx = 1:100:length(soundings)
 burninfrac=0.5
 vmin, vmax = -2.5, 0.5
-transD_GP.SkyTEM1DInversion.summaryimages(soundings, opt,
+transD_GP.summaryAEMimages(soundings, opt,
                    zstart=zstart,
                    dz=dz,
                    dr=dr,

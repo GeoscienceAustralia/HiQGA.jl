@@ -20,30 +20,19 @@ ncores = nworkers()
 @assert mod(ppn, nchainspersounding+1) == 0
 nparallelsoundings = Int((ncores+1)/(nchainspersounding+1))
 nsequentialiters = ceil(Int, nsoundings/nparallelsoundings)
-@info "will require $nsequentialiters iterations of $nparallelsoundings"
+@info "will require $nsequentialiters iterations of $nparallelsoundings soundings in parallel"
 ## set up McMC
 @everywhere using Distributed
 @everywhere using HiQGA.transD_GP
 ## do the parallel soundings
 @info "starting"
-transD_GP.SkyTEM1DInversion.loopacrosssoundings(soundings, opt;
+transD_GP.loopacrossAEMsoundings(soundings, aem, opt;
                     nsequentialiters   = nsequentialiters,
                     nparallelsoundings = nparallelsoundings,
-                    zfixed             = zfixed,
-                    ρfixed             = ρfixed,
-                    zstart             = zstart,
-                    extendfrac         = extendfrac,
-                    dz                 = dz,
-                    ρbg                = ρbg,
-                    nlayers            = nlayers,
-                    ntimesperdecade    = ntimesperdecade,
-                    nfreqsperdecade    = nfreqsperdecade,
                     Tmax               = Tmax,
                     nsamples           = nsamples,
                     nchainsatone       = nchainsatone,
-                    nchainspersounding = nchainspersounding,
-                    useML              = useML)
-
+                    nchainspersounding = nchainspersounding)
 
 MPIClusterManagers.stop_main_loop(manager)
 rmprocs(workers())
