@@ -20,8 +20,10 @@ function returnforwrite end
 function makeoperator end
 # for nuisances this may change from sounding to sounding
 function make_tdgp_opt end
-# function to do AEM soundings in a loop
+# to do AEM soundings in a loop
 function loopacrossAEMsoundings end
+# to plot forwards from a sounding
+function plotmodelfield! end
 
 export Operator, Operator1D, Operator2D, Sounding
 end

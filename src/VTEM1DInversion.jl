@@ -8,6 +8,7 @@ import ..Model, ..Options
 using ..AEM_VMD_HMD
 import ..AbstractOperator.Sounding # for storing real data
 import ..AbstractOperator.returnforwrite
+import ..AbstractOperator.plotmodelfield!
 using Random, PyPlot, DelimitedFiles, LinearMaps, SparseArrays, ..GP, LinearAlgebra, Statistics
 
 μ = AEM_VMD_HMD.μ
@@ -304,7 +305,7 @@ function plotdata(ax, d, σ, t; onesigma=true)
     linestyle="none", marker=".", elinewidth=0, capsize=3)
 end
 
-function plotmodelfield!(ax, iaxis, aem, ρ; color=nothing, alpha=1, model_lw=1, forward_lw=1)
+function plotmodelfield!(ax, iaxis, aem::dBzdt, ρ; color=nothing, alpha=1, model_lw=1, forward_lw=1)
     nfixed = aem.nfixed
     ax[iaxis].step(ρ, aem.z[nfixed+1:end], linewidth=model_lw, alpha=alpha)
     getfield!(ρ, aem)
@@ -319,11 +320,11 @@ function initmodelfield!(aem;  onesigma=true, figsize=(8,8))
     ax
 end    
 
-function plotmodelfield!(aem, ρ; onesigma=true, color=nothing, alpha=1, model_lw=1, forward_lw=1, figsize=(8,8), revax=true)
+function plotmodelfield!(aem::dBzdt, ρ; onesigma=true, color=nothing, alpha=1, model_lw=1, forward_lw=1, figsize=(8,8), revax=true)
     plotmodelfield!(aem, [ρ]; onesigma, color, alpha, model_lw, forward_lw, figsize, revax) 
 end  
 
-function plotmodelfield!(aem, manyρ::Vector{T}; onesigma=true, 
+function plotmodelfield!(aem::dBzdt, manyρ::Vector{T}; onesigma=true, 
         color=nothing, alpha=1, model_lw=1, forward_lw=1, figsize=(8,8), revax=true) where T<:AbstractArray
     ax = initmodelfield!(aem; onesigma, figsize)
     for ρ in manyρ

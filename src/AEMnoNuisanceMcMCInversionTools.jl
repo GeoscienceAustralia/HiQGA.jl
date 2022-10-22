@@ -2,10 +2,11 @@ module AEMnoNuisanceMcMCinversionTools
 using ..AbstractOperator, ..CommonToAll
 import ..AbstractOperator.makeoperator
 import ..AbstractOperator.loopacrossAEMsoundings
+import ..AbstractOperator.plotmodelfield!
 import ..Options, ..OptionsStat
-export makeaemoperatorandoptions, loopacrossAEMsoundings, summaryAEMimages
+export makeAEMoperatorandoptions, loopacrossAEMsoundings, summaryAEMimages, plotindividualAEMsoundings
 import ..main # McMC function
-using Distributed, Dates, Statistics, DelimitedFiles
+using Distributed, Dates, Statistics, DelimitedFiles, PyPlot, Random
 # plotting stuff
 function splitlinesummaryimages(soundings::Array{S, 1}, opt::Options;
                         qp1=0.05,
@@ -155,6 +156,40 @@ function summarypost(soundings::Vector{S}, opt::Options;
     pl, pm, ph, ρmean, vdmean, vddev, χ²mean, χ²sd, zall
 end
 
+function plotindividualAEMsoundings(soundings::Vector{S}, aem_in::Operator1D, opt::Options, idxplot::Vector{Int};
+    burninfrac=0.5,
+    nbins = 50,
+    figsize  = (6,6),
+    omittemp = true,
+    showslope = false,
+    plotmean = false,
+    pdfclim = nothing,
+    qp1=0.05,
+    qp2=0.95,
+    rseed = 123,
+    computeforwards = false,
+    nforwards = 100) where S<:Sounding
+    
+    for idx = 1:length(soundings)
+        if in(idx, idxplot)
+            @info "Sounding number: $idx"
+            aem = makeoperator(aem_in, soundings[idx])
+            opt.fdataname = soundings[idx].sounding_string*"_"
+            getchi2forall(opt, alpha=0.8, omittemp=omittemp)
+            CommonToAll.getstats(opt)
+            plot_posterior(aem, opt; burninfrac, nbins, figsize, 
+                    showslope, pdfclim, plotmean, qp1, qp2)
+            ax = gcf().axes
+            ax[1].invert_xaxis()
+            if computeforwards
+                M = assembleTat1(opt, :fstar, temperaturenum=1, burninfrac=burninfrac)
+                Random.seed!(rseed)
+                plotmodelfield!(aem, M[randperm(length(M))[1:nforwards]])
+            end            
+        end
+    end
+end
+
 # stuff needed for McMC driver code
 function make_tdgp_opt(;
                     rseed = nothing,
@@ -197,7 +232,7 @@ function make_tdgp_opt(;
     opt
 end
 
-function makeaemoperatorandoptions(sounding::Sounding;
+function makeAEMoperatorandoptions(sounding::Sounding;
                         nmin = 2,
                         nmax = 40,
                         K = GP.OrstUhn(),

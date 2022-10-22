@@ -4,14 +4,12 @@ import ..AbstractOperator.Sounding
 import ..AbstractOperator.makeoperator
 import ..AbstractOperator.getresidual
 import ..AbstractOperator.returnforwrite
-
+import ..AbstractOperator.plotmodelfield!
 using ..AbstractOperator, ..AEM_VMD_HMD, Statistics, Distributed, Printf, Dates, StatsBase,
       PyPlot, LinearAlgebra, ..CommonToAll, Random, DelimitedFiles, LinearMaps, SparseArrays, ..GP
 
 
 import ..Model, ..Options, ..OptionsStat, ..OptionsNonstat
-
-export dBzdt, plotmodelfield!, addnoise_skytem, plotmodelfield!, plotmodelfield_skytem!
 
 const μ₀ = 4*pi*1e-7
 const pVinv = 1e12
@@ -437,17 +435,18 @@ function makeoperator(sounding::SkyTEMsoundingData;
     
     if plotfield
         plotwaveformgates(aem)
-        plotmodelfield!(aem, ρ;)
+        plotmodelfield!(aem, log10.(ρ[nfixed+1:end]);)
     end
 
     aem, zall, znall, zboundaries
 end
 
 function makeoperator(sounding::SkyTEMsoundingData, ntimesperdecade, nfreqsperdecade, modelprimary, calcjacobian, useML, z, ρ)
-    aem = transD_GP.SkyTEM1DInversion.dBzdt(;ntimesperdecade, nfreqsperdecade, modelprimary, calcjacobian, nmax=length(ρ), useML,
+    dBzdt(;ntimesperdecade, nfreqsperdecade, modelprimary, calcjacobian, useML,
         timeslow = sounding.LM_times, ramplow = sounding.LM_ramp, zRxlow=sounding.zRxLM, zTxlow = sounding.zTxLM,
         timeshigh = sounding.HM_times, ramphigh = sounding.HM_ramp, zRxhigh=sounding.zRxHM, zTxhigh = sounding.zTxHM,
-        rRx=sounding.rRX, rTx=sounding.rTx, z, ρ, lowpassfcs=sounding.lowpassfcs)
+        rRx=sounding.rRx, rTx = sounding.rTx, z, ρ, lowpassfcs = sounding.lowpassfcs, 
+        dlow=sounding.LM_data/μ₀, dhigh=sounding.HM_data/μ₀, σlow=sounding.LM_noise/μ₀, σhigh=sounding.HM_noise/μ₀)
 end   
 
 function makeoperator(aem::dBzdt, sounding::SkyTEMsoundingData)
@@ -475,7 +474,7 @@ function plotdata(ax, d, σ, t; onesigma=true, dtype=:LM)
     linestyle="none", marker=".", elinewidth=0, capsize=3, label)
 end
 
-function plotmodelfield!(ax, iaxis, aem, ρ; color=nothing, alpha=1, model_lw=1, forward_lw=1)
+function plotmodelfield!(ax, iaxis, aem::dBzdt, ρ; color=nothing, alpha=1, model_lw=1, forward_lw=1)
     nfixed = aem.nfixed
     ax[iaxis].step(ρ, aem.z[nfixed+1:end], linewidth=model_lw, alpha=alpha)
     getfield!(ρ, aem)
@@ -493,11 +492,11 @@ function initmodelfield!(aem;  onesigma=true, figsize=(8,8))
     ax
 end    
 
-function plotmodelfield!(aem, ρ; onesigma=true, color=nothing, alpha=1, model_lw=1, forward_lw=1, figsize=(8,8), revax=true)
+function plotmodelfield!(aem::dBzdt, ρ; onesigma=true, color=nothing, alpha=1, model_lw=1, forward_lw=1, figsize=(8,8), revax=true)
     plotmodelfield!(aem, [ρ]; onesigma, color, alpha, model_lw, forward_lw, figsize, revax) 
 end  
 
-function plotmodelfield!(aem, manyρ::Vector{T}; onesigma=true, 
+function plotmodelfield!(aem::dBzdt, manyρ::Vector{T}; onesigma=true, 
         color=nothing, alpha=1, model_lw=1, forward_lw=1, figsize=(8,8), revax=true) where T<:AbstractArray
     ax = initmodelfield!(aem; onesigma, figsize)
     for ρ in manyρ
@@ -571,79 +570,5 @@ function writetabdelim(fname, opt::Options, soundings::Array{SkyTEMsoundingData,
     end
     close(io)
 end    
-
-function plotindividualsoundings(soundings::Array{SkyTEMsoundingData, 1}, opt::Options;
-    burninfrac=0.5,
-    nbins = 50,
-    figsize  = (6,6),
-    zfixed   = [-1e5],
-    ρfixed   = [1e12],
-    zstart = 0.0,
-    extendfrac = 1.06,
-    dz = 2.,
-    ρbg = 10,
-    omittemp = false,
-    showslope = false,
-    plotmean = false,
-    pdfclim = nothing,
-    qp1=0.05,
-    qp2=0.95,
-    nlayers = 40,
-    ntimesperdecade = 10,
-    nfreqsperdecade = 5,
-    computeforwards = false,
-    nforwards = 100,
-    rseed = 11,
-    modelprimary = false,
-    idxcompute = [1],
-    onlygetMLsampled = false)
-    
-    if onlygetMLsampled
-        computeforwards = true
-        errorfac_low, errorfacσ_low, errorfac_high, errorfacσ_high = map(x->zeros(length(soundings)), 1:4)
-    end
-    zall, = setupz(zstart, extendfrac, dz=dz, n=nlayers)
-    opt.xall[:] .= zall
-    for idx = 1:length(soundings)
-        if in(idx, idxcompute)
-            @info "Sounding number: $idx"
-            opt.fdataname = soundings[idx].sounding_string*"_"
-            aem, znall = makeoperator(soundings[idx],
-                zfixed = zfixed,
-                ρfixed = ρfixed,
-                zstart = zstart,
-                extendfrac = extendfrac,
-                dz = dz,
-                ρbg = ρbg,
-                nlayers = nlayers,
-                ntimesperdecade = ntimesperdecade,
-                nfreqsperdecade = nfreqsperdecade,
-                modelprimary = modelprimary)
-            if !onlygetMLsampled
-                getchi2forall(opt, alpha=0.8, omittemp=omittemp)
-                CommonToAll.getstats(opt)
-                plot_posterior(aem, opt, burninfrac=burninfrac, nbins=nbins, figsize=figsize; 
-                    showslope, pdfclim, plotmean, qp1, qp2)
-                ax = gcf().axes
-                ax[1].invert_xaxis()
-            end    
-            if computeforwards
-                M = assembleTat1(opt, :fstar, temperaturenum=1, burninfrac=burninfrac)
-                Random.seed!(rseed)
-                if onlygetMLsampled
-                    errorfac_low[idx], errorfacσ_low[idx], 
-                    errorfac_high[idx], errorfacσ_high[idx] = plotmodelfield!(aem, M[randperm(length(M))[1:nforwards]],
-                        dz=dz, extendfrac=extendfrac, onesigma=false, alpha=0.2, onlygetMLsampled=true)
-                else
-                    plotmodelfield!(aem, M[randperm(length(M))[1:nforwards]],
-                    dz=dz, extendfrac=extendfrac, onesigma=false, alpha=0.2)
-                end            
-            end
-        end
-    end
-    if onlygetMLsampled
-        errorfac_low, errorfacσ_low, errorfac_high, errorfacσ_high
-    end    
-end
 
 end

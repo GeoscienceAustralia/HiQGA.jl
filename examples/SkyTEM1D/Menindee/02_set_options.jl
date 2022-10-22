@@ -1,5 +1,5 @@
 ## same for all soundingss
-nsamples = 200001
+nsamples = 2001
 nchainspersounding = 5
 ppn = 48
 @assert mod(ppn, nchainspersounding+1) == 0
@@ -28,7 +28,7 @@ save_freq = 100
 Tmax = 2.50
 nchainsatone = 1
 ## plot 1 random sounding and a background response
-aem, opt = transD_GP.makeaemoperatorandoptions(
+aem, opt = transD_GP.makeAEMoperatorandoptions(
                             soundings[rand(1:length(soundings))];
                             zfixed = zfixed,
                             ρfixed = ρfixed,
