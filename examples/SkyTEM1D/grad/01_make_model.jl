@@ -15,11 +15,12 @@ zRx = -42.0
 zTx = -40.0
 freqlow = 1e-3
 include("electronics_halt.jl")
+calcjacobian = true
 ## make SkyTEM operator
 aem = transD_GP.SkyTEM1DInversion.dBzdt(;
     timeslow = LM_times, ramplow = LM_ramp, zRxlow=zRx, zTxlow = zTx,
     timeshigh = HM_times, ramphigh = HM_ramp, zRxhigh=zRx, zTxhigh = zTx,
-    rRx, rTx, z, ρ, lowpassfcs)
+    rRx, rTx, z, ρ, lowpassfcs, calcjacobian)
 ## fill in detail in ohm-m
 ρ[(z.>=zstart) .& (z.<50)] .= 20.
 ρ[(z.>=50) .&(z.<80)] .= 1

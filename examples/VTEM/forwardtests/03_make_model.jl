@@ -12,7 +12,7 @@ z, ρ, nfixed = transD_GP.makezρ(zboundaries; zfixed=zfixed, ρfixed=ρfixed)
 zTx = -30.0
 calcjacobian = true
 include("../waveletapprox/electronics_halt.jl")
-## make LM operator
+## make VTEM operator
 aem = transD_GP.VTEM1DInversion.dBzdt(;
 times, ramp, rTx, zTx, z, ρ, calcjacobian)
 ## make a model

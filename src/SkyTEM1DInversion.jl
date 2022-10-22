@@ -14,6 +14,7 @@ import ..Model, ..Options, ..OptionsStat, ..OptionsNonstat
 export dBzdt, plotmodelfield!, addnoise_skytem, plotmodelfield!, plotmodelfield_skytem!
 
 const μ₀ = 4*pi*1e-7
+const pVinv = 1e12
 
 mutable struct dBzdt<:Operator1D
     dlow       :: Array{Float64, 1}
@@ -44,43 +45,66 @@ function (a::Cinv)(x)
     x.*a.oneoverσ²
 end    
 
-function dBzdt(       Flow       :: AEM_VMD_HMD.HField,
-                      Fhigh      :: AEM_VMD_HMD.HField,
-                      dlow       :: Array{Float64, 1},
-                      dhigh      :: Array{Float64, 1},
-                      σlow       :: Array{Float64, 1},
-                      σhigh      :: Array{Float64, 1};
-                      useML  = false,
-                      z = [-1.],
-                      ρ = [-1.],
-                      nfixed = 1
-                    )
-    @assert length(Flow.thickness) >= length(z)
-    @assert length(Fhigh.thickness) >= length(z)
+function dBzdt(;timeslow  = [.1],
+                timeshigh = [.1],
+                ramplow   = [.1],
+                ramphigh  = [.1],
+                dlow      = zeros(0),
+                dhigh     = zeros(0),
+                σlow      = zeros(0),
+                σhigh     = zeros(0),
+                rTx       = 10.,
+                rRx       = 12.,
+                zTxlow    = -40.,
+                zTxhigh   = -40.,
+                zRxlow    = -42.,
+                zRxhigh   = -42.,
+                nfreqsperdecade = 5,
+                ntimesperdecade = 10,
+                calcjacobian    = false,
+                modelprimary    = false,  
+                useML     = false,
+                z         = [-1.],
+                ρ         = [-1.],
+                lowpassfcs = [],
+                nfixed    = 1)
+    nmax = length(ρ)+1            
     @assert size(σlow)  == size(dlow)
     @assert size(σhigh) == size(dhigh)
-    ndatalow   = sum(.!isnan.(dlow))
-    ndatahigh  = sum(.!isnan.(dhigh))
-    selectlow  = .!isnan.(dlow)
-    selecthigh = .!isnan.(dhigh)
+
+    Flow = AEM_VMD_HMD.HFieldDHT(;
+        ntimesperdecade, nfreqsperdecade, lowpassfcs, 
+        times = timeslow, ramp = ramplow, nmax, zTx = zTxlow, zRx = zRxlow, 
+        rRx, rTx, modelprimary, calcjacobian)
+
+    Fhigh = AEM_VMD_HMD.HFieldDHT(;
+        ntimesperdecade, nfreqsperdecade, lowpassfcs, 
+        times = timeshigh, ramp = ramphigh, nmax, zTx = zTxhigh, zRx = zRxhigh, 
+        rRx, rTx, modelprimary, calcjacobian)
+
+    ndatalow, selectlow    = getndata(dlow)
+    ndatahigh, selecthigh  = getndata(dhigh)
+
     # for Gauss-Newton
+    res, J, W = allocateJ(Flow, Fhigh, σlow, σhigh, selectlow, selecthigh, nfixed, length(ρ))
+    dBzdt(dlow, dhigh, useML, σlow, σhigh, Flow, Fhigh, z, nfixed, copy(ρ), selectlow, selecthigh, ndatalow, ndatahigh, J, W, res)
+end
+
+function allocateJ(Flow, Fhigh, σlow, σhigh, selectlow, selecthigh, nfixed, nmodel)
     calcjacobian = Flow.calcjacobian & Fhigh.calcjacobian
-    res = [dlow[selectlow];dhigh[selecthigh]]
-    if calcjacobian
+    if calcjacobian && (!isempty(selectlow) || !isempty(selecthigh))
         J = [Flow.dBzdt_J'; Fhigh.dBzdt_J']; 
-        J = J[[selectlow;selecthigh],nfixed+1:length(ρ)]
+        J = J[[selectlow;selecthigh],nfixed+1:nmodel]
         Wdiag = [1 ./σlow[selectlow]; 1 ./σhigh[selecthigh]]
-        res = [dlow[selectlow];dhigh[selecthigh]]
+        res = similar(Wdiag)
     else    
         res, J, Wdiag = zeros(0), zeros(0), zeros(0)
     end    
     W = sparse(diagm(Wdiag))
-    dBzdt(dlow, dhigh, useML, σlow, σhigh,
-    Flow, Fhigh, z, nfixed, copy(ρ), selectlow, selecthigh, ndatalow, ndatahigh, J, W, res)
-end
+    return res, J, W
+end    
 
 function getresidual(aem::dBzdt, log10σ::Vector{Float64}; computeJ=false)
-    # aem.ρ[:] = 10 .^(-log10σ)
     aem.Flow.calcjacobian = computeJ
     aem.Fhigh.calcjacobian = computeJ
     getfield!(-log10σ, aem)
@@ -94,7 +118,13 @@ function getresidual(aem::dBzdt, log10σ::Vector{Float64}; computeJ=false)
                       Fhigh.dBzdt_J'[selecthigh,nfixed+1:nfixed+length(log10σ)]])
     end
     nothing    
-end    
+end
+
+function getndata(d)
+    select = .!isnan.(d)
+    ndata  = sum(select)
+    ndata, select
+end
 
 mutable struct SkyTEMsoundingData <: Sounding
     sounding_string :: String
@@ -146,108 +176,7 @@ function SkyTEMsoundingData(;rRx=-12., zRxLM=12., zTxLM=12.,
     SkyTEMsoundingData(sounding_string, X, Y, Z, fid, linenum, rRx, zRxLM, zTxLM, zRxHM, zTxHM, rTx,
     lowpassfcs, LM_times, LM_ramp, HM_times, HM_ramp, LM_noise, HM_noise,
     LM_data, HM_data)
-    # @show (sounding_string, rRx, zRxLM, zTxLM, zRxHM, zTxHM, rTx,
-    # lowpassfcs, LM_times, LM_ramp, HM_times, HM_ramp, LM_noise, HM_noise,
-    # LM_data, HM_data)
 end
-
-function getlocationinhdr(str, rows)
-    for (irow, row) in enumerate(rows)
-        lasttabpos = findlast('\t', row)
-        (str == row[lasttabpos+1:end]) && return irow
-    end
-    nothing
-end
-
-function getcolNo(str)
-	index = findfirst('\t',str)
-	value = str[1:index-1]
-    return parse(Int,value)
-end
-
-function getcolNo_except(str)
-    index1 = findall("\t",str)[1][1]
-    index2 = findall("\t",str)[2][1]
-    value1 = str[1:index1-1]  
-    value2 = str[index1+1:index2-1] 
-    return [parse(Int,value1), parse(Int,value2)]
-end
-
-function read_survey_files(dfnfile::String;
-    fname_specs_halt="",
-    frame_height = "",
-    frame_dz = "",
-    frame_dx = "",
-    frame_dy = "",
-    LM_Z = "",
-    HM_Z = "",
-    LM_σ = "",
-    HM_σ = "",
-    X = "",
-    Y = "",
-    Z = "",
-    fid = "",
-    linenum = "",
-    LM_drop = nothing,
-    HM_drop = nothing,
-    relerror = false,
-    units=1e-12,
-    figsize = (9,7),
-    makesounding = false,
-    dotillsounding = nothing,
-    startfrom = 1,
-    skipevery = 1,
-    multnoise = 0.03,
-    )
-    #throw an error if LM_drop or HM_drop are not provided 
-    (isnothing(LM_drop) || isnothing(HM_drop)) &&
-        throw(ArgumentError("user must specify drop gates for LM and HM"))
-    prefix = getgdfprefix(dfnfile)
-    hdrfile = prefix*".hdr"
-    if !isfile(hdrfile)
-        dfn2hdr(dfnfile)
-    else
-        @warn "using existing "*hdrfile
-    end    
-    dfn = readlines(hdrfile)
-    frame_height, frame_dz, frame_dx,
-    frame_dy, LM_Z, HM_Z, HM_σ,LM_σ,
-    X, Y, Z, fid, linenum = map(x->getlocationinhdr(x, dfn), [frame_height, frame_dz, frame_dx,
-    frame_dy, LM_Z, HM_Z,HM_σ, LM_σ, X , Y, Z, fid, linenum])
-    
-    # use function and map to get column number 
-    frame_height, frame_dz, frame_dx,
-    frame_dy,X, Y, Z, fid, linenum = map(x -> getcolNo(dfn[x]), [frame_height, frame_dz, frame_dx,
-    frame_dy, X, Y, Z, fid, linenum])
-    LM_Z, HM_Z, LM_σ, HM_σ= map(x -> getcolNo_except(dfn[x]),[LM_Z,HM_Z,LM_σ, HM_σ])
-    LM_Z[1] = LM_Z[1] + LM_drop 
-    HM_Z[1] = HM_Z[1] + HM_drop 
-    fname_dat = prefix*".dat" # the name of DAT file associated with DFN
-    s_array = read_survey_files(fname_dat = fname_dat,
-                        fname_specs_halt = fname_specs_halt,
-                        LM_Z             = LM_Z,
-                        HM_Z             = HM_Z,
-                        frame_height     = frame_height,
-                        frame_dz         = frame_dz,
-                        frame_dy         = frame_dy,
-                        frame_dx         = frame_dx,
-                        X                = X,
-                        Y                = Y,
-                        Z                = Z,
-                        fid              = fid,
-                        units            = units,
-                        relerror         = relerror,
-                        LM_σ             = LM_σ,
-                        HM_σ             = HM_σ,
-                        figsize          = figsize,   
-                        linenum          = linenum,
-                        startfrom        = startfrom,
-                        skipevery        = skipevery,
-                        dotillsounding   = dotillsounding,
-                        multnoise        = multnoise,
-                        makesounding     = makesounding)
-    s_array # return sounding array
-end    
 
 function read_survey_files(;
     fname_dat="",
@@ -390,6 +319,9 @@ function read_survey_files(;
     end
 end
 
+# all calling functions here for misfit, field, etc. assume model is in log10 resistivity
+# SANS the top. For lower level field calculation use AEM_VMD_HMD structs
+
 function getfield!(m::Model, aem::dBzdt)
     getfield!(m.fstar, aem)
     nothing
@@ -397,8 +329,8 @@ end
 
 function getfield!(m::Array{Float64}, aem::dBzdt)
     copyto!(aem.ρ, aem.nfixed+1:length(aem.ρ), 10 .^m, 1:length(m))
-    aem.ndatalow>0  && AEM_VMD_HMD.getfieldTD!(aem.Flow,  aem.z, aem.ρ)
-    aem.ndatahigh>0 && AEM_VMD_HMD.getfieldTD!(aem.Fhigh, aem.z, aem.ρ)
+    ((aem.ndatalow>0) | isempty(aem.dlow)) && AEM_VMD_HMD.getfieldTD!(aem.Flow,  aem.z, aem.ρ)
+    ((aem.ndatahigh>0) | isempty(aem.dhigh))  && AEM_VMD_HMD.getfieldTD!(aem.Fhigh, aem.z, aem.ρ)
     nothing
 end
 
@@ -444,183 +376,37 @@ function computeMLfactor(aem)
     sqrt(mlfact_low), sqrt(mlfact_high)
 end
 
-function plotmodelfield_skytem!(Flow::AEM_VMD_HMD.HField, Fhigh::AEM_VMD_HMD.HField,
-                         z::Array{Float64, 1}, ρ::Array{Float64, 1}
-                        ;figsize=(10,5))
-    plotwaveformgates(timesLM=Flow.times,  rampLM=Flow.ramp,
-                      timesHM=Fhigh.times, rampHM=Fhigh.ramp)
-    f, ax = plt.subplots(1, 2, figsize=figsize)
-    ax[1].step(log10.(ρ[2:end]), z[2:end])
-    ax[1].set_xlabel("log₁₀ρ")
-    ax[2].set_xlabel("time s")
-    ax[1].set_ylabel("depth m")
-    ax[2].set_ylabel("V/Am⁴")
-    AEM_VMD_HMD.getfieldTD!(Flow, z, ρ)
-    AEM_VMD_HMD.getfieldTD!(Fhigh, z, ρ)
-    ax[2].loglog(Flow.times,μ₀*Flow.dBzdt, label="low moment")
-    ax[2].loglog(Fhigh.times,μ₀*Fhigh.dBzdt, label="high moment")
-    ax[1].grid()
-    ax[1].invert_yaxis()
-    ax[1].invert_xaxis()
-    ax[2].grid()
-    nicenup(f)
-end
-
-function addnoise_skytem(Flow::AEM_VMD_HMD.HField, Fhigh::AEM_VMD_HMD.HField,
-                  z::Array{Float64, 1}, ρ::Array{Float64, 1};
-                  halt_LM = nothing,
-                  halt_HM = nothing,
-                  noisefrac  = 0.03,
-                  noisefloorlow = μ₀*1e-14,
-                  noisefloorhigh = μ₀*1e-14,
-                  dz = -1.,
-                  extendfrac = -1.,
-                  nfixed = -1,
-                  figsize=(10,5),
-                  rseed=42
-                  )
-    if halt_LM != nothing
-        @assert length(halt_LM) == length(Flow.times)
-    else
-        halt_LM = zeros(length(Flow.times))
-    end
-    if halt_HM != nothing
-        @assert length(halt_HM) == length(Fhigh.times)
-    else
-        halt_HM = zeros(length(Fhigh.times))
-    end
-    @assert all((nfixed, dz, extendfrac) .> 0)
+function makenoisydata!(aem, ρ; 
+        rseed=123, noisefrac=0.03, σ_halt_low=nothing, σ_halt_high, useML=false,
+        onesigma=true, color=nothing, alpha=1, model_lw=1, forward_lw=1, figsize=(8,8), revax=true)
+    # σ_halt always assumed in Bfield units of pV
+    getfield!(ρ, aem)
+    # low moment first
+    f = aem.Flow.dBzdt
+    σ_halt = isnothing(σ_halt_low) ? zeros(size(f)) : 1/pVinv*σ_halt_low/μ₀
+    σ = sqrt.((noisefrac*abs.(f)).^2 + σ_halt.^2)
     Random.seed!(rseed)
-    AEM_VMD_HMD.getfieldTD!(Flow, z, ρ)
-    AEM_VMD_HMD.getfieldTD!(Fhigh, z, ρ)
-    dlow  = Flow.dBzdt + sqrt.((noisefrac*abs.(Flow.dBzdt)).^2 + (halt_LM/μ₀).^2).*randn(size(Flow.dBzdt))
-    dhigh = Fhigh.dBzdt + sqrt.((noisefrac*abs.(Fhigh.dBzdt)).^2 + (halt_HM/μ₀).^2).*randn(size(Fhigh.dBzdt))
-    dlow[abs.(dlow).<noisefloorlow] .= NaN
-    dhigh[abs.(dhigh).<noisefloorhigh] .= NaN
-    σlow = sqrt.((noisefrac*abs.(dlow)).^2 + (halt_LM/μ₀).^2)
-    σhigh = sqrt.((noisefrac*abs.(dhigh)).^2 + (halt_HM/μ₀).^2)
-    plotmodelfield!(Flow, Fhigh, z, ρ, dlow, dhigh, σlow, σhigh,
-                                figsize=figsize, nfixed=nfixed,
-                                dz=dz, extendfrac=extendfrac)
-    # returned data is dBzdt not H if there is a μ multiplied
-    return μ₀.*(dlow, dhigh, σlow, σhigh)
+    aem.dlow = f + σ.*randn(size(f))
+    aem.σlow = copy(σ)
+    # high moment next
+    f = aem.Fhigh.dBzdt
+    σ_halt = isnothing(σ_halt_high) ? zeros(size(f)) : 1/pVinv*σ_halt_high/μ₀
+    σ = sqrt.((noisefrac*abs.(f)).^2 + σ_halt.^2)
+    aem.dhigh = f + σ.*randn(size(f))
+    aem.σhigh = copy(σ)
+    aem.useML = useML
+
+    aem.ndatalow, aem.selectlow    = getndata(aem.dlow)
+    aem.ndatahigh, aem.selecthigh  = getndata(aem.dhigh)
+
+    # for Gauss-Newton
+    aem.res, aem.J, aem.W = allocateJ(aem.Flow, aem.Fhigh, aem.σlow, aem.σhigh, 
+                    aem.selectlow, aem.selecthigh, aem.nfixed, length(aem.ρ))
+
+    plotmodelfield!(aem, ρ; onesigma, color, alpha, model_lw, forward_lw, figsize, revax)
+    nothing
 end
 
-function plotmodelfield!(Flow::AEM_VMD_HMD.HField, Fhigh::AEM_VMD_HMD.HField,
-                        z, ρ, dlow, dhigh, σlow, σhigh;
-                        figsize=(10,5), nfixed=-1, dz=-1., extendfrac=-1., revax=true)
-    # expects data and noise in units of H, i.e. B/μ
-    @assert all((nfixed, dz, extendfrac) .> 0)
-    f, ax = plt.subplots(1, 2, figsize=figsize)
-    ext = 5 # extend plot a little lower than last interface
-    ax[1].step(log10.([ρ[2:end];ρ[end]]), [z[2:end]; z[end]+ext])
-    if dz > 0
-        axn = ax[1].twinx()
-        ax[1].get_shared_y_axes().join(ax[1],axn)
-        axn.step(log10.(ρ[2:end]), z[2:end])
-        yt = ax[1].get_yticks()[ax[1].get_yticks().>=0]
-        axn.set_yticks(yt)
-        axn.set_ylim(ax[1].get_ylim()[end:-1:1])
-        axn.set_yticklabels(string.(Int.(round.(getn.(yt .- z[nfixed+1], dz, extendfrac)))))
-    end
-    ndatalow   = sum(.!isnan.(dlow))
-    ndatahigh  = sum(.!isnan.(dhigh))
-    if ndatalow>0
-        AEM_VMD_HMD.getfieldTD!(Flow, z, ρ)
-        ax[2].loglog(Flow.times,μ₀*Flow.dBzdt, label="low moment")
-        ax[2].errorbar(Flow.times, μ₀*vec(dlow), yerr = μ₀*2abs.(vec(σlow)),
-                            linestyle="none", marker=".", elinewidth=0, capsize=3)
-    end
-    if ndatahigh>0
-        AEM_VMD_HMD.getfieldTD!(Fhigh, z, ρ)
-        ax[2].loglog(Fhigh.times,μ₀*Fhigh.dBzdt, label="high moment")
-        ax[2].errorbar(Fhigh.times, μ₀*vec(dhigh), yerr = μ₀*2abs.(vec(σhigh)),
-                        linestyle="none", marker=".", elinewidth=0, capsize=3)
-    end
-    ax[1].grid()
-    ax[2].grid(which="both")
-    ax[1].set_ylim(z[end]+ext, z[2])
-    ax[1].set_xlabel("log₁₀ρ")
-    ax[2].set_xlabel("time s")
-    ax[1].set_ylabel("depth m")
-    ax[2].set_ylabel("V/Am⁴")
-    axn.set_ylabel("index no.")
-    revax && ax[1].invert_xaxis()
-    nicenup(f)
-end
-
-function plotmodelfield!(aem::dBzdt, Ρ::Vector{T};
-                        figsize=(8,5), dz=-1., onesigma=true, onlygetMLsampled=false,
-                        extendfrac=-1., fsize=10, alpha=0.1) where T<:AbstractArray
-    @assert all((dz, extendfrac) .> 0)
-    nfixed, z = aem.nfixed, aem.z
-    if !onlygetMLsampled 
-        sigma = onesigma ? 1.0 : 2.0
-        f = figure(figsize=figsize)
-        ax = Vector{PyPlot.PyObject}(undef, 3)
-        ax[1] = subplot(121)
-        ρmin, ρmax = extrema(vcat(Ρ...))
-        delρ = ρmax - ρmin
-        ax[1].set_xlim(ρmin-0.1delρ,ρmax+0.1delρ)
-        ax[1].plot([ρmin-0.1delρ,ρmax+0.1delρ], z[nfixed+1]*[1., 1], color="b")
-        ax[2] = subplot(122)
-    end    
-    Flow = aem.Flow
-    dlow, σlow = aem.dlow, aem.σlow
-    Fhigh = aem.Fhigh
-    dhigh, σhigh = aem.dhigh, aem.σhigh
-    if !onlygetMLsampled
-        aem.ndatalow>0 && ax[2].errorbar(Flow.times, μ₀*dlow, yerr = μ₀*sigma*abs.(σlow),
-                            linestyle="none", marker=".", elinewidth=0, capsize=3, label="low moment")
-        aem.ndatahigh>0 && ax[2].errorbar(Fhigh.times, μ₀*dhigh, yerr = μ₀*sigma*abs.(σhigh),
-                            linestyle="none", marker=".", elinewidth=0, capsize=3, label="high moment")
-    else
-        errorfact_low, errorfact_high = map(x->zeros(length(Ρ)), 1:2)                        
-    end
-    for (i, ρ) in enumerate(Ρ)
-        getfield!(ρ,  aem)
-        if !onlygetMLsampled
-            if aem.ndatalow>0
-                Flow.dBzdt[.!aem.selectlow] .= NaN
-                ax[2].loglog(Flow.times,μ₀*Flow.dBzdt, "k", alpha=alpha, markersize=2)
-            end
-            if aem.ndatahigh>0
-                Fhigh.dBzdt[.!aem.selecthigh] .= NaN
-                ax[2].loglog(Fhigh.times,μ₀*Fhigh.dBzdt, "k", alpha=alpha, markersize=2)
-            end
-            ax[1].step(log10.(aem.ρ[2:end]), aem.z[2:end], "-k", alpha=alpha)
-        else
-            errorfact_low[i], errorfact_high[i] = computeMLfactor(aem)
-        end    
-    end
-    if !onlygetMLsampled
-        ax[1].grid()
-        ax[1].set_ylabel("Depth m")
-        ax[1].plot(xlim(), z[nfixed+1]*[1, 1], "--k")
-        if dz > 0
-            axn = ax[1].twinx()
-            ax[1].get_shared_y_axes().join(ax[1],axn)
-            yt = ax[1].get_yticks()[ax[1].get_yticks().>=z[nfixed+1]]
-            axn.set_yticks(yt)
-            axn.set_ylim(ax[1].get_ylim()[end:-1:1])
-            axn.set_yticklabels(string.(Int.(round.(getn.(yt .- z[nfixed+1], dz, extendfrac)))))
-        end
-        axn.set_ylabel("Depth index", rotation=-90, labelpad=10)
-        ax[1].set_xlabel("Log₁₀ρ")
-        ax[1].set_title("Model")
-        ax[2].set_ylabel(L"dBzdt \; V/(A.m^4)")
-        ax[2].set_xlabel("Time (s)")
-        ax[2].set_title("Transient response")
-        ax[2].legend()
-        ax[2].grid()
-        ax[1].invert_xaxis()
-        nicenup(f, fsize=fsize)
-        nothing, nothing, nothing, nothing
-    else
-        mean(errorfact_low), std(errorfact_low),
-        mean(errorfact_high), std(errorfact_high)
-    end    
-end
 
 function makeoperator(sounding::SkyTEMsoundingData;
                        zfixed   = [-1e5],
@@ -647,62 +433,80 @@ function makeoperator(sounding::SkyTEMsoundingData;
     z, ρ, nfixed = makezρ(zboundaries; zfixed=zfixed, ρfixed=ρfixed)
     ρ[z.>=zstart] .= ρbg
 
-    aem = makeoperator(sounding, ntimesperdecade, nfreqsperdecade, modelprimary, calcjacobian, nmax, useML, z, ρ)
+    aem = makeoperator(sounding, ntimesperdecade, nfreqsperdecade, modelprimary, calcjacobian, useML, z, ρ)
     
     if plotfield
         plotwaveformgates(aem)
-        plotmodelfield!(aem.Flow, aem.Fhigh, z, ρ, aem.dlow, aem.dhigh, aem.σlow, aem.σhigh;
-                          figsize=(12,4), nfixed=nfixed, dz=dz, extendfrac=extendfrac)
+        plotmodelfield!(aem, ρ;)
     end
 
     aem, zall, znall, zboundaries
 end
 
-function makeoperator(sounding::SkyTEMsoundingData, ntimesperdecade, nfreqsperdecade, modelprimary, calcjacobian, nmax, useML, z, ρ)
-    ## LM operator
-    Flm = AEM_VMD_HMD.HFieldDHT(
-                          ntimesperdecade = ntimesperdecade,
-                          nfreqsperdecade = nfreqsperdecade,
-                          lowpassfcs = sounding.lowpassfcs,
-                          times  = sounding.LM_times,
-                          ramp   = sounding.LM_ramp,
-                          nmax   = nmax,
-                          zTx    = sounding.zTxLM,
-                          rRx    = sounding.rRx,
-                          rTx    = sounding.rTx,
-                          zRx    = sounding.zRxLM,
-                          modelprimary = modelprimary,
-                          calcjacobian = calcjacobian
-                          )
-    ## HM operator
-    Fhm = AEM_VMD_HMD.HFieldDHT(
-                          ntimesperdecade = ntimesperdecade,
-                          nfreqsperdecade = nfreqsperdecade,
-                          lowpassfcs = sounding.lowpassfcs,
-                          times  = sounding.HM_times,
-                          ramp   = sounding.HM_ramp,
-                          nmax   = nmax,
-                          zTx    = sounding.zTxHM,
-                          rRx    = sounding.rRx,
-                          rTx    = sounding.rTx,
-                          zRx    = sounding.zRxHM,
-                          modelprimary = modelprimary,
-                          calcjacobian = calcjacobian
-                          )
-    ## create operator
-    dlow, dhigh, σlow, σhigh = (sounding.LM_data, sounding.HM_data, sounding.LM_noise, sounding.HM_noise)./μ₀
-    nfixed = findfirst(diff(ρ) .== 0) - 1 # assumes initialzed with constant background
-    aem = dBzdt(Flm, Fhm, vec(dlow), vec(dhigh), useML=useML,
-                vec(σlow), vec(σhigh), z=z, ρ=ρ, nfixed=nfixed) 
+function makeoperator(sounding::SkyTEMsoundingData, ntimesperdecade, nfreqsperdecade, modelprimary, calcjacobian, useML, z, ρ)
+    aem = transD_GP.SkyTEM1DInversion.dBzdt(;ntimesperdecade, nfreqsperdecade, modelprimary, calcjacobian, nmax=length(ρ), useML,
+        timeslow = sounding.LM_times, ramplow = sounding.LM_ramp, zRxlow=sounding.zRxLM, zTxlow = sounding.zTxLM,
+        timeshigh = sounding.HM_times, ramphigh = sounding.HM_ramp, zRxhigh=sounding.zRxHM, zTxhigh = sounding.zTxHM,
+        rRx=sounding.rRX, rTx=sounding.rTx, z, ρ, lowpassfcs=sounding.lowpassfcs)
 end   
 
 function makeoperator(aem::dBzdt, sounding::SkyTEMsoundingData)
     ntimesperdecade = gettimesperdec(aem.Flow.interptimes)
     nfreqsperdecade = gettimesperdec(aem.Flow.freqs)
     modelprimary = aem.Flow.useprimary === 1. ? true : false
-    nmax = length(aem.Flow.thickness)
-    makeoperator(sounding, ntimesperdecade, nfreqsperdecade, modelprimary, aem.Flow.calcjacobian, nmax, aem.useML, copy(aem.z), copy(aem.ρ))
+    makeoperator(sounding, ntimesperdecade, nfreqsperdecade, modelprimary, aem.Flow.calcjacobian, aem.useML, copy(aem.z), copy(aem.ρ))
 end
+
+# all plotting codes here assume that the model is in log10 resistivity, SANS
+# the top layer resistivity. For lower level plotting use AEM_VMD_HMD structs
+
+function plotsoundingcurve(ax, f, t; color=nothing, alpha=1, lw=1)
+    if isnothing(color)
+        ax.loglog(t, μ₀*f*pVinv, alpha=alpha, markersize=2, linewidth=lw)
+    else
+        ax.loglog(t, μ₀*f*pVinv, color=color, alpha=alpha, markersize=2, linewidth=lw)
+    end    
+end
+
+function plotdata(ax, d, σ, t; onesigma=true, dtype=:LM)
+    sigma = onesigma ? 1 : 2
+    label = dtype == :LM ? "low moment" : "high moment"
+    ax.errorbar(t, μ₀*d*pVinv; yerr = μ₀*sigma*pVinv*abs.(σ),
+    linestyle="none", marker=".", elinewidth=0, capsize=3, label)
+end
+
+function plotmodelfield!(ax, iaxis, aem, ρ; color=nothing, alpha=1, model_lw=1, forward_lw=1)
+    nfixed = aem.nfixed
+    ax[iaxis].step(ρ, aem.z[nfixed+1:end], linewidth=model_lw, alpha=alpha)
+    getfield!(ρ, aem)
+    plotsoundingcurve(ax[iaxis+1], aem.Flow.dBzdt, aem.Flow.times; color, alpha, lw=forward_lw)
+    colorused = ax[iaxis+1].lines[end].get_color()
+    plotsoundingcurve(ax[iaxis+1], aem.Fhigh.dBzdt, aem.Fhigh.times; color=colorused, alpha, lw=forward_lw)
+end    
+
+function initmodelfield!(aem;  onesigma=true, figsize=(8,8))
+    f, ax = plt.subplots(1, 2; figsize)
+    if !isempty(aem.dlow)
+        aem.ndatalow > 0 && plotdata(ax[2], aem.dlow, aem.σlow, aem.Flow.times; onesigma, dtype=:LM)
+        aem.ndatahigh > 0 && plotdata(ax[2], aem.dhigh, aem.σhigh, aem.Fhigh.times; onesigma, dtype=:HM)
+    end    
+    ax
+end    
+
+function plotmodelfield!(aem, ρ; onesigma=true, color=nothing, alpha=1, model_lw=1, forward_lw=1, figsize=(8,8), revax=true)
+    plotmodelfield!(aem, [ρ]; onesigma, color, alpha, model_lw, forward_lw, figsize, revax) 
+end  
+
+function plotmodelfield!(aem, manyρ::Vector{T}; onesigma=true, 
+        color=nothing, alpha=1, model_lw=1, forward_lw=1, figsize=(8,8), revax=true) where T<:AbstractArray
+    ax = initmodelfield!(aem; onesigma, figsize)
+    for ρ in manyρ
+        plotmodelfield!(ax, 1, aem, vec(ρ); alpha, model_lw, forward_lw, color)
+    end
+    ax[1].invert_yaxis()
+    revax && ax[1].invert_xaxis()
+    ax
+end 
 
 function plotwaveformgates(aem::dBzdt; figsize=(10,5))
     plotwaveformgates(timesLM=aem.Flow.times,  rampLM=aem.Flow.ramp,
