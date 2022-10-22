@@ -382,6 +382,16 @@ function makeoperator(sounding::VTEMsoundingData;
     aem, zall, znall
 end
 
+function makeoperator(aem::dBzdt, sounding::VTEMsoundingData)
+    ntimesperdecade = gettimesperdec(aem.F.interptimes)
+    nfreqsperdecade = gettimesperdec(aem.F.freqs)
+    modelprimary = aem.F.useprimary === 1. ? true : false
+    dBzdt(;d=sounding.data/μ, σ=sounding.noise/μ, modelprimary,
+        times=sounding.times, ramp=sounding.ramp, ntimesperdecade, nfreqsperdecade,
+        rTx=sounding.rTx, zTx=sounding.zTx, z=copy(aem.z), ρ=copy(aem.ρ), 
+        aem.F.calcjacobian, aem.useML, showgates=false)
+end
+
 function plotwaveformgates(aem::dBzdt; figsize=(5,5))
     figure(;figsize)
     (;ramp, times) = aem.F
