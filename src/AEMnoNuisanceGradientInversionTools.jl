@@ -85,6 +85,7 @@ function getphidhist(ϕd; doplot=false, saveplot=false, prefix="", figsize=(8,4)
     edges=[0,1.1,2, Inf]
     ϕdcounts = fit(Histogram, filter(!isnan, ϕd), edges).weights
     good, bad, ugly = round.(Int, ϕdcounts./sum(ϕdcounts)*100) # % for type of fit in ranges above
+    ugly = 100 - (good+bad) # ensure 100%
     if doplot
         fout = prefix == "" ? "summaryfits.png" : prefix*"_summaryfits.png"
         f = figure(figsize=figsize)
