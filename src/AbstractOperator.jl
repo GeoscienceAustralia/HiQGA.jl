@@ -24,6 +24,8 @@ function make_tdgp_opt end
 function loopacrossAEMsoundings end
 # to plot forwards from a sounding
 function plotmodelfield! end
+# to get number of data from sounding
+function getndata end
 
 export Operator, Operator1D, Operator2D, Sounding
 end

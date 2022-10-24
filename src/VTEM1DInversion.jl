@@ -8,6 +8,7 @@ import ..Model, ..Options
 using ..AEM_VMD_HMD
 import ..AbstractOperator.Sounding # for storing real data
 import ..AbstractOperator.returnforwrite
+import ..AbstractOperator.getndata
 import ..AbstractOperator.plotmodelfield!
 using Random, PyPlot, DelimitedFiles, LinearMaps, SparseArrays, ..GP, LinearAlgebra, Statistics
 
@@ -77,12 +78,6 @@ function allocateJ(FJt, σ, select, nfixed, nmodel, calcjacobian)
     return res, J, W
 end
 
-function getndata(d)
-    select = .!isnan.(d)
-    ndata  = sum(select)
-    ndata, select
-end
-
 function getresidual(aem::dBzdt, log10σ::Vector{Float64}; computeJ=false)
     F = aem.F
     F.calcjacobian = computeJ
@@ -115,6 +110,10 @@ end
 
 returnforwrite(s::VTEMsoundingData) = [s.X, s.Y, s.Z, s.fid, 
     s.linenum, s.zTx, s.rTx]
+
+function getndata(S::VTEMsoundingData)
+    getndata(S.data)[1]
+end    
 
 function VTEMsoundingData(;rRx=nothing, zRx=nothing, zTx=12.,
                             rTx=-12.,lowpassfcs=[],

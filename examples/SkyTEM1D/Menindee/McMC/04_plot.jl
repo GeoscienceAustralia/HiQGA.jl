@@ -3,7 +3,7 @@ idx = 1:100:length(soundings)
 burninfrac = 0.5
 vmin, vmax = -2.5, 0.5
 transD_GP.summaryAEMimages(soundings, opt;
-    zall, dr, dz, cmap="turbo",
+    zall, dr, dz, cmap="turbo", burninfrac, 
     vmin=vmin, vmax=vmax, idx, useML,
     preferEright=true, saveplot=true)
 ##

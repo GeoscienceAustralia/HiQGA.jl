@@ -3,6 +3,7 @@ using ..AbstractOperator, ..CommonToAll
 import ..AbstractOperator.makeoperator
 import ..AbstractOperator.loopacrossAEMsoundings
 import ..AbstractOperator.plotmodelfield!
+import ..AbstractOperator.getndata
 import ..Options, ..OptionsStat
 export makeAEMoperatorandoptions, loopacrossAEMsoundings, summaryAEMimages, plotindividualAEMsoundings
 import ..main # McMC function
@@ -114,8 +115,7 @@ function summarypost(soundings::Vector{S}, opt::Options;
                                                     qp1=qp1, qp2=qp2,
                                                     doplot=false)
             χ² = 2*CommonToAll.assembleTat1(opt, :U, temperaturenum=1, burninfrac=burninfrac)
-            ndata = sum(.!isnan.(soundings[idx].LM_data)) +
-                    sum(.!isnan.(soundings[idx].HM_data))
+            ndata = getndata(soundings[idx])
             χ²mean[idx] = mean(χ²)/ndata
             χ²sd[idx]   = std(χ²)/ndata
             if useML
@@ -135,6 +135,12 @@ function summarypost(soundings::Vector{S}, opt::Options;
         end
     end
     pl, pm, ph, ρmean, vdmean, vddev, χ²mean, χ²sd
+end
+
+function getndata(d)
+    select = .!isnan.(d)
+    ndata  = sum(select)
+    ndata, select
 end
 
 function plotindividualAEMsoundings(soundings::Vector{S}, aem_in::Operator1D, opt::Options, idxplot::Vector{Int};

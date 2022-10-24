@@ -4,6 +4,7 @@ import ..AbstractOperator.Sounding
 import ..AbstractOperator.makeoperator
 import ..AbstractOperator.getresidual
 import ..AbstractOperator.returnforwrite
+import ..AbstractOperator.getndata
 import ..AbstractOperator.plotmodelfield!
 using ..AbstractOperator, ..AEM_VMD_HMD, Statistics, Distributed, Printf, Dates, StatsBase,
       PyPlot, LinearAlgebra, ..CommonToAll, Random, DelimitedFiles, LinearMaps, SparseArrays
@@ -118,12 +119,6 @@ function getresidual(aem::dBzdt, log10σ::Vector{Float64}; computeJ=false)
     nothing    
 end
 
-function getndata(d)
-    select = .!isnan.(d)
-    ndata  = sum(select)
-    ndata, select
-end
-
 mutable struct SkyTEMsoundingData <: Sounding
     sounding_string :: String
     X :: Float64
@@ -151,6 +146,10 @@ end
 returnforwrite(s::SkyTEMsoundingData) = [s.X, s.Y, s.Z, s.fid, 
     s.linenum, s.rRx, s.zRxLM, s.zTxLM, s.zRxHM, 
     s.zTxHM, s.rTx]
+
+function getndata(S::SkyTEMsoundingData)
+    getndata(S.LM_data)[2] + getndata(S.HM_data)[2]
+end   
 
 function SkyTEMsoundingData(;rRx=-12., zRxLM=12., zTxLM=12.,
                             zRxHM=12., zTxHM=12., rTx=-12.,lowpassfcs=[-1, -2.],
