@@ -1,4 +1,4 @@
-module AEMnoNuisanceMcMCinversionTools
+module AEMnoNuisanceMcMCInversionTools
 using ..AbstractOperator, ..CommonToAll
 import ..AbstractOperator.makeoperator
 import ..AbstractOperator.loopacrossAEMsoundings
