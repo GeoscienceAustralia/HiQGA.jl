@@ -6,7 +6,7 @@ import ..AbstractOperator.getresidual
 import ..AbstractOperator.returnforwrite
 import ..AbstractOperator.plotmodelfield!
 using ..AbstractOperator, ..AEM_VMD_HMD, Statistics, Distributed, Printf, Dates, StatsBase,
-      PyPlot, LinearAlgebra, ..CommonToAll, Random, DelimitedFiles, LinearMaps, SparseArrays, ..GP
+      PyPlot, LinearAlgebra, ..CommonToAll, Random, DelimitedFiles, LinearMaps, SparseArrays
 
 
 import ..Model, ..Options, ..OptionsStat, ..OptionsNonstat

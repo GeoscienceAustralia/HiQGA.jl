@@ -8,15 +8,13 @@ export makeAEMoperatorandoptions, loopacrossAEMsoundings, summaryAEMimages, plot
 import ..main # McMC function
 using Distributed, Dates, Statistics, DelimitedFiles, PyPlot, Random
 # plotting stuff
-function splitlinesummaryimages(soundings::Array{S, 1}, opt::Options;
+function summaryAEMimages(soundings::Array{S, 1}, opt::Options;
                         qp1=0.05,
                         qp2=0.95,
                         burninfrac=0.5,
-                        zstart = 0.0,
-                        extendfrac = -1,
                         dz = -1,
                         dr = 10,
-                        nlayers = -1,
+                        zall=[-1.],
                         fontsize = 10,
                         vmin = -2,
                         vmax = 0.5,
@@ -39,24 +37,20 @@ function splitlinesummaryimages(soundings::Array{S, 1}, opt::Options;
     for i in 1:nlines
         a = linestartidx[i]
         b = i != nlines ?  linestartidx[i+1]-1 : length(soundings)
-        summaryimages(soundings[a:b], opt, qp1=qp1, qp2=qp2, burninfrac=burninfrac, zstart=zstart,
-            extendfrac=extendfrac, dz=dz, dr=dr, nlayers=nlayers, fontsize=fontsize, vmin=vmin, 
-            vmax = vmax, cmap=cmap, figsize=figsize, topowidth=topowidth, idx=idx, 
-            omitconvergence=omitconvergence, useML=useML, preferEright=preferEright, showplot=showplot,
-            preferNright=preferNright, saveplot=saveplot, yl=yl, dpi=dpi; showmean)
+        summaryimages(soundings[a:b], opt; qp1, qp2, burninfrac, zall,dz, dr, 
+            fontsize, vmin, vmax, cmap, figsize, topowidth, idx=idx, omitconvergence, useML, 
+            preferEright, showplot, preferNright, saveplot, yl, dpi, showmean)
     end
     nothing    
 end
 
-function summaryAEMimages(soundings::Array{S, 1}, opt::Options;
+function summaryimages(soundings::Array{S, 1}, opt::Options;
                         qp1=0.05,
                         qp2=0.95,
                         burninfrac=0.5,
-                        zstart = 0.0,
-                        extendfrac = -1,
                         dz = -1,
                         dr = 10,
-                        nlayers = -1,
+                        zall = [-1.],
                         fontsize = 10,
                         vmin = -2,
                         vmax = 0.5,
@@ -74,14 +68,7 @@ function summaryAEMimages(soundings::Array{S, 1}, opt::Options;
                         showmean = false,
                         dpi = 300) where S<:Sounding
     @assert !(preferNright && preferEright) # can't prefer both labels to the right
-    pl, pm, ph, ρmean, vdmean, vddev, χ²mean, χ²sd, zall = summarypost(soundings, opt,
-                                                                    zstart=zstart,
-                                                                    qp1=qp1,
-                                                                    qp2=qp2,
-                                                                    dz=dz,
-                                                                    extendfrac=extendfrac,
-                                                                    nlayers=nlayers,
-                                                                    burninfrac=burninfrac, useML=useML)
+    pl, pm, ph, ρmean, vdmean, vddev, χ²mean, χ²sd  = summarypost(soundings, opt; zall, qp1, qp2, burninfrac, useML)
 
     phgrid, plgrid, pmgrid, σmeangrid, ∇zmeangrid,
     ∇zsdgrid, gridx, gridz, topofine, R, Z = makesummarygrid(soundings, pl, pm, ph, ρmean,
@@ -99,16 +86,10 @@ function summarypost(soundings::Vector{S}, opt::Options;
             qp1=0.05,
             qp2=0.95,
             burninfrac=0.5,
-            zstart = 0.0,
-            extendfrac = -1,
-            dz = -1,
-            nlayers = -1,
+            zall = [-1.],
             useML=false) where S<:Sounding
 
-    @assert extendfrac > 1.0
-    @assert dz > 0.0
-    @assert nlayers > 1
-    zall, = setupz(zstart, extendfrac, dz=dz, n=nlayers)
+    @assert length(zall) != 1
 
     linename = "_line_$(soundings[1].linenum)_summary.txt"
     fnames = ["rho_low", "rho_mid", "rho_hi", "rho_avg",
@@ -153,7 +134,7 @@ function summarypost(soundings::Vector{S}, opt::Options;
             writedlm(fnames[i][1:end-4]*"_xyzrho.txt", xyzrho)
         end
     end
-    pl, pm, ph, ρmean, vdmean, vddev, χ²mean, χ²sd, zall
+    pl, pm, ph, ρmean, vdmean, vddev, χ²mean, χ²sd
 end
 
 function plotindividualAEMsoundings(soundings::Vector{S}, aem_in::Operator1D, opt::Options, idxplot::Vector{Int};
@@ -260,7 +241,7 @@ function makeAEMoperatorandoptions(sounding::Sounding;
                         useML = false,
                         modelprimary = false
                         )
-    aem, _, znall,  = makeoperator(sounding;
+    aem, zall, znall,  = makeoperator(sounding;
                         zfixed, ρfixed, zstart, extendfrac,
                         dz = dz, ρbg, nlayers, ntimesperdecade,
                         nfreqsperdecade, useML, showgeomplot,
@@ -282,7 +263,7 @@ function makeAEMoperatorandoptions(sounding::Sounding;
                         δ = δ,
                         restart = restart
                         )
-    aem, opt
+    aem, opt, zall
 end
 
 # Driver code for McMC inversion with no nuisances

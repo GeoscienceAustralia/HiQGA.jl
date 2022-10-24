@@ -379,7 +379,7 @@ function makeoperator(sounding::VTEMsoundingData;
         times=sounding.times, ramp=sounding.ramp, ntimesperdecade, nfreqsperdecade,
         rTx=sounding.rTx, zTx=sounding.zTx, z, ρ, calcjacobian, useML, showgates=plotfield)
     plotfield && plotmodelfield!(aem, log10.(ρ[2:end]))
-    aem, zall, znall
+    aem, zall, znall, zboundaries
 end
 
 function makeoperator(aem::dBzdt, sounding::VTEMsoundingData)

@@ -1,6 +1,6 @@
 module AEMnoNuisanceGradientInversionTools
 using Distributed, Dates, Printf, PyPlot, DelimitedFiles, StatsBase
-using ..AbstractOperator, ..CommonToAll
+using ..AbstractOperator, ..CommonToAll, ..GP
 import ..AbstractOperator.makeoperator
 import ..AbstractOperator.Sounding
 import ..AbstractOperator.returnforwrite
@@ -36,7 +36,7 @@ end
 
 # plot the convergence and the result
 function plotconvandlast(soundings, delr, delz; 
-        zstart=-1, extendfrac=-1, dz=-1, nlayers=-1, cmapσ="turbo", vmin=-2.5, vmax=0.5, fontsize=12,
+        zall=[-1.], cmapσ="turbo", vmin=-2.5, vmax=0.5, fontsize=12,
         figsize=(20,5),
         topowidth=1,
         preferEright = false,
@@ -53,8 +53,8 @@ function plotconvandlast(soundings, delr, delz;
         dpi=400)
     linestartidx = splitsoundingsbyline(soundings)                    
     nlines = length(linestartidx)
+    nlayers = length(zall)
     fnamecheck = soundings[1].sounding_string*"_gradientinv.dat"
-    zall, = setupz(zstart, extendfrac, dz=dz, n=nlayers)
     isfile(fnamecheck) && compress(soundings, zall) # write everything in one file if not done yet
     fzipped = prefix == "" ? "zipped.dat" : prefix*"_zipped.dat"
     A = readdlm(fzipped)
@@ -161,18 +161,12 @@ function plotconvandlasteachline(soundings, σ, ϕd, delr, delz;
 end    
 
 # driver for gradient based AEM inversion
-function loopacrossAEMsoundings(soundings::Array{S, 1}, σstart, σ0; 
+function loopacrossAEMsoundings(soundings::Array{S, 1}, aem_in, σstart, σ0; 
                             nsequentialiters   =-1,
-                            zfixed             = [-1e5],
-                            ρfixed             = [1e12],
                             zstart             = 0.0,
                             extendfrac         = 1.06,
                             dz                 = 2.,
-                            ρbg                = 10,
                             nlayers            = 50,
-                            ntimesperdecade    = 10,
-                            nfreqsperdecade    = 5,
-                            modelprimary       = false,
                             regtype            = :R1,
                             nstepsmax          = 10,
                             ntries             = 6,
@@ -211,19 +205,7 @@ function loopacrossAEMsoundings(soundings::Array{S, 1}, σstart, σ0;
         @info "soundings in loop $iter of $nsequentialiters", ss
         pids = workers()
         @sync for (i, s) in enumerate(ss)
-            aem, = makeoperator(    soundings[s],
-                                    zfixed = zfixed,
-                                    ρfixed = ρfixed,
-                                    zstart = zstart,
-                                    extendfrac = extendfrac,
-                                    dz = dz,
-                                    ρbg = ρbg,
-                                    nlayers = nlayers,
-                                    modelprimary = modelprimary,
-                                    ntimesperdecade = ntimesperdecade,
-                                    nfreqsperdecade = nfreqsperdecade,
-                                    calcjacobian = true)
-
+            aem = makeoperator(aem_in, soundings[s])
             fname = soundings[s].sounding_string*"_gradientinv.dat"
             σstart_, σ0_ = map(x->x*ones(length(aem.ρ)-1), [σstart, σ0])
             @async remotecall_wait(gradientinv, pids[i], σstart_, σ0_, aem,
