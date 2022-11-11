@@ -1,9 +1,11 @@
 # HiQGA.jl
 
 
-**This branch is only for the 2022 Airborne Electromagnetics (AEM) workshop held in Perth. See [this video](https://www.youtube.com/watch?v=edgzr8vpCKY&list=PL0jP_ahe-BFmRWx6IT9G2zbFHA6qmJ52f&index=6) to run the examples.**
+**This branch is only for the 2022 Airborne Electromagnetics (AEM) workshop held in Perth as part of the [Exploring For the Future](https://www.eftf.ga.gov.au/) program [showcase](https://www.eftf.ga.gov.au/news/2022-showcase). See [this video](https://www.youtube.com/watch?v=edgzr8vpCKY&list=PL0jP_ahe-BFmRWx6IT9G2zbFHA6qmJ52f&index=6) using [these files](https://github.com/GeoscienceAustralia/HiQGA.jl/archive/refs/heads/workshop.zip) to run the examples.**
 
 As part of this workshop, we'd recommend going through the following videos:
+- An introduction to Geoscience Australia's (GA) ambitious 20 km spaced continent-wide AEM program by [Karol Czarnota](https://www.youtube.com/watch?v=pzJJf8RIipA&list=PL0jP_ahe-BFmRWx6IT9G2zbFHA6qmJ52f&index=1)
+- How the Western Australian government has found 20 km spaced AEM data very useful, by [Klauss Gessner](https://www.youtube.com/watch?v=27YXK6RDkT0&list=PL0jP_ahe-BFmRWx6IT9G2zbFHA6qmJ52f&index=2)
 - An introduction to AEM given by [Yusen Ley-Cooper](https://www.youtube.com/watch?v=edgzr8vpCKY&list=PL0jP_ahe-BFmRWx6IT9G2zbFHA6qmJ52f&index=6)
 - An introduction to inverse theory presented by [Anandaroop Ray](https://www.youtube.com/watch?v=P2NhmWPQICQ&list=PL0jP_ahe-BFmRWx6IT9G2zbFHA6qmJ52f&index=5)
 - Running the workshop Julia [examples](https://github.com/GeoscienceAustralia/HiQGA.jl/archive/refs/heads/workshop.zip) given in the `workshop` branch in the `examples` directory. See [here](https://www.youtube.com/watch?v=edgzr8vpCKY&list=PL0jP_ahe-BFmRWx6IT9G2zbFHA6qmJ52f&index=6) to follow along
