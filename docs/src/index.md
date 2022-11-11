@@ -14,8 +14,10 @@ This package implements both the nested (2-layer) and vanilla trans-dimensional 
 
 To install, in a perfect world we'd use Julia's `Pkg` REPL by hitting `]` to enter `pkg>` mode. Then enter the following, at the `pkg>` prompt:
 ```
-pkg> add https://github.com/GeoscienceAustralia/HiQGA.jl.git
+pkg> add HiQGA 
 ```
+If installing to [follow along](https://www.youtube.com/watch?v=edgzr8vpCKY&list=PL0jP_ahe-BFmRWx6IT9G2zbFHA6qmJ52f&index=6) for the 2022 AEM [workshop branch](https://github.com/GeoscienceAustralia/HiQGA.jl/tree/workshop) use instead of the above `pkg> add HiQGA@0.2.2`
+
 ## Usage
 Examples of how to use the package can be found in the `examples` directory. Simply `cd` to the relevant example directory and `include` the .`jl` files in the order they are named. If using VSCode make sure to do *Julia: Change to this Directory* from the three dots menu on the top right. The Markov Chain Monte Carlo sampler is configured to support parallel tempering on multiple CPUs - some of the examples accomplish this with Julia's built-in multiprocessing, and others use MPI in order to support inversions on HPC clusters that don't work with Julia's default SSH-based multiprocessing. The MPI examples require [MPI.jl](https://github.com/JuliaParallel/MPI.jl) and [MPIClusterManagers.jl](https://github.com/JuliaParallel/MPIClusterManagers.jl/), which are not installed as dependencies for this package, so you will need to ensure they are installed and configured correctly to run these examples. See [here](#Installing-MPI.jl-and-MPIClusterManagers.jl-on-NCI) for MPI on the NCI.
 
