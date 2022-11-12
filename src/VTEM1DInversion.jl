@@ -189,14 +189,19 @@ function read_survey_files(;
     nsoundings = size(d, 1)
     if makesounding
         s_array = Array{VTEMsoundingData, 1}(undef, nsoundings)
+        fracdone = 0 
         for is in 1:nsoundings
             l, f = Int(whichline[is]), fiducial[is]
-            @info "read $is out of $nsoundings"
             s_array[is] = VTEMsoundingData(;zTx=zTx[is], rTx, 
                 times, ramp, noise=σ[is,:], data=d[is,:], 
                 sounding_string="sounding_$(l)_$f",
                 X=easting[is], Y=northing[is], Z=topo[is], fid=f,
                 linenum=l)
+            fracnew = round(Int, is/nsoundings*100)
+            if (fracnew-fracdone)>10
+                fracdone = fracnew
+                @info "read $is out of $nsoundings"
+            end        
         end
         return s_array
     end
