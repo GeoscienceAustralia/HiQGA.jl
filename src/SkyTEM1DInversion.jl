@@ -293,6 +293,7 @@ function read_survey_files(;
     plt.tight_layout()
     if makesounding
         s_array = Array{SkyTEMsoundingData, 1}(undef, nsoundings)
+        fracdone = 0
         for is in 1:nsoundings
             l, f = Int(whichline[is]), fiducial[is]
             @info "read $is out of $nsoundings"
@@ -311,6 +312,11 @@ function read_survey_files(;
                 sounding_string="sounding_$(l)_$f",
                 X=easting[is], Y=northing[is], Z=topo[is], fid=f,
                 linenum=l)
+                fracnew = round(Int, is/nsoundings*100)
+            if (fracnew-fracdone)>10
+                fracdone = fracnew
+                @info "read $is out of $nsoundings"
+            end    
         end
         return s_array
     end

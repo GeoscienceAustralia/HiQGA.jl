@@ -730,6 +730,7 @@ function read_survey_files(;
 	nicenup(f, fsize=fsize)
     if makesounding
         s_array = Array{TempestSoundingData, 1}(undef, nsoundings)
+        fracdone = 0 
         for is in 1:nsoundings
             l, fi = Int(whichline[is]), fiducial[is]
             @info "read $is out of $nsoundings"
@@ -746,6 +747,11 @@ function read_survey_files(;
                 times, ramp,
                 σHx, σHz, dHx, dHz
                 )
+            fracnew = round(Int, is/nsoundings*100)
+            if (fracnew-fracdone)>10
+                fracdone = fracnew
+                @info "read $is out of $nsoundings"
+            end
         end
         return s_array
     end
