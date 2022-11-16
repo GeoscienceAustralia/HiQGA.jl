@@ -1,7 +1,7 @@
 # HiQGA.jl
 
 
-**This branch of HiQGA is specifically for the 2022 Airborne Electromagnetics (AEM) workshop held in Perth as part of the [Exploring For the Future](https://www.eftf.ga.gov.au/) program [showcase](https://www.eftf.ga.gov.au/news/2022-showcase) held by [Geoscience Australia](https://www.ga.gov.au) (GA) in collaboration with the [Australian Institution of Geoscientists](https://www.aig.org.au/). See [this video](https://youtu.be/edgzr8vpCKY) using [these files](https://github.com/GeoscienceAustralia/HiQGA.jl/archive/refs/heads/workshop.zip) to run the examples.**
+**This branch of HiQGA is specifically for the 2022 Airborne Electromagnetics (AEM) workshop held in Perth as part of the [Exploring For the Future](https://www.eftf.ga.gov.au/) program [showcase](https://www.eftf.ga.gov.au/news/2022-showcase) held by [Geoscience Australia](https://www.ga.gov.au) (GA) in collaboration with the [Australian Institute of Geoscientists](https://www.aig.org.au/). See [this video](https://youtu.be/edgzr8vpCKY) using [these files](https://github.com/GeoscienceAustralia/HiQGA.jl/archive/refs/heads/workshop.zip) to run the examples.**
 
 As part of this workshop, we'd recommend going through the following videos:
 - Acknowledgement of country and an introduction to GA's 20 km spaced **continent-wide** AusAEM program by [Karol Czarnota](https://youtu.be/pzJJf8RIipA)
