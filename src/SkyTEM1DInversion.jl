@@ -189,7 +189,7 @@ function read_survey_files(;
     relerror = false,
     units=1e-12,
     figsize = (9,7),
-    makesounding = false,
+    makeqcplots = true,
     dotillsounding = nothing,
     startfrom = 1,
     skipevery = 1,
@@ -242,86 +242,89 @@ function read_survey_files(;
     include(fname_specs_halt)
     @assert size(d_LM, 2) == length(LM_times)
     @assert size(d_HM, 2) == length(HM_times)
+    d_LM[:]     .*= units
+    d_HM[:]     .*= units
     if !relerror
         @assert size(d_LM, 2) == length(LM_noise)
         @assert size(d_HM, 2) == length(HM_noise)
         LM_noise[:] .*= units
         HM_noise[:] .*= units
+        σ_LM = sqrt.((multnoise*d_LM).^2 .+ (LM_noise').^2)
+        σ_HM = sqrt.((multnoise*d_HM).^2 .+ (HM_noise').^2)
     else
         σ_LM[:] .*= units
         σ_HM[:] .*= units
     end
-    d_LM[:]     .*= units
-    d_HM[:]     .*= units
+    nsoundings = size(soundings, 1)
+    makeqcplots && plotsoundingdata(nsoundings, LM_times, HM_times, d_LM, d_HM, 
+        σ_LM, σ_HM, zRx, zTx, rRx, figsize)
+
+    s_array = Array{SkyTEMsoundingData, 1}(undef, nsoundings)
+    fracdone = 0
+    for is in 1:nsoundings
+        l, f = Int(whichline[is]), fiducial[is]
+        dlow, dhigh = vec(d_LM[is,:]), vec(d_HM[is,:])
+        s_array[is] = SkyTEMsoundingData(rRx=rRx[is], zRxLM=zRx[is], zTxLM=zTx[is],
+            zRxHM=zRx[is], zTxHM=zTx[is], rTx=rTx, lowpassfcs=lowpassfcs,
+            LM_times=LM_times, LM_ramp=LM_ramp,
+            HM_times=HM_times, HM_ramp=HM_ramp,
+            LM_noise=σ_LM[is,:], HM_noise=σ_HM[is,:], LM_data=dlow, HM_data=dhigh,
+            sounding_string="sounding_$(l)_$f",
+            X=easting[is], Y=northing[is], Z=topo[is], fid=f,
+            linenum=l)
+            fracnew = round(Int, is/nsoundings*100)
+        if (fracnew-fracdone)>10
+            fracdone = fracnew
+            @info "read $is out of $nsoundings"
+        end    
+    end
+    return s_array
+end
+
+function plotsoundingdata(nsoundings, LM_times, HM_times, d_LM, d_HM, 
+        LM_noise, HM_noise, zRx, zTx, rRx, figsize)
     f = figure(figsize=figsize)
     ax = Array{Any, 1}(undef, 4)
     ax[1] = subplot(2,2,1)
-    nsoundings = size(soundings, 1)
     plot_dLM = permutedims(d_LM)
     plot_dLM[plot_dLM .<0] .= NaN
-    pcolormesh(1:nsoundings, LM_times, log10.(plot_dLM), shading="nearest")
-    xlabel("sounding #")
-    cbLM = colorbar()
-    cbLM.set_label("log₁₀ d_LM")
-    ylabel("LM time s")
+    im1 = ax[1].pcolormesh(1:nsoundings, LM_times, log10.(plot_dLM), shading="nearest")
+    ax[1].set_xlabel("sounding #")
+    cbLM = colorbar(im1, ax=ax[1])
+    cbLM.set_label("log10 d_LM")
+    ax[1].set_ylabel("LM time s")
     axLM = ax[1].twiny()
-    axLM.semilogy(LM_noise, LM_times)
-    axLM.set_xlabel("high alt noise")
+    # axLM.semilogy(LM_noise, LM_times)
+    # axLM.set_xlabel("high alt noise")
+    axLM.semilogy(mean(LM_noise./abs.(d_LM), dims=1)[:], LM_times)
+    axLM.set_xlabel("avg LM noise fraction")
     ax[2] = subplot(2,2,3,sharex=ax[1], sharey=ax[1])
     plot_dHM = permutedims(d_HM)
     plot_dHM[plot_dHM .<0] .= NaN
-    pcolormesh(1:nsoundings, HM_times, log10.(plot_dHM), shading="nearest")
+    im2 = ax[2].pcolormesh(1:nsoundings, HM_times, log10.(plot_dHM), shading="nearest")
     xlabel("sounding #")
-    cbHM = colorbar()
-    cbHM.set_label("log₁₀ d_HM")
-    ylabel("HM time s")
+    cbHM = colorbar(im2, ax=ax[2])
+    cbHM.set_label("log10 d_HM")
+    ax[2].set_ylabel("HM time s")
     ax[2].invert_yaxis()
     axHM = ax[2].twiny()
-    axHM.semilogy(HM_noise, HM_times)
-    axHM.set_xlabel("high alt noise")
+    # axHM.semilogy(HM_noise, HM_times)
+    # axHM.set_xlabel("high alt noise")
+    axHM.semilogy(mean(HM_noise./abs.(d_HM), dims=1)[:], HM_times)
+    axHM.set_xlabel("avg HM noise fraction")
     ax[3] = subplot(2,2,2, sharex=ax[1])
-    plot(1:nsoundings, zRx, label="Rx")
-    plot(1:nsoundings, zTx, label="Tx")
-    legend()
-    xlabel("sounding #")
-    ylabel("height m")
+    ax[3].plot(1:nsoundings, zRx, label="Rx")
+    ax[3].plot(1:nsoundings, zTx, label="Tx")
+    ax[3].legend()
+    ax[3].set_xlabel("sounding #")
+    ax[3].set_ylabel("height m")
     ax[3].invert_yaxis()
     ax[4] = subplot(2,2,4, sharex=ax[1])
     ax[4].plot(1:nsoundings, rRx)
-    xlabel("sounding #")
-    ylabel("rRx m")
+    ax[4].set_xlabel("sounding #")
+    ax[4].set_ylabel("rRx m")
     plt.tight_layout()
-    if makesounding
-        s_array = Array{SkyTEMsoundingData, 1}(undef, nsoundings)
-        fracdone = 0
-        for is in 1:nsoundings
-            l, f = Int(whichline[is]), fiducial[is]
-            @info "read $is out of $nsoundings"
-            dlow, dhigh = vec(d_LM[is,:]), vec(d_HM[is,:])
-            if !relerror
-                σLM = sqrt.((multnoise*dlow).^2 + LM_noise.^2)
-                σHM = sqrt.((multnoise*dhigh).^2 + HM_noise.^2)
-            else
-                σLM, σHM = vec(σ_LM[is,:]), vec(σ_HM[is,:])
-            end
-            s_array[is] = SkyTEMsoundingData(rRx=rRx[is], zRxLM=zRx[is], zTxLM=zTx[is],
-                zRxHM=zRx[is], zTxHM=zTx[is], rTx=rTx, lowpassfcs=lowpassfcs,
-                LM_times=LM_times, LM_ramp=LM_ramp,
-                HM_times=HM_times, HM_ramp=HM_ramp,
-                LM_noise=σLM, HM_noise=σHM, LM_data=dlow, HM_data=dhigh,
-                sounding_string="sounding_$(l)_$f",
-                X=easting[is], Y=northing[is], Z=topo[is], fid=f,
-                linenum=l)
-                fracnew = round(Int, is/nsoundings*100)
-            if (fracnew-fracdone)>10
-                fracdone = fracnew
-                @info "read $is out of $nsoundings"
-            end    
-        end
-        return s_array
-    end
-end
-
+end    
 # all calling functions here for misfit, field, etc. assume model is in log10 resistivity
 # SANS the top. For lower level field calculation use AEM_VMD_HMD structs
 
@@ -381,7 +384,7 @@ end
 
 function makenoisydata!(aem, ρ; 
         rseed=123, noisefrac=0.03, σ_halt_low=nothing, σ_halt_high, useML=false,
-        onesigma=true, color=nothing, alpha=1, model_lw=1, forward_lw=1, figsize=(8,8), revax=true)
+        onesigma=true, color=nothing, alpha=1, model_lw=1, forward_lw=1, figsize=(8,6), revax=true)
     # σ_halt always assumed in Bfield units of pV
     getfield!(ρ, aem)
     # low moment first
@@ -488,26 +491,31 @@ function plotmodelfield!(ax, iaxis, aem::dBzdt, ρ; color=nothing, alpha=1, mode
     plotsoundingcurve(ax[iaxis+1], aem.Fhigh.dBzdt, aem.Fhigh.times; color=colorused, alpha, lw=forward_lw)
 end    
 
-function initmodelfield!(aem;  onesigma=true, figsize=(8,8))
+function initmodelfield!(aem;  onesigma=true, figsize=(8,6))
     f, ax = plt.subplots(1, 2; figsize)
     if !isempty(aem.dlow)
         aem.ndatalow > 0 && plotdata(ax[2], aem.dlow, aem.σlow, aem.Flow.times; onesigma, dtype=:LM)
         aem.ndatahigh > 0 && plotdata(ax[2], aem.dhigh, aem.σhigh, aem.Fhigh.times; onesigma, dtype=:HM)
-    end    
+    end
+    ax[1].set_xlabel("log10 ρ")
+    ax[1].set_ylabel("depth m")
+    ax[2].set_ylabel("dBz/dt pV/Am⁴")    
+    ax[2].set_xlabel("time s")
     ax
 end    
 
-function plotmodelfield!(aem::dBzdt, ρ; onesigma=true, color=nothing, alpha=1, model_lw=1, forward_lw=1, figsize=(8,8), revax=true)
+function plotmodelfield!(aem::dBzdt, ρ; onesigma=true, color=nothing, alpha=1, model_lw=1, forward_lw=1, figsize=(8,6), revax=true)
     plotmodelfield!(aem, [ρ]; onesigma, color, alpha, model_lw, forward_lw, figsize, revax) 
 end  
 
 function plotmodelfield!(aem::dBzdt, manyρ::Vector{T}; onesigma=true, 
-        color=nothing, alpha=1, model_lw=1, forward_lw=1, figsize=(8,8), revax=true) where T<:AbstractArray
+        color=nothing, alpha=1, model_lw=1, forward_lw=1, figsize=(8,6), revax=true) where T<:AbstractArray
     ax = initmodelfield!(aem; onesigma, figsize)
     for ρ in manyρ
         plotmodelfield!(ax, 1, aem, vec(ρ); alpha, model_lw, forward_lw, color)
     end
     ax[1].invert_yaxis()
+    nicenup(ax[1].get_figure(), fsize=12)
     revax && ax[1].invert_xaxis()
     ax
 end 

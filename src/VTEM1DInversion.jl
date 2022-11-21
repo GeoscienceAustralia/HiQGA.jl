@@ -142,7 +142,7 @@ function read_survey_files(;
     units=1e-12,
     figsize = (8,4),
     fontsize = 10,
-    makesounding = false,
+    makeqcplots = true,
     dotillsounding = nothing,
     startfrom = 1,
     skipevery = 1,
@@ -185,26 +185,24 @@ function read_survey_files(;
     d[:]      .*= units
     σ           = sqrt.((multnoise*d).^2 .+ (σ_halt').^2)
 
-    plotsoundingdata(d, σ, times, zTx; figsize, fontsize)
+    makeqcplots && plotsoundingdata(d, σ, times, zTx; figsize, fontsize)
     nsoundings = size(d, 1)
-    if makesounding
-        s_array = Array{VTEMsoundingData, 1}(undef, nsoundings)
-        fracdone = 0 
-        for is in 1:nsoundings
-            l, f = Int(whichline[is]), fiducial[is]
-            s_array[is] = VTEMsoundingData(;zTx=zTx[is], rTx, 
-                times, ramp, noise=σ[is,:], data=d[is,:], 
-                sounding_string="sounding_$(l)_$f",
-                X=easting[is], Y=northing[is], Z=topo[is], fid=f,
-                linenum=l)
-            fracnew = round(Int, is/nsoundings*100)
-            if (fracnew-fracdone)>10
-                fracdone = fracnew
-                @info "read $is out of $nsoundings"
-            end        
-        end
-        return s_array
+    s_array = Array{VTEMsoundingData, 1}(undef, nsoundings)
+    fracdone = 0 
+    for is in 1:nsoundings
+        l, f = Int(whichline[is]), fiducial[is]
+        s_array[is] = VTEMsoundingData(;zTx=zTx[is], rTx, 
+            times, ramp, noise=σ[is,:], data=d[is,:], 
+            sounding_string="sounding_$(l)_$f",
+            X=easting[is], Y=northing[is], Z=topo[is], fid=f,
+            linenum=l)
+        fracnew = round(Int, is/nsoundings*100)
+        if (fracnew-fracdone)>10
+            fracdone = fracnew
+            @info "read $is out of $nsoundings"
+        end        
     end
+    return s_array
 end
 
 function plotsoundingdata(d, σ, times, zTx; figsize=(8,4), fontsize=1)
@@ -220,7 +218,7 @@ function plotsoundingdata(d, σ, times, zTx; figsize=(8,4), fontsize=1)
     ax[1].tick_params(labelbottom=false)
     axx = ax[1].twiny()
     axx.semilogy(mean(σ./abs.(d), dims=1)[:], times)
-    axx.set_xlabel("avg high alt noise fraction")
+    axx.set_xlabel("avg noise fraction")
     ax[2].plot(1:nsoundings, zTx, label="zTx")
     ax[2].set_xlabel("sounding #")
     ax[2].set_ylabel("height m")
@@ -316,33 +314,38 @@ function plotmodelfield!(ax, iaxis, aem::dBzdt, ρ; color=nothing, alpha=1, mode
     plotsoundingcurve(ax[iaxis+1], aem.F.dBzdt, aem.F.times; color, alpha, lw=forward_lw)
 end    
 
-function initmodelfield!(aem;  onesigma=true, figsize=(8,8))
+function initmodelfield!(aem;  onesigma=true, figsize=(8,6))
     f, ax = plt.subplots(1, 2; figsize)
     if !isempty(aem.d)
         plotdata(ax[2], aem.d, aem.σ, aem.F.times; onesigma)
-    end    
+    end
+    ax[1].set_xlabel("log10 ρ")
+    ax[1].set_ylabel("depth m")
+    ax[2].set_ylabel("dBz/dt pV/Am⁴")    
+    ax[2].set_xlabel("time s")
     ax
 end    
 
-function plotmodelfield!(aem::dBzdt, ρ; onesigma=true, color=nothing, alpha=1, model_lw=1, forward_lw=1, figsize=(8,8), revax=true)
+function plotmodelfield!(aem::dBzdt, ρ; onesigma=true, color=nothing, alpha=1, model_lw=1, forward_lw=1, figsize=(8,6), revax=true)
     plotmodelfield!(aem, [ρ]; onesigma, color, alpha, model_lw, forward_lw, figsize, revax) 
 end  
 
 function plotmodelfield!(aem::dBzdt, manyρ::Vector{T}; onesigma=true, 
-        color=nothing, alpha=1, model_lw=1, forward_lw=1, figsize=(8,8), revax=true) where T<:AbstractArray
+        color=nothing, alpha=1, model_lw=1, forward_lw=1, figsize=(8,6), revax=true) where T<:AbstractArray
     ax = initmodelfield!(aem; onesigma, figsize)
     for ρ in manyρ
         plotmodelfield!(ax, 1, aem, vec(ρ); alpha, model_lw, forward_lw, color)
     end
     ax[1].invert_yaxis()
     revax && ax[1].invert_xaxis()
+    nicenup(ax[1].get_figure(), fsize=12)
     ax
 end 
 
 # noisy synthetic model making
 function makenoisydata!(aem, ρ; 
         rseed=123, noisefrac=0.03, σ_halt=nothing, useML=false,
-        onesigma=true, color=nothing, alpha=1, model_lw=1, forward_lw=1, figsize=(8,8), revax=true)
+        onesigma=true, color=nothing, alpha=1, model_lw=1, forward_lw=1, figsize=(8,6), revax=true)
     # σ_halt always assumed in Bfield units of pV
     getfield!(ρ, aem)
     f = aem.F.dBzdt

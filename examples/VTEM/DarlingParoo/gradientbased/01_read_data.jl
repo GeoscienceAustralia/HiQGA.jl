@@ -18,4 +18,4 @@ soundings = transD_GP.VTEM1DInversion.read_survey_files(; X, Y, Z,
 									startfrom        = 1,
 									skipevery        = 50,
 									dotillsounding   = nothing,
-									makesounding     = true)
+									makeqcplots      = true)

@@ -9,7 +9,6 @@ if rank == 0
 end
 manager = MPIClusterManagers.start_main_loop(MPI_TRANSPORT_ALL)
 @info "there are $(nworkers()) workers"
-@everywhere @info gethostname()
 include("01_read_data.jl")
 include("02_set_options.jl")
 ## MPI checks

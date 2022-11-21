@@ -599,9 +599,9 @@ function read_survey_files(;
 	yaw_tx = -1,
 	pitch_tx = -1,
 	roll_tx = -1,
-    figsize = (16,11),
-    makesounding = false,
+    figsize = (10,6),
     dotillsounding = nothing,
+    makeqcplots = true,
     startfrom = 1,
     skipevery = 1,
     multnoise = 0.02,
@@ -610,7 +610,7 @@ function read_survey_files(;
 	Z = -1,
     fid = -1,
     linenum = -1,
-	fsize = 13)
+	fsize = 10)
 
     @assert frame_height > 0
     @assert frame_dz > 0
@@ -634,7 +634,7 @@ function read_survey_files(;
 	@assert 0 < multnoise < 1.0
 
     @info "reading $fname_dat"
-    if dotillsounding!= nothing
+    if !isnothing(dotillsounding)
         soundings = readdlm(fname_dat)[startfrom:skipevery:dotillsounding,:]
     else
         soundings = readdlm(fname_dat)[startfrom:skipevery:end,:]
@@ -678,42 +678,80 @@ function read_survey_files(;
     Hz_add_noise[:] .*= units
     d_Hx[:]     .*= units
     d_Hz[:]     .*= -units # Flipping the Z component to align with GA_AEM rx
+
+    σ_Hx = sqrt.(σ_Hx.^2 .+ (Hx_add_noise').^2)
+    σ_Hz = sqrt.(σ_Hz.^2 .+ (Hz_add_noise').^2)
+
+    nsoundings = size(soundings, 1)
+    makeqcplots && plotsoundingdata(nsoundings, times, d_Hx, σ_Hx, d_Hz, σ_Hz, z_tx, z_rx, x_rx, y_rx,
+    d_yaw_tx, d_pitch_tx, d_roll_tx, d_yaw_rx, d_pitch_rx, d_roll_rx,
+    figsize, fsize)
+
+    s_array = Array{TempestSoundingData, 1}(undef, nsoundings)
+    fracdone = 0 
+    for is in 1:nsoundings
+        l, fi = Int(whichline[is]), fiducial[is]
+        dHx, dHz = vec(d_Hx[is,:]), vec(d_Hz[is,:])
+        s_array[is] = TempestSoundingData(
+            "sounding_$(l)_$fi", easting[is], northing[is],
+            topo[is], fi, l,
+            x_rx[is], y_rx[is], z_rx[is],
+            d_roll_rx[is], d_pitch_rx[is], d_yaw_rx[is],
+            d_roll_tx[is], d_pitch_tx[is], d_yaw_tx[is],
+            z_tx[is],
+            times, ramp,
+            σ_Hx[is,:], σ_Hz[is,:], dHx, dHz
+            )
+        fracnew = round(Int, is/nsoundings*100)
+        if (fracnew-fracdone)>10
+            fracdone = fracnew
+            @info "read $is out of $nsoundings"
+        end
+    end
+    return s_array
+end
+
+function plotsoundingdata(nsoundings, times, d_Hx, Hx_add_noise, d_Hz, Hz_add_noise, z_tx, z_rx, x_rx, y_rx,
+        d_yaw_tx, d_pitch_tx, d_roll_tx, d_yaw_rx, d_pitch_rx, d_roll_rx,
+        figsize, fsize)
     f = figure(figsize=figsize)
     ax = Array{Any, 1}(undef, 4)
     ax[1] = subplot(2,2,1)
-    nsoundings = size(soundings, 1)
     plot_dHx = permutedims(d_Hx)
     # plot_dHx[plot_dHx .<0] .= NaN
-    pcolormesh(1:nsoundings, times, plot_dHx, shading="nearest")
-    xlabel("sounding #")
-    cbHx = colorbar()
+    im1 = ax[1].pcolormesh(1:nsoundings, times, plot_dHx, shading="nearest")
+    ax[1].set_xlabel("sounding #")
+    cbHx = colorbar(im1, ax=ax[1])
     cbHx.ax.set_xlabel("Bx", fontsize=fsize)
-    ylabel("time s")
+    ax[1].set_ylabel("time s")
     axHx = ax[1].twiny()
-    axHx.semilogy(Hx_add_noise, times, "-k")
-	axHx.semilogy(Hx_add_noise, times, "--w")
-    axHx.set_xlabel("high alt noise")
+    # axHx.semilogy(Hx_add_noise, times, "-k")
+	# axHx.semilogy(Hx_add_noise, times, "--w")
+    axHx.semilogy(mean(Hx_add_noise./abs.(d_Hx), dims=1)[:], times)
+    axHx.set_xlabel("avg Hx noise fraction")
     ax[2] = subplot(2,2,3,sharex=ax[1], sharey=ax[1])
     plot_dHz = permutedims(d_Hz)
     # plot_dHz[plot_dHM .<0] .= NaN
-    pcolormesh(1:nsoundings, times, plot_dHz, shading="nearest")
-    xlabel("sounding #")
-    cbHz = colorbar()
+    im2 = ax[2].pcolormesh(1:nsoundings, times, plot_dHz, shading="nearest")
+    ax[2].set_xlabel("sounding #")
+    cbHz = colorbar(im2, ax=ax[2])
     cbHz.ax.set_xlabel("Bz", fontsize=fsize)
-    ylabel("time s")
+    ax[1].set_ylabel("time s")
+    ax[2].set_ylabel("time s")
     ax[2].invert_yaxis()
     axHz = ax[2].twiny()
-    axHz.semilogy(Hz_add_noise, times, "-k")
-	axHz.semilogy(Hz_add_noise, times, "--w")
-    axHz.set_xlabel("high alt noise")
+    # axHz.semilogy(Hz_add_noise, times, "-k")
+	# axHz.semilogy(Hz_add_noise, times, "--w")
+    axHz.semilogy(mean(Hz_add_noise./abs.(d_Hz), dims=1)[:], times)
+    axHz.set_xlabel("avg Hz noise fraction")
     ax[3] = subplot(2,2,2, sharex=ax[1])
-	plot(1:nsoundings, z_tx, label="z_tx", "--")
-	plot(1:nsoundings, z_rx, label="z_rx")
-	plot(1:nsoundings, x_rx, label="x_rx")
-	plot(1:nsoundings, y_rx, label="y_rx")
-    legend()
-    xlabel("sounding #")
-    ylabel("earth frame geometry m")
+	ax[3].plot(1:nsoundings, z_tx, label="z_tx", "--")
+	ax[3].plot(1:nsoundings, z_rx, label="z_rx")
+	ax[3].plot(1:nsoundings, x_rx, label="x_rx")
+	ax[3].plot(1:nsoundings, y_rx, label="y_rx")
+    ax[3].legend()
+    ax[3].set_xlabel("sounding #")
+    ax[3].set_ylabel("earth frame geometry m")
 	ax[3].grid()
     ax[3].invert_yaxis()
     ax[4] = subplot(2,2,4, sharex=ax[1])
@@ -724,37 +762,10 @@ function read_survey_files(;
 	ax[4].plot(1:nsoundings, d_pitch_rx, label="pitch_rx")
 	ax[4].plot(1:nsoundings, d_roll_rx, label="roll_rx")
 	ax[4].grid()
-    xlabel("sounding #")
-    ylabel("rotations degrees")
-	legend()
+    ax[4].set_xlabel("sounding #")
+    ax[4].set_ylabel("rotations degrees")
+	ax[4].legend()
 	nicenup(f, fsize=fsize)
-    if makesounding
-        s_array = Array{TempestSoundingData, 1}(undef, nsoundings)
-        fracdone = 0 
-        for is in 1:nsoundings
-            l, fi = Int(whichline[is]), fiducial[is]
-            @info "read $is out of $nsoundings"
-            dHx, dHz = vec(d_Hx[is,:]), vec(d_Hz[is,:])
-            σHx = sqrt.(vec(σ_Hx[is,:].^2) + Hx_add_noise.^2)
-            σHz = sqrt.(vec(σ_Hz[is,:].^2) + Hz_add_noise.^2)
-            s_array[is] = TempestSoundingData(
-				"sounding_$(l)_$fi", easting[is], northing[is],
-				topo[is], fi, l,
-				x_rx[is], y_rx[is], z_rx[is],
-                d_roll_rx[is], d_pitch_rx[is], d_yaw_rx[is],
-				d_roll_tx[is], d_pitch_tx[is], d_yaw_tx[is],
-				z_tx[is],
-                times, ramp,
-                σHx, σHz, dHx, dHz
-                )
-            fracnew = round(Int, is/nsoundings*100)
-            if (fracnew-fracdone)>10
-                fracdone = fracnew
-                @info "read $is out of $nsoundings"
-            end
-        end
-        return s_array
-    end
 end
 
 function makeoperator( sounding::TempestSoundingData;
