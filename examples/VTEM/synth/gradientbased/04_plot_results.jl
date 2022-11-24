@@ -3,7 +3,6 @@ using Printf
 alpha = 0.3
 ndata = length(aem.res)
 for (i, mi) in enumerate(m)
-    isempty(λ²[i]) && break
     f, s = plt.subplots(1, 2, gridspec_kw=Dict("width_ratios" => [1,1.5]),
         figsize=(8,5))
     for ii in 1:length(χ²[i])
@@ -35,10 +34,6 @@ alpha = 0.1
 idxlast = length(m)
 ndata = length(aem.res)
 for (i, mi) in enumerate(m)
-    if isempty(λ²[i]) 
-        global idxlast = i-1
-        break
-    end
     s[1].step(-mi[idx[i]], aem.z[2:end], alpha=alpha)
     push!(χ²best, minimum(χ²[i]))
     i == idxlast && break
