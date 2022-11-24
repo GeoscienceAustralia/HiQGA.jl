@@ -1357,9 +1357,8 @@ function loopacrosssoundings(soundings::Array{S, 1};
             ss = (iter-1)*nparallelsoundings+1:nsoundings
         end
         @info "soundings in loop $iter of $nsequentialiters", ss
-        r_nothing = Array{Nothing, 1}(undef, length(ss))
-        @sync for (i, s) in Iterators.reverse(enumerate(ss))
-            pids = (i-1)*nchainspersounding+i:i*(nchainspersounding+1)
+        @sync for (i, s) in enumerate(ss)
+            pids = i*(nchainspersounding+1)+1:(i+1)*(nchainspersounding+1)
             @info "pids in sounding $s:", pids
 
             aem, znall = makeoperator(    soundings[s],
@@ -1398,7 +1397,7 @@ function loopacrosssoundings(soundings::Array{S, 1};
                                 dispstatstoscreen = dispstatstoscreen
                                 )
 
-            @async r_nothing[i] = remotecall_fetch(main, pids[1], opt, optn, aem, collect(pids[2:end]),
+            @async remotecall_wait(main, pids[1], opt, optn, aem, collect(pids[2:end]),
                                     Tmax         = Tmax,
                                     nsamples     = nsamples,
                                     nchainsatone = nchainsatone)
