@@ -10,22 +10,12 @@ manager = MPIClusterManagers.start_main_loop(MPI_TRANSPORT_ALL)
 @info "there are $(nworkers()) workers"
 include("01_read_data.jl")
 include("02_set_options.jl")
-## MPI checks
-# split into sequential iterations of parallel soundings
-nsoundings = length(soundings)
-ncores = nworkers()
-@assert mod(ppn, nchainspersounding+1) == 0
-nparallelsoundings = Int((ncores+1)/(nchainspersounding+1))
-nsequentialiters = ceil(Int, nsoundings/nparallelsoundings)
-@info "will require $nsequentialiters iterations of $nparallelsoundings"
 ## set up McMC
 @everywhere using Distributed
 @everywhere using HiQGA.transD_GP
 ## do the parallel soundings
 @info "starting"
 transD_GP.TEMPEST1DInversion.loopacrosssoundings(soundings;
-                    nsequentialiters   = nsequentialiters,
-                    nparallelsoundings = nparallelsoundings,
                     zfixed             = zfixed,
                     ρfixed             = ρfixed,
                     zstart             = zstart,
@@ -39,6 +29,7 @@ transD_GP.TEMPEST1DInversion.loopacrosssoundings(soundings;
                     nsamples           = nsamples,
                     nchainsatone       = nchainsatone,
                     nchainspersounding = nchainspersounding,
+                    ppn,
                     nmin               = nmin,
                     nmax               = nmax,
                     K                  = K,

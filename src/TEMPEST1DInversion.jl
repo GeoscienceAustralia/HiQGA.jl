@@ -4,8 +4,8 @@ import ..AbstractOperator.Sounding
 import ..AbstractOperator.makeoperator
 import ..AbstractOperator.make_tdgp_opt
 
-using ..AbstractOperator, ..AEM_VMD_HMD, Statistics
-using PyPlot, LinearAlgebra, ..CommonToAll, Random, DelimitedFiles, Distributed, Dates
+using ..AbstractOperator, ..AEM_VMD_HMD, ..SoundingDistributor
+using PyPlot, LinearAlgebra, ..CommonToAll, Random, DelimitedFiles, Distributed, Dates, Statistics
 
 import ..Model, ..Options, ..OptionsStat, ..OptionsNonstat
 import ..ModelNuisance, ..OptionsNuisance, ..findidxnotzero
@@ -1304,8 +1304,6 @@ end
 
 # there are definitely nuisances, e.g. TEMPEST
 function loopacrosssoundings(soundings::Array{S, 1};
-                                nsequentialiters   = -1,
-                                nparallelsoundings = -1,
                                 zfixed             = [-1e5],
                                 ρfixed             = [1e12],
                                 zstart             = 0.0,
@@ -1319,6 +1317,7 @@ function loopacrosssoundings(soundings::Array{S, 1};
                                 nsamples           = -1,
                                 nchainsatone       = -1,
                                 nchainspersounding = -1,
+                                ppn                = -1,
                                 nmin               = 2,
                                 nmax               = 40,
                                 K                  = GP.Mat32(),
@@ -1330,7 +1329,6 @@ function loopacrosssoundings(soundings::Array{S, 1};
                                 fbounds            = [-0.5 2.5],
                                 λ                  = [2],
                                 δ                  = 0.1,
-                                pnorm              = 2,
                                 save_freq          = 50,
                                 nuisance_sdev      = [0.],
                                 nuisance_bounds    = [0. 0.],
@@ -1341,24 +1339,19 @@ function loopacrosssoundings(soundings::Array{S, 1};
                                 C                  = nothing,
                                 vectorsum          = false) where S<:Sounding
 
-    @assert nsequentialiters  != -1
-    @assert nparallelsoundings != -1
+    @assert ppn != -1
     @assert nchainspersounding != -1
     @assert nsamples != - 1
     @assert nchainsatone != -1
     @assert Tmax != -1
 
     nsoundings = length(soundings)
-
+    nsequentialiters, nparallelsoundings = splittasks(soundings; nchainspersounding, ppn)
     for iter = 1:nsequentialiters
-        if iter<nsequentialiters
-            ss = (iter-1)*nparallelsoundings+1:iter*nparallelsoundings
-        else
-            ss = (iter-1)*nparallelsoundings+1:nsoundings
-        end
+        ss = getss(iter, nsequentialiters, nparallelsoundings, nsoundings)
         @info "soundings in loop $iter of $nsequentialiters", ss
         @sync for (i, s) in enumerate(ss)
-            pids = i*(nchainspersounding+1)+1:(i+1)*(nchainspersounding+1)
+            pids = getpids(i, nchainspersounding)
             @info "pids in sounding $s:", pids
 
             aem, znall = makeoperator(    soundings[s],

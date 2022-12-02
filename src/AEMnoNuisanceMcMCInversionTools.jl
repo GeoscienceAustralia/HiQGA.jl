@@ -7,6 +7,7 @@ import ..AbstractOperator.getndata
 import ..Options, ..OptionsStat
 export makeAEMoperatorandoptions, loopacrossAEMsoundings, summaryAEMimages, plotindividualAEMsoundings
 import ..main # McMC function
+using ..SoundingDistributor
 using Distributed, Dates, Statistics, DelimitedFiles, PyPlot, Random
 # plotting stuff
 function summaryAEMimages(soundings::Array{S, 1}, opt::Options;
@@ -274,38 +275,32 @@ end
 
 # Driver code for McMC inversion with no nuisances
 function loopacrossAEMsoundings(soundings::Array{S, 1}, aem_in::Operator1D, opt_in::Options;
-                            nsequentialiters   =-1,
-                            nparallelsoundings =-1,
                             Tmax               = -1,
                             nsamples           = -1,
                             nchainsatone       =  1,
-                            nchainspersounding = -1) where S<:Sounding
+                            nchainspersounding = -1,
+                            ppn                = -1) where S<:Sounding
 
-    @assert nsequentialiters  != -1
-    @assert nparallelsoundings != -1
+    @assert ppn != -1
     @assert nchainspersounding != -1
     @assert nsamples != - 1
     @assert Tmax != -1
 
     nsoundings = length(soundings)
+    nsequentialiters, nparallelsoundings = splittasks(soundings; nchainspersounding, ppn)
 
     for iter = 1:nsequentialiters
-        if iter<nsequentialiters
-            ss = (iter-1)*nparallelsoundings+1:iter*nparallelsoundings
-        else
-            ss = (iter-1)*nparallelsoundings+1:nsoundings
-        end
+        ss = getss(iter, nsequentialiters, nparallelsoundings, nsoundings)
         @info "soundings in loop $iter of $nsequentialiters", ss
-        r_nothing = Array{Nothing, 1}(undef, length(ss))
         @sync for (i, s) in Iterators.reverse(enumerate(ss))
-            pids = (i-1)*nchainspersounding+i:i*(nchainspersounding+1)
+            pids = getpids(i, nchainspersounding)
             @info "pids in sounding $s:", pids
             
             aem = makeoperator(aem_in, soundings[s])
             opt = deepcopy(opt_in)
             opt.fdataname = soundings[s].sounding_string*"_"
 
-            @async r_nothing[i] = remotecall_fetch(main, pids[1], opt, aem, collect(pids[2:end]),
+            @async remotecall_wait(main, pids[1], opt, aem, collect(pids[2:end]),
                                     Tmax         = Tmax,
                                     nsamples     = nsamples,
                                     nchainsatone = nchainsatone)

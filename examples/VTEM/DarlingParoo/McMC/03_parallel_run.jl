@@ -26,8 +26,7 @@ nsequentialiters = ceil(Int, nsoundings/nparallelsoundings)
 ## do the parallel soundings
 @info "starting"
 transD_GP.loopacrossAEMsoundings(soundings, aem, opt;
-                    nsequentialiters, nparallelsoundings,
-                    Tmax, nsamples, nchainsatone, nchainspersounding )
+                Tmax, nsamples, nchainsatone, nchainspersounding, ppn)
 
 MPIClusterManagers.stop_main_loop(manager)
 rmprocs(workers())
