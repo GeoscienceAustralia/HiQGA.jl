@@ -26,6 +26,8 @@ function loopacrossAEMsoundings end
 function plotmodelfield! end
 # to get number of data from sounding
 function getndata end
+# to make bounds from sounding
+function makebounds end
 
 export Operator, Operator1D, Operator2D, Sounding
 end

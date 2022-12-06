@@ -12,6 +12,8 @@ module transD_GP
     using .AEMnoNuisanceGradientInversionTools
     include("AEMnoNuisanceMcMCInversionTools.jl")
     using .AEMnoNuisanceMcMCInversionTools
+    include("AEMwithNuisanceMcMCInversionTools.jl")
+    using .AEMwithNuisanceMcMCInversionTools
 end
 export transD_GP
 end
