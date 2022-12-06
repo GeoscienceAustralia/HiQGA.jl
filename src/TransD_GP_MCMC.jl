@@ -243,15 +243,8 @@ function OptionsNuisance(opt::OptionsStat;
      updatenonstat, opt.debug, opt.stat_window, opt.dispstatstoscreen, opt.report_freq, opt.save_freq, opt.history_mode, "misfits_nuisance_"*opt.fdataname*".bin",
      "values_nuisance_"*opt.fdataname*".bin", opt.fdataname, [0 0.], [0], [0. 0.], [0.])
 
-    # fill remaining fields with sensible default values
-    idxnotzero = zeros(Int,0)
-    for i = 1:optn.nnu
-        numin, numax = extrema(optn.bounds[i,:])
-        if abs(numin-numax)>1e-12
-             push!(idxnotzero, i)
-        end
-    end
-    optn.idxnotzero = findidxnotzero(optn.nnu, optn.bounds)
+    idxnotzero = findidxnotzero(optn.nnu, optn.bounds)
+    optn.idxnotzero = idxnotzero
     nnonzero = length(idxnotzero)
 
     # use provided rotation matrix if provided

@@ -15,40 +15,8 @@ include("02_set_options.jl")
 @everywhere using HiQGA.transD_GP
 ## do the parallel soundings
 @info "starting"
-transD_GP.TEMPEST1DInversion.loopacrosssoundings(soundings;
-                    zfixed             = zfixed,
-                    ρfixed             = ρfixed,
-                    zstart             = zstart,
-                    extendfrac         = extendfrac,
-                    dz                 = dz,
-                    ρbg                = ρbg,
-                    nlayers            = nlayers,
-                    ntimesperdecade    = ntimesperdecade,
-                    nfreqsperdecade    = nfreqsperdecade,
-                    Tmax               = Tmax,
-                    nsamples           = nsamples,
-                    nchainsatone       = nchainsatone,
-                    nchainspersounding = nchainspersounding,
-                    ppn,
-                    nmin               = nmin,
-                    nmax               = nmax,
-                    K                  = K,
-                    demean             = demean,
-                    sampledc           = sampledc,
-                    sddc               = sddc,
-                    sdpos              = sdpos,
-                    sdprop             = sdprop,
-                    fbounds            = fbounds,
-                    save_freq          = save_freq,
-                    λ                  = λ,
-                    δ                  = δ,
-                    useML              = useML,   
-                    nuisance_bounds    = nuisance_bounds,
-                    nuisance_sdev      = nuisance_sdev,
-                    updatenuisances    = updatenuisances,
-                    vectorsum          = vectorsum,
-                    dispstatstoscreen  = false)
-
+transD_GP.loopacrossAEMsoundings(soundings, aem, opt, optn;
+                    Tmax, nsamples, nchainsatone, nchainspersounding, ppn)
 
 MPIClusterManagers.stop_main_loop(manager)
 rmprocs(workers())

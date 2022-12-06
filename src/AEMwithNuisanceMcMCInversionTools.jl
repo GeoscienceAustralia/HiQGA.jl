@@ -3,7 +3,8 @@ using ..AbstractOperator, ..CommonToAll
 import ..AbstractOperator.makeoperator
 import ..AbstractOperator.loopacrossAEMsoundings
 import ..AbstractOperator.plotmodelfield!
-import ..AbstractOperator.getndata
+import ..AbstractOperator.makebounds
+import ..AbstractOperator.getoptnfromexisting
 import ..Options, ..OptionsStat, ..OptionsNuisance
 export makeAEMoperatorandnuisanceoptions, loopacrossAEMsoundings
 import ..main # McMC function
@@ -113,7 +114,8 @@ function makeAEMoperatorandnuisanceoptions(sounding::Sounding;
                                                     C = nothing,
                                                     updatenuisances = true,
                                                     dispstatstoscreen = false,
-                                                    vectorsum = false
+                                                    vectorsum = false,
+                                                    restart = false
                                                     )
     
     aem, zall, znall, = makeoperator(sounding;
@@ -122,9 +124,9 @@ function makeAEMoperatorandnuisanceoptions(sounding::Sounding;
                                     nfreqsperdecade, showgeomplot,
                                     plotfield, useML, vectorsum)
     
-    opt, optn = make_tdgp_opt(sounding,
+    opt, optn = make_tdgp_opt(sounding;
                                     znall = znall,
-                                    fileprefix = soundings[idx].sounding_string,
+                                    fileprefix = sounding.sounding_string,
                                     nmin = nmin,
                                     nmax = nmax,
                                     K = K,
@@ -141,7 +143,8 @@ function makeAEMoperatorandnuisanceoptions(sounding::Sounding;
                                     nuisance_sdev = nuisance_sdev,
                                     updatenuisances = updatenuisances,
                                     C = C,
-                                    dispstatstoscreen = dispstatstoscreen
+                                    dispstatstoscreen = dispstatstoscreen,
+                                    restart
                                     )
     aem, opt, optn, zall
 end
@@ -172,7 +175,7 @@ function loopacrossAEMsoundings(soundings::Array{S, 1}, aem_in::Operator1D, opt_
             aem = makeoperator(aem_in, soundings[s])
             opt = deepcopy(opt_in)
             opt.fdataname = soundings[s].sounding_string*"_"
-            optn = getoptnfromexisting(optn_in, opt, sounding)
+            optn = getoptnfromexisting(optn_in, opt, soundings[s])
 
             @async remotecall_wait(main, pids[1], opt, optn, aem, collect(pids[2:end]);
                                     Tmax, nsamples, nchainsatone)

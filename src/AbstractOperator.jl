@@ -28,6 +28,8 @@ function plotmodelfield! end
 function getndata end
 # to make bounds from sounding
 function makebounds end
+# to get optn with nuisances from existing struct
+function getoptnfromexisting end
 
 export Operator, Operator1D, Operator2D, Sounding
 end

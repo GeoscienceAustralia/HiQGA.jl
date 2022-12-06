@@ -1,7 +1,7 @@
 ## same for all soundingss
 nsamples = 100001
-nchainspersounding = 7
-ppn = 48
+nchainspersounding = 3
+ppn = 4
 @assert mod(ppn, nchainspersounding+1) == 0
 zfixed   = [-1e5]
 ρfixed   = [1e12]
@@ -26,6 +26,7 @@ Tmax = 2.50
 nchainsatone = 1
 vectorsum = true
 useML = false
+restart = false
 ## make nuisance options
 # sdev are fractions of width
 nuisance_sdev = [
@@ -54,8 +55,9 @@ nuisance_sdev = [
           ]
 updatenuisances = true
 ## see if options set can make a reasonable looking forward
-transD_GP.TEMPEST1DInversion.makeoperatorandoptions(
-        soundings;
+aem, opt, optn, zall = transD_GP.makeAEMoperatorandnuisanceoptions(
+        soundings[rand(1:length(soundings))];
+        restart,
         zfixed             = zfixed,
         ρfixed             = ρfixed,
         zstart             = zstart,

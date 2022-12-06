@@ -3,6 +3,7 @@ import ..AbstractOperator.get_misfit, ..main
 import ..AbstractOperator.Sounding
 import ..AbstractOperator.makeoperator
 import ..AbstractOperator.makebounds
+import ..AbstractOperator.getoptnfromexisting
 
 using ..AbstractOperator, ..AEM_VMD_HMD, ..SoundingDistributor
 using PyPlot, LinearAlgebra, ..CommonToAll, Random, DelimitedFiles, Distributed, Dates, Statistics
@@ -818,7 +819,7 @@ end
 function makeoperator(aem::Bfield, sounding::TempestSoundingData)
     ntimesperdecade = gettimesperdec(aem.F.interptimes)
     nfreqsperdecade = gettimesperdec(aem.F.freqs)
-    Bfield(;ntimesperdecade, nfreqsperdecade,
+    aemout = Bfield(;ntimesperdecade, nfreqsperdecade,
     zTx = sounding.z_tx, zRx = sounding.z_rx,
 	x_rx = sounding.x_rx, y_rx = sounding.y_rx,
     rx_roll = sounding.roll_rx, rx_pitch = sounding.pitch_rx, rx_yaw = sounding.yaw_rx,
@@ -828,6 +829,12 @@ function makeoperator(aem::Bfield, sounding::TempestSoundingData)
 	addprimary = aem.addprimary, #this ensures that the geometry update actually changes everything that needs to be
     vectorsum = aem.vectorsum
 	)
+    set_noisy_data!(aemout,
+		dataHx = sounding.Hx_data/μ₀,
+        dataHz = sounding.Hz_data/μ₀,
+        σx = sounding.σ_x/μ₀,
+        σz = sounding.σ_z/μ₀)
+    aemout
 end
 
 function makebounds(nuisance_bounds, sounding::TempestSoundingData)
@@ -846,11 +853,13 @@ end
 
 function getoptnfromexisting(optn_in::OptionsNuisance, opt_in::Options, sounding::TempestSoundingData)
     # helper function to get nuisances from an existing nuisance option
-    (;sdev, idxnotzero, rotatebounds) = optn_in
-    sdevproposalfracs = sdev[idxnotzero]./diff(rotatebounds, dims=2)
-    Δprior = diff(optn_in.bounds, dims=2)
-    W = deepcopy(optn_in.W)
+    (;sdev, idxnotzero, rotatebounds, bounds, idxnotzero) = optn_in
+    sdevproposalfracs = zeros(size(sdev))
+    sdevproposalfracs[idxnotzero] = sdev[idxnotzero]./diff(rotatebounds, dims=2)
+    # assumption of symmetric priors about nuisance value!
+    Δprior = 0.5diff(bounds, dims=2).*[-1 1]
     bounds = makebounds(Δprior, sounding)
+    W = deepcopy(optn_in.W)
     OptionsNuisance(opt_in;
         sdev = copy(sdevproposalfracs),
         bounds, W,

@@ -27,6 +27,7 @@ sddc = 0.01
 save_freq = 100
 Tmax = 2.50
 nchainsatone = 1
+restart = false
 ## plot 1 random sounding and a background response
 aem, opt, zall = transD_GP.makeAEMoperatorandoptions(
                             soundings[rand(1:length(soundings))];
@@ -53,5 +54,5 @@ aem, opt, zall = transD_GP.makeAEMoperatorandoptions(
                             showgeomplot = showgeomplot,
                             plotfield,
                             λ = λ,
-                            δ = δ
+                            δ = δ, restart
 )
