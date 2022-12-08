@@ -5,7 +5,15 @@ module transD_GP
     include("AbstractOperator.jl")
     include("MCMC_Driver.jl")
     include("GradientInversion.jl")
+    include("SoundingDistributor.jl")
+    using .SoundingDistributor
     include("GeophysOperator.jl")
+    include("AEMnoNuisanceGradientInversionTools.jl")
+    using .AEMnoNuisanceGradientInversionTools
+    include("AEMnoNuisanceMcMCInversionTools.jl")
+    using .AEMnoNuisanceMcMCInversionTools
+    include("AEMwithNuisanceMcMCInversionTools.jl")
+    using .AEMwithNuisanceMcMCInversionTools
 end
 export transD_GP
 end

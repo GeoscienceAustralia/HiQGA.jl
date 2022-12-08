@@ -1,4 +1,3 @@
-using Revise
 using PyPlot, DelimitedFiles, Random, Statistics, HiQGA.transD_GP
 
 Random.seed!(23)
@@ -26,7 +25,6 @@ tx_yaw = 0.
 # electronics and stuff
 include("electronics_halt.jl")
 ## fill in detail in ohm-m
-## fill in detail in ohm-m
 ρ[(z.>=zstart) .& (z.<50)] .= 20.
 ρ[(z.>=50) .&(z.<80)] .= 1
 ρ[(z.>=80) .&(z.<100)] .= 20
@@ -48,10 +46,10 @@ tempest = transD_GP.TEMPEST1DInversion.Bfield(
     vectorsum  = true #amplitude only inversions
 )
 # plot before adding noise
-transD_GP.TEMPEST1DInversion.plotmodelfield!(tempest,z,ρ)
+transD_GP.TEMPEST1DInversion.plotmodelfield!(tempest, log10.(ρ[2:end]))
 ## compute noisy data to invert
 # remember noise in electronics_halt.jl are in fT!!
-transD_GP.TEMPEST1DInversion.set_noisy_data!(tempest, z, ρ,
+transD_GP.TEMPEST1DInversion.makenoisydata!(tempest, log10.(ρ[2:end]),
                         noisefracx = 0.02, noisefracz = 0.02,
                         halt_X = Hx_add_noise*1e-15, halt_Z = Hz_add_noise*1e-15)
 # but model with a coarser grid

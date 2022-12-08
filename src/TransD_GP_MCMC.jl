@@ -227,7 +227,7 @@ mutable struct OptionsNuisance
 end
 
 function OptionsNuisance(opt::OptionsStat;
-        C = nothing, nsamples=100_000, updatenonstat=false,
+        C = nothing, nsamples=100_000, updatenonstat=false, W = nothing,
         sdev = [0.1, 0.1],
         bounds = [0 1.; 0 1.],
         updatenuisances = false)
@@ -243,22 +243,18 @@ function OptionsNuisance(opt::OptionsStat;
      updatenonstat, opt.debug, opt.stat_window, opt.dispstatstoscreen, opt.report_freq, opt.save_freq, opt.history_mode, "misfits_nuisance_"*opt.fdataname*".bin",
      "values_nuisance_"*opt.fdataname*".bin", opt.fdataname, [0 0.], [0], [0. 0.], [0.])
 
-    # fill remaining fields with sensible default values
-    idxnotzero = zeros(Int,0)
-    for i = 1:optn.nnu
-        numin, numax = extrema(optn.bounds[i,:])
-        if abs(numin-numax)>1e-12
-             push!(idxnotzero, i)
-        end
-    end
-    optn.idxnotzero = findidxnotzero(optn.nnu, optn.bounds)
+    idxnotzero = findidxnotzero(optn.nnu, optn.bounds)
+    optn.idxnotzero = idxnotzero
     nnonzero = length(idxnotzero)
 
-    # Identity rotation matrix if norough covariance estimate provided
-    W = Matrix(1.0I, nnonzero, nnonzero)
-    if C != nothing
-        W = eigen(C).vectors
-    end
+    # use provided rotation matrix if provided
+    if isnothing(W) # if not provided ...
+        # Identity rotation matrix if no rough covariance estimate provided
+        W = Matrix(1.0I, nnonzero, nnonzero)
+        if !isnothing(C)
+            W = eigen(C).vectors
+        end
+    end        
     optn.W = W
 
     # Generate random samples from uniform nuisance priors

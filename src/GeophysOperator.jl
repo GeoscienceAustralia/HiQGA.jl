@@ -23,4 +23,6 @@ using .TEMPEST1DInversion
 include("MT1D.jl")
 using .MT1D
 include("MT1DInversion.jl")
+include("VTEM1DInversion.jl")
+using .VTEM1DInversion
 export Operator, get_misfit, Sounding, makeoperator, make_tdgp_opt, getresidual

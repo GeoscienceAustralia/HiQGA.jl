@@ -1,19 +1,19 @@
 module SkyTEM1DInversion
-import ..AbstractOperator.get_misfit, ..main, ..gradientinv
+import ..AbstractOperator.get_misfit, ..main
 import ..AbstractOperator.Sounding
 import ..AbstractOperator.makeoperator
 import ..AbstractOperator.getresidual
-
-
+import ..AbstractOperator.returnforwrite
+import ..AbstractOperator.getndata
+import ..AbstractOperator.plotmodelfield!
 using ..AbstractOperator, ..AEM_VMD_HMD, Statistics, Distributed, Printf, Dates, StatsBase,
-      PyPlot, LinearAlgebra, ..CommonToAll, Random, DelimitedFiles, LinearMaps, SparseArrays, ..GP
+      PyPlot, LinearAlgebra, ..CommonToAll, Random, DelimitedFiles, LinearMaps, SparseArrays
 
 
 import ..Model, ..Options, ..OptionsStat, ..OptionsNonstat
 
-export dBzdt, plotmodelfield!, addnoise_skytem, plotmodelfield!, plotmodelfield_skytem!
-
 const μ₀ = 4*pi*1e-7
+const pVinv = 1e12
 
 mutable struct dBzdt<:Operator1D
     dlow       :: Array{Float64, 1}
@@ -44,43 +44,66 @@ function (a::Cinv)(x)
     x.*a.oneoverσ²
 end    
 
-function dBzdt(       Flow       :: AEM_VMD_HMD.HField,
-                      Fhigh      :: AEM_VMD_HMD.HField,
-                      dlow       :: Array{Float64, 1},
-                      dhigh      :: Array{Float64, 1},
-                      σlow       :: Array{Float64, 1},
-                      σhigh      :: Array{Float64, 1};
-                      useML  = false,
-                      z = [-1.],
-                      ρ = [-1.],
-                      nfixed = 1
-                    )
-    @assert length(Flow.thickness) >= length(z)
-    @assert length(Fhigh.thickness) >= length(z)
+function dBzdt(;timeslow  = [.1],
+                timeshigh = [.1],
+                ramplow   = [.1],
+                ramphigh  = [.1],
+                dlow      = zeros(0),
+                dhigh     = zeros(0),
+                σlow      = zeros(0),
+                σhigh     = zeros(0),
+                rTx       = 10.,
+                rRx       = 12.,
+                zTxlow    = -40.,
+                zTxhigh   = -40.,
+                zRxlow    = -42.,
+                zRxhigh   = -42.,
+                nfreqsperdecade = 5,
+                ntimesperdecade = 10,
+                calcjacobian    = false,
+                modelprimary    = false,  
+                useML     = false,
+                z         = [-1.],
+                ρ         = [-1.],
+                lowpassfcs = [],
+                nfixed    = 1)
+    nmax = length(ρ)+1            
     @assert size(σlow)  == size(dlow)
     @assert size(σhigh) == size(dhigh)
-    ndatalow   = sum(.!isnan.(dlow))
-    ndatahigh  = sum(.!isnan.(dhigh))
-    selectlow  = .!isnan.(dlow)
-    selecthigh = .!isnan.(dhigh)
+
+    Flow = AEM_VMD_HMD.HFieldDHT(;
+        ntimesperdecade, nfreqsperdecade, lowpassfcs, 
+        times = timeslow, ramp = ramplow, nmax, zTx = zTxlow, zRx = zRxlow, 
+        rRx, rTx, modelprimary, calcjacobian)
+
+    Fhigh = AEM_VMD_HMD.HFieldDHT(;
+        ntimesperdecade, nfreqsperdecade, lowpassfcs, 
+        times = timeshigh, ramp = ramphigh, nmax, zTx = zTxhigh, zRx = zRxhigh, 
+        rRx, rTx, modelprimary, calcjacobian)
+
+    ndatalow, selectlow    = getndata(dlow)
+    ndatahigh, selecthigh  = getndata(dhigh)
+
     # for Gauss-Newton
+    res, J, W = allocateJ(Flow, Fhigh, σlow, σhigh, selectlow, selecthigh, nfixed, length(ρ))
+    dBzdt(dlow, dhigh, useML, σlow, σhigh, Flow, Fhigh, z, nfixed, copy(ρ), selectlow, selecthigh, ndatalow, ndatahigh, J, W, res)
+end
+
+function allocateJ(Flow, Fhigh, σlow, σhigh, selectlow, selecthigh, nfixed, nmodel)
     calcjacobian = Flow.calcjacobian & Fhigh.calcjacobian
-    res = [dlow[selectlow];dhigh[selecthigh]]
-    if calcjacobian
+    if calcjacobian && (!isempty(selectlow) || !isempty(selecthigh))
         J = [Flow.dBzdt_J'; Fhigh.dBzdt_J']; 
-        J = J[[selectlow;selecthigh],nfixed+1:length(ρ)]
+        J = J[[selectlow;selecthigh],nfixed+1:nmodel]
         Wdiag = [1 ./σlow[selectlow]; 1 ./σhigh[selecthigh]]
-        res = [dlow[selectlow];dhigh[selecthigh]]
+        res = similar(Wdiag)
     else    
         res, J, Wdiag = zeros(0), zeros(0), zeros(0)
     end    
     W = sparse(diagm(Wdiag))
-    dBzdt(dlow, dhigh, useML, σlow, σhigh,
-    Flow, Fhigh, z, nfixed, copy(ρ), selectlow, selecthigh, ndatalow, ndatahigh, J, W, res)
-end
+    return res, J, W
+end    
 
 function getresidual(aem::dBzdt, log10σ::Vector{Float64}; computeJ=false)
-    # aem.ρ[:] = 10 .^(-log10σ)
     aem.Flow.calcjacobian = computeJ
     aem.Fhigh.calcjacobian = computeJ
     getfield!(-log10σ, aem)
@@ -94,7 +117,7 @@ function getresidual(aem::dBzdt, log10σ::Vector{Float64}; computeJ=false)
                       Fhigh.dBzdt_J'[selecthigh,nfixed+1:nfixed+length(log10σ)]])
     end
     nothing    
-end    
+end
 
 mutable struct SkyTEMsoundingData <: Sounding
     sounding_string :: String
@@ -120,6 +143,14 @@ mutable struct SkyTEMsoundingData <: Sounding
     HM_data :: Array{Float64, 1}
 end
 
+returnforwrite(s::SkyTEMsoundingData) = [s.X, s.Y, s.Z, s.fid, 
+    s.linenum, s.rRx, s.zRxLM, s.zTxLM, s.zRxHM, 
+    s.zTxHM, s.rTx]
+
+function getndata(S::SkyTEMsoundingData)
+    getndata(S.LM_data)[2] + getndata(S.HM_data)[2]
+end   
+
 function SkyTEMsoundingData(;rRx=-12., zRxLM=12., zTxLM=12.,
                             zRxHM=12., zTxHM=12., rTx=-12.,lowpassfcs=[-1, -2.],
                             LM_times=[1., 2.], LM_ramp=[1 2; 3 4],
@@ -142,108 +173,7 @@ function SkyTEMsoundingData(;rRx=-12., zRxLM=12., zTxLM=12.,
     SkyTEMsoundingData(sounding_string, X, Y, Z, fid, linenum, rRx, zRxLM, zTxLM, zRxHM, zTxHM, rTx,
     lowpassfcs, LM_times, LM_ramp, HM_times, HM_ramp, LM_noise, HM_noise,
     LM_data, HM_data)
-    # @show (sounding_string, rRx, zRxLM, zTxLM, zRxHM, zTxHM, rTx,
-    # lowpassfcs, LM_times, LM_ramp, HM_times, HM_ramp, LM_noise, HM_noise,
-    # LM_data, HM_data)
 end
-
-function getlocationinhdr(str, rows)
-    for (irow, row) in enumerate(rows)
-        lasttabpos = findlast('\t', row)
-        (str == row[lasttabpos+1:end]) && return irow
-    end
-    nothing
-end
-
-function getcolNo(str)
-	index = findfirst('\t',str)
-	value = str[1:index-1]
-    return parse(Int,value)
-end
-
-function getcolNo_except(str)
-    index1 = findall("\t",str)[1][1]
-    index2 = findall("\t",str)[2][1]
-    value1 = str[1:index1-1]  
-    value2 = str[index1+1:index2-1] 
-    return [parse(Int,value1), parse(Int,value2)]
-end
-
-function read_survey_files(dfnfile::String;
-    fname_specs_halt="",
-    frame_height = "",
-    frame_dz = "",
-    frame_dx = "",
-    frame_dy = "",
-    LM_Z = "",
-    HM_Z = "",
-    LM_σ = "",
-    HM_σ = "",
-    X = "",
-    Y = "",
-    Z = "",
-    fid = "",
-    linenum = "",
-    LM_drop = nothing,
-    HM_drop = nothing,
-    relerror = false,
-    units=1e-12,
-    figsize = (9,7),
-    makesounding = false,
-    dotillsounding = nothing,
-    startfrom = 1,
-    skipevery = 1,
-    multnoise = 0.03,
-    )
-    #throw an error if LM_drop or HM_drop are not provided 
-    (isnothing(LM_drop) || isnothing(HM_drop)) &&
-        throw(ArgumentError("user must specify drop gates for LM and HM"))
-    prefix = getgdfprefix(dfnfile)
-    hdrfile = prefix*".hdr"
-    if !isfile(hdrfile)
-        dfn2hdr(dfnfile)
-    else
-        @warn "using existing "*hdrfile
-    end    
-    dfn = readlines(hdrfile)
-    frame_height, frame_dz, frame_dx,
-    frame_dy, LM_Z, HM_Z, HM_σ,LM_σ,
-    X, Y, Z, fid, linenum = map(x->getlocationinhdr(x, dfn), [frame_height, frame_dz, frame_dx,
-    frame_dy, LM_Z, HM_Z,HM_σ, LM_σ, X , Y, Z, fid, linenum])
-    
-    # use function and map to get column number 
-    frame_height, frame_dz, frame_dx,
-    frame_dy,X, Y, Z, fid, linenum = map(x -> getcolNo(dfn[x]), [frame_height, frame_dz, frame_dx,
-    frame_dy, X, Y, Z, fid, linenum])
-    LM_Z, HM_Z, LM_σ, HM_σ= map(x -> getcolNo_except(dfn[x]),[LM_Z,HM_Z,LM_σ, HM_σ])
-    LM_Z[1] = LM_Z[1] + LM_drop 
-    HM_Z[1] = HM_Z[1] + HM_drop 
-    fname_dat = prefix*".dat" # the name of DAT file associated with DFN
-    s_array = read_survey_files(fname_dat = fname_dat,
-                        fname_specs_halt = fname_specs_halt,
-                        LM_Z             = LM_Z,
-                        HM_Z             = HM_Z,
-                        frame_height     = frame_height,
-                        frame_dz         = frame_dz,
-                        frame_dy         = frame_dy,
-                        frame_dx         = frame_dx,
-                        X                = X,
-                        Y                = Y,
-                        Z                = Z,
-                        fid              = fid,
-                        units            = units,
-                        relerror         = relerror,
-                        LM_σ             = LM_σ,
-                        HM_σ             = HM_σ,
-                        figsize          = figsize,   
-                        linenum          = linenum,
-                        startfrom        = startfrom,
-                        skipevery        = skipevery,
-                        dotillsounding   = dotillsounding,
-                        multnoise        = multnoise,
-                        makesounding     = makesounding)
-    s_array # return sounding array
-end    
 
 function read_survey_files(;
     fname_dat="",
@@ -259,7 +189,7 @@ function read_survey_files(;
     relerror = false,
     units=1e-12,
     figsize = (9,7),
-    makesounding = false,
+    makeqcplots = true,
     dotillsounding = nothing,
     startfrom = 1,
     skipevery = 1,
@@ -312,79 +242,91 @@ function read_survey_files(;
     include(fname_specs_halt)
     @assert size(d_LM, 2) == length(LM_times)
     @assert size(d_HM, 2) == length(HM_times)
+    d_LM[:]     .*= units
+    d_HM[:]     .*= units
     if !relerror
         @assert size(d_LM, 2) == length(LM_noise)
         @assert size(d_HM, 2) == length(HM_noise)
         LM_noise[:] .*= units
         HM_noise[:] .*= units
+        σ_LM = sqrt.((multnoise*d_LM).^2 .+ (LM_noise').^2)
+        σ_HM = sqrt.((multnoise*d_HM).^2 .+ (HM_noise').^2)
     else
         σ_LM[:] .*= units
         σ_HM[:] .*= units
     end
-    d_LM[:]     .*= units
-    d_HM[:]     .*= units
+    nsoundings = size(soundings, 1)
+    makeqcplots && plotsoundingdata(nsoundings, LM_times, HM_times, d_LM, d_HM, 
+        σ_LM, σ_HM, zRx, zTx, rRx, figsize)
+
+    s_array = Array{SkyTEMsoundingData, 1}(undef, nsoundings)
+    fracdone = 0
+    for is in 1:nsoundings
+        l, f = Int(whichline[is]), fiducial[is]
+        dlow, dhigh = vec(d_LM[is,:]), vec(d_HM[is,:])
+        s_array[is] = SkyTEMsoundingData(rRx=rRx[is], zRxLM=zRx[is], zTxLM=zTx[is],
+            zRxHM=zRx[is], zTxHM=zTx[is], rTx=rTx, lowpassfcs=lowpassfcs,
+            LM_times=LM_times, LM_ramp=LM_ramp,
+            HM_times=HM_times, HM_ramp=HM_ramp,
+            LM_noise=σ_LM[is,:], HM_noise=σ_HM[is,:], LM_data=dlow, HM_data=dhigh,
+            sounding_string="sounding_$(l)_$f",
+            X=easting[is], Y=northing[is], Z=topo[is], fid=f,
+            linenum=l)
+            fracnew = round(Int, is/nsoundings*100)
+        if (fracnew-fracdone)>10
+            fracdone = fracnew
+            @info "read $is out of $nsoundings"
+        end    
+    end
+    return s_array
+end
+
+function plotsoundingdata(nsoundings, LM_times, HM_times, d_LM, d_HM, 
+        LM_noise, HM_noise, zRx, zTx, rRx, figsize)
     f = figure(figsize=figsize)
     ax = Array{Any, 1}(undef, 4)
     ax[1] = subplot(2,2,1)
-    nsoundings = size(soundings, 1)
     plot_dLM = permutedims(d_LM)
     plot_dLM[plot_dLM .<0] .= NaN
-    pcolormesh(1:nsoundings, LM_times, log10.(plot_dLM), shading="nearest")
-    xlabel("sounding #")
-    cbLM = colorbar()
-    cbLM.set_label("log₁₀ d_LM")
-    ylabel("LM time s")
+    im1 = ax[1].pcolormesh(1:nsoundings, LM_times, log10.(plot_dLM), shading="nearest")
+    ax[1].set_xlabel("sounding #")
+    cbLM = colorbar(im1, ax=ax[1])
+    cbLM.set_label("log10 d_LM")
+    ax[1].set_ylabel("LM time s")
     axLM = ax[1].twiny()
-    axLM.semilogy(LM_noise, LM_times)
-    axLM.set_xlabel("high alt noise")
+    # axLM.semilogy(LM_noise, LM_times)
+    # axLM.set_xlabel("high alt noise")
+    axLM.semilogy(mean(LM_noise./abs.(d_LM), dims=1)[:], LM_times)
+    axLM.set_xlabel("avg LM noise fraction")
     ax[2] = subplot(2,2,3,sharex=ax[1], sharey=ax[1])
     plot_dHM = permutedims(d_HM)
     plot_dHM[plot_dHM .<0] .= NaN
-    pcolormesh(1:nsoundings, HM_times, log10.(plot_dHM), shading="nearest")
+    im2 = ax[2].pcolormesh(1:nsoundings, HM_times, log10.(plot_dHM), shading="nearest")
     xlabel("sounding #")
-    cbHM = colorbar()
-    cbHM.set_label("log₁₀ d_HM")
-    ylabel("HM time s")
+    cbHM = colorbar(im2, ax=ax[2])
+    cbHM.set_label("log10 d_HM")
+    ax[2].set_ylabel("HM time s")
     ax[2].invert_yaxis()
     axHM = ax[2].twiny()
-    axHM.semilogy(HM_noise, HM_times)
-    axHM.set_xlabel("high alt noise")
+    # axHM.semilogy(HM_noise, HM_times)
+    # axHM.set_xlabel("high alt noise")
+    axHM.semilogy(mean(HM_noise./abs.(d_HM), dims=1)[:], HM_times)
+    axHM.set_xlabel("avg HM noise fraction")
     ax[3] = subplot(2,2,2, sharex=ax[1])
-    plot(1:nsoundings, zRx, label="Rx")
-    plot(1:nsoundings, zTx, label="Tx")
-    legend()
-    xlabel("sounding #")
-    ylabel("height m")
+    ax[3].plot(1:nsoundings, zRx, label="Rx")
+    ax[3].plot(1:nsoundings, zTx, label="Tx")
+    ax[3].legend()
+    ax[3].set_xlabel("sounding #")
+    ax[3].set_ylabel("height m")
     ax[3].invert_yaxis()
     ax[4] = subplot(2,2,4, sharex=ax[1])
     ax[4].plot(1:nsoundings, rRx)
-    xlabel("sounding #")
-    ylabel("rRx m")
+    ax[4].set_xlabel("sounding #")
+    ax[4].set_ylabel("rRx m")
     plt.tight_layout()
-    if makesounding
-        s_array = Array{SkyTEMsoundingData, 1}(undef, nsoundings)
-        for is in 1:nsoundings
-            l, f = Int(whichline[is]), fiducial[is]
-            @info "read $is out of $nsoundings"
-            dlow, dhigh = vec(d_LM[is,:]), vec(d_HM[is,:])
-            if !relerror
-                σLM = sqrt.((multnoise*dlow).^2 + LM_noise.^2)
-                σHM = sqrt.((multnoise*dhigh).^2 + HM_noise.^2)
-            else
-                σLM, σHM = vec(σ_LM[is,:]), vec(σ_HM[is,:])
-            end
-            s_array[is] = SkyTEMsoundingData(rRx=rRx[is], zRxLM=zRx[is], zTxLM=zTx[is],
-                zRxHM=zRx[is], zTxHM=zTx[is], rTx=rTx, lowpassfcs=lowpassfcs,
-                LM_times=LM_times, LM_ramp=LM_ramp,
-                HM_times=HM_times, HM_ramp=HM_ramp,
-                LM_noise=σLM, HM_noise=σHM, LM_data=dlow, HM_data=dhigh,
-                sounding_string="sounding_$(l)_$f",
-                X=easting[is], Y=northing[is], Z=topo[is], fid=f,
-                linenum=l)
-        end
-        return s_array
-    end
-end
+end    
+# all calling functions here for misfit, field, etc. assume model is in log10 resistivity
+# SANS the top. For lower level field calculation use AEM_VMD_HMD structs
 
 function getfield!(m::Model, aem::dBzdt)
     getfield!(m.fstar, aem)
@@ -393,8 +335,8 @@ end
 
 function getfield!(m::Array{Float64}, aem::dBzdt)
     copyto!(aem.ρ, aem.nfixed+1:length(aem.ρ), 10 .^m, 1:length(m))
-    aem.ndatalow>0  && AEM_VMD_HMD.getfieldTD!(aem.Flow,  aem.z, aem.ρ)
-    aem.ndatahigh>0 && AEM_VMD_HMD.getfieldTD!(aem.Fhigh, aem.z, aem.ρ)
+    ((aem.ndatalow>0) | isempty(aem.dlow)) && AEM_VMD_HMD.getfieldTD!(aem.Flow,  aem.z, aem.ρ)
+    ((aem.ndatahigh>0) | isempty(aem.dhigh))  && AEM_VMD_HMD.getfieldTD!(aem.Fhigh, aem.z, aem.ρ)
     nothing
 end
 
@@ -440,183 +382,37 @@ function computeMLfactor(aem)
     sqrt(mlfact_low), sqrt(mlfact_high)
 end
 
-function plotmodelfield_skytem!(Flow::AEM_VMD_HMD.HField, Fhigh::AEM_VMD_HMD.HField,
-                         z::Array{Float64, 1}, ρ::Array{Float64, 1}
-                        ;figsize=(10,5))
-    plotwaveformgates(timesLM=Flow.times,  rampLM=Flow.ramp,
-                      timesHM=Fhigh.times, rampHM=Fhigh.ramp)
-    f, ax = plt.subplots(1, 2, figsize=figsize)
-    ax[1].step(log10.(ρ[2:end]), z[2:end])
-    ax[1].set_xlabel("log₁₀ρ")
-    ax[2].set_xlabel("time s")
-    ax[1].set_ylabel("depth m")
-    ax[2].set_ylabel("V/Am⁴")
-    AEM_VMD_HMD.getfieldTD!(Flow, z, ρ)
-    AEM_VMD_HMD.getfieldTD!(Fhigh, z, ρ)
-    ax[2].loglog(Flow.times,μ₀*Flow.dBzdt, label="low moment")
-    ax[2].loglog(Fhigh.times,μ₀*Fhigh.dBzdt, label="high moment")
-    ax[1].grid()
-    ax[1].invert_yaxis()
-    ax[1].invert_xaxis()
-    ax[2].grid()
-    nicenup(f)
-end
-
-function addnoise_skytem(Flow::AEM_VMD_HMD.HField, Fhigh::AEM_VMD_HMD.HField,
-                  z::Array{Float64, 1}, ρ::Array{Float64, 1};
-                  halt_LM = nothing,
-                  halt_HM = nothing,
-                  noisefrac  = 0.03,
-                  noisefloorlow = μ₀*1e-14,
-                  noisefloorhigh = μ₀*1e-14,
-                  dz = -1.,
-                  extendfrac = -1.,
-                  nfixed = -1,
-                  figsize=(10,5),
-                  rseed=42
-                  )
-    if halt_LM != nothing
-        @assert length(halt_LM) == length(Flow.times)
-    else
-        halt_LM = zeros(length(Flow.times))
-    end
-    if halt_HM != nothing
-        @assert length(halt_HM) == length(Fhigh.times)
-    else
-        halt_HM = zeros(length(Fhigh.times))
-    end
-    @assert all((nfixed, dz, extendfrac) .> 0)
+function makenoisydata!(aem, ρ; 
+        rseed=123, noisefrac=0.03, σ_halt_low=nothing, σ_halt_high, useML=false,
+        onesigma=true, color=nothing, alpha=1, model_lw=1, forward_lw=1, figsize=(8,6), revax=true)
+    # σ_halt always assumed in Bfield units of pV
+    getfield!(ρ, aem)
+    # low moment first
+    f = aem.Flow.dBzdt
+    σ_halt = isnothing(σ_halt_low) ? zeros(size(f)) : 1/pVinv*σ_halt_low/μ₀
+    σ = sqrt.((noisefrac*abs.(f)).^2 + σ_halt.^2)
     Random.seed!(rseed)
-    AEM_VMD_HMD.getfieldTD!(Flow, z, ρ)
-    AEM_VMD_HMD.getfieldTD!(Fhigh, z, ρ)
-    dlow  = Flow.dBzdt + sqrt.((noisefrac*abs.(Flow.dBzdt)).^2 + (halt_LM/μ₀).^2).*randn(size(Flow.dBzdt))
-    dhigh = Fhigh.dBzdt + sqrt.((noisefrac*abs.(Fhigh.dBzdt)).^2 + (halt_HM/μ₀).^2).*randn(size(Fhigh.dBzdt))
-    dlow[abs.(dlow).<noisefloorlow] .= NaN
-    dhigh[abs.(dhigh).<noisefloorhigh] .= NaN
-    σlow = sqrt.((noisefrac*abs.(dlow)).^2 + (halt_LM/μ₀).^2)
-    σhigh = sqrt.((noisefrac*abs.(dhigh)).^2 + (halt_HM/μ₀).^2)
-    plotmodelfield!(Flow, Fhigh, z, ρ, dlow, dhigh, σlow, σhigh,
-                                figsize=figsize, nfixed=nfixed,
-                                dz=dz, extendfrac=extendfrac)
-    # returned data is dBzdt not H if there is a μ multiplied
-    return μ₀.*(dlow, dhigh, σlow, σhigh)
+    aem.dlow = f + σ.*randn(size(f))
+    aem.σlow = copy(σ)
+    # high moment next
+    f = aem.Fhigh.dBzdt
+    σ_halt = isnothing(σ_halt_high) ? zeros(size(f)) : 1/pVinv*σ_halt_high/μ₀
+    σ = sqrt.((noisefrac*abs.(f)).^2 + σ_halt.^2)
+    aem.dhigh = f + σ.*randn(size(f))
+    aem.σhigh = copy(σ)
+    aem.useML = useML
+
+    aem.ndatalow, aem.selectlow    = getndata(aem.dlow)
+    aem.ndatahigh, aem.selecthigh  = getndata(aem.dhigh)
+
+    # for Gauss-Newton
+    aem.res, aem.J, aem.W = allocateJ(aem.Flow, aem.Fhigh, aem.σlow, aem.σhigh, 
+                    aem.selectlow, aem.selecthigh, aem.nfixed, length(aem.ρ))
+
+    plotmodelfield!(aem, ρ; onesigma, color, alpha, model_lw, forward_lw, figsize, revax)
+    nothing
 end
 
-function plotmodelfield!(Flow::AEM_VMD_HMD.HField, Fhigh::AEM_VMD_HMD.HField,
-                        z, ρ, dlow, dhigh, σlow, σhigh;
-                        figsize=(10,5), nfixed=-1, dz=-1., extendfrac=-1., revax=true)
-    # expects data and noise in units of H, i.e. B/μ
-    @assert all((nfixed, dz, extendfrac) .> 0)
-    f, ax = plt.subplots(1, 2, figsize=figsize)
-    ext = 5 # extend plot a little lower than last interface
-    ax[1].step(log10.([ρ[2:end];ρ[end]]), [z[2:end]; z[end]+ext])
-    if dz > 0
-        axn = ax[1].twinx()
-        ax[1].get_shared_y_axes().join(ax[1],axn)
-        axn.step(log10.(ρ[2:end]), z[2:end])
-        yt = ax[1].get_yticks()[ax[1].get_yticks().>=0]
-        axn.set_yticks(yt)
-        axn.set_ylim(ax[1].get_ylim()[end:-1:1])
-        axn.set_yticklabels(string.(Int.(round.(getn.(yt .- z[nfixed+1], dz, extendfrac)))))
-    end
-    ndatalow   = sum(.!isnan.(dlow))
-    ndatahigh  = sum(.!isnan.(dhigh))
-    if ndatalow>0
-        AEM_VMD_HMD.getfieldTD!(Flow, z, ρ)
-        ax[2].loglog(Flow.times,μ₀*Flow.dBzdt, label="low moment")
-        ax[2].errorbar(Flow.times, μ₀*vec(dlow), yerr = μ₀*2abs.(vec(σlow)),
-                            linestyle="none", marker=".", elinewidth=0, capsize=3)
-    end
-    if ndatahigh>0
-        AEM_VMD_HMD.getfieldTD!(Fhigh, z, ρ)
-        ax[2].loglog(Fhigh.times,μ₀*Fhigh.dBzdt, label="high moment")
-        ax[2].errorbar(Fhigh.times, μ₀*vec(dhigh), yerr = μ₀*2abs.(vec(σhigh)),
-                        linestyle="none", marker=".", elinewidth=0, capsize=3)
-    end
-    ax[1].grid()
-    ax[2].grid(which="both")
-    ax[1].set_ylim(z[end]+ext, z[2])
-    ax[1].set_xlabel("log₁₀ρ")
-    ax[2].set_xlabel("time s")
-    ax[1].set_ylabel("depth m")
-    ax[2].set_ylabel("V/Am⁴")
-    axn.set_ylabel("index no.")
-    revax && ax[1].invert_xaxis()
-    nicenup(f)
-end
-
-function plotmodelfield!(aem::dBzdt, Ρ::Vector{T};
-                        figsize=(8,5), dz=-1., onesigma=true, onlygetMLsampled=false,
-                        extendfrac=-1., fsize=10, alpha=0.1) where T<:AbstractArray
-    @assert all((dz, extendfrac) .> 0)
-    nfixed, z = aem.nfixed, aem.z
-    if !onlygetMLsampled 
-        sigma = onesigma ? 1.0 : 2.0
-        f = figure(figsize=figsize)
-        ax = Vector{PyPlot.PyObject}(undef, 3)
-        ax[1] = subplot(121)
-        ρmin, ρmax = extrema(vcat(Ρ...))
-        delρ = ρmax - ρmin
-        ax[1].set_xlim(ρmin-0.1delρ,ρmax+0.1delρ)
-        ax[1].plot([ρmin-0.1delρ,ρmax+0.1delρ], z[nfixed+1]*[1., 1], color="b")
-        ax[2] = subplot(122)
-    end    
-    Flow = aem.Flow
-    dlow, σlow = aem.dlow, aem.σlow
-    Fhigh = aem.Fhigh
-    dhigh, σhigh = aem.dhigh, aem.σhigh
-    if !onlygetMLsampled
-        aem.ndatalow>0 && ax[2].errorbar(Flow.times, μ₀*dlow, yerr = μ₀*sigma*abs.(σlow),
-                            linestyle="none", marker=".", elinewidth=0, capsize=3, label="low moment")
-        aem.ndatahigh>0 && ax[2].errorbar(Fhigh.times, μ₀*dhigh, yerr = μ₀*sigma*abs.(σhigh),
-                            linestyle="none", marker=".", elinewidth=0, capsize=3, label="high moment")
-    else
-        errorfact_low, errorfact_high = map(x->zeros(length(Ρ)), 1:2)                        
-    end
-    for (i, ρ) in enumerate(Ρ)
-        getfield!(ρ,  aem)
-        if !onlygetMLsampled
-            if aem.ndatalow>0
-                Flow.dBzdt[.!aem.selectlow] .= NaN
-                ax[2].loglog(Flow.times,μ₀*Flow.dBzdt, "k", alpha=alpha, markersize=2)
-            end
-            if aem.ndatahigh>0
-                Fhigh.dBzdt[.!aem.selecthigh] .= NaN
-                ax[2].loglog(Fhigh.times,μ₀*Fhigh.dBzdt, "k", alpha=alpha, markersize=2)
-            end
-            ax[1].step(log10.(aem.ρ[2:end]), aem.z[2:end], "-k", alpha=alpha)
-        else
-            errorfact_low[i], errorfact_high[i] = computeMLfactor(aem)
-        end    
-    end
-    if !onlygetMLsampled
-        ax[1].grid()
-        ax[1].set_ylabel("Depth m")
-        ax[1].plot(xlim(), z[nfixed+1]*[1, 1], "--k")
-        if dz > 0
-            axn = ax[1].twinx()
-            ax[1].get_shared_y_axes().join(ax[1],axn)
-            yt = ax[1].get_yticks()[ax[1].get_yticks().>=z[nfixed+1]]
-            axn.set_yticks(yt)
-            axn.set_ylim(ax[1].get_ylim()[end:-1:1])
-            axn.set_yticklabels(string.(Int.(round.(getn.(yt .- z[nfixed+1], dz, extendfrac)))))
-        end
-        axn.set_ylabel("Depth index", rotation=-90, labelpad=10)
-        ax[1].set_xlabel("Log₁₀ρ")
-        ax[1].set_title("Model")
-        ax[2].set_ylabel(L"dBzdt \; V/(A.m^4)")
-        ax[2].set_xlabel("Time (s)")
-        ax[2].set_title("Transient response")
-        ax[2].legend()
-        ax[2].grid()
-        ax[1].invert_xaxis()
-        nicenup(f, fsize=fsize)
-        nothing, nothing, nothing, nothing
-    else
-        mean(errorfact_low), std(errorfact_low),
-        mean(errorfact_high), std(errorfact_high)
-    end    
-end
 
 function makeoperator(sounding::SkyTEMsoundingData;
                        zfixed   = [-1e5],
@@ -642,47 +438,87 @@ function makeoperator(sounding::SkyTEMsoundingData;
     zall, znall, zboundaries = setupz(zstart, extendfrac, dz=dz, n=nlayers, showplot=showgeomplot)
     z, ρ, nfixed = makezρ(zboundaries; zfixed=zfixed, ρfixed=ρfixed)
     ρ[z.>=zstart] .= ρbg
-    ## LM operator
-    Flm = AEM_VMD_HMD.HFieldDHT(
-                          ntimesperdecade = ntimesperdecade,
-                          nfreqsperdecade = nfreqsperdecade,
-                          lowpassfcs = sounding.lowpassfcs,
-                          times  = sounding.LM_times,
-                          ramp   = sounding.LM_ramp,
-                          nmax   = nmax,
-                          zTx    = sounding.zTxLM,
-                          rRx    = sounding.rRx,
-                          rTx    = sounding.rTx,
-                          zRx    = sounding.zRxLM,
-                          modelprimary = modelprimary,
-                          calcjacobian = calcjacobian
-                          )
-    ## HM operator
-    Fhm = AEM_VMD_HMD.HFieldDHT(
-                          ntimesperdecade = ntimesperdecade,
-                          nfreqsperdecade = nfreqsperdecade,
-                          lowpassfcs = sounding.lowpassfcs,
-                          times  = sounding.HM_times,
-                          ramp   = sounding.HM_ramp,
-                          nmax   = nmax,
-                          zTx    = sounding.zTxHM,
-                          rRx    = sounding.rRx,
-                          rTx    = sounding.rTx,
-                          zRx    = sounding.zRxHM,
-                          modelprimary = modelprimary,
-                          calcjacobian = calcjacobian
-                          )
-    ## create operator
-    dlow, dhigh, σlow, σhigh = (sounding.LM_data, sounding.HM_data, sounding.LM_noise, sounding.HM_noise)./μ₀
-    aem = dBzdt(Flm, Fhm, vec(dlow), vec(dhigh), useML=useML,
-                vec(σlow), vec(σhigh), z=z, ρ=ρ, nfixed=nfixed)
+
+    aem = makeoperator(sounding, ntimesperdecade, nfreqsperdecade, modelprimary, calcjacobian, useML, z, ρ)
+    
     if plotfield
         plotwaveformgates(aem)
-        plotmodelfield!(Flm, Fhm, z, ρ, dlow, dhigh, σlow, σhigh;
-                          figsize=(12,4), nfixed=nfixed, dz=dz, extendfrac=extendfrac)
+        plotmodelfield!(aem, log10.(ρ[nfixed+1:end]);)
     end
-    aem, znall
+
+    aem, zall, znall, zboundaries
 end
+
+function makeoperator(sounding::SkyTEMsoundingData, ntimesperdecade, nfreqsperdecade, modelprimary, calcjacobian, useML, z, ρ)
+    dBzdt(;ntimesperdecade, nfreqsperdecade, modelprimary, calcjacobian, useML,
+        timeslow = sounding.LM_times, ramplow = sounding.LM_ramp, zRxlow=sounding.zRxLM, zTxlow = sounding.zTxLM,
+        timeshigh = sounding.HM_times, ramphigh = sounding.HM_ramp, zRxhigh=sounding.zRxHM, zTxhigh = sounding.zTxHM,
+        rRx=sounding.rRx, rTx = sounding.rTx, z, ρ, lowpassfcs = sounding.lowpassfcs, 
+        dlow=sounding.LM_data/μ₀, dhigh=sounding.HM_data/μ₀, σlow=sounding.LM_noise/μ₀, σhigh=sounding.HM_noise/μ₀)
+end   
+
+function makeoperator(aem::dBzdt, sounding::SkyTEMsoundingData)
+    ntimesperdecade = gettimesperdec(aem.Flow.interptimes)
+    nfreqsperdecade = gettimesperdec(aem.Flow.freqs)
+    modelprimary = aem.Flow.useprimary === 1. ? true : false
+    makeoperator(sounding, ntimesperdecade, nfreqsperdecade, modelprimary, aem.Flow.calcjacobian, aem.useML, copy(aem.z), copy(aem.ρ))
+end
+
+# all plotting codes here assume that the model is in log10 resistivity, SANS
+# the top layer resistivity. For lower level plotting use AEM_VMD_HMD structs
+
+function plotsoundingcurve(ax, f, t; color=nothing, alpha=1, lw=1)
+    if isnothing(color)
+        ax.loglog(t, μ₀*f*pVinv, alpha=alpha, markersize=2, linewidth=lw)
+    else
+        ax.loglog(t, μ₀*f*pVinv, color=color, alpha=alpha, markersize=2, linewidth=lw)
+    end    
+end
+
+function plotdata(ax, d, σ, t; onesigma=true, dtype=:LM)
+    sigma = onesigma ? 1 : 2
+    label = dtype == :LM ? "low moment" : "high moment"
+    ax.errorbar(t, μ₀*d*pVinv; yerr = μ₀*sigma*pVinv*abs.(σ),
+    linestyle="none", marker=".", elinewidth=0, capsize=3, label, color="k")
+end
+
+function plotmodelfield!(ax, iaxis, aem::dBzdt, ρ; color=nothing, alpha=1, model_lw=1, forward_lw=1)
+    nfixed = aem.nfixed
+    ax[iaxis].step(ρ, aem.z[nfixed+1:end], linewidth=model_lw, alpha=alpha)
+    getfield!(ρ, aem)
+    plotsoundingcurve(ax[iaxis+1], aem.Flow.dBzdt, aem.Flow.times; color, alpha, lw=forward_lw)
+    colorused = ax[iaxis+1].lines[end].get_color()
+    plotsoundingcurve(ax[iaxis+1], aem.Fhigh.dBzdt, aem.Fhigh.times; color=colorused, alpha, lw=forward_lw)
+end    
+
+function initmodelfield!(aem;  onesigma=true, figsize=(8,6))
+    f, ax = plt.subplots(1, 2; figsize)
+    if !isempty(aem.dlow)
+        aem.ndatalow > 0 && plotdata(ax[2], aem.dlow, aem.σlow, aem.Flow.times; onesigma, dtype=:LM)
+        aem.ndatahigh > 0 && plotdata(ax[2], aem.dhigh, aem.σhigh, aem.Fhigh.times; onesigma, dtype=:HM)
+    end
+    ax[1].set_xlabel("log10 ρ")
+    ax[1].set_ylabel("depth m")
+    ax[2].set_ylabel("dBz/dt pV/Am⁴")    
+    ax[2].set_xlabel("time s")
+    ax
+end    
+
+function plotmodelfield!(aem::dBzdt, ρ; onesigma=true, color=nothing, alpha=1, model_lw=1, forward_lw=1, figsize=(8,6), revax=true)
+    plotmodelfield!(aem, [ρ]; onesigma, color, alpha, model_lw, forward_lw, figsize, revax) 
+end  
+
+function plotmodelfield!(aem::dBzdt, manyρ::Vector{T}; onesigma=true, 
+        color=nothing, alpha=1, model_lw=1, forward_lw=1, figsize=(8,6), revax=true) where T<:AbstractArray
+    ax = initmodelfield!(aem; onesigma, figsize)
+    for ρ in manyρ
+        plotmodelfield!(ax, 1, aem, vec(ρ); alpha, model_lw, forward_lw, color)
+    end
+    ax[1].invert_yaxis()
+    nicenup(ax[1].get_figure(), fsize=12)
+    revax && ax[1].invert_xaxis()
+    ax
+end 
 
 function plotwaveformgates(aem::dBzdt; figsize=(10,5))
     plotwaveformgates(timesLM=aem.Flow.times,  rampLM=aem.Flow.ramp,
@@ -710,208 +546,7 @@ function plotwaveformgates(;timesLM=nothing, rampLM=nothing,
     ylabel("Amplitude")
     xlabel("time ms")
     title("HM linear time")
-    # s3 = subplot(222)
-    # loglog(rampLM[:,1], rampLM[:,2], "-or")
-    # stem(timesLM, ones(length(timesLM)))
-    # title("LM log time")
-    # s4 = subplot(224, sharex=s3, sharey=s3)
-    # loglog(rampHM[:,1], rampHM[:,2], "-or")
-    # stem(timesHM, ones(length(timesHM)))
-    # xlabel("time s")
-    # title("HM log time")
     nicenup(f, fsize=12)
-end
-
-function make_tdgp_opt(;
-                    rseed = nothing,
-                    znall = znall,
-                    fileprefix = "sounding",
-                    nmin = 2,
-                    nmax = 40,
-                    K = GP.OrstUhn(),
-                    demean = true,
-                    sdpos = 0.05,
-                    sdprop = 0.05,
-                    sddc = 0.008,
-                    sampledc = false,
-                    fbounds = [-0.5 2.5],
-                    λ = [2],
-                    δ = 0.1,
-                    pnorm = 2,
-                    save_freq = 25,
-                    restart = false
-                    )
-    sdev_pos = [sdpos*abs(diff([extrema(znall)...])[1])]
-    sdev_prop = sdprop*diff(fbounds, dims=2)[:]
-    sdev_dc = sddc*diff(fbounds, dims=2)[:]
-    xall = permutedims(collect(znall))
-    xbounds = permutedims([extrema(znall)...])
-
-    history_mode = "w"
-	restart && (history_mode = "a")
-
-    updatenonstat = false
-    needλ²fromlog = false
-    if rseed != nothing
-        Random.seed!(rseed)
-    end
-    opt = OptionsStat(fdataname = fileprefix*"_",
-                            nmin = nmin,
-                            nmax = nmax,
-                            xbounds = xbounds,
-                            fbounds = fbounds,
-                            xall = xall,
-                            λ = λ,
-                            δ = δ,
-                            demean = demean,
-                            sdev_prop = sdev_prop,
-                            sdev_pos = sdev_pos,
-                            sdev_dc = sdev_dc,
-                            sampledc = sampledc,
-                            pnorm = pnorm,
-                            quasimultid = false,
-                            K = K,
-                            save_freq = save_freq,
-                            needλ²fromlog = needλ²fromlog,
-                            updatenonstat = updatenonstat,
-                            dispstatstoscreen = false,
-                            history_mode = history_mode
-                            )
-    opt
-end
-
-function makeoperatorandoptions(soundings::Array{SkyTEMsoundingData, 1};
-                        rseed = nothing,
-                        fileprefix = "sounding",
-                        nmin = 2,
-                        nmax = 40,
-                        K = GP.OrstUhn(),
-                        demean = true,
-                        sdpos = 0.05,
-                        sdprop = 0.05,
-                        sddc = 0.008,
-                        sampledc = false,
-                        fbounds = [-0.5 2.5],
-                        λ = [2],
-                        δ = 0.1,
-                        pnorm = 2,
-                        save_freq = 25,
-                        restart = false,
-                        nplot = 2,
-                        zfixed   = [-1e5],
-                        ρfixed   = [1e12],
-                        zstart = 0.0,
-                        extendfrac = 1.06,
-                        dz = 2.,
-                        ρbg = 10,
-                        nlayers = 40,
-                        ntimesperdecade = 10,
-                        nfreqsperdecade = 5,
-                        showgeomplot = false,
-                        useML = false,
-                        modelprimary = false
-                        )
-    aem, opt = [], []
-    if rseed != nothing
-        Random.seed!(rseed)
-    end
-    for idx in randperm(length(soundings))[1:nplot]
-            aem, znall = makeoperator(soundings[idx],
-                        zfixed = zfixed,
-                        ρfixed = ρfixed,
-                        zstart = zstart,
-                        extendfrac = extendfrac,
-                        dz = dz,
-                        ρbg = ρbg,
-                        nlayers = nlayers,
-                        ntimesperdecade = ntimesperdecade,
-                        nfreqsperdecade = nfreqsperdecade,
-                        useML = useML,
-                        showgeomplot = showgeomplot,
-                        modelprimary = modelprimary,
-                        plotfield = true)
-
-                    opt = make_tdgp_opt(znall = znall,
-                        fileprefix = soundings[idx].sounding_string,
-                        nmin = nmin,
-                        nmax = nmax,
-                        K = K,
-                        demean = demean,
-                        sdpos = sdpos,
-                        sdprop = sdprop,
-                        sddc = sddc,
-                        sampledc = sampledc,
-                        fbounds = fbounds,
-                        save_freq = save_freq,
-                        λ = λ,
-                        δ = δ,
-                        restart = restart
-                        )
-    end
-    # returns generically all the required elements in operator
-    # for plotting except sounding_string
-    opt
-end
-
-function summarypost(soundings::Array{SkyTEMsoundingData, 1}, opt::Options;
-            qp1=0.05,
-            qp2=0.95,
-            burninfrac=0.5,
-            zstart = 0.0,
-            extendfrac = -1,
-            dz = -1,
-            nlayers = -1,
-            useML=false)
-
-    @assert extendfrac > 1.0
-    @assert dz > 0.0
-    @assert nlayers > 1
-    zall, = setupz(zstart, extendfrac, dz=dz, n=nlayers)
-
-    linename = "_line_$(soundings[1].linenum)_summary.txt"
-    fnames = ["rho_low", "rho_mid", "rho_hi", "rho_avg",
-              "ddz_mean", "ddz_sdev", "phid_mean", "phid_sdev"].*linename
-    if isfile(fnames[1])
-        @warn fnames[1]*" exists, reading stored values"
-        pl, pm, ph, ρmean,
-        vdmean, vddev, χ²mean, χ²sd, = map(x->readdlm(x), fnames)
-    else
-        # this is a dummy operator for plotting
-        aem, = makeoperator(soundings[1])
-        # now get the posterior marginals
-        opt.xall[:] .= zall
-        pl, pm, ph, ρmean, vdmean, vddev = map(x->zeros(length(zall), length(soundings)), 1:6)
-        χ²mean, χ²sd = zeros(length(soundings)), zeros(length(soundings))
-        for idx = 1:length(soundings)
-            @info "$idx out of $(length(soundings))\n"
-            opt.fdataname = soundings[idx].sounding_string*"_"
-            opt.xall[:] .= zall
-            pl[:,idx], pm[:,idx], ph[:,idx], ρmean[:,idx],
-            vdmean[:,idx], vddev[:,idx] = CommonToAll.plot_posterior(aem, opt, burninfrac=burninfrac,
-                                                    qp1=qp1, qp2=qp2,
-                                                    doplot=false)
-            χ² = 2*CommonToAll.assembleTat1(opt, :U, temperaturenum=1, burninfrac=burninfrac)
-            ndata = sum(.!isnan.(soundings[idx].LM_data)) +
-                    sum(.!isnan.(soundings[idx].HM_data))
-            χ²mean[idx] = mean(χ²)/ndata
-            χ²sd[idx]   = std(χ²)/ndata
-            if useML
-                # this is approximate as HM and LM have different ML factors sampled 
-                χ²mean[idx] = exp(χ²mean[idx]-log(ndata))
-                χ²sd[idx]   = exp(χ²sd[idx]-log(ndata)) # I think, need to check
-            end    
-        end
-        # write in grid format
-        for (fname, vals) in Dict(zip(fnames, [pl, pm, ph, ρmean, vdmean, vddev, χ²mean, χ²sd]))
-            writedlm(fname, vals)
-        end
-        # write in x, y, z, rho format
-        for (i, d) in enumerate([pl, pm, ph, ρmean])
-            xyzrho = makearray(soundings, d, zall)
-            writedlm(fnames[i][1:end-4]*"_xyzrho.txt", xyzrho)
-        end
-    end
-    pl, pm, ph, ρmean, vdmean, vddev, χ²mean, χ²sd, zall
 end
 
 function writetabdelim(fname, opt::Options, soundings::Array{SkyTEMsoundingData, 1}; 
@@ -948,501 +583,5 @@ function writetabdelim(fname, opt::Options, soundings::Array{SkyTEMsoundingData,
     end
     close(io)
 end    
-
-function plotindividualsoundings(soundings::Array{SkyTEMsoundingData, 1}, opt::Options;
-    burninfrac=0.5,
-    nbins = 50,
-    figsize  = (6,6),
-    zfixed   = [-1e5],
-    ρfixed   = [1e12],
-    zstart = 0.0,
-    extendfrac = 1.06,
-    dz = 2.,
-    ρbg = 10,
-    omittemp = false,
-    showslope = false,
-    plotmean = false,
-    pdfclim = nothing,
-    qp1=0.05,
-    qp2=0.95,
-    nlayers = 40,
-    ntimesperdecade = 10,
-    nfreqsperdecade = 5,
-    computeforwards = false,
-    nforwards = 100,
-    rseed = 11,
-    modelprimary = false,
-    idxcompute = [1],
-    onlygetMLsampled = false)
-    
-    if onlygetMLsampled
-        computeforwards = true
-        errorfac_low, errorfacσ_low, errorfac_high, errorfacσ_high = map(x->zeros(length(soundings)), 1:4)
-    end
-    zall, = setupz(zstart, extendfrac, dz=dz, n=nlayers)
-    opt.xall[:] .= zall
-    for idx = 1:length(soundings)
-        if in(idx, idxcompute)
-            @info "Sounding number: $idx"
-            opt.fdataname = soundings[idx].sounding_string*"_"
-            aem, znall = makeoperator(soundings[idx],
-                zfixed = zfixed,
-                ρfixed = ρfixed,
-                zstart = zstart,
-                extendfrac = extendfrac,
-                dz = dz,
-                ρbg = ρbg,
-                nlayers = nlayers,
-                ntimesperdecade = ntimesperdecade,
-                nfreqsperdecade = nfreqsperdecade,
-                modelprimary = modelprimary)
-            if !onlygetMLsampled
-                getchi2forall(opt, alpha=0.8, omittemp=omittemp)
-                CommonToAll.getstats(opt)
-                plot_posterior(aem, opt, burninfrac=burninfrac, nbins=nbins, figsize=figsize; 
-                    showslope, pdfclim, plotmean, qp1, qp2)
-                ax = gcf().axes
-                ax[1].invert_xaxis()
-            end    
-            if computeforwards
-                M = assembleTat1(opt, :fstar, temperaturenum=1, burninfrac=burninfrac)
-                Random.seed!(rseed)
-                if onlygetMLsampled
-                    errorfac_low[idx], errorfacσ_low[idx], 
-                    errorfac_high[idx], errorfacσ_high[idx] = plotmodelfield!(aem, M[randperm(length(M))[1:nforwards]],
-                        dz=dz, extendfrac=extendfrac, onesigma=false, alpha=0.2, onlygetMLsampled=true)
-                else
-                    plotmodelfield!(aem, M[randperm(length(M))[1:nforwards]],
-                    dz=dz, extendfrac=extendfrac, onesigma=false, alpha=0.2)
-                end            
-            end
-        end
-    end
-    if onlygetMLsampled
-        errorfac_low, errorfacσ_low, errorfac_high, errorfacσ_high
-    end    
-end
-
-function splitlinesummaryimages(soundings::Array{SkyTEMsoundingData, 1}, opt::Options;
-                        qp1=0.05,
-                        qp2=0.95,
-                        burninfrac=0.5,
-                        zstart = 0.0,
-                        extendfrac = -1,
-                        dz = -1,
-                        dr = 10,
-                        nlayers = -1,
-                        fontsize = 10,
-                        vmin = -2,
-                        vmax = 0.5,
-                        cmap="turbo",
-                        figsize=(6,10),
-                        topowidth=2,
-                        idx = nothing,
-                        showderivs = false,
-                        omitconvergence = false,
-                        useML = false,
-                        preferEright = false,
-                        preferNright = false,
-                        saveplot = true,
-                        yl = nothing,
-                        showplot = true,
-                        showmean = false,
-                        dpi = 300)
-    
-    linestartidx = splitsoundingsbyline(soundings)                    
-    nlines = length(linestartidx)                   
-    for i in 1:nlines
-        a = linestartidx[i]
-        b = i != nlines ?  linestartidx[i+1]-1 : length(soundings)
-        summaryimages(soundings[a:b], opt, qp1=qp1, qp2=qp2, burninfrac=burninfrac, zstart=zstart,
-            extendfrac=extendfrac, dz=dz, dr=dr, nlayers=nlayers, fontsize=fontsize, vmin=vmin, 
-            vmax = vmax, cmap=cmap, figsize=figsize, topowidth=topowidth, idx=idx, 
-            omitconvergence=omitconvergence, useML=useML, preferEright=preferEright, showplot=showplot,
-            preferNright=preferNright, saveplot=saveplot, yl=yl, dpi=dpi; showmean)
-    end
-    nothing    
-end
-
-function summaryimages(soundings::Array{SkyTEMsoundingData, 1}, opt::Options;
-                        qp1=0.05,
-                        qp2=0.95,
-                        burninfrac=0.5,
-                        zstart = 0.0,
-                        extendfrac = -1,
-                        dz = -1,
-                        dr = 10,
-                        nlayers = -1,
-                        fontsize = 10,
-                        vmin = -2,
-                        vmax = 0.5,
-                        cmap="turbo",
-                        figsize=(6,10),
-                        topowidth=2,
-                        idx = nothing,
-                        omitconvergence = false,
-                        useML = false,
-                        preferEright = false,
-                        preferNright = false,
-                        saveplot = false,
-                        yl = nothing,
-                        showplot = true,
-                        showmean = false,
-                        dpi = 300)
-    @assert !(preferNright && preferEright) # can't prefer both labels to the right
-    pl, pm, ph, ρmean, vdmean, vddev, χ²mean, χ²sd, zall = summarypost(soundings, opt,
-                                                                    zstart=zstart,
-                                                                    qp1=qp1,
-                                                                    qp2=qp2,
-                                                                    dz=dz,
-                                                                    extendfrac=extendfrac,
-                                                                    nlayers=nlayers,
-                                                                    burninfrac=burninfrac, useML=useML)
-
-    phgrid, plgrid, pmgrid, σmeangrid, ∇zmeangrid,
-    ∇zsdgrid, gridx, gridz, topofine, R, Z = makesummarygrid(soundings, pl, pm, ph, ρmean,
-                                                            vdmean, vddev, zall, dz, dr=dr)
-
-    lname = "Line $(soundings[1].linenum)"
-    plotsummarygrids1(soundings, σmeangrid, phgrid, plgrid, pmgrid, gridx, gridz, topofine, R, Z, χ²mean, χ²sd, lname; qp1, qp2,
-                        figsize, fontsize, cmap, vmin, vmax, 
-                        topowidth, idx, omitconvergence, useML,
-                        preferEright, preferNright, saveplot, showplot, dpi,
-                        yl, showmean)                  
-end
-
-# for deterministic inversions, read in
-function compress(soundings, zall; prefix="", rmfile=true, isfirstparalleliteration=false)
-    fname = soundings[1].sounding_string*"_gradientinv.dat"    
-    !isfile(fname) && throw(AssertionError("file does not exist perhaps soundings already zipped?"))
-    fout = prefix == "" ? "zipped.dat" : prefix*"_zipped.dat"
-    iomode = "w"
-    if isfile(fout)
-        isfirstparalleliteration && throw(AssertionError("Zipped file "*fout*" exists, will not overwrite!"))
-        iomode = "a"
-    end    
-    io = open(fout, iomode)
-    for (i, s) in enumerate(soundings)
-        fname = s.sounding_string*"_gradientinv.dat"
-        A = readdlm(fname)
-        ϕd = A[end,2]
-        σgrid = vec(A[end,3:end])
-        for el in [[s.X, s.Y, s.Z, s.fid, 
-                    s.linenum, s.rRx, s.zRxLM, s.zTxLM, s.zRxHM, 
-                    s.zTxHM, s.rTx]; vec(zall); σgrid; ϕd]
-            msg = @sprintf("%e\t", el)
-            write(io, msg)
-        end
-        write(io, "\n")                
-        flush(io) # slower but ensures write is complete
-        rmfile && rm(fname)
-    end
-    close(io)    
-end
-
-# plot the convergence and the result
-function splitlineconvandlast(soundings, delr, delz; 
-        zstart=-1, extendfrac=-1, dz=-1, nlayers=-1, cmapσ="turbo", vmin=-2.5, vmax=0.5, fontsize=12,
-        figsize=(20,5),
-        topowidth=1,
-        preferEright = false,
-        preferNright = false,
-        saveplot = true,
-        showplot = true,
-        postfix = "",
-        prefix = "",
-        markersize = 2,
-        logscale = false,
-        lnames = nothing,
-        idx = nothing, # array of arrrays per line
-        yl = nothing,
-        dpi=400)
-    linestartidx = splitsoundingsbyline(soundings)                    
-    nlines = length(linestartidx)
-    fnamecheck = soundings[1].sounding_string*"_gradientinv.dat"
-    zall, = setupz(zstart, extendfrac, dz=dz, n=nlayers)
-    isfile(fnamecheck) && compress(soundings, zall) # write everything in one file if not done yet
-    fzipped = prefix == "" ? "zipped.dat" : prefix*"_zipped.dat"
-    A = readdlm(fzipped)
-    σ = A[:,end-nlayers:end-1]
-    ϕd = A[:,end]
-    for i in 1:nlines
-        a = linestartidx[i]
-        b = i != nlines ?  linestartidx[i+1]-1 : length(soundings)
-        idspec = nothing
-        if !isnothing(lnames) # only specific lines wanted, nothing means all lines
-            @assert length(lnames) == length(idx)
-            doesmatch = findfirst(lnames .== soundings[a].linenum) 
-            isnothing(doesmatch) && continue
-            @info lnames[doesmatch]
-            @show idspec = idx[doesmatch]
-        end    
-        plotconvandlast(soundings[a:b], view(σ, a:b, :)', view(ϕd, a:b), delr, delz; 
-            zall = zall, idx=idspec, yl=yl,
-            cmapσ=cmapσ, vmin=vmin, vmax=vmax, fontsize=fontsize, postfix=postfix, markersize=markersize,
-            figsize=figsize, topowidth=topowidth, preferEright=preferEright, logscale=logscale,
-            preferNright=preferNright, saveplot=saveplot, showplot=showplot, dpi=dpi)
-    end
-    getphidhist(ϕd, doplot=true, saveplot=saveplot, prefix=prefix)
-    nothing
-end
-
-function getphidhist(ϕd; doplot=false, saveplot=false, prefix="", figsize=(8,4), fontsize=11)
-    edges=[0,1.1,2, Inf]
-    ϕdcounts = fit(Histogram, filter(!isnan, ϕd), edges).weights
-    good, bad, ugly = round.(Int, ϕdcounts./sum(ϕdcounts)*100) # % for type of fit in ranges above
-    if doplot
-        fout = prefix == "" ? "summaryfits.png" : prefix*"_summaryfits.png"
-        f = figure(figsize=figsize)
-        width=[diff(edges[1:end-1]);1]
-        bar(edges[1:end-1], [good, bad, ugly], align="edge", width=width)
-        xlabel(L"\phi_d")
-        ylabel("% of soundings")
-        isgood = sum(.!isnan.(ϕd))
-        title(prefix*" total soundings: $isgood NaN: $(length(ϕd)-isgood)")
-        grid()
-        nicenup(f, fsize=fontsize)
-        saveplot && savefig(fout, dpi=400)
-    end
-    good, bad, ugly
-end    
-
-function plotconvandlast(soundings, σ, ϕd, delr, delz; 
-        idx = nothing, #array of sounding indexes at a line to draw profile
-        zall=nothing, cmapσ="turbo", vmin=-2.5, vmax=0.5, fontsize=12,
-        figsize=(20,5),
-        topowidth=1,
-        preferEright = false,
-        preferNright = false,
-        saveplot = true, 
-        showplot = true,
-        logscale = false,
-        postfix = "",
-        yl = nothing,
-        markersize = 2,
-        dpi = 400)
-    @assert !isnothing(zall)
-    # ϕd, σ = readingrid(soundings, zall)
-    img, gridr, gridz, topofine, R = makegrid(σ, soundings, zall=zall, dz=delz, dr=delr)
-    fig, ax = plt.subplots(3, 1, gridspec_kw=Dict("height_ratios" => [1,1,4]),
-        figsize=figsize, sharex=true)
-    lname = "Line_$(soundings[1].linenum)"*postfix
-    x0, y0 = soundings[1].X, soundings[1].Y
-    zTx = [s.zTxLM for s in soundings]
-    xend, yend = soundings[end].X, soundings[end].Y
-    Z = [s.Z for s in soundings]
-    good, bad, ugly = getphidhist(ϕd)
-    fig.suptitle(lname*" Δx=$delr m, Fids: $(length(R)) "*L"\phi_{d_{0-1.1}}:"*" $good "*
-    L"\phi_{d_{1.1-2}}:"*" $bad "*L"\phi_{d_{2-\infty}}:"*" $ugly", fontsize=fontsize)
-    ax = fig.axes
-    ax[1].plot(R, ones(length(R)), "--k")
-    ax[1].plot(R, ϕd, ".", markersize=markersize)
-    ax[1].set_ylim(0.316, maximum(ax[1].get_ylim()))
-    ax[1].set_ylabel(L"\phi_d")
-    logscale && ax[1].set_yscale("log")
-    ax[2].plot(R, zTx)
-    ax[2].set_ylabel("zTx m")
-    [a.tick_params(labelbottom=false) for a in ax[1:2]]
-    imlast = ax[3].imshow(img, extent=[gridr[1], gridr[end], gridz[end], gridz[1]], cmap=cmapσ, aspect="auto", vmin=vmin, vmax=vmax)
-    ax[3].plot(gridr, topofine, linewidth=topowidth, "-k")
-    isnothing(idx) || plotprofile(ax[3], idx, Z, R)
-    # eg = extrema(gridr)
-    isa(yl, Nothing) || ax[3].set_ylim(yl...)
-    ax[3].set_ylabel("mAHD")
-    ax[3].set_xlabel("Distance m")
-    fig.colorbar(imlast, ax=ax[3], location="bottom", shrink=0.6, label="Log₁₀ S/m")
-    ax[3].set_xlim(extrema(gridr))
-    plotNEWSlabels(soundings, gridr, gridz, [ax[3]], x0, y0, xend, yend, 
-    preferEright=preferEright, preferNright=preferNright)
-    nicenup(fig, fsize=fontsize)
-    label = fig._suptitle.get_text()
-    VE = round(Int, getVE(ax[end-1]))
-    fig.suptitle(label*", VE=$(VE)X")
-    saveplot && savefig(lname*".png", dpi=dpi)
-    showplot || close(fig)
-end    
-
-# plot multiple grids with supplied labels
-function plotgrids()
-    f, ax = plt.subplots(size(grids, 1), 1, figsize=figsize,
-                        sharex=true, sharey=true, squeeze=false)
-    for (i, g) in enumerate(grids)
-        ax[i].imshow(g, cmap=cmap, aspect="auto", alpha=α, vmax=vmax, vmin = vmin,
-                extent=[gridx[1], gridx[end], gridz[end], gridz[1]])
-        colorbar(img, ax=ax[i])
-        titles == nothing || ax[i].set_title(titles[i])
-        idx  == nothing || plotprofile.(ax[i], idx)
-        elev == nothing || plot(gridx, elev, "-k")
-        ylabels == nothing || ax[i].set_ylabel(ylabels[i])
-    end
-    ax[end].set_xlabel("Easting m")
-    transD_GP.CommonToAll.nicenup(f, fsize=fsize)
-end
-
-# no nuisances e.g., SkyTEM, transD
-function loopacrosssoundings(soundings::Array{S, 1}, opt_in::Options;
-                            nsequentialiters   =-1,
-                            nparallelsoundings =-1,
-                            zfixed             = [-1e5],
-                            ρfixed             = [1e12],
-                            useML              = false,
-                            zstart             = 0.0,
-                            extendfrac         = 1.06,
-                            dz                 = 2.,
-                            ρbg                = 10,
-                            nlayers            = 50,
-                            ntimesperdecade    = 10,
-                            nfreqsperdecade    = 5,
-                            Tmax               = -1,
-                            nsamples           = -1,
-                            nchainsatone       =  1,
-                            modelprimary       = false,
-                            nchainspersounding = -1) where S<:Sounding
-
-    @assert nsequentialiters  != -1
-    @assert nparallelsoundings != -1
-    @assert nchainspersounding != -1
-    @assert nsamples != - 1
-    @assert Tmax != -1
-
-    nsoundings = length(soundings)
-    opt= deepcopy(opt_in)
-
-    for iter = 1:nsequentialiters
-        if iter<nsequentialiters
-            ss = (iter-1)*nparallelsoundings+1:iter*nparallelsoundings
-        else
-            ss = (iter-1)*nparallelsoundings+1:nsoundings
-        end
-        @info "soundings in loop $iter of $nsequentialiters", ss
-        r_nothing = Array{Nothing, 1}(undef, length(ss))
-        @sync for (i, s) in Iterators.reverse(enumerate(ss))
-            pids = (i-1)*nchainspersounding+i:i*(nchainspersounding+1)
-            @info "pids in sounding $s:", pids
-
-            aem, = makeoperator(    soundings[s],
-                                    zfixed = zfixed,
-                                    ρfixed = ρfixed,
-                                    zstart = zstart,
-                                    extendfrac = extendfrac,
-                                    dz = dz,
-                                    ρbg = ρbg,
-                                    useML = useML,
-                                    nlayers = nlayers,
-                                    modelprimary = modelprimary,
-                                    ntimesperdecade = ntimesperdecade,
-                                    nfreqsperdecade = nfreqsperdecade)
-
-            opt = deepcopy(opt_in)
-            opt.fdataname = soundings[s].sounding_string*"_"
-
-            @async r_nothing[i] = remotecall_fetch(main, pids[1], opt, aem, collect(pids[2:end]),
-                                    Tmax         = Tmax,
-                                    nsamples     = nsamples,
-                                    nchainsatone = nchainsatone)
-
-        end # @sync
-        @info "done $iter out of $nsequentialiters at $(Dates.now())"
-    end
-end
-
-# for gradient based inversion
-function loopacrosssoundings(soundings::Array{S, 1}, σstart, σ0; 
-                            nsequentialiters   =-1,
-                            zfixed             = [-1e5],
-                            ρfixed             = [1e12],
-                            zstart             = 0.0,
-                            extendfrac         = 1.06,
-                            dz                 = 2.,
-                            ρbg                = 10,
-                            nlayers            = 50,
-                            ntimesperdecade    = 10,
-                            nfreqsperdecade    = 5,
-                            modelprimary       = false,
-                            regtype            = :R1,
-                            nstepsmax          = 10,
-                            ntries             = 6,
-                            target             = nothing,
-                            lo                 = -3.,
-                            hi                 = 1.,
-                            λ²min              = 0,
-                            λ²max              = 8,
-                            λ²frac             = 4,
-                            β²                 = 0.,
-                            ntestdivsλ²        = 50,
-                            αmin               = -4, 
-                            αmax               = 0, 
-                            αfrac              = 4, 
-                            ntestdivsα         = 32,
-                            regularizeupdate   = false,
-                            knownvalue         = 0.7,
-                            firstvalue         = :last,
-                            κ                  = GP.Mat52(),
-                            breakonknown       = true,
-                            dobo               = false,
-                            compresssoundings  = true,
-                            zipsaveprefix      = "",        
-                            ) where S<:Sounding
-
-    @assert nsequentialiters  != -1
-    nparallelsoundings = nworkers()
-    nsoundings = length(soundings)
-    zall, = setupz(zstart, extendfrac, dz=dz, n=nlayers) # needed for sounding compression
-    for iter = 1:nsequentialiters
-        if iter<nsequentialiters
-            ss = (iter-1)*nparallelsoundings+1:iter*nparallelsoundings
-        else
-            ss = (iter-1)*nparallelsoundings+1:nsoundings
-        end
-        @info "soundings in loop $iter of $nsequentialiters", ss
-        pids = workers()
-        @sync for (i, s) in enumerate(ss)
-            aem, = makeoperator(    soundings[s],
-                                    zfixed = zfixed,
-                                    ρfixed = ρfixed,
-                                    zstart = zstart,
-                                    extendfrac = extendfrac,
-                                    dz = dz,
-                                    ρbg = ρbg,
-                                    nlayers = nlayers,
-                                    modelprimary = modelprimary,
-                                    ntimesperdecade = ntimesperdecade,
-                                    nfreqsperdecade = nfreqsperdecade,
-                                    calcjacobian = true)
-
-            fname = soundings[s].sounding_string*"_gradientinv.dat"
-            σstart_, σ0_ = map(x->x*ones(length(aem.ρ)-1), [σstart, σ0])
-            @async remotecall_wait(gradientinv, pids[i], σstart_, σ0_, aem,
-                                                regtype            = regtype         ,              
-                                                nstepsmax          = nstepsmax       ,              
-                                                ntries             = ntries          ,              
-                                                target             = target          ,              
-                                                lo                 = lo              ,              
-                                                hi                 = hi              ,              
-                                                λ²min              = λ²min           ,              
-                                                λ²max              = λ²max           ,              
-                                                λ²frac             = λ²frac          ,              
-                                                ntestdivsλ²        = ntestdivsλ²     ,              
-                                                αmin               = αmin            ,              
-                                                αmax               = αmax            ,              
-                                                αfrac              = αfrac           ,
-                                                β²                 = β²              ,
-                                                ntestdivsα         = ntestdivsα      ,              
-                                                regularizeupdate   = regularizeupdate,              
-                                                knownvalue         = knownvalue      ,              
-                                                firstvalue         = firstvalue      ,              
-                                                κ                  = κ               ,              
-                                                breakonknown       = breakonknown    ,              
-                                                dobo               = dobo            ,
-                                                fname              = fname           ) 
-                
-
-        end # @sync
-        isfirstparalleliteration = iter == 1 ? true : false
-        compresssoundings && compress(soundings[ss[1]:ss[end]], zall, 
-            isfirstparalleliteration = isfirstparalleliteration, prefix=zipsaveprefix)
-        @info "done $iter out of $nsequentialiters at $(Dates.now())"
-    end
-end
 
 end

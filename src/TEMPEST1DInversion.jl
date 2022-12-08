@@ -2,10 +2,13 @@ module TEMPEST1DInversion
 import ..AbstractOperator.get_misfit, ..main
 import ..AbstractOperator.Sounding
 import ..AbstractOperator.makeoperator
-import ..AbstractOperator.make_tdgp_opt
+import ..AbstractOperator.makebounds
+import ..AbstractOperator.getoptnfromexisting
+import ..AbstractOperator.getnufromsounding
+import ..AbstractOperator.plotmodelfield!
 
-using ..AbstractOperator, ..AEM_VMD_HMD, Statistics
-using PyPlot, LinearAlgebra, ..CommonToAll, Random, DelimitedFiles, Distributed, Dates
+using ..AbstractOperator, ..AEM_VMD_HMD, ..SoundingDistributor
+using PyPlot, LinearAlgebra, ..CommonToAll, Random, DelimitedFiles, Distributed, Dates, Statistics
 
 import ..Model, ..Options, ..OptionsStat, ..OptionsNonstat
 import ..ModelNuisance, ..OptionsNuisance, ..findidxnotzero
@@ -164,7 +167,7 @@ function getfieldTD!(tempest::Bfield, z::Array{Float64, 1}, ρ::Array{Float64, 1
 	nothing
 end
 
-function returnprimary!(tempestin;fillrho=1e12)
+function returnprimary!(tempestin)
 # only useful for synthetics I guess
     tempest = deepcopy(tempestin)
     tempest.ρ .= 10 # no contrasts at all
@@ -172,6 +175,9 @@ function returnprimary!(tempestin;fillrho=1e12)
     getfieldTD!(tempest, tempest.z, tempest.ρ)
 	tempest.Hx, tempest.Hy, tempest.Hz
 end
+
+# all calling functions underneath here for misfit, field, etc. assume model is in log10 resistivity
+# SANS the top. For lower level field calculation use AEM_VMD_HMD structs
 
 #match API for SkyTEM inversion getfield
 function getfield!(m::Model, tempest::Bfield)
@@ -299,10 +305,16 @@ function get_misfit(m::Model, opt::Options, tempest::Bfield)
 	return chi2by2
 end
 #new function for vector sum elements to be called for plotting
+
+get_fm(tempest::Bfield) = get_fm(tempest.Hx,tempest.Hz)
+
 function get_fm(Bx,Bz)
     fm = sqrt.(Bx.^2 + Bz.^2)
     fm
 end 
+
+get_dSigma(tempest::Bfield) = get_dSigma(tempest.dataHx,tempest.dataHz,tempest.σx,tempest.σz)
+
 function get_dSigma(DBx,DBz,σx,σz)
     d = sqrt.(DBx.^2 + DBz.^2)
     σ = sqrt.((σx.^2).*DBx.^2 + (σz.^2).*DBz.^2)./d
@@ -316,8 +328,8 @@ function get_misfit(m::AbstractArray, mn::AbstractVector, opt::Union{Options,Opt
 		getfield!(m, mn, tempest)
 		idxx, idxz = tempest.selectx, tempest.selectz
         if tempest.vectorsum
-            fm = get_fm(tempest.Hx,tempest.Hz)
-            d,σ = get_dSigma(tempest.dataHx,tempest.dataHz,tempest.σx,tempest.σz)
+            fm = get_fm(tempest)
+            d, σ = get_dSigma(tempest)
             chi2by2 = getchi2by2(fm, d, σ, tempest.useML, tempest.ndatax)
         else
             chi2by2 = getchi2by2([tempest.Hx[idxx]; tempest.Hz[idxz]],
@@ -343,141 +355,113 @@ function getchi2by2(fm, d, σ, useML, ndata)
     end
 end
 
-function plotmodelfield!(tempest::Bfield, z::Array{Float64,1}, ρ::Array{Float64,1}; figsize=(8,5), 
-    extendfrac=nothing, dz=nothing, fontsize=8)
-	getfieldTD!(tempest, z, ρ)
-	figure(figsize=figsize)
-	s = subplot(121)
-    ext = 5 # extend plot a little lower than last interface
-	s.step(log10.([ρ[2:end];ρ[end]]), [z[2:end]; z[end]+ext])
-	s.invert_xaxis()
-	s.invert_yaxis()
-	xlabel("log₁₀ ρ")
-	ylabel("depth m")
-    if !isnothing(dz)
-        makeindexaxis([s], tempest.z, dz, extendfrac, tempest.nfixed)
-    end    
-	s.grid(true, which="both")
-	s2 = subplot(122)
-	semilogx(tempest.F.times, abs.(μ₀*tempest.Hz)*fTinv, label="Bz")
-	semilogx(tempest.F.times, abs.(μ₀*tempest.Hx)*fTinv, label="Bx")
-	if !isempty(tempest.σx)
-		errorbar(tempest.F.times, μ₀*abs.(vec(tempest.dataHz))*fTinv, yerr = μ₀*2vec(tempest.σz)*fTinv,
-        linestyle="none", marker=".", elinewidth=0, capsize=3)
-		errorbar(tempest.F.times, μ₀*abs.(vec(tempest.dataHx))*fTinv, yerr = μ₀*2vec(tempest.σx)*fTinv,
-        linestyle="none", marker=".", elinewidth=0, capsize=3)
-	end
-	xlabel("time s")
-	ylabel("B field 10⁻¹⁵ T")
-    s.set_ylim(z[end]+ext, z[2])
-	legend()
-	s2.grid(true, which="both")
-	!tempest.addprimary && s2.set_yscale("log")
-	nicenup(gcf(), fsize=fontsize)
-	nothing
-end
-function plotmodelfield!(tempest::Bfield, Ρ::Vector{Array{Float64}};
-                        figsize=(8,5), dz=-1., onesigma=true,
-                        extendfrac=-1., fsize=10, alpha=0.1)
-	times, f, ax, nfixed, z  = setupaxis(tempest, Ρ, figsize, dz, onesigma,
-                          extendfrac, fsize, alpha)
-    for ρ in Ρ
-        getfield!(ρ, tempest)
-        tempest.Hz[.!tempest.selectz] .= NaN
-        tempest.Hx[.!tempest.selectx] .= NaN
-        ax[1].step(log10.(tempest.ρ[2:end]), tempest.z[2:end], "-k", alpha=alpha)
-        ax[2].semilogx(times,μ₀*abs.(tempest.Hz)*fTinv, "k", alpha=alpha, markersize=2)
-        ax[2].semilogx(times,μ₀*abs.(tempest.Hx)*fTinv, "k", alpha=alpha, markersize=2)
-    end
-	finishaxis(ax, f, z, dz, extendfrac, nfixed, fsize)
-end
+# all plotting codes here assume that the model is in log10 resistivity, SANS
+# the top layer resistivity. For lower level plotting use AEM_VMD_HMD structs
 
-function plotmodelfield!(tempest::Bfield, Ρ::Vector{T},
-						mn::Array{Float64,2};
-                        figsize=(8,5), dz=-1., onesigma=true,
-                        extendfrac=-1., fsize=10, alpha=0.1) where T<:AbstractArray
-	@assert length(Ρ) == size(mn, 1)
-	times, f, ax, nfixed, z  = setupaxis(tempest, Ρ, figsize, dz, onesigma,
-                          extendfrac, fsize, alpha)
-    for (i, ρ) in enumerate(Ρ)
-        getfield!(ρ, mn[i,:], tempest)
-        tempest.Hz[.!tempest.selectz] .= NaN
-        tempest.Hx[.!tempest.selectx] .= NaN
-        if tempest.vectorsum
-            fm = get_fm(tempest.Hx,tempest.Hz)
-            ax[1].step(log10.(tempest.ρ[2:end]), tempest.z[2:end], "-k", alpha=alpha)
-            ax[2].semilogx(times,μ₀*abs.(fm)*fTinv, "k", alpha=alpha, markersize=2) #check with Anand
-        else
-            ax[1].step(log10.(tempest.ρ[2:end]), tempest.z[2:end], "-k", alpha=alpha)
-            ax[2].semilogx(times,μ₀*abs.(tempest.Hz)*fTinv, "k", alpha=alpha, markersize=2)
-            ax[2].semilogx(times,μ₀*abs.(tempest.Hx)*fTinv, "k", alpha=alpha, markersize=2)
-        end 
-    end
-	finishaxis(ax, f, z, dz, extendfrac, nfixed, fsize)
-end
-
-function setupaxis(tempest::Bfield, Ρ,
-                   figsize, dz, onesigma,
-                   extendfrac, fsize, alpha)
-    @assert all((dz, extendfrac) .> 0)
-    sigma = onesigma ? 1.0 : 2.0
-    f = figure(figsize=figsize)
-    ax = Vector{PyPlot.PyObject}(undef, 3)
-    ax[1] = subplot(121)
-    ρmin, ρmax = extrema(vcat(Ρ...))
-    delρ = ρmax - ρmin
-    ax[1].set_xlim(ρmin-0.1delρ,ρmax+0.1delρ)
-    nfixed, z = tempest.nfixed, tempest.z
-    ax[1].plot([ρmin-0.1delρ,ρmax+0.1delρ], z[nfixed+1]*[1., 1], color="b")
-    ax[2] = subplot(122)
-	times = tempest.F.times
-    Hz, Hx = tempest.Hz, tempest.Hx
-    dataHx, σx = tempest.dataHx, tempest.σx
-	dataHz, σz = tempest.dataHz, tempest.σz
-    if tempest.vectorsum
-        d,σ = get_dSigma(dataHx,dataHz,σx,σz)
-        ax[2].errorbar(times,μ₀*abs.(d)*fTinv, yerr = μ₀*sigma*σ*fTinv,
-                        linestyle="none", marker=".", elinewidth=0, capsize=5, label="B")
+function plotdata(ax, d, σ, t; onesigma=true, dtype=nothing)
+    sigma = onesigma ? 1 : 2
+    if dtype == :Hx
+        label = "Bx"
+    elseif dtype == :Hz
+        label = "Bz"
     else
-        ax[2].errorbar(times, μ₀*abs.(dataHz)*fTinv, yerr = μ₀*sigma*σz*fTinv,
-                        linestyle="none", marker=".", elinewidth=0, capsize=3, label="Bz")
-        ax[2].errorbar(times, μ₀*abs.(dataHx)*fTinv, yerr = μ₀*sigma*σx*fTinv,
-                        linestyle="none", marker=".", elinewidth=0, capsize=3, label="Bx")
+        label = "|B|"
+    end        
+    ax.errorbar(t, μ₀*abs.(d)*fTinv; yerr = μ₀*sigma*fTinv*abs.(σ),
+    linestyle="none", marker=".", elinewidth=1, capsize=3, label, color="k")
+end
+
+function plotsoundingcurve(ax, f, t; color=nothing, alpha=1, lw=1)
+    if isnothing(color)
+        ax.semilogx(t, μ₀*abs.(f)*fTinv, alpha=alpha, markersize=2, linewidth=lw)
+    else
+        ax.semilogx(t, μ₀*abs.(f)*fTinv, color=color, alpha=alpha, markersize=2, linewidth=lw)
+    end    
+end
+
+function plotmodelfield!(ax, iaxis, aem::Bfield, ρ, nu; color=nothing, alpha=1, model_lw=1, forward_lw=1)
+    # with nuisance
+    nfixed = aem.nfixed
+    ax[iaxis].step(ρ, aem.z[nfixed+1:end], linewidth=model_lw, alpha=alpha)
+    getfield!(ρ, nu, aem)
+    vectorsumsplit(ax, iaxis, aem::Bfield, alpha, forward_lw, color)
+end 
+
+function plotmodelfield!(ax, iaxis, aem::Bfield, ρ; color=nothing, alpha=1, model_lw=1, forward_lw=1)
+    # no nuisance
+    nfixed = aem.nfixed
+    ax[iaxis].step(ρ, aem.z[nfixed+1:end], linewidth=model_lw, alpha=alpha)
+    getfield!(ρ, aem)
+    vectorsumsplit(ax, iaxis, aem::Bfield, alpha, forward_lw, color)
+end 
+
+function vectorsumsplit(ax, iaxis, aem::Bfield, alpha, forward_lw, color)
+    if aem.vectorsum
+        fm = get_fm(aem)
+        plotsoundingcurve(ax[iaxis+1], fm, aem.F.times; color, alpha, lw=forward_lw)
+    else    
+        plotsoundingcurve(ax[iaxis+1], aem.Hx, aem.F.times; color, alpha, lw=forward_lw)
+        colorused = ax[iaxis+1].lines[end].get_color()
+        plotsoundingcurve(ax[iaxis+1], aem.Hz, aem.F.times; color=colorused, alpha, lw=forward_lw)
     end
-	times, f, ax, nfixed, z
-end
+end    
 
-function finishaxis(ax, f, z, dz, extendfrac, nfixed, fsize)
-	ax[1].grid()
-    ax[1].set_ylabel("Depth m")
-    ax[1].plot(xlim(), z[nfixed+1]*[1, 1], "--k")
-    makeindexaxis(ax, z, dz, extendfrac, nfixed)
-    ax[1].set_xlabel("Log₁₀ρ")
-    ax[1].set_title("Model")
-    ax[2].set_ylabel("10⁻¹⁵ T")
-    ax[2].set_xlabel("Time (s)")
-    ax[2].set_title("Transient response")
-    ax[2].legend()
-    ax[2].grid()
-    ax[1].invert_xaxis()
-    nicenup(f, fsize=fsize)
-end
-
-function makeindexaxis(ax, z, dz, extendfrac, nfixed)
-    if dz > 0
-        axn = ax[1].twinx()
-        ax[1].get_shared_y_axes().join(ax[1],axn)
-        yt = ax[1].get_yticks()[ax[1].get_yticks().>=z[nfixed+1]]
-        axn.set_yticks(yt)
-        axn.set_ylim(ax[1].get_ylim()[end:-1:1])
-        axn.set_yticklabels(string.(Int.(round.(getn.(yt .- z[nfixed+1], dz, extendfrac)))))
+function initmodelfield!(aem;  onesigma=true, figsize=(8,6))
+    f, ax = plt.subplots(1, 2; figsize)
+    if !isempty(aem.dataHz)
+        if (aem.vectorsum)
+            d, σ = get_dSigma(aem)
+            plotdata(ax[2], d, σ, aem.F.times; onesigma)
+        else    
+            aem.ndatax > 0 && plotdata(ax[2], aem.dataHx, aem.σx, aem.F.times; onesigma, dtype=:Hx)
+            aem.ndataz > 0 && plotdata(ax[2], aem.dataHz, aem.σz, aem.F.times; onesigma, dtype=:Hz)
+        end    
     end
-    axn.set_ylabel("Depth index", rotation=-90, labelpad=10)
-    nothing   
+    ax[1].set_xlabel("log10 ρ")
+    ax[1].set_ylabel("depth m")
+    ax[2].set_ylabel("B field fT")    
+    ax[2].set_xlabel("time s")
+    ax
+end 
+
+function plotmodelfield!(aem::Bfield, ρ, nu; onesigma=true, color=nothing, alpha=1, model_lw=1, forward_lw=1, figsize=(8,6), revax=true)
+    # with nuisance
+    plotmodelfield!(aem, [ρ], nu; onesigma, color, alpha, model_lw, forward_lw, figsize, revax) 
 end
 
-#for synthetics
-function set_noisy_data!(tempest::Bfield, z::Array{Float64,1}, ρ::Array{Float64,1};
+function plotmodelfield!(aem::Bfield, ρ; onesigma=true, color=nothing, alpha=1, model_lw=1, forward_lw=1, figsize=(8,6), revax=true)
+    # no nuisance
+    plotmodelfield!(aem, [ρ]; onesigma, color, alpha, model_lw, forward_lw, figsize, revax) 
+end
+
+function plotmodelfield!(aem::Bfield, manyρ::Vector{T}, manynu::Array{Float64, 2}; onesigma=true, 
+        color=nothing, alpha=1, model_lw=1, forward_lw=1, figsize=(8,6), revax=true) where T<:AbstractArray
+    # with nuisance    
+    ax = initmodelfield!(aem; onesigma, figsize)
+    for (i, ρ) in enumerate(manyρ)
+        plotmodelfield!(ax, 1, aem, vec(ρ), manynu[i,:]; alpha, model_lw, forward_lw, color)
+    end
+    ax[1].invert_yaxis()
+    nicenup(ax[1].get_figure(), fsize=12)
+    revax && ax[1].invert_xaxis()
+    ax
+end
+
+function plotmodelfield!(aem::Bfield, manyρ::Vector{T}; onesigma=true, 
+        color=nothing, alpha=1, model_lw=1, forward_lw=1, figsize=(8,6), revax=true) where T<:AbstractArray
+    # no nuisance    
+    ax = initmodelfield!(aem; onesigma, figsize)
+    for (i, ρ) in enumerate(manyρ)
+        plotmodelfield!(ax, 1, aem, vec(ρ); alpha, model_lw, forward_lw, color)
+    end
+    ax[1].invert_yaxis()
+    nicenup(ax[1].get_figure(), fsize=12)
+    revax && ax[1].invert_xaxis()
+    ax
+end 
+
+# for synthetics
+function makenoisydata!(tempest::Bfield, ρ::Array{Float64,1};
 	noisefracx = 0.02, noisefracz = 0.02, rseed=123, figsize=(8,5),
 	halt_X = nothing, halt_Z = nothing)
 	if halt_X != nothing
@@ -491,30 +475,23 @@ function set_noisy_data!(tempest::Bfield, z::Array{Float64,1}, ρ::Array{Float64
         halt_Z = zeros(length(tempest.F.times))
     end
 	primaryflag = tempest.addprimary
-	if tempest.addprimary
-		# adds noise only proportional to secondary field
-		# when we compute full field next
-		tempest.addprimary = false
-	end
-	getfieldTD!(tempest, z, ρ)
+	# add noise only proportional to secondary field
+    # when we compute full field next
+	tempest.addprimary = false
+	getfield!(ρ, tempest)
 	σx = sqrt.((noisefracx*abs.(tempest.Hx)).^2 + (halt_X/μ₀).^2)
 	σz = sqrt.((noisefracz*abs.(tempest.Hz)).^2 + (halt_Z/μ₀).^2)
 	# reset the tempest primary field modeling flag to original
 	tempest.addprimary = primaryflag
-	set_noisy_data!(tempest, z, ρ, σx, σz, rseed=rseed)
-	plotmodelfield!(tempest, z, ρ, figsize=figsize)
-	nothing
-end
-
-function set_noisy_data!(tempest::Bfield, z::Array{Float64,1}, ρ::Array{Float64,1},
-	σx, σz;rseed = 123)
-	Random.seed!(rseed)
-	getfieldTD!(tempest, z, ρ)
-	set_noisy_data!(tempest,
-		dataHx = tempest.Hx + σx.*randn(size(σx)),
-		dataHz = tempest.Hz + σz.*randn(size(σz)),
-		σx = σx,
-		σz = σz)
+	# now compute full field with primary if flag says so (usual case)
+    getfield!(ρ, tempest)
+    Random.seed!(rseed)
+    set_noisy_data!(tempest,
+        dataHx = tempest.Hx + σx.*randn(size(σx)),
+        dataHz = tempest.Hz + σz.*randn(size(σz)),
+        σx = σx,
+        σz = σz)
+	plotmodelfield!(tempest, ρ, figsize=figsize)
 	nothing
 end
 
@@ -599,9 +576,9 @@ function read_survey_files(;
 	yaw_tx = -1,
 	pitch_tx = -1,
 	roll_tx = -1,
-    figsize = (16,11),
-    makesounding = false,
+    figsize = (10,6),
     dotillsounding = nothing,
+    makeqcplots = true,
     startfrom = 1,
     skipevery = 1,
     multnoise = 0.02,
@@ -610,7 +587,7 @@ function read_survey_files(;
 	Z = -1,
     fid = -1,
     linenum = -1,
-	fsize = 13)
+	fsize = 10)
 
     @assert frame_height > 0
     @assert frame_dz > 0
@@ -634,7 +611,7 @@ function read_survey_files(;
 	@assert 0 < multnoise < 1.0
 
     @info "reading $fname_dat"
-    if dotillsounding!= nothing
+    if !isnothing(dotillsounding)
         soundings = readdlm(fname_dat)[startfrom:skipevery:dotillsounding,:]
     else
         soundings = readdlm(fname_dat)[startfrom:skipevery:end,:]
@@ -678,42 +655,80 @@ function read_survey_files(;
     Hz_add_noise[:] .*= units
     d_Hx[:]     .*= units
     d_Hz[:]     .*= -units # Flipping the Z component to align with GA_AEM rx
+
+    σ_Hx = sqrt.(σ_Hx.^2 .+ (Hx_add_noise').^2)
+    σ_Hz = sqrt.(σ_Hz.^2 .+ (Hz_add_noise').^2)
+
+    nsoundings = size(soundings, 1)
+    makeqcplots && plotsoundingdata(nsoundings, times, d_Hx, σ_Hx, d_Hz, σ_Hz, z_tx, z_rx, x_rx, y_rx,
+    d_yaw_tx, d_pitch_tx, d_roll_tx, d_yaw_rx, d_pitch_rx, d_roll_rx,
+    figsize, fsize)
+
+    s_array = Array{TempestSoundingData, 1}(undef, nsoundings)
+    fracdone = 0 
+    for is in 1:nsoundings
+        l, fi = Int(whichline[is]), fiducial[is]
+        dHx, dHz = vec(d_Hx[is,:]), vec(d_Hz[is,:])
+        s_array[is] = TempestSoundingData(
+            "sounding_$(l)_$fi", easting[is], northing[is],
+            topo[is], fi, l,
+            x_rx[is], y_rx[is], z_rx[is],
+            d_roll_rx[is], d_pitch_rx[is], d_yaw_rx[is],
+            d_roll_tx[is], d_pitch_tx[is], d_yaw_tx[is],
+            z_tx[is],
+            times, ramp,
+            σ_Hx[is,:], σ_Hz[is,:], dHx, dHz
+            )
+        fracnew = round(Int, is/nsoundings*100)
+        if (fracnew-fracdone)>10
+            fracdone = fracnew
+            @info "read $is out of $nsoundings"
+        end
+    end
+    return s_array
+end
+
+function plotsoundingdata(nsoundings, times, d_Hx, Hx_add_noise, d_Hz, Hz_add_noise, z_tx, z_rx, x_rx, y_rx,
+        d_yaw_tx, d_pitch_tx, d_roll_tx, d_yaw_rx, d_pitch_rx, d_roll_rx,
+        figsize, fsize)
     f = figure(figsize=figsize)
     ax = Array{Any, 1}(undef, 4)
     ax[1] = subplot(2,2,1)
-    nsoundings = size(soundings, 1)
     plot_dHx = permutedims(d_Hx)
     # plot_dHx[plot_dHx .<0] .= NaN
-    pcolormesh(1:nsoundings, times, plot_dHx, shading="nearest")
-    xlabel("sounding #")
-    cbHx = colorbar()
+    im1 = ax[1].pcolormesh(1:nsoundings, times, plot_dHx, shading="nearest")
+    ax[1].set_xlabel("sounding #")
+    cbHx = colorbar(im1, ax=ax[1])
     cbHx.ax.set_xlabel("Bx", fontsize=fsize)
-    ylabel("time s")
+    ax[1].set_ylabel("time s")
     axHx = ax[1].twiny()
-    axHx.semilogy(Hx_add_noise, times, "-k")
-	axHx.semilogy(Hx_add_noise, times, "--w")
-    axHx.set_xlabel("high alt noise")
+    # axHx.semilogy(Hx_add_noise, times, "-k")
+	# axHx.semilogy(Hx_add_noise, times, "--w")
+    axHx.semilogy(mean(Hx_add_noise./abs.(d_Hx), dims=1)[:], times)
+    axHx.set_xlabel("avg Hx noise fraction")
     ax[2] = subplot(2,2,3,sharex=ax[1], sharey=ax[1])
     plot_dHz = permutedims(d_Hz)
     # plot_dHz[plot_dHM .<0] .= NaN
-    pcolormesh(1:nsoundings, times, plot_dHz, shading="nearest")
-    xlabel("sounding #")
-    cbHz = colorbar()
+    im2 = ax[2].pcolormesh(1:nsoundings, times, plot_dHz, shading="nearest")
+    ax[2].set_xlabel("sounding #")
+    cbHz = colorbar(im2, ax=ax[2])
     cbHz.ax.set_xlabel("Bz", fontsize=fsize)
-    ylabel("time s")
+    ax[1].set_ylabel("time s")
+    ax[2].set_ylabel("time s")
     ax[2].invert_yaxis()
     axHz = ax[2].twiny()
-    axHz.semilogy(Hz_add_noise, times, "-k")
-	axHz.semilogy(Hz_add_noise, times, "--w")
-    axHz.set_xlabel("high alt noise")
+    # axHz.semilogy(Hz_add_noise, times, "-k")
+	# axHz.semilogy(Hz_add_noise, times, "--w")
+    axHz.semilogy(mean(Hz_add_noise./abs.(d_Hz), dims=1)[:], times)
+    axHz.set_xlabel("avg Hz noise fraction")
     ax[3] = subplot(2,2,2, sharex=ax[1])
-	plot(1:nsoundings, z_tx, label="z_tx", "--")
-	plot(1:nsoundings, z_rx, label="z_rx")
-	plot(1:nsoundings, x_rx, label="x_rx")
-	plot(1:nsoundings, y_rx, label="y_rx")
-    legend()
-    xlabel("sounding #")
-    ylabel("earth frame geometry m")
+	ax[3].plot(1:nsoundings, z_tx, label="z_tx", "--")
+	ax[3].plot(1:nsoundings, z_rx, label="z_rx")
+	ax[3].plot(1:nsoundings, x_rx, label="x_rx")
+	ax[3].plot(1:nsoundings, y_rx, label="y_rx")
+    ax[3].legend()
+    ax[3].set_xlabel("sounding #")
+    ax[3].set_ylabel("earth frame geometry m")
 	ax[3].grid()
     ax[3].invert_yaxis()
     ax[4] = subplot(2,2,4, sharex=ax[1])
@@ -724,31 +739,10 @@ function read_survey_files(;
 	ax[4].plot(1:nsoundings, d_pitch_rx, label="pitch_rx")
 	ax[4].plot(1:nsoundings, d_roll_rx, label="roll_rx")
 	ax[4].grid()
-    xlabel("sounding #")
-    ylabel("rotations degrees")
-	legend()
+    ax[4].set_xlabel("sounding #")
+    ax[4].set_ylabel("rotations degrees")
+	ax[4].legend()
 	nicenup(f, fsize=fsize)
-    if makesounding
-        s_array = Array{TempestSoundingData, 1}(undef, nsoundings)
-        for is in 1:nsoundings
-            l, fi = Int(whichline[is]), fiducial[is]
-            @info "read $is out of $nsoundings"
-            dHx, dHz = vec(d_Hx[is,:]), vec(d_Hz[is,:])
-            σHx = sqrt.(vec(σ_Hx[is,:].^2) + Hx_add_noise.^2)
-            σHz = sqrt.(vec(σ_Hz[is,:].^2) + Hz_add_noise.^2)
-            s_array[is] = TempestSoundingData(
-				"sounding_$(l)_$fi", easting[is], northing[is],
-				topo[is], fi, l,
-				x_rx[is], y_rx[is], z_rx[is],
-                d_roll_rx[is], d_pitch_rx[is], d_yaw_rx[is],
-				d_roll_tx[is], d_pitch_tx[is], d_yaw_tx[is],
-				z_tx[is],
-                times, ramp,
-                σHx, σHz, dHx, dHz
-                )
-        end
-        return s_array
-    end
 end
 
 function makeoperator( sounding::TempestSoundingData;
@@ -773,10 +767,10 @@ function makeoperator( sounding::TempestSoundingData;
     nmax = nlayers+1
 
     zall, znall, zboundaries = setupz(zstart, extendfrac, dz=dz, n=nlayers, showplot=showgeomplot)
-    z, ρ, nfixed = makezρ(zboundaries; zfixed=zfixed, ρfixed=ρfixed)
+    z, ρ, = makezρ(zboundaries; zfixed=zfixed, ρfixed=ρfixed)
     ρ[z.>=zstart] .= ρbg
     ## Tempest operator creation from sounding data
-	aem = Bfield(
+	aem = Bfield(;ntimesperdecade, nfreqsperdecade,
     zTx = sounding.z_tx, zRx = sounding.z_rx,
 	x_rx = sounding.x_rx, y_rx = sounding.y_rx,
     rx_roll = sounding.roll_rx, rx_pitch = sounding.pitch_rx, rx_yaw = sounding.yaw_rx,
@@ -793,74 +787,34 @@ function makeoperator( sounding::TempestSoundingData;
 		σx = sounding.σ_x/μ₀,
 		σz = sounding.σ_z/μ₀)
 
-	plotfield && plotmodelfield!(aem, z, ρ)
-
-    aem, znall
+	plotfield && plotmodelfield!(aem, log10.(ρ[2:end]))
+    
+    aem, zall, znall, zboundaries
 end
-function make_tdgp_opt(sounding::TempestSoundingData;
-                    rseed = nothing,
-                    znall = [1],
-                    fileprefix = "sounding",
-                    nmin = 2,
-                    nmax = 40,
-                    K = GP.Mat32(),
-                    demean = false,
-                    sampledc = true,
-                    sddc = 0.01,
-                    sdpos = 0.05,
-                    sdprop = 0.05,
-                    fbounds = [-0.5 2.5],
-                    λ = [2],
-                    δ = 0.1,
-                    pnorm = 2,
-                    save_freq = 50,
-					nuisance_sdev   = [0.],
-					nuisance_bounds = [0. 0.],
-					updatenuisances = true,
-                    C = nothing,
-					dispstatstoscreen = false,
-					restart = false
-                    )
-    sdev_dc = sddc*diff(fbounds, dims=2)[:]
-    sdev_pos = [sdpos*abs(diff([extrema(znall)...])[1])]
-    sdev_prop = sdprop*diff(fbounds, dims=2)[:]
-    xall = permutedims(collect(znall))
-    xbounds = permutedims([extrema(znall)...])
 
-	history_mode = "w"
-	restart && (history_mode = "a")
+function makeoperator(aem::Bfield, sounding::TempestSoundingData)
+    ntimesperdecade = gettimesperdec(aem.F.interptimes)
+    nfreqsperdecade = gettimesperdec(aem.F.freqs)
+    aemout = Bfield(;ntimesperdecade, nfreqsperdecade,
+    zTx = sounding.z_tx, zRx = sounding.z_rx,
+	x_rx = sounding.x_rx, y_rx = sounding.y_rx,
+    rx_roll = sounding.roll_rx, rx_pitch = sounding.pitch_rx, rx_yaw = sounding.yaw_rx,
+    tx_roll = sounding.roll_tx, tx_pitch = sounding.pitch_tx, tx_yaw = sounding.yaw_tx,
+	ramp = sounding.ramp, times = sounding.times, useML = aem.useML,
+	z=copy(aem.z), ρ=copy(aem.ρ),
+	addprimary = aem.addprimary, #this ensures that the geometry update actually changes everything that needs to be
+    vectorsum = aem.vectorsum
+	)
+    set_noisy_data!(aemout,
+		dataHx = sounding.Hx_data/μ₀,
+        dataHz = sounding.Hz_data/μ₀,
+        σx = sounding.σ_x/μ₀,
+        σz = sounding.σ_z/μ₀)
+    aemout
+end
 
-    updatenonstat = false
-    needλ²fromlog = false
-    if rseed != nothing
-        Random.seed!(rseed)
-    end
-
-    opt = OptionsStat(fdataname = fileprefix*"_",
-                            nmin = nmin,
-                            nmax = nmax,
-                            xbounds = xbounds,
-                            fbounds = fbounds,
-                            xall = xall,
-                            λ = λ,
-                            δ = δ,
-                            demean = demean,
-                            sampledc = sampledc,
-                            sdev_dc = sdev_dc,
-                            sdev_prop = sdev_prop,
-                            sdev_pos = sdev_pos,
-                            pnorm = pnorm,
-                            quasimultid = false,
-                            K = K,
-                            save_freq = save_freq,
-                            needλ²fromlog = needλ²fromlog,
-                            updatenonstat = updatenonstat,
-							updatenuisances = updatenuisances,
-                            dispstatstoscreen = dispstatstoscreen,
-							history_mode = history_mode
-                            )
-
-	bounds = nuisance_bounds .+ [
+function makebounds(nuisance_bounds, sounding::TempestSoundingData)
+    bounds = nuisance_bounds .+ [
       sounding.z_tx
       sounding.z_rx
       sounding.x_rx
@@ -871,525 +825,21 @@ function make_tdgp_opt(sounding::TempestSoundingData;
       sounding.roll_tx
       sounding.pitch_tx
       sounding.yaw_tx]
+end    
 
-	optn = OptionsNuisance(opt;
-                        sdev = copy(nuisance_sdev),
-						bounds = bounds, C = C,
-						updatenuisances = updatenuisances)
-
-    opt, optn
-end
-
-function makeoperatorandoptions(soundings::Array{TempestSoundingData, 1};
-                                                    nplot = 2,
-                                                    zfixed   = [-1e5],
-                                                    ρfixed   = [1e12],
-                                                    zstart = 0.0,
-                                                    extendfrac = 1.06,
-                                                    useML = false,
-                                                    dz = 2.,
-                                                    ρbg = 10,
-                                                    nlayers = 40,
-                                                    ntimesperdecade = 10,
-                                                    nfreqsperdecade = 5,
-                                                    showgeomplot = false,
-                                                    plotfield = true,
-                                                    nmin = 2,
-                                                    nmax = 40,
-                                                    K = GP.Mat32(),
-                                                    demean = false,
-                                                    sampledc = true,
-                                                    sddc = 0.01,
-                                                    sdpos = 0.05,
-                                                    sdprop = 0.05,
-                                                    fbounds = [-0.5 2.5],
-                                                    λ = [2],
-                                                    δ = 0.1,
-                                                    save_freq = 50,
-                                                    nuisance_sdev   = [0.],
-                                                    nuisance_bounds = [0. 0.],
-                                                    C = nothing,
-                                                    updatenuisances = true,
-                                                    dispstatstoscreen = false,
-                                                    vectorsum = false
-                                                    )
-    for idx in randperm(length(soundings))[1:nplot]
-            aem, znall = makeoperator(soundings[idx],
-                                   zfixed = zfixed,
-                                   ρfixed = ρfixed,
-                                   zstart = zstart,
-                                   extendfrac = extendfrac,
-                                   dz = dz,
-                                   ρbg = ρbg,
-                                   nlayers = nlayers,
-                                   ntimesperdecade = ntimesperdecade,
-                                   nfreqsperdecade = nfreqsperdecade,
-                                   showgeomplot = showgeomplot,
-                                   plotfield = plotfield,
-                                   useML = useML,
-                                   vectorsum = vectorsum)
-    
-            opt, optn = make_tdgp_opt(soundings[idx],
-                                    znall = znall,
-                                    fileprefix = soundings[idx].sounding_string,
-                                    nmin = nmin,
-                                    nmax = nmax,
-                                    K = K,
-                                    demean = demean,
-                                    sampledc = sampledc,
-                                    sddc = sddc,
-                                    sdpos = sdpos,
-                                    sdprop = sdprop,
-                                    fbounds = fbounds,
-                                    save_freq = save_freq,
-                                    λ = λ,
-                                    δ = δ,
-                                    nuisance_bounds = nuisance_bounds,
-                                    nuisance_sdev = nuisance_sdev,
-                                    updatenuisances = updatenuisances,
-                                    C = C,
-                                    dispstatstoscreen = dispstatstoscreen
-                                    )
-    end    
-
-end
-
-function summarypost(soundings::Array{TempestSoundingData, 1};
-        qp1=0.05,
-        qp2=0.95,
-        burninfrac=0.5,
-        zstart = 0.0,
-        extendfrac = 1.06,
-        useML = false,
-        dz = 2.,
-        nlayers = 40,
-        nmin = 2,
-        nmax = 40,
-        K = GP.Mat32(),
-        demean = false,
-        sampledc = true,
-        sddc = 0.01,
-        sdpos = 0.05,
-        sdprop = 0.05,
-        fbounds = [-0.5 2.5],
-        λ = [2],
-        δ = 0.1,
-        save_freq = 50,
-        nuisance_sdev   = [0.],
-        nuisance_bounds = [0. 0.],
+function getoptnfromexisting(optn_in::OptionsNuisance, opt_in::Options, sounding::TempestSoundingData)
+    # helper function to get nuisances from an existing nuisance option
+    (;sdev, idxnotzero, rotatebounds, bounds, idxnotzero) = optn_in
+    sdevproposalfracs = zeros(size(sdev))
+    sdevproposalfracs[idxnotzero] = sdev[idxnotzero]./diff(rotatebounds, dims=2)
+    # assumption of symmetric priors about nuisance value!
+    Δprior = 0.5diff(bounds, dims=2).*[-1 1]
+    bounds = makebounds(Δprior, sounding)
+    W = deepcopy(optn_in.W)
+    OptionsNuisance(opt_in;
+        sdev = copy(sdevproposalfracs),
+        bounds, W,
         updatenuisances = true)
-
-    @assert extendfrac > 1.0
-    @assert dz > 0.0
-    @assert nlayers > 1
-    zall, znall, = setupz(zstart, extendfrac, dz=dz, n=nlayers)
-
-    linename = "_line_$(soundings[1].linenum)_summary.txt"
-    fnames = ["rho_low", "rho_mid", "rho_hi", "rho_avg",
-        "ddz_mean", "ddz_sdev", "phid_mean", "phid_sdev",
-        "nu_low", "nu_mid", "nu_high"].*linename
-
-    idxnotzero = findidxnotzero(length(nuisance_sdev), nuisance_bounds)
-    nunominal = zeros(length(idxnotzero), length(soundings))
-    if isfile(fnames[1])
-        @warn fnames[1]*" exists, reading stored values"
-        pl, pm, ph, ρmean,
-        vdmean, vddev, χ²mean, χ²sd, 
-        nulow, numid, nuhigh = map(x->readdlm(x), fnames)
-        for idx = 1:length(soundings)
-            nunominal[:,idx] = getnufromsounding(soundings[idx])[idxnotzero]
-        end                                 
-    else
-        # this is a dummy operator for plotting
-        aem, = makeoperator(soundings[1])
-        pl, pm, ph, ρmean, vdmean, vddev = map(x->zeros(length(zall), length(soundings)), 1:6)
-        χ²mean, χ²sd = zeros(length(soundings)), zeros(length(soundings))
-        nulow, numid, nuhigh  = map(x->zeros(length(idxnotzero), length(soundings)), 1:3)
-        for idx = 1:length(soundings)
-            opt, optn = make_tdgp_opt(soundings[idx],
-                                        znall = znall,
-                                        fileprefix = soundings[idx].sounding_string,
-                                        nmin = nmin,
-                                        nmax = nmax,
-                                        K = K,
-                                        demean = demean,
-                                        sampledc = sampledc,
-                                        sddc = sddc,
-                                        sdpos = sdpos,
-                                        sdprop = sdprop,
-                                        fbounds = fbounds,
-                                        save_freq = save_freq,
-                                        λ = λ,
-                                        δ = δ,
-                                        nuisance_bounds = nuisance_bounds,
-                                        nuisance_sdev = nuisance_sdev,
-                                        updatenuisances = updatenuisances,
-                                        dispstatstoscreen = false)
-            opt.xall[:] .= zall
-            @info "$idx out of $(length(soundings))\n"
-            opt.xall[:] .= zall
-            nunominal[:,idx] = mean(optn.bounds[idxnotzero,:], dims=2)
-            pl[:,idx], pm[:,idx], ph[:,idx], ρmean[:,idx],
-            vdmean[:,idx], vddev[:,idx] = CommonToAll.plot_posterior(aem, opt, burninfrac=burninfrac,
-                                                    qp1=qp1, qp2=qp2,
-                                                    doplot=false)
-            h, nuquants = plot_posterior(aem, optn, burninfrac=burninfrac, doplot=false)
-            nulow[:, idx]  .= nuquants[:, 1]
-            numid[:, idx]  .= nuquants[:, 2]
-            nuhigh[:, idx] .= nuquants[:, 3]
-            χ² = 2*CommonToAll.assembleTat1(opt, :U, temperaturenum=1, burninfrac=burninfrac)
-            ndata = useML ? sum(.!isnan.(soundings[idx].Hx_data)) : sum(.!isnan.(soundings[idx].Hx_data)) +
-                    sum(.!isnan.(soundings[idx].Hz_data))
-            χ²mean[idx] = mean(χ²)/ndata
-            χ²sd[idx]   = std(χ²)/ndata
-            if useML 
-                χ²mean[idx] = exp(χ²mean[idx]-log(ndata))
-                χ²sd[idx]   = exp(χ²sd[idx]-log(ndata)) # I think, need to check
-            end    
-        end
-        # write in grid format
-        for (fname, vals) in Dict(zip(fnames, [pl, pm, ph, ρmean, vdmean, vddev, χ²mean, χ²sd, nulow, numid, nuhigh]))
-            writedlm(fname, vals)
-        end
-        # write in x, y, z, rho format
-        for (i, d) in enumerate([pl, pm, ph, ρmean])
-            xyzrho = makearray(soundings, d, zall)
-            writedlm(fnames[i][1:end-4]*"_xyzrho.txt", xyzrho)
-        end
-    end
-    pl, pm, ph, ρmean, vdmean, vddev, χ²mean, χ²sd, zall, nulow, numid, nuhigh, nunominal
-end
-
-function plotsummarygrids3(soundings, nuhigh, nulow, numid, phgrid, plgrid, pmgrid, gridx, gridz, topofine, R, Z, χ²mean, χ²sd, lname, nunominal, numsize=2; qp1=0.05, qp2=0.95,
-    figsize=(10,10), fontsize=12, cmap="viridis", vmin=-2, vmax=0.5, Eislast=true, Nislast=true, 
-    topowidth=2, idx=nothing, useML=false, preferEright=false, preferNright=false, labelnu=[""], yl = nothing, dpi=300,
-    saveplot=true)
-    
-    # get the finely interpolated nuisances
-    # nuhighfine, nulowfine, numidfine = map(X->gridpoints(R, gridx, X), [nuhigh, nulow, numid])
-    
-    dr = diff(gridx)[1]
-    nnu = min(size(nulow, 1), size(nunominal, 1)) # in case we've inverted a zero bounds nuisance by mistech...
-    nrows = 1 + nnu + 3 + 1 # add the number of nuisances == no. of rows in nuhigh and 1 for chi2 and 1 for colorbar, not showing mean
-    height_ratios = [0.4ones(1+nnu)...,1,1,1,0.1]
-    f, s = plt.subplots(nrows, 1, gridspec_kw=Dict("height_ratios" => height_ratios),
-                        figsize=figsize)
-    f.suptitle(lname*" Δx=$dr m, Fids: $(length(R))", fontsize=fontsize)
-    icol = 1
-    s[icol].plot(R, χ²mean)
-    s[icol].plot(R, ones(length(R)), "--k")
-    s[icol].fill_between(R, vec(χ²mean-χ²sd), vec(χ²mean+χ²sd), alpha=0.5)
-    s[icol].set_ylabel(L"ϕ_d")
-    titlestring = useML ? "Max likelihood variance adjustment" : "Data misfit"
-    s[icol].set_title(titlestring)
-    icol += 1
-    
-    icol = plotnuquant(nulow, numid, nuhigh, nunominal, s, R, icol, nrows, numsize, labelnu)
-    
-    # pmgrid repeated as mean not shown in this plot
-    summaryconductivity(s, icol, f, soundings, pmgrid, phgrid, plgrid, pmgrid, gridx, gridz, topofine, R, Z, ; qp1, qp2, fontsize, 
-        cmap, vmin, vmax, topowidth, idx, omitconvergence=false, preferEright, preferNright, yl, showmean=false)
-
-    saveplot && savefig(lname*"_with_nu.png", dpi=dpi)
-end
-
-function plotnuquant(nqlow, nqmid, nqhigh, nunominal, s, gridx, icol, nrows, ms=2, labelnu=[""])
-    nnu = min(size(nqlow, 1), size(nunominal, 1)) # in case we've inverted a zero bounds nuisance by mistech...
-    labelnu[1] == "" || @assert length(labelnu) == nnu
-    for inu = 1:nnu
-        s[icol] = subplot(nrows, 1, icol, sharex=s[icol-1])
-        s[icol].fill_between(gridx, nqlow[inu,:], nqhigh[inu,:], alpha=0.5)
-        s[icol].plot(gridx, nqmid[inu,:])
-        s[icol].plot(gridx, nunominal[inu,:], "o", markersize=ms)
-        labelnu[1] == "" || s[icol].set_title(labelnu[inu])
-        labelnu[1] == "" || s[icol].set_ylabel(labelnu[inu])
-        icol += 1
-    end
-    icol    
-end   
-
-function summaryimages(soundings::Array{TempestSoundingData, 1};
-                        qp1=0.05,
-                        qp2=0.95,
-                        burninfrac=0.5,
-                        zstart = 0.0,
-                        extendfrac = 1.06,
-                        useML = false,
-                        dz = 2.,
-                        nlayers = 40,
-                        nmin = 2,
-                        nmax = 40,
-                        K = GP.Mat32(),
-                        demean = false,
-                        sampledc = true,
-                        sddc = 0.01,
-                        sdpos = 0.05,
-                        sdprop = 0.05,
-                        fbounds = [-0.5 2.5],
-                        λ = [2],
-                        δ = 0.1,
-                        save_freq = 50,
-                        nuisance_sdev   = [0.],
-                        nuisance_bounds = [0. 0.],
-                        updatenuisances = true,
-                        dr = 10,
-                        fontsize = 10,
-                        vmin = -2,
-                        vmax = 0.5,
-                        cmap="viridis",
-                        figsize=(6,10),
-                        topowidth=2,
-                        idx = nothing,
-                        omitconvergence = false,
-                        preferEright = false,
-                        preferNright = false,
-                        numsize=1,
-                        labelnu = [""],
-                        dpi = 300,
-                        saveplot = true,
-                        yl = nothing,
-                        showplot = true,
-                        showmean = false,
-                        )
-    @assert !(preferNright && preferEright) # can't prefer both labels to the right
-    pl, pm, ph, ρmean, vdmean, vddev, χ²mean, χ²sd, zall, 
-    nulow, numid, nuhigh, nunominal = summarypost(soundings,
-                                        qp1 = qp1,
-                                        qp2 = qp2,
-                                        burninfrac = burninfrac,
-                                        zstart = zstart,
-                                        extendfrac = extendfrac,
-                                        useML = useML,
-                                        dz = dz,
-                                        nlayers = nlayers,
-                                        nmin = nmin,
-                                        nmax = nmax,
-                                        K = K,
-                                        demean = demean,
-                                        sampledc = sampledc,
-                                        sddc = sddc,
-                                        sdpos = sdpos,
-                                        sdprop = sdprop,
-                                        fbounds = fbounds,
-                                        λ = λ,
-                                        δ = δ,
-                                        save_freq = save_freq,
-                                        nuisance_sdev   = nuisance_sdev,
-                                        nuisance_bounds = nuisance_bounds,
-                                        updatenuisances = updatenuisances)
-
-    phgrid, plgrid, pmgrid, σmeangrid, ∇zmeangrid,
-    ∇zsdgrid, gridx, gridz, topofine, R, Z = makesummarygrid(soundings, pl, pm, ph, ρmean,
-                                            vdmean, vddev, zall, dz, dr=dr)
-
-    lname = "Line $(soundings[1].linenum)"
-    Eislast, Nislast = whichislast(soundings)
-    plotsummarygrids1(soundings, σmeangrid, phgrid, plgrid, pmgrid, gridx, gridz, topofine, R, Z, χ²mean, χ²sd, lname; qp1, qp2,
-                        figsize, fontsize, cmap, vmin, vmax, 
-                        topowidth, idx, omitconvergence, useML,
-                        preferEright, preferNright, saveplot, showplot, dpi,
-                        yl, showmean)  
-
-    plotsummarygrids3(soundings, nuhigh, nulow, numid, phgrid, plgrid, pmgrid, gridx, gridz, topofine, R, Z, χ²mean, χ²sd, lname, nunominal, numsize, labelnu=labelnu, qp1=qp1, qp2=qp2,
-    figsize=figsize, fontsize=fontsize, cmap=cmap, vmin=vmin, vmax=vmax, Eislast=Eislast,
-    Nislast=Nislast, topowidth=topowidth, idx=idx, useML=useML, yl=yl,
-    preferEright=preferEright, preferNright=preferNright, saveplot=saveplot)
-
-end
-
-function plotindividualsoundings(soundings::Array{TempestSoundingData, 1};
-                        burninfrac=0.5,
-                        zstart = 0.0,
-                        extendfrac = 1.06,
-                        dz = 2.,
-                        nlayers = 40,
-                        nmin = 2,
-                        nmax = 40,
-                        K = GP.Mat32(),
-                        demean = false,
-                        sampledc = true,
-                        sddc = 0.01,
-                        sdpos = 0.05,
-                        sdprop = 0.05,
-                        fbounds = [-0.5 2.5],
-                        λ = [2],
-                        δ = 0.1,
-                        save_freq = 50,
-                        nuisance_sdev   = [0.],
-                        nuisance_bounds = [0. 0.],
-                        updatenuisances = true,
-                        nbins=50,
-                        figsize  = (6,6),
-                        zfixed   = [-1e5],
-                        ρfixed   = [1e12],
-                        ntimesperdecade = 10,
-                        nfreqsperdecade = 5,
-                        computeforwards = false,
-                        nforwards = 100,
-                        vectorsum = false,
-                        omittemp = false,
-                        showslope = false,
-                        plotmean = false,
-                        pdfclim = nothing,
-                      idxcompute = [1])
-    for idx = 1:length(soundings)
-        if in(idx, idxcompute)
-            @info "Sounding number: $idx"
-            aem, znall = makeoperator(soundings[idx],
-                zfixed = zfixed,
-                ρfixed = ρfixed,
-                zstart = zstart,
-                extendfrac = extendfrac,
-                dz = dz,
-                nlayers = nlayers,
-                ntimesperdecade = ntimesperdecade,
-                nfreqsperdecade = nfreqsperdecade,
-                vectorsum = vectorsum)
-            opt, optn = make_tdgp_opt(soundings[idx],
-                                        znall = znall,
-                                        fileprefix = soundings[idx].sounding_string,
-                                        nmin = nmin,
-                                        nmax = nmax,
-                                        K = K,
-                                        demean = demean,
-                                        sampledc = sampledc,
-                                        sddc = sddc,
-                                        sdpos = sdpos,
-                                        sdprop = sdprop,
-                                        fbounds = fbounds,
-                                        save_freq = save_freq,
-                                        λ = λ,
-                                        δ = δ,
-                                        nuisance_bounds = nuisance_bounds,
-                                        nuisance_sdev = nuisance_sdev,
-                                        updatenuisances = updatenuisances,
-                                        dispstatstoscreen = false)
-            zall, znall, = setupz(zstart, extendfrac, dz=dz, n=nlayers)    
-            opt.xall[:] .= zall       
-            getchi2forall(opt, alpha=0.8; omittemp) # chi2 errors
-            CommonToAll.getstats(opt) # ARs for GP model
-            CommonToAll.getstats(optn) # ARs for nuisances
-            plot_posterior(aem, opt, burninfrac=burninfrac, nbins=nbins, figsize=figsize;  showslope, pdfclim, plotmean) # GP models
-            ax = gcf().axes
-            ax[1].invert_xaxis()
-            plot_posterior(aem, optn, burninfrac=burninfrac, nbins=nbins, figsize=figsize) # nuisances
-            if computeforwards
-                m = assembleTat1(opt, :fstar, temperaturenum=1, burninfrac=burninfrac)
-                mn = CommonToAll.assemblenuisancesatT(optn, temperaturenum=1, burninfrac=burninfrac)
-                Random.seed!(10)
-                plotmodelfield!(aem, m[randperm(length(m))[1:nforwards]],
-                                                          mn[randperm(length(m))[1:nforwards],:],
-                                                          dz=dz, extendfrac=extendfrac)
-            end
-        end
-    end
-end
-
-# there are definitely nuisances, e.g. TEMPEST
-function loopacrosssoundings(soundings::Array{S, 1};
-                                nsequentialiters   = -1,
-                                nparallelsoundings = -1,
-                                zfixed             = [-1e5],
-                                ρfixed             = [1e12],
-                                zstart             = 0.0,
-                                extendfrac         = 1.06,
-                                dz                 = 2.,
-                                ρbg                = 10,
-                                nlayers            = 50,
-                                ntimesperdecade    = 10,
-                                nfreqsperdecade    = 5,
-                                Tmax               = -1,
-                                nsamples           = -1,
-                                nchainsatone       = -1,
-                                nchainspersounding = -1,
-                                nmin               = 2,
-                                nmax               = 40,
-                                K                  = GP.Mat32(),
-                                demean             = true,
-                                sampledc           = true,
-                                sddc               = 0.01,
-                                sdpos              = 0.05,
-                                sdprop             = 0.05,
-                                fbounds            = [-0.5 2.5],
-                                λ                  = [2],
-                                δ                  = 0.1,
-                                pnorm              = 2,
-                                save_freq          = 50,
-                                nuisance_sdev      = [0.],
-                                nuisance_bounds    = [0. 0.],
-                                updatenuisances    = true,
-                                dispstatstoscreen  = false,
-                                useML              = false,
-                                restart            = false,
-                                C                  = nothing,
-                                vectorsum          = false) where S<:Sounding
-
-    @assert nsequentialiters  != -1
-    @assert nparallelsoundings != -1
-    @assert nchainspersounding != -1
-    @assert nsamples != - 1
-    @assert nchainsatone != -1
-    @assert Tmax != -1
-
-    nsoundings = length(soundings)
-
-    for iter = 1:nsequentialiters
-        if iter<nsequentialiters
-            ss = (iter-1)*nparallelsoundings+1:iter*nparallelsoundings
-        else
-            ss = (iter-1)*nparallelsoundings+1:nsoundings
-        end
-        @info "soundings in loop $iter of $nsequentialiters", ss
-        r_nothing = Array{Nothing, 1}(undef, length(ss))
-        @sync for (i, s) in Iterators.reverse(enumerate(ss))
-            pids = (i-1)*nchainspersounding+i:i*(nchainspersounding+1)
-            @info "pids in sounding $s:", pids
-
-            aem, znall = makeoperator(    soundings[s],
-                                    zfixed = zfixed,
-                                    ρfixed = ρfixed,
-                                    zstart = zstart,
-                                    extendfrac = extendfrac,
-                                    dz = dz,
-                                    ρbg = ρbg,
-                                    useML = useML,
-                                    nlayers = nlayers,
-                                    ntimesperdecade = ntimesperdecade,
-                                    nfreqsperdecade = nfreqsperdecade,
-                                    vectorsum = vectorsum)
-
-            opt, optn = make_tdgp_opt(soundings[s],
-                                znall = znall,
-                                fileprefix = soundings[s].sounding_string,
-                                nmin = nmin,
-                                nmax = nmax,
-                                K = K,
-                                demean = demean,
-                                sampledc = sampledc,
-                                sddc = sddc,
-                                sdpos = sdpos,
-                                sdprop = sdprop,
-                                fbounds = fbounds,
-                                save_freq = save_freq,
-                                λ = λ,
-                                δ = δ,
-                                nuisance_bounds = nuisance_bounds,
-                                nuisance_sdev = nuisance_sdev,
-                                updatenuisances = updatenuisances,
-                                C = C,
-                                restart = restart,
-                                dispstatstoscreen = dispstatstoscreen
-                                )
-
-            @async r_nothing[i] = remotecall_fetch(main, pids[1], opt, optn, aem, collect(pids[2:end]),
-                                    Tmax         = Tmax,
-                                    nsamples     = nsamples,
-                                    nchainsatone = nchainsatone)
-
-        end # @sync
-        @info "done $iter out of $nsequentialiters at $(Dates.now())"
-    end
-end
-
+end  
 
 end

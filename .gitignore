@@ -14,3 +14,4 @@ Manifest.toml
 *err*
 docs/build/
 docs/src/generated/
+*summary*.txt
