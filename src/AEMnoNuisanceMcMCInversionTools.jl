@@ -144,7 +144,7 @@ function getndata(d)
     ndata, select
 end
 
-function plotindividualAEMsoundings(soundings::Vector{S}, aem_in::Operator1D, opt::Options, idxplot::Vector{Int};
+function plotindividualAEMsoundings(soundings::Vector{S}, aem_in::Operator1D, opt_in::Options, idxplot::Vector{Int};
     burninfrac=0.5,
     nbins = 50,
     figsize  = (6,6),
@@ -158,6 +158,7 @@ function plotindividualAEMsoundings(soundings::Vector{S}, aem_in::Operator1D, op
     computeforwards = false,
     nforwards = 100) where S<:Sounding
     
+    opt = deepcopy(opt_in)
     for idx = 1:length(soundings)
         if in(idx, idxplot)
             @info "Sounding number: $idx"

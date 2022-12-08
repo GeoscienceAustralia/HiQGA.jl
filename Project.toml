@@ -1,7 +1,7 @@
 name = "HiQGA"
 uuid = "01574e87-63b6-4466-925a-334cf7e21b6b"
 authors = ["richardt94 <29562583+richardt94@users.noreply.github.com>"]
-version = "0.2.2"
+version = "0.3.2"
 
 [deps]
 DataInterpolations = "82cc6244-b520-54b8-b5a6-8a565e85f1d0"
