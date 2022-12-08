@@ -4,6 +4,8 @@ import ..AbstractOperator.Sounding
 import ..AbstractOperator.makeoperator
 import ..AbstractOperator.makebounds
 import ..AbstractOperator.getoptnfromexisting
+import ..AbstractOperator.getnufromsounding
+import ..AbstractOperator.plotmodelfield!
 
 using ..AbstractOperator, ..AEM_VMD_HMD, ..SoundingDistributor
 using PyPlot, LinearAlgebra, ..CommonToAll, Random, DelimitedFiles, Distributed, Dates, Statistics
@@ -366,7 +368,7 @@ function plotdata(ax, d, σ, t; onesigma=true, dtype=nothing)
         label = "|B|"
     end        
     ax.errorbar(t, μ₀*abs.(d)*fTinv; yerr = μ₀*sigma*fTinv*abs.(σ),
-    linestyle="none", marker=".", elinewidth=1, capsize=3, label)
+    linestyle="none", marker=".", elinewidth=1, capsize=3, label, color="k")
 end
 
 function plotsoundingcurve(ax, f, t; color=nothing, alpha=1, lw=1)
@@ -437,7 +439,7 @@ function plotmodelfield!(aem::Bfield, manyρ::Vector{T}, manynu::Array{Float64, 
     # with nuisance    
     ax = initmodelfield!(aem; onesigma, figsize)
     for (i, ρ) in enumerate(manyρ)
-        plotmodelfield!(ax, 1, aem, vec(ρ), nu[i,:]; alpha, model_lw, forward_lw, color)
+        plotmodelfield!(ax, 1, aem, vec(ρ), manynu[i,:]; alpha, model_lw, forward_lw, color)
     end
     ax[1].invert_yaxis()
     nicenup(ax[1].get_figure(), fsize=12)
@@ -785,7 +787,7 @@ function makeoperator( sounding::TempestSoundingData;
 		σx = sounding.σ_x/μ₀,
 		σz = sounding.σ_z/μ₀)
 
-	plotfield && plotmodelfield!(aem, z, ρ)
+	plotfield && plotmodelfield!(aem, log10.(ρ[2:end]))
     
     aem, zall, znall, zboundaries
 end

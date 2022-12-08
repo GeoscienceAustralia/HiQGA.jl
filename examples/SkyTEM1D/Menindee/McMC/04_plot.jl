@@ -11,6 +11,6 @@ computeforwards = true
 nforwards = 5
 nbins = 50
 transD_GP.plotindividualAEMsoundings(soundings, aem, opt, idx;
-    burninfrac, nbins, computeforwards,
+    burninfrac, nbins, computeforwards, zall,
     nforwards)
 

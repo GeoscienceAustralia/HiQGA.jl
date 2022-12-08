@@ -304,7 +304,7 @@ end
 function plotdata(ax, d, σ, t; onesigma=true)
     sigma = onesigma ? 1 : 2
     ax.errorbar(t, μ*d*pVinv, yerr = μ*sigma*pVinv*abs.(σ),
-    linestyle="none", marker=".", elinewidth=0, capsize=3)
+    linestyle="none", marker=".", elinewidth=0, capsize=3, color="k")
 end
 
 function plotmodelfield!(ax, iaxis, aem::dBzdt, ρ; color=nothing, alpha=1, model_lw=1, forward_lw=1)

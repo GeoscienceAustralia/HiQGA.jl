@@ -479,7 +479,7 @@ function plotdata(ax, d, σ, t; onesigma=true, dtype=:LM)
     sigma = onesigma ? 1 : 2
     label = dtype == :LM ? "low moment" : "high moment"
     ax.errorbar(t, μ₀*d*pVinv; yerr = μ₀*sigma*pVinv*abs.(σ),
-    linestyle="none", marker=".", elinewidth=0, capsize=3, label)
+    linestyle="none", marker=".", elinewidth=0, capsize=3, label, color="k")
 end
 
 function plotmodelfield!(ax, iaxis, aem::dBzdt, ρ; color=nothing, alpha=1, model_lw=1, forward_lw=1)

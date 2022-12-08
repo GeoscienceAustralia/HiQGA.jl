@@ -30,6 +30,8 @@ function getndata end
 function makebounds end
 # to get optn with nuisances from existing struct
 function getoptnfromexisting end
+# to get nuisance frmo type of system
+function getnufromsounding end
 
 export Operator, Operator1D, Operator2D, Sounding
 end

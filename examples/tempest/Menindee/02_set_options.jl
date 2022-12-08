@@ -1,5 +1,5 @@
 ## same for all soundingss
-nsamples = 100001
+nsamples = 201
 nchainspersounding = 3
 ppn = 4
 @assert mod(ppn, nchainspersounding+1) == 0
@@ -35,7 +35,7 @@ nuisance_sdev = [
         0.005 #x_rx
         0.0 #y_rx
         0.0 #rx_roll
-        0.005 #rx_pitch
+        0.0 #rx_pitch
         0.0 #rx_yaw
         0.0 #tx_roll
         0.0 #tx_pitch
@@ -47,7 +47,7 @@ nuisance_sdev = [
      -3.0  3.0
       0.   0.
       0.   0.
-     -1.5  1.5
+      0.   0.
       0.   0.
       0.   0.
       0.   0.

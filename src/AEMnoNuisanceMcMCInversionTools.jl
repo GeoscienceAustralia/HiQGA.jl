@@ -145,6 +145,7 @@ function getndata(d)
 end
 
 function plotindividualAEMsoundings(soundings::Vector{S}, aem_in::Operator1D, opt_in::Options, idxplot::Vector{Int};
+    zall=[-1.],
     burninfrac=0.5,
     nbins = 50,
     figsize  = (6,6),
@@ -158,7 +159,9 @@ function plotindividualAEMsoundings(soundings::Vector{S}, aem_in::Operator1D, op
     computeforwards = false,
     nforwards = 100) where S<:Sounding
     
+    @assert length(zall) != 1
     opt = deepcopy(opt_in)
+    opt.xall[:] = zall
     for idx = 1:length(soundings)
         if in(idx, idxplot)
             @info "Sounding number: $idx"
@@ -289,7 +292,8 @@ function loopacrossAEMsoundings(soundings::Array{S, 1}, aem_in::Operator1D, opt_
 
     nsoundings = length(soundings)
     nsequentialiters, nparallelsoundings = splittasks(soundings; nchainspersounding, ppn)
-
+    opt = deepcopy(opt_in)
+    
     for iter = 1:nsequentialiters
         ss = getss(iter, nsequentialiters, nparallelsoundings, nsoundings)
         @info "soundings in loop $iter of $nsequentialiters", ss
@@ -298,7 +302,6 @@ function loopacrossAEMsoundings(soundings::Array{S, 1}, aem_in::Operator1D, opt_
             @info "pids in sounding $s:", pids
             
             aem = makeoperator(aem_in, soundings[s])
-            opt = deepcopy(opt_in)
             opt.fdataname = soundings[s].sounding_string*"_"
 
             @async remotecall_wait(main, pids[1], opt, aem, collect(pids[2:end]),

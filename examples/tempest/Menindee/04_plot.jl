@@ -1,73 +1,20 @@
 
-idxplot = 1:50:length(soundings)
+idxplot = [2]
 burninfrac = 0.5
-nbins = 100
-computeforwards, nforwards = true, 100
+nbins = 50
+computeforwards, nforwards = true, 2
 interpolatedr = 10
 vmax, vmin = .- extrema(fbounds)
 ## get the summary images of resistivity and nuisances over the profile
-transD_GP.TEMPEST1DInversion.summaryimages(soundings, 
-                            qp1=0.05,
-                            qp2=0.95,
-                            burninfrac = burninfrac,
-                            zstart = zstart,
-                            extendfrac = extendfrac,
-                            dz = dz,
-                            nlayers = nlayers,
-                            useML = useML,
-                            nmin = nmin,
-                            nmax = nmax,
-                            K = K,
-                            demean = demean,
-                            sampledc = sampledc,
-                            sddc = sddc,
-                            sdpos = sdpos,
-                            sdprop = sdprop,
-                            fbounds = fbounds,
-                            λ = λ,
-                            δ = δ,
-                            save_freq = save_freq,
-                            nuisance_sdev   = nuisance_sdev,
-                            nuisance_bounds = nuisance_bounds,
-                            updatenuisances = updatenuisances,
-                            dr = interpolatedr,
-                            fontsize = 10,
-                            vmin = vmin,
-                            vmax = vmax,
-                            cmap="viridis",
-                            figsize=(8,10),
-                            topowidth=1,
-                            idx = idxplot,
-                            showderivs = false,
-                            omitconvergence = false,
-                            preferEright = false,
-                            preferNright = false,
-                            saveplot = true,
-                            labelnu = ["zRx m", "xRx m", "pitch "*L"^\circ"] 
+transD_GP.AEMwithNuisanceMcMCInversionTools.summaryAEMwithnuisanceimages(soundings, opt, optn; zall,
+                            burninfrac, dz, useML, dr = interpolatedr, fontsize = 10,
+                            vmin, vmax, cmap="turbo", figsize=(8,10), idx = idxplot,
+                            omitconvergence = false, preferEright = false,  preferNright = false,
+                            saveplot = true,  labelnu = ["zRx m", "xRx m"] 
                         )
 
 ## now plot individual soundings in in idxplot
-transD_GP.TEMPEST1DInversion.plotindividualsoundings(soundings,
-                        burninfrac = burninfrac,
-                        zstart = zstart,
-                        extendfrac = extendfrac,
-                        dz = dz,
-                        nlayers = nlayers,
-                        nmin = nmin,
-                        nmax = nmax,
-                        K = K,
-                        fbounds = fbounds,
-                        λ = λ,
-                        δ = δ,
-                        nuisance_sdev   = nuisance_sdev,
-                        nuisance_bounds = nuisance_bounds,
-                        updatenuisances = updatenuisances,
-                        nbins = nbins,
-                        figsize  = (12,6),
-                        zfixed   = zfixed,
-                        ρfixed   = ρfixed,
-                        ntimesperdecade = ntimesperdecade,
-                        nfreqsperdecade = nfreqsperdecade,
-                        computeforwards = computeforwards,
-                        nforwards = nforwards,
-                        idxcompute = idxplot)
+transD_GP.AEMwithNuisanceMcMCInversionTools.plotindividualsoundings(soundings, aem, opt, optn, idxplot;
+                        burninfrac,nbins, figsize  = (12,6), zall,
+                        computeforwards, nforwards,
+                        )

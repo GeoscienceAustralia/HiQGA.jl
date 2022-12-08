@@ -5,6 +5,8 @@ import ..AbstractOperator.loopacrossAEMsoundings
 import ..AbstractOperator.plotmodelfield!
 import ..AbstractOperator.makebounds
 import ..AbstractOperator.getoptnfromexisting
+import ..AbstractOperator.getnufromsounding
+
 import ..Options, ..OptionsStat, ..OptionsNuisance
 export makeAEMoperatorandnuisanceoptions, loopacrossAEMsoundings, summaryAEMnuisanceimages
 import ..main # McMC function
@@ -164,7 +166,8 @@ function loopacrossAEMsoundings(soundings::Array{S, 1}, aem_in::Operator1D, opt_
 
     nsoundings = length(soundings)
     nsequentialiters, nparallelsoundings = splittasks(soundings; nchainspersounding, ppn)
-
+    opt = deepcopy(opt_in)
+    
     for iter = 1:nsequentialiters
         ss = getss(iter, nsequentialiters, nparallelsoundings, nsoundings)
         @info "soundings in loop $iter of $nsequentialiters", ss
@@ -173,7 +176,6 @@ function loopacrossAEMsoundings(soundings::Array{S, 1}, aem_in::Operator1D, opt_
             @info "pids in sounding $s:", pids
             
             aem = makeoperator(aem_in, soundings[s])
-            opt = deepcopy(opt_in)
             opt.fdataname = soundings[s].sounding_string*"_"
             optn = getoptnfromexisting(optn_in, opt, soundings[s])
 
@@ -188,6 +190,7 @@ end
 # plotting stuff
 
 function summaryAEMwithnuisanceimages(soundings::Array{S, 1}, opt_in::Options, optn_in::OptionsNuisance;
+                        zall=[-1.],
                         qp1=0.05,
                         qp2=0.95,
                         burninfrac=0.5,
@@ -226,6 +229,7 @@ function summaryAEMwithnuisanceimages(soundings::Array{S, 1}, opt_in::Options, o
 end                        
 
 function summaryimages(soundings::Array{S, 1}, opt_in::Options, optn_in::OptionsNuisance;
+                        zall=[-1.],
                         qp1=0.05,
                         qp2=0.95,
                         burninfrac=0.5,
@@ -287,7 +291,8 @@ function summarypost(soundings::Vector{S}, opt_in::Options, optn_in::OptionsNuis
         "ddz_mean", "ddz_sdev", "phid_mean", "phid_sdev",
         "nu_low", "nu_mid", "nu_high"].*linename
 
-    idxnotzero = findidxnotzero(length(nuisance_sdev), nuisance_bounds)
+    opt = deepcopy(opt_in)
+    idxnotzero = optn_in.idxnotzero
     nunominal = zeros(length(idxnotzero), length(soundings))
     if isfile(fnames[1])
         @warn fnames[1]*" exists, reading stored values"
@@ -304,8 +309,7 @@ function summarypost(soundings::Vector{S}, opt_in::Options, optn_in::OptionsNuis
         χ²mean, χ²sd = zeros(length(soundings)), zeros(length(soundings))
         nulow, numid, nuhigh  = map(x->zeros(length(idxnotzero), length(soundings)), 1:3)
         for idx = 1:length(soundings)
-            opt = deepcopy(opt_in)
-            opt.fdataname = soundings[s].sounding_string*"_"
+            opt.fdataname = soundings[idx].sounding_string*"_"
             optn = getoptnfromexisting(optn_in, opt, soundings[idx])
             @info "$idx out of $(length(soundings))\n"
             opt.xall[:] .= zall
@@ -392,6 +396,7 @@ end
 function plotindividualsoundings(soundings::Vector{S}, 
     aem_in::Operator1D, opt_in::Options, optn_in::OptionsNuisance, 
     idxplot::Vector{Int};
+    zall = [-1.],
     burninfrac=0.5,
     nbins = 50,
     figsize  = (6,6),
@@ -403,15 +408,18 @@ function plotindividualsoundings(soundings::Vector{S},
     qp2=0.95,
     rseed = 123,
     computeforwards = false,
-    nforwards = 100) where S<:Sounding
+    nforwards = 50) where S<:Sounding
 
+    @assert length(zall) != 1
+    
     opt = deepcopy(opt_in)
+    opt.xall[:] = zall
     for idx = 1:length(soundings)
         if in(idx, idxplot)
             @info "Sounding number: $idx"
             aem = makeoperator(aem_in, soundings[idx])
-            opt.fdataname = soundings[s].sounding_string*"_"
-            optn = getoptnfromexisting(optn_in, opt, soundings[s]) 
+            opt.fdataname = soundings[idx].sounding_string*"_"
+            optn = getoptnfromexisting(optn_in, opt, soundings[idx]) 
             getchi2forall(opt, alpha=0.8; omittemp) # chi2 errors
             CommonToAll.getstats(opt) # ARs for GP model
             CommonToAll.getstats(optn) # ARs for nuisances
