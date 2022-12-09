@@ -110,8 +110,6 @@ if rank == 0
 end
 manager = MPIClusterManagers.start_main_loop(MPI_TRANSPORT_ALL)
 @info "there are $(nworkers()) workers"
-@everywhere @info gethostname()
-@show nworkers()
 MPIClusterManagers.stop_main_loop(manager)
 rmprocs(workers())
 exit()
@@ -125,10 +123,6 @@ and you should see output like:
 ```
 [ Info: size is 3
 [ Info: there are 2 workers
-[ Info: hostname1.blah
-[ Info: hostname2.blah
-[ Info: hostname3.blah
-nworkers() = 2
 ```
 This is the basic recipe for all the cluster HiQGA jobs on NCI. After the call to `manager = MPIClusterManagers.start_main_loop(MPI_TRANSPORT_ALL)`, standard MPI execution stops, and we return to an explicit manager-worker mode with code execution only continuing on the manager which is Julia process 1.
 ### Installing PyPlot on NCI
