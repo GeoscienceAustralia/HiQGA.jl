@@ -228,7 +228,7 @@ function makeAEMoperatorandoptions(sounding::Sounding;
                         nmin = 2,
                         nmax = 40,
                         K = GP.OrstUhn(),
-                        demean = true,
+                        demean = false,
                         sdpos = 0.05,
                         sdprop = 0.05,
                         sddc = 0.008,

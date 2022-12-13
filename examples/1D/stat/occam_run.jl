@@ -1,6 +1,7 @@
 # # Example - Bayesian nonlinear regression
 # ## Setup
 ## let's try gradient descent, all model values are in log10 conductivity
+# !!!! make sure to rerun 01 with calcjacobian = true !!!!
 ρstart, ρ0 = map(y->zeros(length(x)), 1:2)
 ρstart .= 0.
 ρ0 .= 0

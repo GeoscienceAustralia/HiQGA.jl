@@ -28,12 +28,12 @@ function Line(d::Array{Float64, 1} ;useML=false, σ=1.0, calcjacobian=false)
         σ = σ*ones(length(d))    
     end
     select = .!isnan.(d[:])
+    res = copy(d[select])
     if calcjacobian
         J = getA(d)
         Wdiag = 1 ./σ[select]
-        res = copy(d[select])
     else    
-        res, J, Wdiag = zeros(0), zeros(0), zeros(0)
+        J, Wdiag = zeros(0), zeros(0)
     end 
     W = sparse(diagm(Wdiag))
     nfixed = 0 # only needed for gradient based

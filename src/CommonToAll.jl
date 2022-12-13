@@ -655,7 +655,8 @@ function plot_posterior(F::Operator1D,
 end
 
 function plot_posterior(F::Operator1D,
-                        opt::OptionsStat;
+                    opt::OptionsStat;
+                    useoptfbounds = true,
                     temperaturenum = 1,
                     nbins = 50,
                     burninfrac=0.5,
@@ -678,9 +679,14 @@ function plot_posterior(F::Operator1D,
                     doplot = true)
     @assert 0<vmaxpc<=1
     
+    if useoptfbounds
+        rhomin, rhomax = extrema(opt.fbounds)
+    else
+        rhomin, rhomax = Inf, -Inf
+    end    
     M = assembleTat1(opt, :fstar, burninfrac=burninfrac, temperaturenum=temperaturenum)
-    himage, edges, CI, meanimage, meandiffimage, sdslope, = gethimage(F, M, opt, burninfrac=burninfrac, temperaturenum=temperaturenum,
-                nbins=nbins, qp1=qp1, qp2=qp2, istothepow=istothepow,
+    himage, edges, CI, meanimage, meandiffimage, sdslope, = gethimage(F, M, opt; temperaturenum,
+                nbins, qp1, qp2, istothepow, rhomin, rhomax,
                 islscale=false, pdfnormalize=pdfnormalize)
 
     if doplot
