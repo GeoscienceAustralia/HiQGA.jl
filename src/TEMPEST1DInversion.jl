@@ -96,9 +96,10 @@ function Bfield(;
 		@assert zRx>zTx # receiver below transmitter
 		@assert x_rx<0 # receiver behind transmitter
 	end
+    nmax = length(ρ)+1
 	Rot_rx = makerotationmatrix(order=order_rx,yaw=rx_yaw, pitch=rx_pitch, roll=rx_roll,doinv=true)
 	Rot_tx = makerotationmatrix(order=order_tx,yaw=tx_yaw, pitch=tx_pitch, roll=tx_roll)
-	F = AEM_VMD_HMD.HFieldDHT(;
+	F = AEM_VMD_HMD.HFieldDHT(;nmax,
 	                      ntimesperdecade = ntimesperdecade,
 	                      nfreqsperdecade = nfreqsperdecade,
 						  freqlow=1e-5,

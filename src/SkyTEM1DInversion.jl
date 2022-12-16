@@ -383,7 +383,7 @@ function computeMLfactor(aem)
 end
 
 function makenoisydata!(aem, ρ; 
-        rseed=123, noisefrac=0.03, σ_halt_low=nothing, σ_halt_high, useML=false,
+        rseed=123, noisefrac=0.03, σ_halt_low=nothing, σ_halt_high=nothing, useML=false,
         onesigma=true, color=nothing, alpha=1, model_lw=1, forward_lw=1, figsize=(8,6), revax=true)
     # σ_halt always assumed in Bfield units of pV
     getfield!(ρ, aem)
