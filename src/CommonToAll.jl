@@ -1223,6 +1223,13 @@ function plot1Dpatches(ax, zlist, xlist; alpha=0.25, fc="red", ec="blue", lw=2)
     end    
 end
 
+function getclosestidx(Xwell, Ywell, soundings::Vector{S}) where S<: Sounding
+    XY = hcat([[s.X, s.Y] for s in soundings]...)
+    tree = KDTree(XY)
+    idx, = nn(tree, [Xwell;Ywell])
+    idx
+end    
+
 #function to read the *dfn file and extract the column number and column names as a *.txt file 
 function dfn2hdr(dfnfile::String)
     dfn = readlines(dfnfile)
