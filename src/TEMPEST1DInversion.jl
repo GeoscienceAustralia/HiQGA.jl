@@ -298,7 +298,7 @@ function get_misfit(m::AbstractArray, opt::Options, tempest::Bfield)
 	chi2by2 = 0.0;
 	if !opt.debug
 		getfield!(m, tempest)
-		getchi2by2(tempest)
+		chi2by2 = getchi2by2(tempest)
 	end
 	return chi2by2
 end
@@ -328,7 +328,7 @@ function get_misfit(m::AbstractArray, mn::AbstractVector, opt::Union{Options,Opt
 	chi2by2 = 0.0;
 	if !opt.debug
 		getfield!(m, mn, tempest)
-		getchi2by2(tempest)
+		chi2by2 = getchi2by2(tempest)
 	end
 	return chi2by2
 end
