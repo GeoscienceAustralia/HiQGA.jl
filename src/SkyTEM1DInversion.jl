@@ -148,7 +148,7 @@ returnforwrite(s::SkyTEMsoundingData) = [s.X, s.Y, s.Z, s.fid,
     s.zTxHM, s.rTx]
 
 function getndata(S::SkyTEMsoundingData)
-    getndata(S.LM_data)[2] + getndata(S.HM_data)[2]
+    getndata(S.LM_data)[1] + getndata(S.HM_data)[1]
 end   
 
 function SkyTEMsoundingData(;rRx=-12., zRxLM=12., zTxLM=12.,
