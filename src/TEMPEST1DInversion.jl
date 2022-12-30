@@ -293,19 +293,20 @@ function makerotationmatrix(;yaw=0.0,roll=0.0,pitch=0.0, order="lala", doinv = f
     end
 end
 
-function get_misfit(m::Model, opt::Options, tempest::Bfield)
+function get_misfit(m::AbstractArray, opt::Options, tempest::Bfield)
+    # no nuisances
 	chi2by2 = 0.0;
 	if !opt.debug
 		getfield!(m, tempest)
-		idxx, idxz = tempest.selectx, tempest.selectz
-        chi2by2 = getchi2by2([tempest.Hx[idxx]; tempest.Hz[idxz]],
-                        [tempest.dataHx[idxx]; tempest.dataHz[idxz]],
-                        [tempest.σx[idxx];tempest.σz[idxz]],
-                        tempest.useML, tempest.ndatax + tempest.ndataz)
+		chi2by2 = getchi2by2(tempest)
 	end
 	return chi2by2
 end
-#new function for vector sum elements to be called for plotting
+
+function get_misfit(m::Model, opt::Options, tempest::Bfield)
+    # actually used in McMC, no nuisances
+    get_misfit(m.fstar, opt, tempest)
+end
 
 get_fm(tempest::Bfield) = get_fm(tempest.Hx,tempest.Hz)
 
@@ -327,17 +328,7 @@ function get_misfit(m::AbstractArray, mn::AbstractVector, opt::Union{Options,Opt
 	chi2by2 = 0.0;
 	if !opt.debug
 		getfield!(m, mn, tempest)
-		idxx, idxz = tempest.selectx, tempest.selectz
-        if tempest.vectorsum
-            fm = get_fm(tempest)
-            d, σ = get_dSigma(tempest)
-            chi2by2 = getchi2by2(fm, d, σ, tempest.useML, tempest.ndatax)
-        else
-            chi2by2 = getchi2by2([tempest.Hx[idxx]; tempest.Hz[idxz]],
-                        [tempest.dataHx[idxx]; tempest.dataHz[idxz]],
-                        [tempest.σx[idxx];tempest.σz[idxz]],
-                        tempest.useML, tempest.ndatax + tempest.ndataz)
-        end
+		chi2by2 = getchi2by2(tempest)
 	end
 	return chi2by2
 end
@@ -345,6 +336,20 @@ end
 function get_misfit(m::Model, mn::ModelNuisance, opt::Union{Options,OptionsNuisance}, tempest::Bfield)
     # actually used in McMC
     get_misfit(m.fstar, mn.nuisance, opt, tempest)
+end
+
+function getchi2by2(tempest::Bfield)
+    idxx, idxz = tempest.selectx, tempest.selectz
+    if tempest.vectorsum
+        fm = get_fm(tempest)
+        d, σ = get_dSigma(tempest)
+        chi2by2 = getchi2by2(fm, d, σ, tempest.useML, tempest.ndatax)
+    else
+        chi2by2 = getchi2by2([tempest.Hx[idxx]; tempest.Hz[idxz]],
+                    [tempest.dataHx[idxx]; tempest.dataHz[idxz]],
+                    [tempest.σx[idxx];tempest.σz[idxz]],
+                    tempest.useML, tempest.ndatax + tempest.ndataz)
+    end
 end
 
 function getchi2by2(fm, d, σ, useML, ndata)
