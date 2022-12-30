@@ -1,6 +1,7 @@
 module CommonToAll
 using PyPlot, StatsBase, Statistics, Distances, LinearAlgebra,
-      DelimitedFiles, ..AbstractOperator, NearestNeighbors, Printf
+      DelimitedFiles, ..AbstractOperator, NearestNeighbors, Printf, 
+      KernelDensitySJ, KernelDensity
 
 import ..Options, ..OptionsStat, ..OptionsNonstat, ..OptionsNuisance,
        ..history, ..GP.κ, ..calcfstar!, ..AbstractOperator.Sounding
@@ -12,6 +13,11 @@ export trimxft, assembleTat1, gettargtemps, checkns, getchi2forall, nicenup,
         makegrid, whichislast, makesummarygrid, makearray, plotNEWSlabels, 
         plotprofile, gridpoints, splitsoundingsbyline, dfn2hdr, getgdfprefix, 
         pairinteractionplot, flipline, summaryconductivity, plotsummarygrids1, getVE
+
+# Kernel Density stuff
+abstract type KDEtype end
+struct SJ <: KDEtype end
+struct LSCV <: KDEtype end
 
 function trimxft(opt::Options, burninfrac::Float64, temperaturenum::Int)
     x_ft = assembleTat1(opt, :x_ftrain, burninfrac=burninfrac, temperaturenum=temperaturenum)
@@ -595,19 +601,21 @@ function plot_posterior(F::Operator1D,
                         fsize=14,
                         showlscale1vd=false,
                         istothepow=false,
+                        usekde = false,
+                        kdetype = SJ(),
                         doplot = true,
                         a = 0.25,
                         lw = 1)
     @assert 0<vmaxpc<=1
     M = assembleTat1(optns, :fstar, burninfrac=burninfrac, temperaturenum=temperaturenum)
     himage_ns, edges_ns, CI_ns, meanimage_ns, 
-    meandiffimage_ns, sdslope_ns, = gethimage(F, M, optns, temperaturenum=temperaturenum,
-                            nbins=nbins, qp1=qp1, qp2=qp2, istothepow=istothepow,
+    meandiffimage_ns, sdslope_ns, = gethimage(F, M, optns; temperaturenum=temperaturenum,
+                            nbins=nbins, qp1=qp1, qp2=qp2, istothepow=istothepow, usekde, kdetype,
                             islscale=false, pdfnormalize=pdfnormalize)
     M = assembleTat1(opts, :fstar, burninfrac=burninfrac, temperaturenum=temperaturenum)
     himage, edges, CI, meanimage, 
-    meandiffimage, sdslope, = gethimage(F, M, opts, temperaturenum=temperaturenum,
-                            nbins=nbins, qp1=qp1, qp2=qp2, istothepow=false,
+    meandiffimage, sdslope, = gethimage(F, M, opts; temperaturenum=temperaturenum,
+                            nbins=nbins, qp1=qp1, qp2=qp2, istothepow=false, usekde, kdetype,
                             islscale=true, pdfnormalize=pdfnormalize)
     f,ax = plt.subplots(1, 3+convert(Int, showlscale1vd), sharey=true, figsize=figsize)
     xall = opts.xall
@@ -676,6 +684,8 @@ function plot_posterior(F::Operator1D,
                     lwidth = 2,
                     pdfclim = nothing,
                     showslope = false,
+                    kdetype = SJ(),
+                    usekde = false,
                     doplot = true)
     @assert 0<vmaxpc<=1
     
@@ -686,7 +696,7 @@ function plot_posterior(F::Operator1D,
     end    
     M = assembleTat1(opt, :fstar, burninfrac=burninfrac, temperaturenum=temperaturenum)
     himage, edges, CI, meanimage, meandiffimage, sdslope, = gethimage(F, M, opt; temperaturenum,
-                nbins, qp1, qp2, istothepow, rhomin, rhomax,
+                nbins, qp1, qp2, istothepow, rhomin, rhomax, usekde, kdetype,
                 islscale=false, pdfnormalize=pdfnormalize)
 
     if doplot
@@ -806,6 +816,48 @@ function secondderiv(x)
     abs.(sd)
 end
 
+function dodensityestimate(usekde::Bool, data, K::KDEtype, edges)
+    if usekde
+        kdefunc = kde_(K, data)
+        kdefunc(0.5(edges[2:end]+edges[1:end-1]))
+    else
+        w = fit(Histogram, data, edges).weights
+        w/(sum(w)*diff(edges)[1])
+    end    
+end
+
+function stretchexists(F::Operator)
+    in(:stretch, fieldnames(typeof(F))) && F.stretch
+end
+
+kde_(K::SJ, data) = kde_sj(;data)
+kde_(K::LSCV, data) = kde_cv(;data)
+
+abstract type KDEstimator end
+
+# Sheather-Jones plugin
+struct kde_sj <: KDEstimator
+    data
+    bw :: Real
+end    
+
+kde_sj(;data=zeros(0)) = kde_sj(data, bwsj(data))
+
+function (foo::kde_sj)(xvals)
+    density(foo.data, foo.bw, xvals)
+end
+
+# LSCV KDE
+struct kde_cv <: KDEstimator
+    U
+end    
+
+kde_cv(;data=zeros(0)) = kde_cv(kde_lscv(data))
+
+function (foo::kde_cv)(xvals)
+    pdf(foo.U, xvals)
+end
+
 function gethimage(F::Operator, M::AbstractArray, opt::Options;
                 burninfrac = 0.5,
                 nbins = 50,
@@ -816,6 +868,8 @@ function gethimage(F::Operator, M::AbstractArray, opt::Options;
                 islscale = false,
                 pdfnormalize=false,
                 istothepow = false,
+                usekde = false,
+                kdetype = SJ(),
                 temperaturenum=1)
     T = x->x
     if (rhomin == Inf) && (rhomax == -Inf)
@@ -847,17 +901,16 @@ function gethimage(F::Operator, M::AbstractArray, opt::Options;
     for ilayer=1:length(M[1])
         if !stretchexists(F) # if no stretch
             mthislayer = [T(m[ilayer]) for m in M]
-            himage[ilayer,:] = fit(Histogram, mthislayer, edges).weights
+            himage[ilayer,:] = dodensityestimate(usekde, mthislayer, kdetype, edges)
             CI[ilayer,:] = [quantile(mthislayer,(qp1, 0.5, qp2))...]
             meanimage[ilayer] = mean(vec(mthislayer))
         else # there is an affine stretch with depth
             mthislayer = [m[ilayer] for m in M]
             expandedthislayer = T.(F.low[ilayer] .+ mthislayer*F.Δ[ilayer])
-            himage[ilayer,:] = fit(Histogram, expandedthislayer, edges).weights
+            himage[ilayer,:] = dodensityestimate(usekde, expandedthislayer, kdetype, edges)
             CI[ilayer,:] = [quantile(expandedthislayer,(qp1, 0.5, qp2))...]
             meanimage[ilayer] = mean(vec(expandedthislayer))
         end        
-        himage[ilayer,:] = himage[ilayer,:]/sum(himage[ilayer,:])/(diff(edges)[1])
         pdfnormalize && (himage[ilayer,:] = himage[ilayer,:]/maximum(himage[ilayer,:]))
     end
     if !stretchexists(F)
@@ -868,10 +921,6 @@ function gethimage(F::Operator, M::AbstractArray, opt::Options;
     Mslope = mean(firstderiv.(Tm))
     sdevslope = std(firstderiv.(Tm))
     himage, edges, CI, meanimage, Mslope, sdevslope
-end
-
-function stretchexists(F::Operator)
-    in(:stretch, fieldnames(typeof(F))) && F.stretch
 end
 
 # plotting codes for 2D sections in AEM
