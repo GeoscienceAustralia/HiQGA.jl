@@ -434,7 +434,7 @@ function plotindividualsoundings(soundings::Vector{S},
                 Random.seed!(rseed)
                 randidx = randperm(length(m))
                 plotmodelfield!(aem, m[randidx[1:nforwards]],
-                                    mn[randidx(length(m))[1:nforwards],:])
+                                    mn[randidx[1:nforwards],:])
             end
         end
     end
