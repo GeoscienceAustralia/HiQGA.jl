@@ -6,7 +6,7 @@ using PyPlot, StatsBase, Statistics, Distances, LinearAlgebra,
 import ..Options, ..OptionsStat, ..OptionsNonstat, ..OptionsNuisance,
        ..history, ..GP.κ, ..calcfstar!, ..AbstractOperator.Sounding
 
-export trimxft, assembleTat1, gettargtemps, checkns, getchi2forall, nicenup,
+export trimxft, assembleTat1, gettargtemps, checkns, getchi2forall, nicenup, plotconv,
         plot_posterior, make1Dhist, make1Dhists, setupz, zcontinue, makezρ, plotdepthtransforms,
         unwrap, getn, geomprogdepth, assemblemodelsatT, getstats, gethimage,
         assemblenuisancesatT, makenuisancehists, stretchexists,
@@ -479,6 +479,37 @@ function getchi2forall(opt_in::Options;
     ax[nrows].set_xlabel("iterations")
     nicenup(f, fsize=fsize)
 
+end
+
+function plotconv(optin::Options; burninfrac= 0.5, first=0.1, last=0.5, till=1.0, figsize=(6,2), fontsize=10, nbins=50, doall=false)
+    opt = deepcopy(optin)
+    iter, k, chi2by2 = map(x->assembleTat1(opt, x; temperaturenum=1, burninfrac), (:iter, :nodes, :U))
+    idx = sortperm(iter)
+    till = round(Int, idx[end]*till)
+    iter, k, chi2by2 = map(x->x[idx][1:till], (iter, k, chi2by2))
+    f, ax = plt.subplots(1, 2; figsize)
+    # first group, second group
+    getconv(ax, iter, chi2by2, k, nbins, opt.nmin, opt.nmax, first, last)
+    ax[1].set_xlabel("-ve log likelihood")
+    ax[1].set_ylabel("pdf")
+    ax[2].set_xlabel("# nuclei")
+    ax[2].set_ylabel("pdf")
+    nicenup(f, fsize=fontsize)
+    nothing
+end 
+
+function getconv(ax, iter, chi2by2, k, nbins, nmin, nmax, first, last)
+    first, last = map(x->round(Int, length(iter)*x), (first, last))
+    plotconv(ax, chi2by2[1:first], k[1:first], nbins, nmin, nmax)
+    plotconv(ax, chi2by2[last:end], k[last:end], nbins, nmin, nmax)
+end    
+
+function plotconv(ax, chi2by2, k, nbins, nmin, nmax)
+    kdefunc_nll = kde_(SJ(), chi2by2)
+    nllrange = range(minimum(chi2by2), maximum(chi2by2), nbins)
+    krange = nmin-0.5:1:nmax+0.5
+    ax[1].plot(nllrange, kdefunc_nll(nllrange))
+    ax[2].hist(k, krange, density=true, histtype="step")
 end
 
 function geomprogdepth(n, dy, c)
