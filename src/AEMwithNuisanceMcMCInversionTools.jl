@@ -432,8 +432,9 @@ function plotindividualsoundings(soundings::Vector{S},
                 m = assembleTat1(opt, :fstar, temperaturenum=1, burninfrac=burninfrac)
                 mn = CommonToAll.assemblenuisancesatT(optn, temperaturenum=1, burninfrac=burninfrac)
                 Random.seed!(rseed)
-                plotmodelfield!(aem, m[randperm(length(m))[1:nforwards]],
-                                    mn[randperm(length(m))[1:nforwards],:])
+                randidx = randperm(length(m))
+                plotmodelfield!(aem, m[randidx[1:nforwards]],
+                                    mn[randidx(length(m))[1:nforwards],:])
             end
         end
     end
