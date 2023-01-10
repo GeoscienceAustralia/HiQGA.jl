@@ -374,7 +374,7 @@ function plotdata(ax, d, σ, t; onesigma=true, dtype=nothing)
         label = "|B|"
     end        
     ax.errorbar(t, μ₀*abs.(d)*fTinv; yerr = μ₀*sigma*fTinv*abs.(σ),
-    linestyle="none", marker=".", elinewidth=1, capsize=3, label, color="k")
+    linestyle="none", marker=".", elinewidth=1, capsize=3, label)
 end
 
 function plotsoundingcurve(ax, f, t; color=nothing, alpha=1, lw=1)
