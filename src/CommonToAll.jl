@@ -1,7 +1,7 @@
 module CommonToAll
 using PyPlot, StatsBase, Statistics, Distances, LinearAlgebra,
       DelimitedFiles, ..AbstractOperator, NearestNeighbors, Printf, 
-      KernelDensitySJ, KernelDensity
+      KernelDensitySJ, KernelDensity, Interpolations
 
 import ..Options, ..OptionsStat, ..OptionsNonstat, ..OptionsNuisance,
        ..history, ..GP.κ, ..calcfstar!, ..AbstractOperator.Sounding
@@ -967,27 +967,40 @@ function splitsoundingsbyline(soundings::Array{S, 1}) where S<:Sounding
     linestartidx
 end 
 
-function makegrid(vals::AbstractArray, soundings::Array{S, 1};
+function makegrid(vals::AbstractArray, soundings::Array{S, 1}; donn=false,
     dr=10, zall=[NaN], dz=-1) where S<:Sounding
     @assert all(.!isnan.(zall)) 
     @assert dz>0
     X = [s.X for s in soundings]
     Y = [s.Y for s in soundings]
-    x0, y0 = X[1], Y[1]
     R = cumulativelinedist(X,Y)
-    rr, zz = [r for z in zall, r in R], [z for z in zall, r in R]
-    topo = [s.Z for s in soundings]
-    zz = topo' .- zz # mAHD
-    kdtree = KDTree([rr[:]'; zz[:]'])
-    gridr = range(R[1], R[end], step=dr)
-    gridz = reverse(range(extrema(zz)..., step=dz))
-    rr, zz = [r for z in gridz, r in gridr], [z for z in gridz, r in gridr]
-    idxs, = nn(kdtree, [rr[:]'; zz[:]'])
-    img = zeros(size(rr))
-    for i = 1:length(img)
-        img[i] = vals[idxs[i]]
-    end
-    topofine = gridpoints(R, gridr, topo)
+    if donn
+        rr, zz = [r for z in zall, r in R], [z for z in zall, r in R]
+        topo = [s.Z for s in soundings]
+        zz = topo' .- zz # mAHD
+        kdtree = KDTree([rr[:]'; zz[:]'])
+        gridr = range(R[1], R[end], step=dr)
+        gridz = reverse(range(extrema(zz)..., step=dz))
+        rr, zz = [r for z in gridz, r in gridr], [z for z in gridz, r in gridr]
+        idxs, = nn(kdtree, [rr[:]'; zz[:]'])
+        img = zeros(size(rr))
+        for i = 1:length(img)
+            img[i] = vals[idxs[i]]
+        end
+        topofine = gridpoints(R, gridr, topo)
+    else
+        nodes = ([z for z in zall], [r for r in R])
+        itp = extrapolate(interpolate(nodes, vals, Gridded(Linear())), Line()) 
+        topo = [s.Z for s in soundings]
+        gridr = range(R[1], R[end], step=dr)
+        topofine = (interpolate((R,), topo, Gridded(Linear())))(gridr)
+        # height = topo in mAHD - depth # mAHD
+        minahd = minimum(topo) - maximum(zall)
+        maxahd = maximum(topo)
+        gridz = reverse(range(minahd, maxahd, step=dz))
+        img = [itp(topofine[iy] - x,y) for x in gridz, (iy, y) in enumerate(gridr)]
+        zz = [z for z in gridz, r in gridr] 
+    end    
     img[zz .>topofine'] .= NaN
     img, gridr, gridz, topofine, R
 end
