@@ -276,3 +276,37 @@ function write_history(io, v::Vector)
     write(io, "\n")
 end
 
+function coordinatedesc(A, x::AbstractVector, y::AbstractVector, λ², W)
+    a = getaⱼ(A)
+    for l in λ²
+        for j in 1:size(A, 2)
+            cⱼ = getcⱼ(A, x, y, j)
+            x[j] = getx̂(a[j], cⱼ, l)
+        end
+        r = (y-A*x)./W
+        ϕd = sum(r'r/length(y))
+        ϕd <= 1 && (@info l; break)
+    end    
+end
+
+function getaⱼ(A)
+    2*[sum(a.^2) for a in eachcol(A)]
+end    
+
+function getcⱼ(A, x::AbstractVector, y::AbstractVector, j::Int)
+    cⱼ = 0.
+    for i = 1:lastindex(y)
+        cⱼ +=  (dot(A[i,:], x) - A[i,j]*x[j] - y[i])*A[i,j]
+    end   
+    2*cⱼ 
+end
+
+function getx̂(aⱼ, cⱼ, λ²)
+    if λ² < cⱼ
+        (-cⱼ + λ²)/aⱼ
+    elseif cⱼ < -λ²  
+        -(cⱼ + λ²)/aⱼ
+    else
+        0.
+    end          
+end    
