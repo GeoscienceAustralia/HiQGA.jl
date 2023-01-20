@@ -285,7 +285,7 @@ function coordinatedesc(A, x::AbstractVector, y::AbstractVector, λ², W)
             x[j] = getx̂(a[j], cⱼ, l)
         end
         r = (y-A*x)./W
-        @show ϕd = sum(r'r/length(y))
+        ϕd = sum(r'r/length(y))
         ϕd <= 1. && (@info l; break)
     end    
 end
