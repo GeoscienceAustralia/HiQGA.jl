@@ -1,6 +1,6 @@
 # # Example - Bayesian nonlinear regression
 # ## Setup
-using PyPlot, Random, LinearAlgebra 
+using PyPlot, Random, LinearAlgebra, SparseArrays
 using HiQGA.transD_GP
 ## true model
 zstart = 0
@@ -37,7 +37,7 @@ gca().invert_yaxis()
 transD_GP.nicenup(gcf(), fsize=18)
 # plot system Matrix
 figure()
-imshow(line.J, cmap="hot", extent=[1,65,39, 1])
+imshow(line.J, cmap="hot", extent=[0.5,65.5,39.5, 0.5])
 transD_GP.nicenup(gcf(), fsize=18)
 ## do the inversion
 ## let's try gradient descent, all model values are in log10 conductivity
@@ -146,10 +146,17 @@ L = LinearMap(F, Ft, F.n)
 A = transD_GP.LineRegression.getA(line.d)[:,1:end-1]*L'
 # x = zeros(size(A,2))
 x = L(ocm)
-transD_GP.coordinatedesc(Matrix(A), x, d, 10 .^range(5, -5, 50), line.σ[line.select])
+transD_GP.coordinatedesc(Matrix(A), x, d, 10 .^range(5, -5, 500), line.σ[line.select])
+## fooling with trend filtering
+A = transD_GP.LineRegression.getA(line.d)
+C = transD_GP.makeinverseR1(size(A,2); η=1e0)
+zz = zeros(size(A,2))
+transD_GP.coordinatedesc(A*C, zz, d, 10 .^range(6, -6, 500), line.σ[line.select])
+xx = C*zz
 ## plot
 figure()
 plot(z, log10.(ρ), label="true")
 plot(z[1:end-1], L'(x), label="wt")
 plot(z[1:end-1], ocm, label="occam")
+plot(z, xx, label="TV")
 legend()

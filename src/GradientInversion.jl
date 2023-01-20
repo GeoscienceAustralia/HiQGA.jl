@@ -276,6 +276,7 @@ function write_history(io, v::Vector)
     write(io, "\n")
 end
 
+# L1 experimental stuff
 function coordinatedesc(A, x::AbstractVector, y::AbstractVector, λ², W)
     a = getaⱼ(A)
     for l in λ²
@@ -284,19 +285,19 @@ function coordinatedesc(A, x::AbstractVector, y::AbstractVector, λ², W)
             x[j] = getx̂(a[j], cⱼ, l)
         end
         r = (y-A*x)./W
-        ϕd = sum(r'r/length(y))
-        ϕd <= 1 && (@info l; break)
+        @show ϕd = sum(r'r/length(y))
+        ϕd <= 1. && (@info l; break)
     end    
 end
 
 function getaⱼ(A)
-    2*[sum(a.^2) for a in eachcol(A)]
+    2*[sum(A[:,j].^2) for j in 1:size(A,2)]
 end    
 
 function getcⱼ(A, x::AbstractVector, y::AbstractVector, j::Int)
     cⱼ = 0.
     for i = 1:lastindex(y)
-        cⱼ +=  (dot(A[i,:], x) - A[i,j]*x[j] - y[i])*A[i,j]
+        cⱼ +=  (dot(A[i,:], x) - A[:,j][i]*x[j] - y[i])*A[:,j][i]
     end   
     2*cⱼ 
 end
@@ -309,4 +310,29 @@ function getx̂(aⱼ, cⱼ, λ²)
     else
         0.
     end          
+end
+
+struct Int1Dop
+    η
+end
+
+struct Int1Dtop
+    η
+end
+
+Int1Dtop(x::Int1Dop) = Int1Dtop(x.η)
+
+function (foo::Int1Dop)(x::Vector)
+    vcat(x[1]/foo.η, cumsum(x)[2:end])
+end
+
+function (foo::Int1Dtop)(x::Vector)
+    y = reverse(cumsum(reverse(x)[1:end-1]))
+    vcat(y[1]+x[1]/foo.η, y)
 end    
+
+function makeinverseR1(n; η=1)
+    Dinv = Int1Dop(η)
+    Dtinv = Int1Dtop(Dinv)
+    LinearMap(Dinv, Dtinv, n)
+end
