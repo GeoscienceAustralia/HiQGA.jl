@@ -151,7 +151,7 @@ transD_GP.coordinatedesc(Matrix(A), x, d, 10 .^range(5, -5, 500), line.σ[line.s
 A = transD_GP.LineRegression.getA(line.d)
 C = transD_GP.makeinverseR1(size(A,2); η=1.)
 zz = zeros(size(A,2))
-transD_GP.coordinatedesc(A*C, zz, d, 10 .^range(6, -6, 500), line.σ[line.select])
+transD_GP.coordinatedesc(A*C, zz, d, 10 .^range(3, -3, 200), line.σ[line.select])
 xx = C*zz
 ## plot
 figure()
