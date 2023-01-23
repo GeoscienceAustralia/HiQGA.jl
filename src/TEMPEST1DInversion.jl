@@ -8,7 +8,7 @@ import ..AbstractOperator.getnufromsounding
 import ..AbstractOperator.plotmodelfield!
 
 using ..AbstractOperator, ..AEM_VMD_HMD, ..SoundingDistributor
-using PyPlot, LinearAlgebra, ..CommonToAll, Random, DelimitedFiles, Distributed, Dates, Statistics
+using PyPlot, LinearAlgebra, ..CommonToAll, Random, DelimitedFiles, Distributed, Dates, Statistics, SparseArrays
 
 import ..Model, ..Options, ..OptionsStat, ..OptionsNonstat
 import ..ModelNuisance, ..OptionsNuisance, ..findidxnotzero
@@ -45,6 +45,9 @@ mutable struct Bfield<:Operator1D
 	addprimary :: Bool
 	peakcurrent:: Float64
     vectorsum  :: Bool
+    J          :: AbstractArray
+    W          :: SparseMatrixCSC
+    res        :: Vector
 end
 
 # If needed to make z axis flip to align with GA-AEM
@@ -115,6 +118,8 @@ function Bfield(;
 						  provideddt = false)
 	mhat = Rot_tx*[0,0,1] # dirn cosines in inertial frame for VMDz
 	Hx, Hy, Hz = map(x->zeros(size(times)), 1:3)
+    # for Gauss-Newton
+    res, J, W = allocateJ(F.dBzdt_J, σ, select, nfixed, length(ρ), calcjacobian)
 	Bfield(F, dataHx, dataHz, useML,σx, σz, z, nfixed, copy(ρ), selectx, selectz,
 			ndatax, ndataz, rx_roll, rx_pitch, rx_yaw, tx_roll, tx_pitch, tx_yaw,
 			Rot_rx, x_rx, y_rx, mhat, Hx, Hy, Hz, addprimary, peakcurrent, vectorsum)

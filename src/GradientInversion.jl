@@ -1,4 +1,4 @@
-using LinearMaps, SparseArrays, PositiveFactorizations
+using LinearMaps, SparseArrays, PositiveFactorizations, LazyGrids
 using Roots:find_zero
 using .AbstractOperator, .GP
 
@@ -260,6 +260,120 @@ function gradientinv(   m::AbstractVector,
     isa(io, Nothing) || begin @info "Finished "*fname; close(io) end
     return map(x->x[1:istep], (mnew, χ², λ², oidx))
 end    
+
+# nuisance inversion stuff
+function gradientinv(   m::AbstractVector,
+                        m0::AbstractVector,
+                        nu::AbstractVector, 
+                        F::Operator; 
+                        regtype=:R1,
+                        nstepsmax = 10,
+                        ntries = 6,
+                        target = nothing,
+                        lo = -3.,
+                        hi = 1.,
+                        λ²min = 0,
+                        λ²max = 8,
+                        β² = 0.,
+                        nuλ²frac = zeros(0),
+                        nubounds = zeros(0),
+                        ndivsnu = zeros(Int, 0),
+                        regularizeupdate = false,
+                        knownvalue=0.7,
+                        κ = GP.Mat52(),
+                        breakonknown=true,
+                        fname="")
+    R = makereg(regtype, F)                
+    ndata = length(F.res)
+    isnothing(target) && (target = ndata)
+    target₀ = target
+    mnew = [[similar(m) for i in 1:ntries] for j in 1:nstepsmax]
+    χ²   = [Vector{Float64}(undef, 0) for j in 1:nstepsmax]
+    λ² = [Vector{Vector{Float64}}(undef, 0) for j in 1:nstepsmax]
+    nunew = [[similar(nu) for i in 1:ntries] for j in 1:nstepsmax]
+    oidx = zeros(Int, nstepsmax)  
+    ndata = length(F.res)
+    t, λ²GP = nuinitbo(nubounds, ndivsnu, nuλ²frac)
+    istep = 1 
+    io = open_history(fname)
+    if !dobo
+        Δm = [similar(m) for i in 1:ntries]
+    end              
+    while true
+        idx, foundroot = bostepnu(m, m0, mnew[istep], χ²[istep], λ²[istep], t, β², λ²GP, F, R, target, lo, hi,
+            regularizeupdate=regularizeupdate, ntries=ntries, κ = κ,
+            knownvalue=knownvalue, firstvalue=firstvalue, breakonknown=breakonknown)         
+        idx, foundroot = occamstep(m, m0, Δm, mnew[istep], χ²[istep], λ²[istep], F, R, target, 
+            lo, hi, λ²min, λ²max, β², ntries, knownvalue=knownvalue, regularizeupdate = regularizeupdate)
+        prefix = isempty(fname) ? fname : fname*" : "
+        @info prefix*"iteration: $istep χ²: $(χ²[istep][idx]) target: $target"
+        m = mnew[istep][idx]
+        oidx[istep] = idx
+        isa(io, Nothing) || write_history(io, [istep; χ²[istep][idx]/target₀; vec(m)])
+        foundroot && break
+        noimprovement = iszero(λ²[istep][idx][2])  ? true : false
+        if (istep == nstepsmax - 1) || noimprovement 
+            target = χ²[istep][idx] # exit with smoothest
+        end    
+        istep += 1
+        istep > nstepsmax && break
+    end
+    isa(io, Nothing) || begin @info "Finished "*fname; close(io) end
+    return map(x->x[1:istep], (mnew, χ², λ², oidx))
+end
+
+function nuinitbo(nubounds::Array{Float64, 2}, ndivsnu::Vector{Int}, nufrac::Vector)
+    @assert size(nubounds, 1) == length(ndivsnu)
+    @assert size(nubounds, 1) == length(nufrac)
+    @assert length(nufrac) >= 1. # this is what we divide by to get a fraction of the nuisance range 
+    nuranges = map((nu, ndiv)->range(extrema(nu)..., ndiv+1), (eachrow(nubounds)), ndivsnu) # test range for surrogate
+    λ²GP =  (abs.(diff(nubounds, dims=2)[:])./nufrac).^2 # length scale square for surrogate
+    t = ndgrid(nuranges...)
+    tgrid = reduce(vcat, [tt[:]' for tt in t])
+    tgrid, λ²GP
+end    
+
+function bostepnu(nu::AbstractVector, nunew::Vector{Vector{Float64}}, m::AbstractVector, χ²::Vector{Float64},
+                    t::Array{Float64, 2}, λ²GP::Array{Float64, 1}, F::Operator, R::SparseMatrixCSC, target, lo, hi;
+                   regularizeupdate = false, 
+                  
+                   ## GP stuff
+                   demean = true, 
+                   κ = GP.Mat52(), 
+                   δtry = 1e-2,
+                   acqfun = GP.EI(),
+                   ntries = 6,
+                   firstvalue = :last,
+                   knownvalue = NaN,
+                   breakonknown = false)
+    
+    χ²₀ = getχ²(F, m, computeJ=false)
+    knownvalue *= χ²₀               
+
+    ttrain = zeros(size(t,1), 0)
+    for i = 1:ntries
+        nextpos, = getBOsample(κ, χ²', ttrain, t, λ²GP, δtry, demean, knownvalue, firstvalue, acqfun)
+        push!(λ²sampled, [10^t[1, nextpos]; 2^t[2,nextpos]])
+        mnew[i] = m + 2^t[2,nextpos]*newtonstep(m, m0, F, 10^t[1,nextpos], β², R, regularizeupdate=regularizeupdate)
+        pushback(mnew[i], lo, hi)                        
+        push!(χ², getχ²(F, mnew[i])) # next training value
+        ttrain = hcat(ttrain, t[:,nextpos]) # next training location
+        (χ²[i] <= knownvalue && breakonknown) && break
+    end
+    idx, foundroot = -1, false 
+    if all(χ² .> target)
+        idx = argmin(χ²)
+    else 
+        sortedλ²idx = sortperm(vec(ttrain[1,:]))   
+        sortedχ²idx = findlast(χ²[sortedλ²idx] .<= target)
+        idx = sortedλ²idx[sortedχ²idx]
+        a = log10(λ²sampled[idx][1])
+        b = maximum(t[1,:]) # λ²max in log10 units
+        dophase2(m, m0, F, R, regularizeupdate, lo, hi, target, a, b, mnew,  χ², λ²sampled, β², idx)
+        foundroot = true
+    end
+    idx, foundroot
+end
 
 function open_history(fname)
     @assert !isfile(fname) "$fname exists"
