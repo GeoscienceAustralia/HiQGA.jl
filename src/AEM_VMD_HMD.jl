@@ -567,9 +567,9 @@ function getfieldTD!(F::HFieldDHT, z::Array{Float64, 1}, ρ::Array{Float64, 1})
                 end
                 if F.calcjacobian
                     for ilayer = 2:length(ρ)
-                        calctimedomainjacobian(temp, HTD_z_J_interp, ilayer, itime, Filter_t_cos, t, spl_z_J_real, spl_z_J_imag, l10w, w, H)
-                        calctimedomainjacobian(temp, HTD_r_J_interp, ilayer, itime, Filter_t_cos, t, spl_r_J_real, spl_r_J_imag, l10w, w, H)
-                        calctimedomainjacobian(temp, HTD_az_J_interp, ilayer, itime, Filter_t_cos, t, spl_az_J_real, spl_az_J_imag, l10w, w, H)
+                        calctimedomainjacobian(temp, F.HTD_z_J_interp, ilayer, itime, Filter_t_cos, t, spl_z_J_real, spl_z_J_imag, l10w, w, H)
+                        calctimedomainjacobian(temp, F.HTD_r_J_interp, ilayer, itime, Filter_t_cos, t, spl_r_J_real, spl_r_J_imag, l10w, w, H)
+                        calctimedomainjacobian(temp, F.HTD_az_J_interp, ilayer, itime, Filter_t_cos, t, spl_az_J_real, spl_az_J_imag, l10w, w, H)
                     end    
                 end
             end
@@ -646,7 +646,7 @@ function convramp!(F::HFieldDHT, splz::CubicSpline, splr::CubicSpline, splaz::Cu
                         F.dBrdt_J[ilayer,itime] += (b-a)/2*dot(getrampresponse((b-a)/2*x .+ (a+b)/2, splr_J[ilayer]), w)*dIdt
                     end
                     if F.getazimH
-                        F.dBazt_J[ilayer,itime] += (b-a)/2*dot(getrampresponse((b-a)/2*x .+ (a+b)/2, splaz_J[ilayer]), w)*dIdt
+                        F.dBazdt_J[ilayer,itime] += (b-a)/2*dot(getrampresponse((b-a)/2*x .+ (a+b)/2, splaz_J[ilayer]), w)*dIdt
                     end    
                 end    
             end

@@ -6,6 +6,7 @@ import ..AbstractOperator.makebounds
 import ..AbstractOperator.getoptnfromexisting
 import ..AbstractOperator.getnufromsounding
 import ..AbstractOperator.plotmodelfield!
+import ..AbstractOperator.getresidual # for gradientbased
 
 using ..AbstractOperator, ..AEM_VMD_HMD, ..SoundingDistributor
 using PyPlot, LinearAlgebra, ..CommonToAll, Random, DelimitedFiles, Distributed, Dates, Statistics, SparseArrays
@@ -90,7 +91,8 @@ function Bfield(;
 				strictgeometry = true,
 				addprimary = false,
 				peakcurrent = 0.5,
-                vectorsum = false)
+                vectorsum = false,
+                calcjacobian = false)
 
 	@assert !isempty(times)
 	@assert(!isempty(ramp))
@@ -102,7 +104,7 @@ function Bfield(;
     nmax = length(ρ)+1
 	Rot_rx = makerotationmatrix(order=order_rx,yaw=rx_yaw, pitch=rx_pitch, roll=rx_roll,doinv=true)
 	Rot_tx = makerotationmatrix(order=order_tx,yaw=tx_yaw, pitch=tx_pitch, roll=tx_roll)
-	F = AEM_VMD_HMD.HFieldDHT(;nmax,
+	F = AEM_VMD_HMD.HFieldDHT(;nmax, calcjacobian,
 	                      ntimesperdecade = ntimesperdecade,
 	                      nfreqsperdecade = nfreqsperdecade,
 						  freqlow=1e-5,
@@ -289,7 +291,7 @@ function reducegreenstensor!(tempest)
         
         Hx_J, _, Hz_J = Rot_rx*Roll180*[HMDx_J HMDy_J VMDz_J]*Roll180*mhat
         if tempest.vectorsum
-            tempest.J[:] = sqrt.(Hx_J.^2 + Hz_J.^2)
+            copy!(tempest.J, sqrt.(Hx_J.^2 + Hz_J.^2)'[:,tempest.nfixed+1:end-1])
         end    
     end    
 
