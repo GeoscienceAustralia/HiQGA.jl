@@ -57,7 +57,9 @@ mutable struct HFieldDHT <: HField
     calcjacobian    :: Bool
     Jtemp           :: Vector
     b               :: Vector # Another Jtemp
-    derivmatrix     :: Array{ComplexF64, 2}
+    derivmatrix_z   :: Array{ComplexF64, 2} # wavenumber domain Jacobian for J0v
+    derivmatrix_az   :: Array{ComplexF64, 2} # wavenumber domain Jacobian for J1h
+    derivmatrix_r   :: Array{ComplexF64, 2} # wavenumber domain Jacobian for J1v
     HFD_z_J         :: Array{ComplexF64, 2}
     HTD_z_J_interp  :: Array{Float64, 2}
     dBzdt_J         :: Array{Float64, 2}
@@ -145,24 +147,26 @@ function HFieldDHT(;
     HFD_z_J     = calcjacobian ? zeros(ComplexF64, nmax, length(freqs)) : zeros(0, 0)
     dBzdt_J     = calcjacobian ? zeros(Float64, nmax, length(times)) : zeros(0, 0)
     HTD_z_J_interp = calcjacobian ? zeros(Float64, nmax, length(interptimes)) : zeros(0, 0)
+    Jac_z = calcjacobian ? zeros(ComplexF64, nkᵣeval, nmax) : zeros(0, 0)
     # azimuthal
-    HFD_az_J     = calcjacobian ? zeros(ComplexF64, nmax, length(freqs)) : zeros(0, 0)
-    dBazdt_J     = calcjacobian ? zeros(Float64, nmax, length(times)) : zeros(0, 0)
-    HTD_az_J_interp = calcjacobian ? zeros(Float64, nmax, length(interptimes)) : zeros(0, 0)
+    HFD_az_J        = (calcjacobian && getazimH) ? zeros(ComplexF64, nmax, length(freqs)) : zeros(0, 0)
+    dBazdt_J        = (calcjacobian && getazimH) ? zeros(Float64, nmax, length(times)) : zeros(0, 0)
+    HTD_az_J_interp = (calcjacobian && getazimH) ? zeros(Float64, nmax, length(interptimes)) : zeros(0, 0)
+    Jac_az = (calcjacobian && getazimH) ? zeros(ComplexF64, nkᵣeval, nmax) : zeros(0, 0)
     # radial
-    HFD_r_J     = calcjacobian ? zeros(ComplexF64, nmax, length(freqs)) : zeros(0, 0)
-    dBrdt_J     = calcjacobian ? zeros(Float64, nmax, length(times)) : zeros(0, 0)
-    HTD_r_J_interp = calcjacobian ? zeros(Float64, nmax, length(interptimes)) : zeros(0, 0)
+    HFD_r_J         = (calcjacobian && getradialH) ? zeros(ComplexF64, nmax, length(freqs)) : zeros(0, 0)
+    dBrdt_J         = (calcjacobian && getradialH) ? zeros(Float64, nmax, length(times)) : zeros(0, 0)
+    HTD_r_J_interp  = (calcjacobian && getradialH) ? zeros(Float64, nmax, length(interptimes)) : zeros(0, 0)
+    Jac_r = (calcjacobian && getradialH) ? zeros(ComplexF64, nkᵣeval, nmax) : zeros(0, 0)
     #
     Jtemp = calcjacobian ? zeros(ComplexF64, nmax) : zeros(0)
-    Jac = calcjacobian ? zeros(ComplexF64, nkᵣeval, nmax) : zeros(0, 0)
     useprimary = modelprimary ? one(Float64) : zero(Float64)
     HFieldDHT(thickness, pz, ϵᵢ, zintfc, rTE, rTM, zRx, zTx, rTx, rRx, freqs, times, ramp, log10ω, interptimes,
             HFD_z, HFD_r, HFD_az, HFD_z_interp, HFD_r_interp, HFD_az_interp,
             HTD_z_interp, HTD_r_interp, HTD_az_interp, dBzdt, dBrdt, dBazdt, J0_kernel_h, J1_kernel_h, J0_kernel_v, J1_kernel_v, J01kernelhold, lowpassfcs,
             quadnodes, quadweights, preallocate_ω_Hsc(interptimes, lowpassfcs)..., rxwithinloop, provideddt, doconvramp, useprimary,
             nkᵣeval, interpkᵣ, log10interpkᵣ, log10Filter_base, getradialH, getazimH, 
-            calcjacobian, Jtemp, similar(Jtemp), Jac, HFD_z_J, HTD_z_J_interp, dBzdt_J,  HFD_az_J, HTD_az_J_interp, dBazdt_J, 
+            calcjacobian, Jtemp, similar(Jtemp), Jac_z, Jac_az, Jac_r, HFD_z_J, HTD_z_J_interp, dBzdt_J,  HFD_az_J, HTD_az_J_interp, dBazdt_J, 
             HFD_r_J, HTD_r_J_interp, dBrdt_J)
 end
 
@@ -390,9 +394,6 @@ function getAEM1DKernelsH!(F::HField, kᵣ::Float64, f::Float64, zz::Array{Float
         ϵᵢ[l]      = getepsc(ρ[l], ω)
         pz[l]      = getpz(ϵᵢ[l], kᵣ, ω)
         rTE[intfc] = (pz[intfc] - pz[intfc+1])/(pz[intfc] + pz[intfc+1])
-        # commented out as we aren't yet using TM modes
-        # rTM[intfc] = (ϵᵢ[intfc]*pz[intfc+1] - ϵᵢ[intfc+1]*pz[intfc]) /
-        #              (ϵᵢ[intfc]*pz[intfc+1] + ϵᵢ[intfc+1]*pz[intfc])
         F.thickness[intfc] = z[intfc+1] - z[intfc]
     end
 
@@ -409,7 +410,7 @@ function getAEM1DKernelsH!(F::HField, kᵣ::Float64, f::Float64, zz::Array{Float
         ikᵣ = findfirst(isapprox.(kᵣ, F.interpkᵣ))
         for ilayer = 2:nlayers
             curlyRAprime, = getCurlyR(F.Jtemp[ilayer], pz[iTxLayer], zRx, z, iTxLayer, ω, 0.)# cannot model primary for deriv
-            F.derivmatrix[ikᵣ,ilayer] = 1/pz[iTxLayer]*curlyRAprime*lf_gA_TE*1im/(ω)*log(10)/ρ[ilayer]
+            F.derivmatrix_z[ikᵣ,ilayer] = 1/pz[iTxLayer]*curlyRAprime*lf_gA_TE*1im/(ω)*log(10)/ρ[ilayer]
         end    
     end  
     gA_TE            = μ/pz[iTxLayer]*curlyRA*lf_gA_TE
@@ -440,20 +441,20 @@ function getfieldFD!(F::HFieldDHT, z::Array{Float64, 1}, ρ::Array{Float64, 1})
         @views begin
             if F.rxwithinloop
                 dohankeltx!(F.HFD_z, ifreq, Filter_J1, F.rTx, F.J01kernelhold, F.J1_kernel_v[:,ifreq], F.log10interpkᵣ, F.log10Filter_base)
-                calcfreqdomainjacobian!(F.calcjacobian, ifreq, F.HFD_z_J, F.J01kernelhold, F.derivmatrix, F.log10interpkᵣ, F.log10Filter_base, ρ, Filter_J1, F.rTx)
+                calcfreqdomainjacobian!(F.calcjacobian, ifreq, F.HFD_z_J, F.J01kernelhold, F.derivmatrix_z, F.log10interpkᵣ, F.log10Filter_base, ρ, Filter_J1, F.rTx)
             else
                 # Vertical component
                 dohankeltx!(F.HFD_z, ifreq, Filter_J0, F.rRx, F.J01kernelhold, F.J0_kernel_v[:,ifreq], F.log10interpkᵣ, F.log10Filter_base)
-                calcfreqdomainjacobian!(F.calcjacobian, ifreq, F.HFD_z_J, F.J01kernelhold, F.derivmatrix, F.log10interpkᵣ, F.log10Filter_base, ρ, Filter_J0, F.rRx)
+                calcfreqdomainjacobian!(F.calcjacobian, ifreq, F.HFD_z_J, F.J01kernelhold, F.derivmatrix_z, F.log10interpkᵣ, F.log10Filter_base, ρ, Filter_J0, F.rRx)
                 # radial component
                 if F.getradialH
                     dohankeltx!(F.HFD_r, ifreq, Filter_J1, F.rRx, F.J01kernelhold, F.J1_kernel_v[:,ifreq], F.log10interpkᵣ, F.log10Filter_base)
-                    calcfreqdomainjacobian!(F.calcjacobian, ifreq, F.HFD_r_J, F.J01kernelhold, F.derivmatrix, F.log10interpkᵣ, F.log10Filter_base, ρ, Filter_J1, F.rRx)
+                    calcfreqdomainjacobian!(F.calcjacobian, ifreq, F.HFD_r_J, F.J01kernelhold, F.derivmatrix_r, F.log10interpkᵣ, F.log10Filter_base, ρ, Filter_J1, F.rRx)
                 end
                 # for HMD
                 if F.getazimH
                     dohankeltx!(F.HFD_az, ifreq, Filter_J1, F.rRx, F.J01kernelhold, F.J1_kernel_h[:,ifreq], F.log10interpkᵣ, F.log10Filter_base)
-                    calcfreqdomainjacobian!(F.calcjacobian, ifreq, F.HFD_az_J, F.J01kernelhold, F.derivmatrix, F.log10interpkᵣ, F.log10Filter_base, ρ, Filter_J1, F.rRx)
+                    calcfreqdomainjacobian!(F.calcjacobian, ifreq, F.HFD_az_J, F.J01kernelhold, F.derivmatrix_az, F.log10interpkᵣ, F.log10Filter_base, ρ, Filter_J1, F.rRx)
                 end
             end
         end #views
