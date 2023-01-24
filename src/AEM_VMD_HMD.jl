@@ -409,8 +409,14 @@ function getAEM1DKernelsH!(F::HField, kᵣ::Float64, f::Float64, zz::Array{Float
     if F.calcjacobian
         ikᵣ = findfirst(isapprox.(kᵣ, F.interpkᵣ))
         for ilayer = 2:nlayers
-            curlyRAprime, = getCurlyR(F.Jtemp[ilayer], pz[iTxLayer], zRx, z, iTxLayer, ω, 0.)# cannot model primary for deriv
+            curlyRAprime, curlyRDprime, curlyRCprime = getCurlyR(F.Jtemp[ilayer], pz[iTxLayer], zRx, z, iTxLayer, ω, 0.)# cannot model primary for deriv
             F.derivmatrix_z[ikᵣ,ilayer] = 1/pz[iTxLayer]*curlyRAprime*lf_gA_TE*1im/(ω)*log(10)/ρ[ilayer]
+            if F.getazimH
+                F.derivmatrix_az[ikᵣ,ilayer] = pz[iTxLayer]*curlyRCprime*1im*ω/4pi*log(10)/ρ[ilayer]
+            end
+            if F.getradialH
+                F.derivmatrix_r[ikᵣ,ilayer] = curlyRDprime*kᵣ^2/4pi*log(10)/ρ[ilayer]
+            end    
         end    
     end  
     gA_TE            = μ/pz[iTxLayer]*curlyRA*lf_gA_TE
