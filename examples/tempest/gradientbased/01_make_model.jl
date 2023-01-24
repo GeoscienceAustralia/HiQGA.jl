@@ -20,7 +20,7 @@ tx_roll = 0.
 tx_pitch = 0.
 tx_yaw = 0.
 # electronics and stuff
-include("../electronics_halt.jl")
+include("../amponly/electronics_halt.jl")
 ## fill in detail in ohm-m
 ρ[(z.>=zstart) .& (z.<50)] .= 20.
 ρ[(z.>=50) .&(z.<80)] .= 1
@@ -33,6 +33,7 @@ Random.seed!(11)
 ρ = 10 .^(0.1*randn(length(ρ)) + log10.(ρ))
 ## create total field operator (required for nuisance inversion)
 calcjacobian = true
+vectorsum = false
 tempest = transD_GP.TEMPEST1DInversion.Bfield(;
     zTx = zTx, zRx = zRx, x_rx = x_rx, y_rx = y_rx,
     rx_roll = rx_roll, rx_pitch = rx_pitch, rx_yaw = rx_yaw,
@@ -41,7 +42,7 @@ tempest = transD_GP.TEMPEST1DInversion.Bfield(;
 	z=z,
 	ρ=ρ,
 	addprimary = true, #this ensures that the geometry update actually changes everything that needs to be
-    vectorsum  = false, #amplitude only inversions
+    vectorsum,   # amplitude only inversions
     calcjacobian # for gradientbased inversion
 );
 # plot before adding noise
