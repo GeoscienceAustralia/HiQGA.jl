@@ -119,11 +119,38 @@ function Bfield(;
 	mhat = Rot_tx*[0,0,1] # dirn cosines in inertial frame for VMDz
 	Hx, Hy, Hz = map(x->zeros(size(times)), 1:3)
     # for Gauss-Newton
-    res, J, W = allocateJ(F.dBzdt_J, σ, select, nfixed, length(ρ), calcjacobian)
+    res, J, W = allocateJ(length(times), nfixed, length(ρ), F.calcjacobian, vectorsum)
 	Bfield(F, dataHx, dataHz, useML,σx, σz, z, nfixed, copy(ρ), selectx, selectz,
 			ndatax, ndataz, rx_roll, rx_pitch, rx_yaw, tx_roll, tx_pitch, tx_yaw,
-			Rot_rx, x_rx, y_rx, mhat, Hx, Hy, Hz, addprimary, peakcurrent, vectorsum)
+			Rot_rx, x_rx, y_rx, mhat, Hx, Hy, Hz, addprimary, peakcurrent, vectorsum, J, W, res)
 end
+
+function allocateJ(ntimes, nfixed, nmodel, calcjacobian, vectorsum)
+    @assert vectorsum # will add joint ivnersion later
+    if calcjacobian
+        J = zeros(ntimes, nmodel-nfixed)
+        Wdiag = ones(ntimes)
+        res = zeros(ntimes)
+    else
+        J, Wdiag, res = zeros(0), zeros(0), zeros(0)
+    end
+    W = sparse(diagm(Wdiag))
+    res, J, W    
+end
+
+function getresidual(tempest::Bfield, log10σ::Vector{Float64}; computeJ=false)
+    @assert tempest.vectorsum
+    (; F, W, res) = tempest
+    F.calcjacobian = computeJ
+    getfield!(-log10σ, tempest)
+    # f = F.dBzdt[aem.select]
+    # d = aem.d[aem.select]
+    f = get_fm(tempest)
+    d, σ = get_dSigma(tempest)
+    W[diagind(W)] = 1 ./σ
+    tempest.res[:] = f - d
+    nothing    
+end    
 
 #TODO for nuisance moves in an MCMC chain
 function update_geometry(tempest::Bfield, geovec::Array{Float64,1},
@@ -245,6 +272,27 @@ function reducegreenstensor!(tempest)
 			y/r*J1v,
 			J0v                            ]
 
+    if tempest.F.calcjacobian
+        F = tempest.F
+        J_z, J_az, J_r = F.dBzdt_J, F.dBazdt_J, F.dBrdt_J
+        HMDx_J = [y2mx2/r3*J_az + x2/r2*J_z,
+                  -2xy/r3*J_az  + xy/r2*J_z,
+                  -x/r*J_r                       ]
+
+        HMDy_J = [HMDx_J[2],
+                  -y2mx2/r3*J_az + y2/r2*J_z,
+                  -y/r*J_r		    		     ]
+   
+        VMDz_J = [x/r*J_r,
+                  y/r*J_r,
+                  J_z                            ]
+        
+        Hx_J, _, Hz_J = Rot_rx*Roll180*[HMDx_J HMDy_J VMDz_J]*Roll180*mhat
+        if tempest.vectorsum
+            tempest.J[:] = sqrt.(Hx_J.^2 + Hz_J.^2)
+        end    
+    end    
+
 	if tempest.addprimary
 		HMDxp = [3x2 - R2, 3xy     , 3xz      ]/fpiR5
 		HMDyp = [3xy     , 3y2 - R2, 3yz      ]/fpiR5
@@ -313,19 +361,18 @@ function get_misfit(m::Model, opt::Options, tempest::Bfield)
     get_misfit(m.fstar, opt, tempest)
 end
 
-get_fm(tempest::Bfield) = get_fm(tempest.Hx,tempest.Hz)
+get_fm(tempest::Bfield) = get_fm(tempest.Hx, tempest.Hz)
 
-function get_fm(Bx,Bz)
-    fm = sqrt.(Bx.^2 + Bz.^2)
-    fm
+function get_fm(Hx, Hz)
+    fm = sqrt.(Hx.^2 + Hz.^2)
 end 
 
 get_dSigma(tempest::Bfield) = get_dSigma(tempest.dataHx,tempest.dataHz,tempest.σx,tempest.σz)
 
-function get_dSigma(DBx,DBz,σx,σz)
-    d = sqrt.(DBx.^2 + DBz.^2)
-    σ = sqrt.((σx.^2).*DBx.^2 + (σz.^2).*DBz.^2)./d
-    d,σ
+function get_dSigma(DHx, DHz, σx, σz)
+    d = sqrt.(DHx.^2 + DHz.^2)
+    σ = sqrt.((σx.^2).*DHx.^2 + (σz.^2).*DHz.^2)./d
+    d, σ
 end 
 
 function get_misfit(m::AbstractArray, mn::AbstractVector, opt::Union{Options,OptionsNuisance}, tempest::Bfield)
