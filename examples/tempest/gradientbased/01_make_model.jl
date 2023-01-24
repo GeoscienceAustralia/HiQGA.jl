@@ -41,9 +41,9 @@ tempest = transD_GP.TEMPEST1DInversion.Bfield(;
 	z=z,
 	ρ=ρ,
 	addprimary = true, #this ensures that the geometry update actually changes everything that needs to be
-    vectorsum  = true, #amplitude only inversions
+    vectorsum  = false, #amplitude only inversions
     calcjacobian # for gradientbased inversion
-)
+);
 # plot before adding noise
 transD_GP.TEMPEST1DInversion.plotmodelfield!(tempest, log10.(ρ[2:end]))
 ## compute noisy data to invert

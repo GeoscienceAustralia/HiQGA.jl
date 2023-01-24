@@ -121,18 +121,18 @@ function Bfield(;
 	mhat = Rot_tx*[0,0,1] # dirn cosines in inertial frame for VMDz
 	Hx, Hy, Hz = map(x->zeros(size(times)), 1:3)
     # for Gauss-Newton
-    res, J, W = allocateJ(length(times), nfixed, length(ρ), F.calcjacobian, vectorsum)
-	Bfield(F, dataHx, dataHz, useML,σx, σz, z, nfixed, copy(ρ), selectx, selectz,
+    res, J, W = allocateJ(length(times), nfixed, length(ρ), F.calcjacobian, vectorsum, σx, σz)
+	Bfield(F, dataHx, dataHz, useML, σx, σz, z, nfixed, copy(ρ), selectx, selectz,
 			ndatax, ndataz, rx_roll, rx_pitch, rx_yaw, tx_roll, tx_pitch, tx_yaw,
 			Rot_rx, x_rx, y_rx, mhat, Hx, Hy, Hz, addprimary, peakcurrent, vectorsum, J, W, res)
 end
 
-function allocateJ(ntimes, nfixed, nmodel, calcjacobian, vectorsum)
-    @assert vectorsum # will add joint ivnersion later
+function allocateJ(ntimes, nfixed, nmodel, calcjacobian, vectorsum, σx, σz)
     if calcjacobian
-        J = zeros(ntimes, nmodel-nfixed)
-        Wdiag = ones(ntimes)
-        res = zeros(ntimes)
+        multfac = vectorsum ? 1 : 2
+        J = zeros(multfac*ntimes, nmodel-nfixed)
+        Wdiag = vectorsum ? ones(multfac*ntimes) : 1 ./[σx; σz]
+        res = similar(Wdiag)
     else
         J, Wdiag, res = zeros(0), zeros(0), zeros(0)
     end
@@ -140,17 +140,26 @@ function allocateJ(ntimes, nfixed, nmodel, calcjacobian, vectorsum)
     res, J, W    
 end
 
+function allocateJ(tempest::Bfield)
+    tempest.res, tempest.J, tempest.W = allocateJ(length(tempest.F.times), tempest.nfixed, 
+        length(tempest.ρ),tempest.F.calcjacobian, tempest.vectorsum, tempest.σx, tempest.σz)
+    nothing
+end
+
 function getresidual(tempest::Bfield, log10σ::Vector{Float64}; computeJ=false)
-    @assert tempest.vectorsum
     (; F, W, res) = tempest
     F.calcjacobian = computeJ
     getfield!(-log10σ, tempest)
     # f = F.dBzdt[aem.select]
     # d = aem.d[aem.select]
-    f = get_fm(tempest)
-    d, σ = get_dSigma(tempest)
-    W[diagind(W)] = 1 ./σ
-    tempest.res[:] = f - d
+    if tempest.vectorsum
+        f = get_fm(tempest)
+        d, σ = get_dSigma(tempest)
+        W[diagind(W)] = 1 ./σ
+        tempest.res[:] = f - d
+    else
+        tempest.res[:] = [tempest.Hx; tempest.Hz] - [tempest.dataHx; tempest.dataHz]
+    end    
     nothing    
 end    
 
@@ -292,6 +301,8 @@ function reducegreenstensor!(tempest)
         Hx_J, _, Hz_J = Rot_rx*Roll180*[HMDx_J HMDy_J VMDz_J]*Roll180*mhat
         if tempest.vectorsum
             copy!(tempest.J, sqrt.(Hx_J.^2 + Hz_J.^2)'[:,tempest.nfixed+1:end-1])
+        else
+            copy!(tempest.J, hcat(Hx_J, Hz_J)'[:,tempest.nfixed+1:end-1])    
         end    
     end    
 
@@ -551,6 +562,10 @@ function makenoisydata!(tempest::Bfield, ρ::Array{Float64,1};
         dataHz = tempest.Hz + σz.*randn(size(σz)),
         σx = σx,
         σz = σz)
+    
+        # for Gauss-Newton
+        allocateJ(tempest)
+
 	plotmodelfield!(tempest, ρ, figsize=figsize)
 	nothing
 end
