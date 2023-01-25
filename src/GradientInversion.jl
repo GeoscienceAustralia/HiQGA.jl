@@ -69,7 +69,11 @@ function occamstep(m::AbstractVector, m0::AbstractVector, Δm::AbstractVector, m
             count == 0 && (push!(χ², chi2); push!(λ², nu))
             χ²[i] = chi2
             λ²[i] = nu
-            χ²[i] <= knownvalue && (count = countmax; break)
+            if χ²[i] <= knownvalue
+                count > 0 && map(x->deleteat!(x, i+1:ntries), (mnew, χ², λ²))
+                count = countmax
+                break
+            end    
         end
         if all(χ² .>= χ²₀)
            α = count < countmax - 1 ? α/2 : 0. # make sure we don't start going uphill again
