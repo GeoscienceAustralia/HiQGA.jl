@@ -430,9 +430,13 @@ function initmodelfield!(aem;  onesigma=true, figsize=(8,6))
     ax
 end 
 
-function plotmodelfield!(aem::Bfield, ρ, nu; onesigma=true, color=nothing, alpha=1, model_lw=1, forward_lw=1, figsize=(8,6), revax=true)
+function plotmodelfield!(aem::Bfield, ρ, nu::Vector{Float64}; onesigma=true, color=nothing, alpha=1, model_lw=1, forward_lw=1, figsize=(8,6), revax=true)
     # with nuisance
-    plotmodelfield!(aem, [ρ], nu; onesigma, color, alpha, model_lw, forward_lw, figsize, revax) 
+    ax = initmodelfield!(aem; onesigma, figsize)
+    plotmodelfield!(ax, 1, aem, vec(ρ), nu; alpha, model_lw, forward_lw, color)
+    ax[1].invert_yaxis()
+    nicenup(ax[1].get_figure(), fsize=12)
+    revax && ax[1].invert_xaxis()
 end
 
 function plotmodelfield!(aem::Bfield, ρ; onesigma=true, color=nothing, alpha=1, model_lw=1, forward_lw=1, figsize=(8,6), revax=true)
@@ -442,7 +446,7 @@ end
 
 function plotmodelfield!(aem::Bfield, manyρ::Vector{T}, manynu::Array{Float64, 2}; onesigma=true, 
         color=nothing, alpha=1, model_lw=1, forward_lw=1, figsize=(8,6), revax=true) where T<:AbstractArray
-    # with nuisance    
+    # with nuisance
     ax = initmodelfield!(aem; onesigma, figsize)
     for (i, ρ) in enumerate(manyρ)
         plotmodelfield!(ax, 1, aem, vec(ρ), manynu[i,:]; alpha, model_lw, forward_lw, color)
