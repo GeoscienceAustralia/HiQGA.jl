@@ -223,27 +223,13 @@ end
 # all calling functions underneath here for misfit, field, etc. assume model is in log10 resistivity
 # SANS the top. For lower level field calculation use AEM_VMD_HMD structs
 
-#match API for SkyTEM inversion getfield
-# function getfield!(m::Model, tempest::Bfield)
-# 	getfield!(m.fstar, tempest)
-# 	nothing
-# end
 function getfield!(m::Array{Float64}, tempest::Bfield)
     copyto!(tempest.ρ, tempest.nfixed+1:length(tempest.ρ), 10 .^m, 1:length(m))
 	getfieldTD!(tempest, tempest.z, tempest.ρ)
     nothing
 end
 
-# set the field given a conductivity model (GP parametrisation)
-# and nuisance model (vector)
-# function getfield!(m::Model, mn::ModelNuisance, tempest::Bfield)
-# # not used I don't think
-# 	update_geometry(tempest, mn.nuisance)
-# 	getfield!(m, tempest)
-# end
-
 function getfield!(m::Array{Float64}, mn::Array{Float64}, tempest::Bfield)
-    @info "here"
     copyto!(tempest.ρ, tempest.nfixed+1:length(tempest.ρ), 10 .^m, 1:length(m))
 	update_geometry(tempest, vec(mn))
 	getfieldTD!(tempest, tempest.z, tempest.ρ)
@@ -394,7 +380,8 @@ function get_misfit(m::AbstractArray, mn::AbstractVector, opt::Union{Options,Opt
     # this is useful when reading history files and debugging
 	chi2by2 = 0.0;
 	if !opt.debug
-		chi2by2 = get_misfit(m, mn, tempest)
+		getfield!(m, mn, tempest) # calls update_geometry down the stack
+	    chi2by2 = getchi2by2(tempest)
 	end
 	return chi2by2
 end
@@ -506,8 +493,8 @@ function vectorsumsplit(ax, iaxis, aem::Bfield, alpha, forward_lw, color)
         fm = get_fm(aem)
         plotsoundingcurve(ax[iaxis+1], fm, aem.F.times; color, alpha, lw=forward_lw)
     else    
-        plotsoundingcurve(ax[iaxis+1], aem.Hx, aem.F.times; color, alpha, lw=forward_lw)
-        colorused = ax[iaxis+1].lines[end].get_color()
+        colorused = ax[iaxis].lines[end].get_color()
+        plotsoundingcurve(ax[iaxis+1], aem.Hx, aem.F.times; color=colorused, alpha, lw=forward_lw)
         plotsoundingcurve(ax[iaxis+1], aem.Hz, aem.F.times; color=colorused, alpha, lw=forward_lw)
     end
 end    
@@ -530,13 +517,9 @@ function initmodelfield!(aem;  onesigma=true, figsize=(8,6))
     ax
 end 
 
-function plotmodelfield!(aem::Bfield, ρ, nu::Vector{Float64}; onesigma=true, color=nothing, alpha=1, model_lw=1, forward_lw=1, figsize=(8,6), revax=true)
+function plotmodelfield!(aem::Bfield, ρ::AbstractArray, nu::Vector; onesigma=true, color=nothing, alpha=1, model_lw=1, forward_lw=1, figsize=(8,6), revax=true)
     # with nuisance
-    ax = initmodelfield!(aem; onesigma, figsize)
-    plotmodelfield!(ax, 1, aem, vec(ρ), nu; alpha, model_lw, forward_lw, color)
-    ax[1].invert_yaxis()
-    nicenup(ax[1].get_figure(), fsize=12)
-    revax && ax[1].invert_xaxis()
+    plotmodelfield!(aem, [ρ], permutedims(nu); onesigma, color, alpha, model_lw, forward_lw, figsize, revax) 
 end
 
 function plotmodelfield!(aem::Bfield, ρ; onesigma=true, color=nothing, alpha=1, model_lw=1, forward_lw=1, figsize=(8,6), revax=true)
@@ -816,8 +799,6 @@ function plotsoundingdata(nsoundings, times, d_Hx, Hx_add_noise, d_Hz, Hz_add_no
     cbHx.ax.set_xlabel("Bx", fontsize=fsize)
     ax[1].set_ylabel("time s")
     axHx = ax[1].twiny()
-    # axHx.semilogy(Hx_add_noise, times, "-k")
-	# axHx.semilogy(Hx_add_noise, times, "--w")
     axHx.semilogy(mean(Hx_add_noise./abs.(d_Hx), dims=1)[:], times)
     axHx.set_xlabel("avg Hx noise fraction")
     ax[2] = subplot(2,2,3,sharex=ax[1], sharey=ax[1])
@@ -831,8 +812,6 @@ function plotsoundingdata(nsoundings, times, d_Hx, Hx_add_noise, d_Hz, Hz_add_no
     ax[2].set_ylabel("time s")
     ax[2].invert_yaxis()
     axHz = ax[2].twiny()
-    # axHz.semilogy(Hz_add_noise, times, "-k")
-	# axHz.semilogy(Hz_add_noise, times, "--w")
     axHz.semilogy(mean(Hz_add_noise./abs.(d_Hz), dims=1)[:], times)
     axHz.set_xlabel("avg Hz noise fraction")
     ax[3] = subplot(2,2,2, sharex=ax[1])
