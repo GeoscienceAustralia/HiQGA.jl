@@ -224,10 +224,10 @@ end
 # SANS the top. For lower level field calculation use AEM_VMD_HMD structs
 
 #match API for SkyTEM inversion getfield
-function getfield!(m::Model, tempest::Bfield)
-	getfield!(m.fstar, tempest)
-	nothing
-end
+# function getfield!(m::Model, tempest::Bfield)
+# 	getfield!(m.fstar, tempest)
+# 	nothing
+# end
 function getfield!(m::Array{Float64}, tempest::Bfield)
     copyto!(tempest.ρ, tempest.nfixed+1:length(tempest.ρ), 10 .^m, 1:length(m))
 	getfieldTD!(tempest, tempest.z, tempest.ρ)
@@ -236,12 +236,14 @@ end
 
 # set the field given a conductivity model (GP parametrisation)
 # and nuisance model (vector)
-function getfield!(m::Model, mn::ModelNuisance, tempest::Bfield)
-	update_geometry(tempest, mn.nuisance)
-	getfield!(m, tempest)
-end
+# function getfield!(m::Model, mn::ModelNuisance, tempest::Bfield)
+# # not used I don't think
+# 	update_geometry(tempest, mn.nuisance)
+# 	getfield!(m, tempest)
+# end
 
 function getfield!(m::Array{Float64}, mn::Array{Float64}, tempest::Bfield)
+    @info "here"
     copyto!(tempest.ρ, tempest.nfixed+1:length(tempest.ρ), 10 .^m, 1:length(m))
 	update_geometry(tempest, vec(mn))
 	getfieldTD!(tempest, tempest.z, tempest.ρ)
@@ -392,11 +394,44 @@ function get_misfit(m::AbstractArray, mn::AbstractVector, opt::Union{Options,Opt
     # this is useful when reading history files and debugging
 	chi2by2 = 0.0;
 	if !opt.debug
-		getfield!(m, mn, tempest)
-		chi2by2 = getchi2by2(tempest)
+		chi2by2 = get_misfit(m, mn, tempest)
 	end
 	return chi2by2
 end
+
+function get_misfit(m::AbstractArray, mn::AbstractVector, tempest::Bfield)
+    # used by gradient inversion directly
+    geovec = setnuforinvtype(tempest, mn) # mn is not as large as geovec
+    getfield!(m, geovec, tempest) # calls update_geometry down the stack
+	chi2by2 = getchi2by2(tempest)
+end
+
+function extractnu(tempest::Bfield)
+    geovec = [
+        tempest.F.zTx,
+        tempest.F.zRx,
+        tempest.x_rx,
+        tempest.y_rx,
+        tempest.rx_roll,
+        tempest.rx_pitch,
+        tempest.rx_yaw,
+        tempest.tx_roll,
+        tempest.tx_pitch,
+        tempest.tx_yaw
+    ]    
+end    
+
+function setnuforinvtype(tempest::Bfield, nu::AbstractVector)
+    # order of elements must be right in nu!!
+    geovec = extractnu(tempest)
+    # required for amplitude only or vector sum
+    geovec[2] = nu[1] # must be zRx
+    geovec[3] = nu[2] # must be xRx
+    if !tempest.vectorsum
+        geovec[6] = nu[3] # receiver pitch
+    end
+    geovec
+end    
 
 function get_misfit(m::Model, mn::ModelNuisance, opt::Union{Options,OptionsNuisance}, tempest::Bfield)
     # actually used in McMC

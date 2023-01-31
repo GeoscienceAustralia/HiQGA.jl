@@ -53,11 +53,3 @@ transD_GP.TEMPEST1DInversion.plotmodelfield!(tempest, log10.(ρ[2:end]))
 transD_GP.TEMPEST1DInversion.makenoisydata!(tempest, log10.(ρ[2:end]),
                         noisefracx = 0.02, noisefracz = 0.02,
                         halt_X = Hx_add_noise*1e-15, halt_Z = Hz_add_noise*1e-15)
-# but model with a coarser grid
-extendfrac, dz = 1.06, 1.15
-zall, znall, zboundaries = transD_GP.setupz(zstart, extendfrac, dz=dz, n=50, showplot=true)
-zgrid, ρgrid, nfixed = transD_GP.makezρ(zboundaries; zfixed=zfixed, ρfixed=ρfixed)
-tempest.z, tempest.ρ = zgrid, copy(ρgrid)
-# only primary field stuff if you want for GA-AEM
-# Hxp, Hyp, Hzp = transD_GP.TEMPEST1DInversion.returnprimary!(tempest)
-# Xnoisy, Znoisy = tempest.dataHx - Hxp, tempest.dataHz - Hzp # raw SI units!!
