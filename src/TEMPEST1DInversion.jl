@@ -453,14 +453,16 @@ end
 
 function plotdata(ax, d, σ, t; onesigma=true, dtype=nothing)
     sigma = onesigma ? 1 : 2
+    color = "g"
     if dtype == :Hx
         label = "Bx"
+        color = "m"
     elseif dtype == :Hz
         label = "Bz"
     else
         label = "|B|"
     end        
-    ax.errorbar(t, μ₀*abs.(d)*fTinv; yerr = μ₀*sigma*fTinv*abs.(σ),
+    ax.errorbar(t, μ₀*abs.(d)*fTinv; yerr = μ₀*sigma*fTinv*abs.(σ), color,
     linestyle="none", marker=".", elinewidth=1, capsize=3, label)
 end
 
@@ -493,7 +495,7 @@ function vectorsumsplit(ax, iaxis, aem::Bfield, alpha, forward_lw, color)
         fm = get_fm(aem)
         plotsoundingcurve(ax[iaxis+1], fm, aem.F.times; color, alpha, lw=forward_lw)
     else    
-        colorused = ax[iaxis].lines[end].get_color()
+        colorused = !isnothing(color) ? color : ax[iaxis].lines[end].get_color()
         plotsoundingcurve(ax[iaxis+1], aem.Hx, aem.F.times; color=colorused, alpha, lw=forward_lw)
         plotsoundingcurve(ax[iaxis+1], aem.Hz, aem.F.times; color=colorused, alpha, lw=forward_lw)
     end

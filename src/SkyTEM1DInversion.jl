@@ -478,16 +478,17 @@ end
 function plotdata(ax, d, σ, t; onesigma=true, dtype=:LM)
     sigma = onesigma ? 1 : 2
     label = dtype == :LM ? "low moment" : "high moment"
-    ax.errorbar(t, μ₀*d*pVinv; yerr = μ₀*sigma*pVinv*abs.(σ),
-    linestyle="none", marker=".", elinewidth=0, capsize=3, label)
+    color = dtype == :LM ? "g" : "m"
+    ax.errorbar(t, μ₀*d*pVinv; yerr = μ₀*sigma*pVinv*abs.(σ), color,
+    linestyle="none", marker=".", elinewidth=1, capsize=3, label)
 end
 
 function plotmodelfield!(ax, iaxis, aem::dBzdt, ρ; color=nothing, alpha=1, model_lw=1, forward_lw=1)
     nfixed = aem.nfixed
     ax[iaxis].step(ρ, aem.z[nfixed+1:end], linewidth=model_lw, alpha=alpha)
     getfield!(ρ, aem)
-    plotsoundingcurve(ax[iaxis+1], aem.Flow.dBzdt, aem.Flow.times; color, alpha, lw=forward_lw)
-    colorused = ax[iaxis+1].lines[end].get_color()
+    colorused = !isnothing(color) ? color : ax[iaxis].lines[end].get_color()
+    plotsoundingcurve(ax[iaxis+1], aem.Flow.dBzdt, aem.Flow.times; color=colorused, alpha, lw=forward_lw)
     plotsoundingcurve(ax[iaxis+1], aem.Fhigh.dBzdt, aem.Fhigh.times; color=colorused, alpha, lw=forward_lw)
 end    
 
