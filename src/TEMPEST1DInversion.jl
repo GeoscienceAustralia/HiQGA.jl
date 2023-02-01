@@ -271,6 +271,19 @@ function reducegreenstensor!(tempest)
 			y/r*J1v,
 			J0v                            ]
 
+    if tempest.addprimary
+        HMDxp = [3x2 - R2, 3xy     , 3xz      ]/fpiR5
+        HMDyp = [3xy     , 3y2 - R2, 3yz      ]/fpiR5
+        VMDzp = [3xz     , 3yz     , 3z^2 - R2]/fpiR5
+        for idim in 1:3
+            HMDx[idim] .+= currentfac*HMDxp[idim]
+            HMDy[idim] .+= currentfac*HMDyp[idim]
+            VMDz[idim] .+= currentfac*VMDzp[idim]
+        end
+    end
+
+    Hx[:], Hy[:], Hz[:] = Rot_rx*Roll180*[HMDx HMDy VMDz]*Roll180*mhat        
+
     if tempest.F.calcjacobian
         F = tempest.F
         J_z, J_az, J_r = F.dBzdt_J, F.dBazdt_J, F.dBrdt_J
@@ -288,24 +301,12 @@ function reducegreenstensor!(tempest)
         
         Hx_J, _, Hz_J = Rot_rx*Roll180*[HMDx_J HMDy_J VMDz_J]*Roll180*mhat
         if tempest.vectorsum
-            copy!(tempest.J, sqrt.(Hx_J.^2 + Hz_J.^2)'[:,tempest.nfixed+1:end-1])
+            A = sqrt.(Hx.^2 + Hz.^2)        
+            copy!(tempest.J, ((1 ./A').*((Hx').*Hx_J + (Hz').*Hz_J))'[:,tempest.nfixed+1:end-1])
         else
             copy!(tempest.J, hcat(Hx_J, Hz_J)'[:,tempest.nfixed+1:end-1])    
         end    
     end    
-
-	if tempest.addprimary
-		HMDxp = [3x2 - R2, 3xy     , 3xz      ]/fpiR5
-		HMDyp = [3xy     , 3y2 - R2, 3yz      ]/fpiR5
-		VMDzp = [3xz     , 3yz     , 3z^2 - R2]/fpiR5
-		for idim in 1:3
-			HMDx[idim] .+= currentfac*HMDxp[idim]
-			HMDy[idim] .+= currentfac*HMDyp[idim]
-			VMDz[idim] .+= currentfac*VMDzp[idim]
-		end
-	end
-
-	Hx[:], Hy[:], Hz[:] = Rot_rx*Roll180*[HMDx HMDy VMDz]*Roll180*mhat
 	nothing
 end
 
