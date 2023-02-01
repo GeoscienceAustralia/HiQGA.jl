@@ -282,6 +282,7 @@ function gradientinv(   m::AbstractVector,
                         nuλ²frac = zeros(0),
                         nubounds = zeros(0),
                         ndivsnu = zeros(Int, 0),
+                        ntriesnu = 10,
                         regularizeupdate = false,
                         knownvalue=0.7,
                         firstvalue=:middle,
@@ -294,8 +295,10 @@ function gradientinv(   m::AbstractVector,
     target₀ = target
     mnew = [[similar(m) for i in 1:ntries] for j in 1:nstepsmax]
     χ²   = [Vector{Float64}(undef, 0) for j in 1:nstepsmax]
+    χ²nu   = [Vector{Float64}(undef, 0) for j in 1:nstepsmax]
     λ² = [Vector{Vector{Float64}}(undef, 0) for j in 1:nstepsmax]
-    nunew = [[similar(nu) for i in 1:ntries] for j in 1:nstepsmax]
+    nunew = [Vector{Vector{Float64}}(undef, 0) for j in 1:nstepsmax]
+    Δm = [similar(m) for i in 1:ntries]
     oidx = zeros(Int, nstepsmax)
     nu_oidx = similar(oidx)  
     ndata = length(F.res)
@@ -304,8 +307,8 @@ function gradientinv(   m::AbstractVector,
     io = open_history(fname)
     while true
         # first get optimal nuisance index
-        nu_idx = bostepnu(nu, nunew[istep], m, χ²[istep], t, λ²GP, F;
-            ntries, κ, knownvalue, firstvalue, breakonknown)         
+        nu_idx = bostepnu(nu, nunew[istep], m, χ²nu[istep], t, λ²GP, F;
+            ntries=ntriesnu, κ, knownvalue, firstvalue, breakonknown)         
         idx, foundroot = occamstep(m, m0, Δm, mnew[istep], χ²[istep], λ²[istep], F, R, target, 
             lo, hi, λ²min, λ²max, β², ntries, knownvalue=knownvalue, regularizeupdate = regularizeupdate)
         prefix = isempty(fname) ? fname : fname*" : "
@@ -324,7 +327,7 @@ function gradientinv(   m::AbstractVector,
         istep > nstepsmax && break
     end
     isa(io, Nothing) || begin @info "Finished "*fname; close(io) end
-    return map(x->x[1:istep], (mnew, nunew, χ², λ², oidx, nu_oidx))
+    return map(x->x[1:istep], (mnew, nunew, χ², χ²nu, λ², oidx, nu_oidx))
 end
 
 function nuinitbo(nubounds::Array{Float64, 2}, ndivsnu::Vector{Int}, nufrac::Vector)
@@ -348,17 +351,25 @@ function bostepnu(nu::AbstractVector, nunew::Vector{Vector{Float64}}, m::Abstrac
                    acqfun = GP.EI(),
                    ntries = 10,
                    firstvalue = :middle,
+                   highval = 1e32,
                    knownvalue = NaN,
                    breakonknown = false)
     
     χ²₀ = 2*get_misfit(m, nu, F)
+    push!(χ², χ²₀) # make sure we get starting value to train
+    push!(nunew, nu) # make sure we store starting value
     knownvalue *= χ²₀               
     ttrain = zeros(size(t,1), 0)
-    for i = 1:ntries
+    ttrain = hcat(ttrain, nu) # add first training location
+    # @info "at start of BO: " ttrain, nunew, χ²
+    for i = 2:ntries
         nextpos, = getBOsample(κ, χ²', ttrain, t, λ²GP, δtry, demean, knownvalue, firstvalue, acqfun)
         push!(nunew, t[:, nextpos])
-        push!(χ², 2*get_misfit(m, nunew[i], F)) # next training value
-        ttrain = hcat(ttrain, t[:,nextpos])     # next training location
+        temp = 2*get_misfit(m, nunew[i], F)
+        temp = isnan(temp) ? highval : temp
+        push!(χ², temp)                     # next training value
+        ttrain = hcat(ttrain, t[:,nextpos]) # next training location
+        # @info "at BO try $i" ttrain, χ², nunew
         (χ²[i] <= knownvalue && breakonknown) && break
     end
     idx = argmin(χ²)
