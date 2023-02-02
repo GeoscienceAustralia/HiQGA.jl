@@ -110,8 +110,9 @@ struct KernelStruct
     ytest
 end    
 
-function KernelStruct(ktype, ntest, ntrainmax, λ², δ, xtest)
-    # K **, K*, K
+function KernelStruct(ktype, ntrainmax, λ², δ, xtest)
+    ntest = size(xtest, 2)
+    @assert length(λ²) == size(xtest,1)
     G = KernelStruct(ktype, zeros(ntest, ntest), zeros(ntest, ntest), zeros(ntest, ntrainmax), 
         zeros(ntrainmax, ntrainmax), λ², δ, zeros(ntest))
     priorcov!(G.Kss, G.ktype, xtest, G.λ²)

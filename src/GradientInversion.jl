@@ -174,13 +174,14 @@ function bostep(m::AbstractVector, m0::AbstractVector, mnew::Vector{Vector{Float
     idx, foundroot
 end 
 
-function getBOsample(κ, χ², ttrain, t, λ²GP, δtry, demean, knownvalue, firstvalue, acqfun)
+function getBOsample(G:: GP.KernelStruct, χ², ttrain, t, knownvalue, firstvalue, acqfun)
     # χ², ttrain, t are row major
     ntrain = length(ttrain)
     if ntrain > 0
-        ytest, σ2, = GP.GPfit(κ, χ², ttrain, t, λ²GP, δtry, demean=demean)
-        diagσ2 = diag(σ2)
-        nextpos = argmax(GP.getAF(acqfun, vec(χ²), vec(ytest), diagσ2, findmin=true, knownvalue=knownvalue))          
+        # ytest, σ2, = GP.GPfit(κ, χ², ttrain, t, λ²GP, δtry, demean=demean)
+        GP.GPfitaddpoint(G, ttrain, χ², t)
+        ytest, σ2 = G.ytest, G.var_post
+        nextpos = argmax(GP.getAF(acqfun, vec(χ²), vec(ytest), diag(σ2), findmin=true, knownvalue=knownvalue))          
     else
         nextpos = AFoneiter(firstvalue, size(t, 2))
     end
@@ -287,6 +288,8 @@ function gradientinv(   m::AbstractVector,
                         knownvalue=0.7,
                         firstvalue=:middle,
                         κ = GP.Mat52(),
+                        acqfun = GP.EI(),
+                        δtry = 1e-2,
                         breakonknown=true,
                         fname="")
     R = makereg(regtype, F)                
@@ -303,12 +306,13 @@ function gradientinv(   m::AbstractVector,
     nu_oidx = similar(oidx)  
     ndata = length(F.res)
     t, λ²GP = nuinitbo(nubounds, ndivsnu, nuλ²frac)
+    G = GP.KernelStruct(κ, ntriesnu, λ²GP, δtry, t)
     istep = 1 
     io = open_history(fname)
     while true
         # first get optimal nuisance index
-        nu_idx = bostepnu(nu, nunew[istep], m, χ²nu[istep], t, λ²GP, F;
-            ntries=ntriesnu, κ, knownvalue, firstvalue, breakonknown)         
+        nu_idx = bostepnu(G, nu, nunew[istep], m, χ²nu[istep], t, λ²GP, F; acqfun, 
+            ntries=ntriesnu, knownvalue, firstvalue, breakonknown)         
         idx, foundroot = occamstep(m, m0, Δm, mnew[istep], χ²[istep], λ²[istep], F, R, target, 
             lo, hi, λ²min, λ²max, β², ntries, knownvalue=knownvalue, regularizeupdate = regularizeupdate)
         prefix = isempty(fname) ? fname : fname*" : "
@@ -341,13 +345,11 @@ function nuinitbo(nubounds::Array{Float64, 2}, ndivsnu::Vector{Int}, nufrac::Vec
     tgrid, λ²GP
 end    
 
-function bostepnu(nu::AbstractVector, nunew::Vector{Vector{Float64}}, m::AbstractVector, χ²::Vector{Float64},
+function bostepnu(G:: GP.KernelStruct, nu::AbstractVector, nunew::Vector{Vector{Float64}}, m::AbstractVector, χ²::Vector{Float64},
                    t::Array{Float64, 2}, λ²GP::Array{Float64, 1}, F::Operator;
 
                    ## GP stuff
                    demean = true, 
-                   κ = GP.Mat52(), 
-                   δtry = 1e-2,
                    acqfun = GP.EI(),
                    ntries = 10,
                    firstvalue = :middle,
@@ -361,9 +363,10 @@ function bostepnu(nu::AbstractVector, nunew::Vector{Vector{Float64}}, m::Abstrac
     knownvalue *= χ²₀               
     ttrain = zeros(size(t,1), 0)
     ttrain = hcat(ttrain, nu) # add first training location
+    GP.GPfit(G, ttrain, χ²', t)
     # @info "at start of BO: " ttrain, nunew, χ²
     for i = 2:ntries
-        nextpos, = getBOsample(κ, χ²', ttrain, t, λ²GP, δtry, demean, knownvalue, firstvalue, acqfun)
+        nextpos, = getBOsample(G, χ²', ttrain, t, knownvalue, firstvalue, acqfun)
         push!(nunew, t[:, nextpos])
         temp = 2*get_misfit(m, nunew[i], F)
         temp = isnan(temp) ? highval : temp
