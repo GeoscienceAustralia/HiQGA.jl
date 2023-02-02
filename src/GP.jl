@@ -138,7 +138,7 @@ function GPfitaddpoint(G::KernelStruct, xtrain, ytrain, xtest)
     @assert length(G.λ²) == size(xtrain,1)
     my = mean(ytrain, dims=2)
     rhs = ytrain .- my
-    n = length(xtrain)
+    n = size(xtrain, 2)
     addtrainingpoint(G.ktype, G.Kstar, G.K_y, xtest, xtrain, G.λ², G.δ, n)
     ky = @view G.K_y[1:n,1:n]
     U = cholesky(Positive, ky, Val{false}).U
