@@ -29,7 +29,7 @@ end
 ## plots for best in each
 f, s = plt.subplots(1, 2, gridspec_kw=Dict("width_ratios" => [1,1.5]),
         figsize=(8,5))
-alpha = 0.1
+alpha = 0.2
 χ²best = zeros(0)
 idxlast = length(m)
 ndata = length(aem.res)

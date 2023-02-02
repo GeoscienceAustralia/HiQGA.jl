@@ -33,7 +33,7 @@ Random.seed!(11)
 ρ = 10 .^(0.1*randn(length(ρ)) + log10.(ρ))
 ## create total field operator (required for nuisance inversion)
 calcjacobian = true
-vectorsum = true
+vectorsum = false
 tempest = transD_GP.TEMPEST1DInversion.Bfield(;
     zTx = zTx, zRx = zRx, x_rx = x_rx, y_rx = y_rx,
     rx_roll = rx_roll, rx_pitch = rx_pitch, rx_yaw = rx_yaw,
@@ -53,4 +53,4 @@ transD_GP.TEMPEST1DInversion.makenoisydata!(tempest, log10.(ρ[2:end]),
                         noisefracx = 0.02, noisefracz = 0.02,
                         halt_X = Hx_add_noise*1e-15, halt_Z = Hz_add_noise*1e-15)
 ## debug
-Torig = deepcopy(tempest)
+Torig = deepcopy(tempest);
