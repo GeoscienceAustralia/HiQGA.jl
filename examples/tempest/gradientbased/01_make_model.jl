@@ -50,7 +50,7 @@ transD_GP.TEMPEST1DInversion.plotmodelfield!(tempest, log10.(ρ[2:end]))
 ## compute noisy data to invert
 # remember noise in electronics_halt.jl are in fT!!
 transD_GP.TEMPEST1DInversion.makenoisydata!(tempest, log10.(ρ[2:end]),
-                        noisefracx = 0.02, noisefracz = 0.02,
+                        noisefracx = 0.02, noisefracz = 0.02, 
                         halt_X = Hx_add_noise*1e-15, halt_Z = Hz_add_noise*1e-15)
 ## debug
 Torig = deepcopy(tempest);

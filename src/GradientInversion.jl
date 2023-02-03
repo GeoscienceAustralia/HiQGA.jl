@@ -291,6 +291,8 @@ function gradientinv(   m::AbstractVector,
                         acqfun = GP.EI(),
                         δtry = 1e-2,
                         breakonknown=true,
+                        breaknuonknown=false,
+                        reducenuto=0.2,
                         fname="")
     R = makereg(regtype, F)                
     ndata = length(F.res)
@@ -315,9 +317,10 @@ function gradientinv(   m::AbstractVector,
         #     ntries=ntriesnu, knownvalue, firstvalue, breakonknown)
         
         # Optim stuff
-        f(x) = get_misfit(m, x, F, nubounds)         
+        f(x) = 2*get_misfit(m, x, F, nubounds)
+        f_abstol = breaknuonknown ? reducenuto*f(nu) : 0.  
         nu = Optim.minimizer(optimize(f, nu, BFGS(), 
-            Optim.Options(show_trace=true, f_abstol=knownvalue*f(nu), iterations=ntriesnu, successive_f_tol=0)))
+            Optim.Options(show_trace=true, f_abstol=f_abstol, iterations=ntriesnu, successive_f_tol=0)))
         nunew[istep] = nu
         #
         idx, foundroot = occamstep(m, m0, Δm, mnew[istep], χ²[istep], λ²[istep], F, R, target, 
