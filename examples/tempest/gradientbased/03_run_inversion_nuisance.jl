@@ -1,6 +1,6 @@
 ## BO nuisance stuff
 if tempest.vectorsum
-    nustart  = [zRx-1, x_rx+1]
+    nustart  = [zRx-1, x_rx-1]
     nuλ²frac = [8, 8]
     nubounds = [zRx-2.5   zRx+2.5
                 x_rx-2.5 x_rx+2.5]
@@ -22,7 +22,7 @@ m, nu, χ², χ²nu, λ², idx = transD_GP.gradientinv(σstart, σ0, nustart, te
                             λ²min, λ²max, β², ntries,
                             # optim stuff
                             ntriesnu, 
-                            breaknuonknown=true,
+                            breaknuonknown=false,
                             reducenuto=0.2,
                             lo, hi, regtype);
 aem = tempest;
