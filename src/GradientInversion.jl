@@ -1,6 +1,6 @@
 using LinearMaps, SparseArrays, PositiveFactorizations, LazyGrids
 using Roots:find_zero
-using .AbstractOperator, .GP
+using .AbstractOperator, .GP, Optim
 
 function makeregR0(F::Operator1D)
     n = length(F.ρ) - F.nfixed
@@ -300,7 +300,7 @@ function gradientinv(   m::AbstractVector,
     χ²   = [Vector{Float64}(undef, 0) for j in 1:nstepsmax]
     χ²nu   = [Vector{Float64}(undef, 0) for j in 1:nstepsmax]
     λ² = [Vector{Vector{Float64}}(undef, 0) for j in 1:nstepsmax]
-    nunew = [Vector{Vector{Float64}}(undef, 0) for j in 1:nstepsmax]
+    nunew = [Vector{Float64}(undef, 0) for j in 1:nstepsmax]
     Δm = [similar(m) for i in 1:ntries]
     oidx = zeros(Int, nstepsmax)
     nu_oidx = similar(oidx)  
@@ -311,16 +311,23 @@ function gradientinv(   m::AbstractVector,
     io = open_history(fname)
     while true
         # first get optimal nuisance index
-        nu_idx = bostepnu(G, nu, nunew[istep], m, χ²nu[istep], t, λ²GP, F; acqfun, 
-            ntries=ntriesnu, knownvalue, firstvalue, breakonknown)         
+        # nu_idx = bostepnu(G, nu, nunew[istep], m, χ²nu[istep], t, λ²GP, F; acqfun, 
+        #     ntries=ntriesnu, knownvalue, firstvalue, breakonknown)
+        
+        # Optim stuff
+        f(x) = get_misfit(m, x, F, nubounds)         
+        nu = Optim.minimizer(optimize(f, nu, BFGS(), 
+            Optim.Options(show_trace=true, f_abstol=knownvalue*f(nu), iterations=ntriesnu, successive_f_tol=0)))
+        nunew[istep] = nu
+        #
         idx, foundroot = occamstep(m, m0, Δm, mnew[istep], χ²[istep], λ²[istep], F, R, target, 
             lo, hi, λ²min, λ²max, β², ntries, knownvalue=knownvalue, regularizeupdate = regularizeupdate)
         prefix = isempty(fname) ? fname : fname*" : "
         @info prefix*"iteration: $istep χ²: $(χ²[istep][idx]) target: $target"
         m = mnew[istep][idx]
-        nu = nunew[istep][nu_idx]
+        # nu = nunew[istep][nu_idx]
         oidx[istep] = idx
-        nu_oidx[istep] = nu_idx
+        # nu_oidx[istep] = nu_idx
         isa(io, Nothing) || write_history(io, [istep; χ²[istep][idx]/target₀; vec(m)])
         foundroot && break
         noimprovement = iszero(λ²[istep][idx][2])  ? true : false
@@ -331,7 +338,7 @@ function gradientinv(   m::AbstractVector,
         istep > nstepsmax && break
     end
     isa(io, Nothing) || begin @info "Finished "*fname; close(io) end
-    return map(x->x[1:istep], (mnew, nunew, χ², χ²nu, λ², oidx, nu_oidx))
+    return map(x->x[1:istep], (mnew, nunew, χ², χ²nu, λ², oidx))
 end
 
 function nuinitbo(nubounds::Array{Float64, 2}, ndivsnu::Vector{Int}, nufrac::Vector)

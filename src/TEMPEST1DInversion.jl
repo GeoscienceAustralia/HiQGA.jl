@@ -387,10 +387,14 @@ function get_misfit(m::AbstractArray, mn::AbstractVector, opt::Union{Options,Opt
 	return chi2by2
 end
 
-function get_misfit(σ::AbstractArray, mn::AbstractVector, tempest::Bfield)
+function get_misfit(σ::AbstractArray, nu::AbstractVector, tempest::Bfield, nubounds)
     # used by gradient inversion directly
-    geovec = setnuforinvtype(tempest, mn) # mn is not as large as geovec
+    geovec = setnuforinvtype(tempest, nu) # mn is not as large as geovec
+    lo, hi = nubounds[:,1], nubounds[:,2]
+    (any(lo .> nu) | any(hi .< nu) ) && return 1e9
+    tempest.F.calcjacobian = false
     getfield!(-σ, geovec, tempest) # calls update_geometry down the stack
+    tempest.F.calcjacobian = true
 	chi2by2 = getchi2by2(tempest)
 end
 

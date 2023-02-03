@@ -27,7 +27,7 @@ for (i, mi) in enumerate(m)
     transD_GP.nicenup(gcf(), fsize=12)
 end
 ## plots for best in each
-f, s = plt.subplots(1, 2, gridspec_kw=Dict("width_ratios" => [1,1.5]),
+_, s = plt.subplots(1, 2, gridspec_kw=Dict("width_ratios" => [1,1.5]),
         figsize=(8,5))
 alpha = 0.2
 χ²best = zeros(0)
@@ -48,4 +48,4 @@ s[2].plot(1:idxlast, χ²best/ndata, ".-", ms=10)
 s[2].plot([1, idxlast], [1, 1], "--k")
 s[2].set_xlabel("Outer iteration #")
 s[2].set_ylabel(L"ϕ_d"*" best")
-f.tight_layout()
+gcf().tight_layout()

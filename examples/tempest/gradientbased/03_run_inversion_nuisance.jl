@@ -1,6 +1,6 @@
 ## BO nuisance stuff
 if tempest.vectorsum
-    nustart  = [zRx-2, x_rx+2]
+    nustart  = [zRx+2, x_rx-2]
     nuλ²frac = [8, 8]
     nubounds = [zRx-2.5   zRx+2.5
                 x_rx-2.5 x_rx+2.5]
@@ -17,7 +17,7 @@ else
 end         
 ## do the inversion
 tempest = deepcopy(Torig);
-m, nu, χ², χ²nu, λ², idx, idxnu = transD_GP.gradientinv(σstart, σ0, nustart, tempest, nstepsmax=16, 
+m, nu, χ², χ²nu, λ², idx = transD_GP.gradientinv(σstart, σ0, nustart, tempest, nstepsmax=30, 
                             ;nubounds, nuλ²frac, ndivsnu, ntriesnu,
                             λ²min, λ²max, β², ntries,
                             lo, hi, regtype);

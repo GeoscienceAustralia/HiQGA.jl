@@ -33,7 +33,7 @@ Random.seed!(11)
 ρ = 10 .^(0.1*randn(length(ρ)) + log10.(ρ))
 ## create total field operator (required for nuisance inversion)
 calcjacobian = true
-vectorsum = false
+vectorsum = true
 tempest = transD_GP.TEMPEST1DInversion.Bfield(;
     zTx = zTx, zRx = zRx, x_rx = x_rx, y_rx = y_rx,
     rx_roll = rx_roll, rx_pitch = rx_pitch, rx_yaw = rx_yaw,
@@ -54,3 +54,21 @@ transD_GP.TEMPEST1DInversion.makenoisydata!(tempest, log10.(ρ[2:end]),
                         halt_X = Hx_add_noise*1e-15, halt_Z = Hz_add_noise*1e-15)
 ## debug
 Torig = deepcopy(tempest);
+## optim stuff
+# using Optim
+# tempest.F.calcjacobian = false
+# f(x) = transD_GP.TEMPEST1DInversion.get_misfit(-log10.(ρ[2:end]), x, tempest)
+# initial_x = [-81.5, -113.5]
+# # no constraints
+# res = optimize(f, initial_x, BFGS(), 
+#     Optim.Options(show_trace=true, f_abstol=0.7*f(initial_x), iterations=6, successive_f_tol=0))
+# # box constraints    
+# lower = [-84, -115.]
+# upper = [-80, -111.]
+# res = optimize(f, lower, upper, initial_x, Fminbox(BFGS()), 
+#     Optim.Options(show_trace=true, outer_f_abstol=0.7*f(initial_x), f_abstol=0.7*f(initial_x), successive_f_tol=0))    
+# function cb(os)
+#     println(keys(os.metadata))
+#     false
+# end
+# res = optimize(f, initial_x, BFGS(), Optim.Options(f_reltol=0.7, callback=cb, extended_trace=true))
