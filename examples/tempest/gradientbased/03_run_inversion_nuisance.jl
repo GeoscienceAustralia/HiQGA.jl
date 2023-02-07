@@ -22,7 +22,7 @@ m, nu, χ², χ²nu, λ², idx = transD_GP.gradientinv(σstart, σ0, nustart, te
                             boxiters = 3, 
                             usebox = true,
                             reducenuto = 0.2,
-                            debuglevel = 2,
+                            debuglevel = 0,
                             breaknuonknown=false);
 aem = tempest;
 ## for plotting forwards

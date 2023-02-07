@@ -65,8 +65,8 @@ Torig = deepcopy(tempest);
 # # box constraints    
 # lower = [-84, -115.]
 # upper = [-80, -111.]
-res = optimize(f, lower, upper, initial_x, Fminbox(BFGS()), 
-    Optim.Options(show_trace=true, outer_f_abstol=0.7*f(initial_x), f_abstol=0.7*f(initial_x), successive_f_tol=0))    
+# res = optimize(f, lower, upper, initial_x, Fminbox(BFGS()), 
+#     Optim.Options(show_trace=true, outer_f_abstol=0.7*f(initial_x), f_abstol=0.7*f(initial_x), successive_f_tol=0))    
 # function cb(os)
 #     println(keys(os.metadata))
 #     false
