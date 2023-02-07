@@ -17,14 +17,16 @@ else
 end         
 ## do the inversion
 tempest = deepcopy(Torig);
-m, nu, χ², χ²nu, λ², idx = transD_GP.gradientinv(σstart, σ0, nustart, tempest, nstepsmax=30, 
-                            ;nubounds, nuλ²frac, ndivsnu,
+m, nu, χ², χ²nu, λ², idx = transD_GP.gradientinv(σstart, σ0, nustart, tempest; 
+                            nstepsmax=30, 
+                            # Occam stuff
                             λ²min, λ²max, β², ntries,
-                            # optim stuff
-                            ntriesnu, 
-                            breaknuonknown=false,
                             reducenuto=0.2,
-                            lo, hi, regtype);
+                            lo, hi, regtype,
+                            # optim stuff
+                            nubounds, 
+                            ntriesnu, 
+                            breaknuonknown=false);
 aem = tempest;
 ## for plotting forwards
 mn = reduce(hcat, [transD_GP.TEMPEST1DInversion.setnuforinvtype(tempest, n) for n in nu])'

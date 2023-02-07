@@ -280,19 +280,13 @@ function gradientinv(   m::AbstractVector,
                         λ²min = 0,
                         λ²max = 8,
                         β² = 0.,
-                        nuλ²frac = zeros(0),
                         nubounds = zeros(0),
-                        ndivsnu = zeros(Int, 0),
                         ntriesnu = 10,
                         regularizeupdate = false,
                         knownvalue=0.7,
-                        firstvalue=:middle,
-                        κ = GP.Mat52(),
-                        acqfun = GP.EI(),
-                        δtry = 1e-2,
-                        breakonknown=true,
                         breaknuonknown=false,
                         reducenuto=0.2,
+                        debuglevel = 1,
                         fname="")
     R = makereg(regtype, F)                
     ndata = length(F.res)
@@ -305,32 +299,26 @@ function gradientinv(   m::AbstractVector,
     nunew = [Vector{Float64}(undef, 0) for j in 1:nstepsmax]
     Δm = [similar(m) for i in 1:ntries]
     oidx = zeros(Int, nstepsmax)
-    nu_oidx = similar(oidx)  
     ndata = length(F.res)
-    t, λ²GP = nuinitbo(nubounds, ndivsnu, nuλ²frac)
-    G = GP.KernelStruct(κ, ntriesnu, λ²GP, δtry, t)
     istep = 1 
     io = open_history(fname)
     while true
-        # first get optimal nuisance index
-        # nu_idx = bostepnu(G, nu, nunew[istep], m, χ²nu[istep], t, λ²GP, F; acqfun, 
-        #     ntries=ntriesnu, knownvalue, firstvalue, breakonknown)
-        
-        # Optim stuff
+        # Optim stuff for nuisances
         f(x) = 2*get_misfit(m, x, F, nubounds)
-        f_abstol = breaknuonknown ? reducenuto*f(nu) : 0.  
-        nu = Optim.minimizer(optimize(f, nu, BFGS(), 
-            Optim.Options(show_trace=true, f_abstol=f_abstol, iterations=ntriesnu, successive_f_tol=0)))
+        f_abstol = breaknuonknown ? reducenuto*f(nu) : 0.
+        show_trace = debuglevel > 0 ? true : false  
+        res = optimize(f, nu, BFGS(), 
+            Optim.Options(;show_trace, f_abstol, iterations=ntriesnu, successive_f_tol=0))
+            (debuglevel > 1) && @info res
+        nu = res.minimizer    
         nunew[istep] = nu
-        #
+        # normal Occam for conductivities
         idx, foundroot = occamstep(m, m0, Δm, mnew[istep], χ²[istep], λ²[istep], F, R, target, 
             lo, hi, λ²min, λ²max, β², ntries, knownvalue=knownvalue, regularizeupdate = regularizeupdate)
         prefix = isempty(fname) ? fname : fname*" : "
         @info prefix*"iteration: $istep χ²: $(χ²[istep][idx]) target: $target"
         m = mnew[istep][idx]
-        # nu = nunew[istep][nu_idx]
         oidx[istep] = idx
-        # nu_oidx[istep] = nu_idx
         isa(io, Nothing) || write_history(io, [istep; χ²[istep][idx]/target₀; vec(m)])
         foundroot && break
         noimprovement = iszero(λ²[istep][idx][2])  ? true : false
