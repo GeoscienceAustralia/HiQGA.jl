@@ -7,7 +7,7 @@ else
     nustart  = [zRx-2, x_rx+2, rx_pitch+0.5]
     nubounds = [zRx-2.5      zRx+2.5
                 x_rx-2.5     x_rx+2.5
-                rx_pitch-0.5 rx_pitch+0.5]
+                rx_pitch-1 rx_pitch+1]
 end         
 ## do the inversion
 tempest = deepcopy(Torig);
@@ -22,7 +22,7 @@ m, nu, χ², χ²nu, λ², idx = transD_GP.gradientinv(σstart, σ0, nustart, te
                             boxiters = 3, 
                             usebox = true,
                             reducenuto = 0.2,
-                            debuglevel = 0,
+                            debuglevel = 2,
                             breaknuonknown=false);
 aem = tempest;
 ## for plotting forwards
@@ -30,6 +30,10 @@ mn = reduce(hcat, [transD_GP.TEMPEST1DInversion.setnuforinvtype(tempest, n) for 
 mfinal = [-mm[i] for (mm, i) in zip(m, idx)]
 mtest = copy(mfinal[end])
 nutest = copy(mn[end,:])
-@info transD_GP.TEMPEST1DInversion.get_misfit(-mtest, [zRx, x_rx], tempest, nubounds)
+if tempest.vectorsum
+    @info transD_GP.TEMPEST1DInversion.get_misfit(-mtest, [zRx, x_rx], tempest, nubounds)
+else
+    @info transD_GP.TEMPEST1DInversion.get_misfit(-mtest, [zRx, x_rx, rx_pitch], tempest, nubounds)
+end        
 @info transD_GP.TEMPEST1DInversion.get_misfit(-mtest, nu[end], tempest, nubounds)
 transD_GP.TEMPEST1DInversion.plotmodelfield!(tempest, mtest, nutest)
