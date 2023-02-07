@@ -6,7 +6,7 @@ import ..AbstractOperator.makebounds
 import ..AbstractOperator.getoptnfromexisting
 import ..AbstractOperator.getnufromsounding
 import ..AbstractOperator.plotmodelfield!
-import ..AbstractOperator.getresidual # for gradientbased
+import ..AbstractOperator.getresidual, ..AbstractOperator.returnforwrite, ..AbstractOperator.setnuboundsandstartforgradinv # for gradientbased
 
 using ..AbstractOperator, ..AEM_VMD_HMD, ..SoundingDistributor
 using PyPlot, LinearAlgebra, ..CommonToAll, Random, DelimitedFiles, Distributed, Dates, Statistics, SparseArrays
@@ -425,6 +425,23 @@ function setnuforinvtype(tempest::Bfield, nu::AbstractVector)
     geovec
 end    
 
+function setnuboundsandstartforgradinv(tempest::Bfield, Δ::Array{Float64, 2})
+    nubounds = similar(Δ)
+    nustart = zeros(size(nubounds, 1))
+    geovec = extractnu(tempest)
+    # zRx and xRx low
+    nubounds[1:2,1] = [geovec[2], geovec[3]] + Δ[1:2,1]
+    nustart[1:2] = geovec[2:3]
+    # zRx and xRx high
+    nubounds[1:2,2] = [geovec[2], geovec[3]] + Δ[1:2,2]
+    if !tempest.vectorsum
+        nubounds[3,1] = geovec[6] + Δ[3,1]
+        nubounds[3,2] = geovec[6] + Δ[3,2]
+        nustart[3] = geovec[6]
+    end
+    nubounds, nustart    
+end
+
 function get_misfit(m::Model, mn::ModelNuisance, opt::Union{Options,OptionsNuisance}, tempest::Bfield)
     # actually used in McMC
     get_misfit(m.fstar, mn.nuisance, opt, tempest)
@@ -662,6 +679,9 @@ function getnufromsounding(t::TempestSoundingData)
 end   
 
 
+returnforwrite(s::TempestSoundingData) = [s.X, s.Y, s.Z, s.fid, 
+    s.linenum, getnufromsounding(s)...]
+
 function read_survey_files(;
     fname_dat="",
     fname_specs_halt="",
@@ -853,6 +873,7 @@ function makeoperator( sounding::TempestSoundingData;
                        useML = false,
                        dz = 2.,
                        ρbg = 10,
+                       calcjacobian = false, 
                        nlayers = 40,
                        ntimesperdecade = 10,
                        nfreqsperdecade = 5,
@@ -870,7 +891,7 @@ function makeoperator( sounding::TempestSoundingData;
     z, ρ, = makezρ(zboundaries; zfixed=zfixed, ρfixed=ρfixed)
     ρ[z.>=zstart] .= ρbg
     ## Tempest operator creation from sounding data
-	aem = Bfield(;ntimesperdecade, nfreqsperdecade,
+	aem = Bfield(;ntimesperdecade, nfreqsperdecade, calcjacobian,
     zTx = sounding.z_tx, zRx = sounding.z_rx,
 	x_rx = sounding.x_rx, y_rx = sounding.y_rx,
     rx_roll = sounding.roll_rx, rx_pitch = sounding.pitch_rx, rx_yaw = sounding.yaw_rx,
@@ -901,7 +922,7 @@ function makeoperator(aem::Bfield, sounding::TempestSoundingData)
     rx_roll = sounding.roll_rx, rx_pitch = sounding.pitch_rx, rx_yaw = sounding.yaw_rx,
     tx_roll = sounding.roll_tx, tx_pitch = sounding.pitch_tx, tx_yaw = sounding.yaw_tx,
 	ramp = sounding.ramp, times = sounding.times, useML = aem.useML,
-	z=copy(aem.z), ρ=copy(aem.ρ),
+	z=copy(aem.z), ρ=copy(aem.ρ), calcjacobian=aem.F.calcjacobian,
 	addprimary = aem.addprimary, #this ensures that the geometry update actually changes everything that needs to be
     vectorsum = aem.vectorsum
 	)

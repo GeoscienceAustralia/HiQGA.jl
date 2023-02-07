@@ -286,8 +286,8 @@ function gradientinv(   m::AbstractVector,
                         knownvalue=0.7,
                         breaknuonknown=false,
                         reducenuto=0.2,
-                        debuglevel = 1,
-                        usebox = false,
+                        debuglevel = 0,
+                        usebox = true,
                         boxiters = 2,
                         fname="")
     R = makereg(regtype, F)                
@@ -326,7 +326,7 @@ function gradientinv(   m::AbstractVector,
         @info prefix*"iteration: $istep χ²: $(χ²[istep][idx]) target: $target"
         m = mnew[istep][idx]
         oidx[istep] = idx
-        isa(io, Nothing) || write_history(io, [istep; χ²[istep][idx]/target₀; vec(m)])
+        isa(io, Nothing) || write_history(io, [istep; χ²[istep][idx]/target₀; vec(m); nu])
         foundroot && break
         noimprovement = iszero(λ²[istep][idx][2])  ? true : false
         if (istep == nstepsmax - 1) || noimprovement 
@@ -337,52 +337,6 @@ function gradientinv(   m::AbstractVector,
     end
     isa(io, Nothing) || begin @info "Finished "*fname; close(io) end
     return map(x->x[1:istep], (mnew, nunew, χ², χ²nu, λ², oidx))
-end
-
-function nuinitbo(nubounds::Array{Float64, 2}, ndivsnu::Vector{Int}, nufrac::Vector)
-    @assert size(nubounds, 1) == length(ndivsnu)
-    @assert size(nubounds, 1) == length(nufrac)
-    @assert length(nufrac) >= 1. # this is what we divide by to get a fraction of the nuisance range 
-    nuranges = map((nu, ndiv)->range(extrema(nu)..., ndiv+1), (eachrow(nubounds)), ndivsnu) # test range for surrogate
-    λ²GP =  (abs.(diff(nubounds, dims=2)[:])./nufrac).^2 # length scale square for surrogate
-    t = ndgrid(nuranges...)
-    tgrid = reduce(vcat, [tt[:]' for tt in t])
-    tgrid, λ²GP
-end    
-
-function bostepnu(G:: GP.KernelStruct, nu::AbstractVector, nunew::Vector{Vector{Float64}}, m::AbstractVector, χ²::Vector{Float64},
-                   t::Array{Float64, 2}, λ²GP::Array{Float64, 1}, F::Operator;
-
-                   ## GP stuff
-                   demean = true, 
-                   acqfun = GP.EI(),
-                   ntries = 10,
-                   firstvalue = :middle,
-                   highval = 1e32,
-                   knownvalue = NaN,
-                   breakonknown = false)
-    
-    χ²₀ = 2*get_misfit(m, nu, F)
-    push!(χ², χ²₀) # make sure we get starting value to train
-    push!(nunew, nu) # make sure we store starting value
-    knownvalue *= χ²₀               
-    ttrain = zeros(size(t,1), 0)
-    ttrain = hcat(ttrain, nu) # add first training location
-    GP.GPfit(G, ttrain, χ²', t)
-    # @info "at start of BO: " ttrain, nunew, χ²
-    for i = 2:ntries
-        nextpos, = getBOsample(G, χ²', ttrain, t, knownvalue, firstvalue, acqfun)
-        push!(nunew, t[:, nextpos])
-        temp = 2*get_misfit(m, nunew[i], F)
-        temp = isnan(temp) ? highval : temp
-        push!(χ², temp)                     # next training value
-        ttrain = hcat(ttrain, t[:,nextpos]) # next training location
-        # @info "at BO try $i" ttrain, χ², nunew
-        (χ²[i] <= knownvalue && breakonknown) && break
-    end
-    idx = argmin(χ²)
-    get_misfit(m, nunew[idx], F) # make sure that geometry is updated
-    idx
 end
 
 function open_history(fname)

@@ -30,8 +30,11 @@ function getndata end
 function makebounds end
 # to get optn with nuisances from existing struct
 function getoptnfromexisting end
-# to get nuisance frmo type of system
+# to get nuisance frmo type of system (McMC)
 function getnufromsounding end
-
+# to set bounds and start for type of system (grad based)
+function setnuboundsandstartforgradinv end
+# for plotting the last iteration of gradient inversions
+function plotconvandlast end
 export Operator, Operator1D, Operator2D, Sounding
 end
