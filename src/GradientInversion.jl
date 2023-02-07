@@ -287,6 +287,8 @@ function gradientinv(   m::AbstractVector,
                         breaknuonknown=false,
                         reducenuto=0.2,
                         debuglevel = 1,
+                        usebox = false,
+                        boxiters = 2,
                         fname="")
     R = makereg(regtype, F)                
     ndata = length(F.res)
@@ -306,10 +308,15 @@ function gradientinv(   m::AbstractVector,
         # Optim stuff for nuisances
         f(x) = 2*get_misfit(m, x, F, nubounds)
         f_abstol = breaknuonknown ? reducenuto*f(nu) : 0.
-        show_trace = debuglevel > 0 ? true : false  
-        res = optimize(f, nu, BFGS(), 
-            Optim.Options(;show_trace, f_abstol, iterations=ntriesnu, successive_f_tol=0))
-            (debuglevel > 1) && @info res
+        show_trace = debuglevel > 0 ? true : false
+        if usebox
+            res = optimize(f, nubounds[:,1], nubounds[:,2], nu, Fminbox(BFGS()), 
+                Optim.Options(;show_trace, outer_f_abstol=f_abstol, f_abstol, successive_f_tol=0, outer_iterations = boxiters, iterations=ntriesnu)) 
+        else         
+            res = optimize(f, nu, BFGS(), 
+                Optim.Options(;show_trace, f_abstol, iterations=ntriesnu, successive_f_tol=0))
+        end        
+        (debuglevel > 1) && @info res
         nu = res.minimizer    
         nunew[istep] = nu
         # normal Occam for conductivities
