@@ -161,7 +161,7 @@ function plotconvandlasteachline(soundings, σ, nu, nufieldnames, ϕd, delr, del
     ax[irow].set_ylabel("mAHD")
     ax[irow].set_xlabel("Distance m")
     fig.colorbar(imlast, ax=ax[irow], location="bottom", shrink=0.6, label="Log₁₀ S/m")
-    # ax[irow].set_xlim(extrema(gridr))
+    ax[irow].set_xlim(extrema(gridr))
     plotNEWSlabels(soundings, gridr, gridz, [ax[irow]], x0, y0, xend, yend, 
     preferEright=preferEright, preferNright=preferNright)
     nicenup(fig, fsize=fontsize)
