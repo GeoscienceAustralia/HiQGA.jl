@@ -147,6 +147,7 @@ function plotconvandlasteachline(soundings, σ, nu, nufieldnames, ϕd, delr, del
     ax[2].set_ylabel("zTx m")
     irow = 3
     for (inu, nfname) in enumerate(nufieldnames)
+        ax[irow].plot(R, nugiven[:,inu], "--k")
         ax[irow].plot(R, nu[:,inu])
         ax[irow].set_ylabel("$(nfname)")
         irow += 1
