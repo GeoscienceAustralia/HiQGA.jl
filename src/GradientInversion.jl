@@ -336,6 +336,8 @@ function gradientinv(   m::AbstractVector,
         istep > nstepsmax && break
     end
     isa(io, Nothing) || begin @info "Finished "*fname; close(io) end
+    # nuisances mess up occam so this is a kludge as sometimes a smoothest root is not found
+    (istep > nstepsmax) && (istep -= 1)
     return map(x->x[1:istep], (mnew, nunew, χ², χ²nu, λ², oidx))
 end
 

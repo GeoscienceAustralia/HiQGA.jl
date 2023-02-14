@@ -609,9 +609,6 @@ function makenoisydata!(tempest::Bfield, ρ::Array{Float64,1};
         σx = σx,
         σz = σz)
     
-        # for Gauss-Newton
-        allocateJ(tempest)
-
 	plotmodelfield!(tempest, ρ, figsize=figsize)
 	nothing
 end
@@ -635,6 +632,10 @@ function set_noisy_data!(tempest::Bfield;
 	tempest.selectz = selectz
 	tempest.ndatax = ndatax
 	tempest.ndataz = ndataz
+
+    # for Gauss-Newton
+    allocateJ(tempest)
+
 	nothing
 end
 
