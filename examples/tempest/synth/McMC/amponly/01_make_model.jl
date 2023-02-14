@@ -1,8 +1,11 @@
 using PyPlot, DelimitedFiles, Random, Statistics, HiQGA.transD_GP
 
 Random.seed!(23)
+
 zfixed = [-1e5]
 ρfixed = [1e12]
+nmax = 100
+
 zstart = 0.0
 extendfrac, dz = 1.03, 1.5
 zall, znall, zboundaries = transD_GP.setupz(zstart, extendfrac, dz=dz, n=65, showplot=true)
@@ -20,7 +23,7 @@ tx_roll = 0.
 tx_pitch = 0.
 tx_yaw = 0.
 # electronics and stuff
-include("../amponly/electronics_halt.jl")
+include("electronics_halt.jl")
 ## fill in detail in ohm-m
 ρ[(z.>=zstart) .& (z.<50)] .= 20.
 ρ[(z.>=50) .&(z.<80)] .= 1
@@ -32,9 +35,7 @@ include("../amponly/electronics_halt.jl")
 Random.seed!(11)
 ρ = 10 .^(0.1*randn(length(ρ)) + log10.(ρ))
 ## create total field operator (required for nuisance inversion)
-calcjacobian = true
-vectorsum = false
-tempest = transD_GP.TEMPEST1DInversion.Bfield(;
+tempest = transD_GP.TEMPEST1DInversion.Bfield(
     zTx = zTx, zRx = zRx, x_rx = x_rx, y_rx = y_rx,
     rx_roll = rx_roll, rx_pitch = rx_pitch, rx_yaw = rx_yaw,
     tx_roll = tx_roll, tx_pitch = tx_pitch, tx_yaw = tx_yaw,
@@ -42,33 +43,12 @@ tempest = transD_GP.TEMPEST1DInversion.Bfield(;
 	z=z,
 	ρ=ρ,
 	addprimary = true, #this ensures that the geometry update actually changes everything that needs to be
-    vectorsum,   # amplitude only inversions
-    calcjacobian # for gradientbased inversion
-);
+    vectorsum  = true #amplitude only inversions
+)
 # plot before adding noise
 transD_GP.TEMPEST1DInversion.plotmodelfield!(tempest, log10.(ρ[2:end]))
 ## compute noisy data to invert
 # remember noise in electronics_halt.jl are in fT!!
 transD_GP.TEMPEST1DInversion.makenoisydata!(tempest, log10.(ρ[2:end]),
-                        noisefracx = 0.02, noisefracz = 0.02, 
+                        noisefracx = 0.02, noisefracz = 0.02,
                         halt_X = Hx_add_noise*1e-15, halt_Z = Hz_add_noise*1e-15)
-## debug
-Torig = deepcopy(tempest);
-## optim stuff
-# using Optim
-# tempest.F.calcjacobian = false
-# f(x) = transD_GP.TEMPEST1DInversion.get_misfit(-log10.(ρ[2:end]), x, tempest)
-# initial_x = [-81.5, -113.5]
-# # no constraints
-# res = optimize(f, initial_x, BFGS(), 
-#     Optim.Options(show_trace=true, f_abstol=0.7*f(initial_x), iterations=6, successive_f_tol=0))
-# # box constraints    
-# lower = [-84, -115.]
-# upper = [-80, -111.]
-# res = optimize(f, lower, upper, initial_x, Fminbox(BFGS()), 
-#     Optim.Options(show_trace=true, outer_f_abstol=0.7*f(initial_x), f_abstol=0.7*f(initial_x), successive_f_tol=0))    
-# function cb(os)
-#     println(keys(os.metadata))
-#     false
-# end
-# res = optimize(f, initial_x, BFGS(), Optim.Options(f_reltol=0.7, callback=cb, extended_trace=true))
