@@ -124,8 +124,8 @@ function plotconvandlasteachline(soundings, σ, nu, nufieldnames, ϕd, delr, del
     @assert !isnothing(zall)
     nnu = length(nufieldnames)
     img, gridr, gridz, topofine, R = makegrid(σ, soundings, zall=zall, dz=delz, dr=delr)
-    fig, ax = plt.subplots(3+nnu, 1, gridspec_kw=Dict("height_ratios" => [1,ones(1+nnu)...,4]),
-        figsize=figsize, sharex=true)
+    fig, ax = plt.subplots(4+nnu, 1, gridspec_kw=Dict("height_ratios" => [1,ones(1+nnu)...,4, 0.25]),
+        figsize=figsize)
     lname = "Line_$(soundings[1].linenum)"*postfix
     x0, y0 = soundings[1].X, soundings[1].Y
     if isdefined(soundings[1], :z_tx) # make this a symbol key TODO
@@ -152,7 +152,7 @@ function plotconvandlasteachline(soundings, σ, nu, nufieldnames, ϕd, delr, del
         ax[irow].set_ylabel("$(nfname)")
         irow += 1
     end    
-    [a.tick_params(labelbottom=false) for a in ax[1:irow-1]]
+    [a.tick_params(labelbottom=false) for a in ax[2:irow-1]]
     imlast = ax[irow].imshow(img, extent=[gridr[1], gridr[end], gridz[end], gridz[1]], cmap=cmapσ, aspect="auto", vmin=vmin, vmax=vmax)
     ax[irow].plot(gridr, topofine, linewidth=topowidth, "-k")
     isnothing(idx) || plotprofile(ax[irow], idx, Z, R)
@@ -160,11 +160,16 @@ function plotconvandlasteachline(soundings, σ, nu, nufieldnames, ϕd, delr, del
     isa(yl, Nothing) || ax[3].set_ylim(yl...)
     ax[irow].set_ylabel("mAHD")
     ax[irow].set_xlabel("Distance m")
-    fig.colorbar(imlast, ax=ax[irow], location="bottom", shrink=0.6, label="Log₁₀ S/m")
+    for ia in 2:length(ax)-1
+        ax[ia].sharex(ax[ia-1]) 
+    end    
     ax[irow].set_xlim(extrema(gridr))
     plotNEWSlabels(soundings, gridr, gridz, [ax[irow]], x0, y0, xend, yend, 
     preferEright=preferEright, preferNright=preferNright)
-    nicenup(fig, fsize=fontsize)
+    fig.colorbar(imlast, cax=ax[end], ax=ax[irow])
+    cb = fig.colorbar(imlast, cax=ax[end], orientation="horizontal")
+    cb.set_label("Log₁₀ S/m", labelpad=0)
+    nicenup(fig, fsize=fontsize, h_pad=0)
     label = fig._suptitle.get_text()
     VE = round(Int, getVE(ax[end-1]))
     fig.suptitle(label*", VE=$(VE)X")
