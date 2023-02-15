@@ -6,9 +6,10 @@ import ..AbstractOperator.makebounds
 import ..AbstractOperator.getoptnfromexisting
 import ..AbstractOperator.getnufromsounding
 import ..AbstractOperator.plotmodelfield!
+import ..AbstractOperator.getresidual, ..AbstractOperator.returnforwrite, ..AbstractOperator.setnuboundsandstartforgradinv # for gradientbased
 
 using ..AbstractOperator, ..AEM_VMD_HMD, ..SoundingDistributor
-using PyPlot, LinearAlgebra, ..CommonToAll, Random, DelimitedFiles, Distributed, Dates, Statistics
+using PyPlot, LinearAlgebra, ..CommonToAll, Random, DelimitedFiles, Distributed, Dates, Statistics, SparseArrays
 
 import ..Model, ..Options, ..OptionsStat, ..OptionsNonstat
 import ..ModelNuisance, ..OptionsNuisance, ..findidxnotzero
@@ -45,6 +46,9 @@ mutable struct Bfield<:Operator1D
 	addprimary :: Bool
 	peakcurrent:: Float64
     vectorsum  :: Bool
+    J          :: AbstractArray
+    W          :: SparseMatrixCSC
+    res        :: Vector
 end
 
 # If needed to make z axis flip to align with GA-AEM
@@ -87,7 +91,8 @@ function Bfield(;
 				strictgeometry = true,
 				addprimary = false,
 				peakcurrent = 0.5,
-                vectorsum = false)
+                vectorsum = false,
+                calcjacobian = false)
 
 	@assert !isempty(times)
 	@assert(!isempty(ramp))
@@ -99,7 +104,7 @@ function Bfield(;
     nmax = length(ρ)+1
 	Rot_rx = makerotationmatrix(order=order_rx,yaw=rx_yaw, pitch=rx_pitch, roll=rx_roll,doinv=true)
 	Rot_tx = makerotationmatrix(order=order_tx,yaw=tx_yaw, pitch=tx_pitch, roll=tx_roll)
-	F = AEM_VMD_HMD.HFieldDHT(;nmax,
+	F = AEM_VMD_HMD.HFieldDHT(;nmax, calcjacobian,
 	                      ntimesperdecade = ntimesperdecade,
 	                      nfreqsperdecade = nfreqsperdecade,
 						  freqlow=1e-5,
@@ -115,10 +120,48 @@ function Bfield(;
 						  provideddt = false)
 	mhat = Rot_tx*[0,0,1] # dirn cosines in inertial frame for VMDz
 	Hx, Hy, Hz = map(x->zeros(size(times)), 1:3)
-	Bfield(F, dataHx, dataHz, useML,σx, σz, z, nfixed, copy(ρ), selectx, selectz,
+    # for Gauss-Newton
+    res, J, W = allocateJ(length(times), nfixed, length(ρ), F.calcjacobian, vectorsum, σx, σz)
+	Bfield(F, dataHx, dataHz, useML, σx, σz, z, nfixed, copy(ρ), selectx, selectz,
 			ndatax, ndataz, rx_roll, rx_pitch, rx_yaw, tx_roll, tx_pitch, tx_yaw,
-			Rot_rx, x_rx, y_rx, mhat, Hx, Hy, Hz, addprimary, peakcurrent, vectorsum)
+			Rot_rx, x_rx, y_rx, mhat, Hx, Hy, Hz, addprimary, peakcurrent, vectorsum, J, W, res)
 end
+
+function allocateJ(ntimes, nfixed, nmodel, calcjacobian, vectorsum, σx, σz)
+    if calcjacobian
+        multfac = vectorsum ? 1 : 2
+        J = zeros(multfac*ntimes, nmodel-nfixed)
+        Wdiag = vectorsum ? ones(multfac*ntimes) : 1 ./[σx; σz]
+        res = similar(Wdiag)
+    else
+        J, Wdiag, res = zeros(0), zeros(0), zeros(0)
+    end
+    W = sparse(diagm(Wdiag))
+    res, J, W    
+end
+
+function allocateJ(tempest::Bfield)
+    tempest.res, tempest.J, tempest.W = allocateJ(length(tempest.F.times), tempest.nfixed, 
+        length(tempest.ρ),tempest.F.calcjacobian, tempest.vectorsum, tempest.σx, tempest.σz)
+    nothing
+end
+
+function getresidual(tempest::Bfield, log10σ::Vector{Float64}; computeJ=false)
+    (; F, W, res) = tempest
+    F.calcjacobian = computeJ
+    getfield!(-log10σ, tempest)
+    # f = F.dBzdt[aem.select]
+    # d = aem.d[aem.select]
+    if tempest.vectorsum
+        f = get_fm(tempest)
+        d, σ = get_dSigma(tempest)
+        W[diagind(W)] = 1 ./σ
+        tempest.res[:] = f - d
+    else
+        tempest.res[:] = [tempest.Hx; tempest.Hz] - [tempest.dataHx; tempest.dataHz]
+    end    
+    nothing    
+end    
 
 #TODO for nuisance moves in an MCMC chain
 function update_geometry(tempest::Bfield, geovec::Array{Float64,1},
@@ -180,22 +223,10 @@ end
 # all calling functions underneath here for misfit, field, etc. assume model is in log10 resistivity
 # SANS the top. For lower level field calculation use AEM_VMD_HMD structs
 
-#match API for SkyTEM inversion getfield
-function getfield!(m::Model, tempest::Bfield)
-	getfield!(m.fstar, tempest)
-	nothing
-end
 function getfield!(m::Array{Float64}, tempest::Bfield)
     copyto!(tempest.ρ, tempest.nfixed+1:length(tempest.ρ), 10 .^m, 1:length(m))
 	getfieldTD!(tempest, tempest.z, tempest.ρ)
     nothing
-end
-
-# set the field given a conductivity model (GP parametrisation)
-# and nuisance model (vector)
-function getfield!(m::Model, mn::ModelNuisance, tempest::Bfield)
-	update_geometry(tempest, mn.nuisance)
-	getfield!(m, tempest)
 end
 
 function getfield!(m::Array{Float64}, mn::Array{Float64}, tempest::Bfield)
@@ -240,18 +271,42 @@ function reducegreenstensor!(tempest)
 			y/r*J1v,
 			J0v                            ]
 
-	if tempest.addprimary
-		HMDxp = [3x2 - R2, 3xy     , 3xz      ]/fpiR5
-		HMDyp = [3xy     , 3y2 - R2, 3yz      ]/fpiR5
-		VMDzp = [3xz     , 3yz     , 3z^2 - R2]/fpiR5
-		for idim in 1:3
-			HMDx[idim] .+= currentfac*HMDxp[idim]
-			HMDy[idim] .+= currentfac*HMDyp[idim]
-			VMDz[idim] .+= currentfac*VMDzp[idim]
-		end
-	end
+    if tempest.addprimary
+        HMDxp = [3x2 - R2, 3xy     , 3xz      ]/fpiR5
+        HMDyp = [3xy     , 3y2 - R2, 3yz      ]/fpiR5
+        VMDzp = [3xz     , 3yz     , 3z^2 - R2]/fpiR5
+        for idim in 1:3
+            HMDx[idim] .+= currentfac*HMDxp[idim]
+            HMDy[idim] .+= currentfac*HMDyp[idim]
+            VMDz[idim] .+= currentfac*VMDzp[idim]
+        end
+    end
 
-	Hx[:], Hy[:], Hz[:] = Rot_rx*Roll180*[HMDx HMDy VMDz]*Roll180*mhat
+    Hx[:], Hy[:], Hz[:] = Rot_rx*Roll180*[HMDx HMDy VMDz]*Roll180*mhat        
+
+    if tempest.F.calcjacobian
+        F = tempest.F
+        J_z, J_az, J_r = F.dBzdt_J, F.dBazdt_J, F.dBrdt_J
+        HMDx_J = [y2mx2/r3*J_az + x2/r2*J_z,
+                  -2xy/r3*J_az  + xy/r2*J_z,
+                  -x/r*J_r                       ]
+
+        HMDy_J = [HMDx_J[2],
+                  -y2mx2/r3*J_az + y2/r2*J_z,
+                  -y/r*J_r		    		     ]
+   
+        VMDz_J = [x/r*J_r,
+                  y/r*J_r,
+                  J_z                            ]
+        
+        Hx_J, _, Hz_J = Rot_rx*Roll180*[HMDx_J HMDy_J VMDz_J]*Roll180*mhat
+        if tempest.vectorsum
+            A = sqrt.(Hx.^2 + Hz.^2)        
+            copy!(tempest.J, ((1 ./A').*((Hx').*Hx_J + (Hz').*Hz_J))'[:,tempest.nfixed+1:end-1])
+        else
+            copy!(tempest.J, hcat(Hx_J, Hz_J)'[:,tempest.nfixed+1:end-1])    
+        end    
+    end    
 	nothing
 end
 
@@ -308,29 +363,83 @@ function get_misfit(m::Model, opt::Options, tempest::Bfield)
     get_misfit(m.fstar, opt, tempest)
 end
 
-get_fm(tempest::Bfield) = get_fm(tempest.Hx,tempest.Hz)
+get_fm(tempest::Bfield) = get_fm(tempest.Hx, tempest.Hz)
 
-function get_fm(Bx,Bz)
-    fm = sqrt.(Bx.^2 + Bz.^2)
-    fm
+function get_fm(Hx, Hz)
+    fm = sqrt.(Hx.^2 + Hz.^2)
 end 
 
 get_dSigma(tempest::Bfield) = get_dSigma(tempest.dataHx,tempest.dataHz,tempest.σx,tempest.σz)
 
-function get_dSigma(DBx,DBz,σx,σz)
-    d = sqrt.(DBx.^2 + DBz.^2)
-    σ = sqrt.((σx.^2).*DBx.^2 + (σz.^2).*DBz.^2)./d
-    d,σ
+function get_dSigma(DHx, DHz, σx, σz)
+    d = sqrt.(DHx.^2 + DHz.^2)
+    σ = sqrt.((σx.^2).*DHx.^2 + (σz.^2).*DHz.^2)./d
+    d, σ
 end 
 
 function get_misfit(m::AbstractArray, mn::AbstractVector, opt::Union{Options,OptionsNuisance}, tempest::Bfield)
     # this is useful when reading history files and debugging
 	chi2by2 = 0.0;
 	if !opt.debug
-		getfield!(m, mn, tempest)
-		chi2by2 = getchi2by2(tempest)
+		getfield!(m, mn, tempest) # calls update_geometry down the stack
+	    chi2by2 = getchi2by2(tempest)
 	end
 	return chi2by2
+end
+
+function get_misfit(σ::AbstractArray, nu::AbstractVector, tempest::Bfield, nubounds)
+    # used by gradient inversion directly
+    geovec = setnuforinvtype(tempest, nu) # mn is not as large as geovec
+    lo, hi = nubounds[:,1], nubounds[:,2]
+    (any(lo .> nu) | any(hi .< nu) ) && return 1e9
+    tempest.F.calcjacobian = false
+    getfield!(-σ, geovec, tempest) # calls update_geometry down the stack
+    tempest.F.calcjacobian = true
+	chi2by2 = getchi2by2(tempest)
+end
+
+function extractnu(tempest::Bfield)
+    geovec = [
+        tempest.F.zTx,
+        tempest.F.zRx,
+        tempest.x_rx,
+        tempest.y_rx,
+        tempest.rx_roll,
+        tempest.rx_pitch,
+        tempest.rx_yaw,
+        tempest.tx_roll,
+        tempest.tx_pitch,
+        tempest.tx_yaw
+    ]    
+end    
+
+function setnuforinvtype(tempest::Bfield, nu::AbstractVector)
+    # order of elements must be right in nu!!
+    geovec = extractnu(tempest)
+    # required for amplitude only or vector sum
+    geovec[2] = nu[1] # must be zRx
+    geovec[3] = nu[2] # must be xRx
+    if !tempest.vectorsum
+        geovec[6] = nu[3] # receiver pitch
+    end
+    geovec
+end    
+
+function setnuboundsandstartforgradinv(tempest::Bfield, Δ::Array{Float64, 2})
+    nubounds = similar(Δ)
+    nustart = zeros(size(nubounds, 1))
+    geovec = extractnu(tempest)
+    # zRx and xRx low
+    nubounds[1:2,1] = [geovec[2], geovec[3]] + Δ[1:2,1]
+    nustart[1:2] = geovec[2:3]
+    # zRx and xRx high
+    nubounds[1:2,2] = [geovec[2], geovec[3]] + Δ[1:2,2]
+    if !tempest.vectorsum
+        nubounds[3,1] = geovec[6] + Δ[3,1]
+        nubounds[3,2] = geovec[6] + Δ[3,2]
+        nustart[3] = geovec[6]
+    end
+    nubounds, nustart    
 end
 
 function get_misfit(m::Model, mn::ModelNuisance, opt::Union{Options,OptionsNuisance}, tempest::Bfield)
@@ -366,14 +475,16 @@ end
 
 function plotdata(ax, d, σ, t; onesigma=true, dtype=nothing)
     sigma = onesigma ? 1 : 2
+    color = "g"
     if dtype == :Hx
         label = "Bx"
+        color = "m"
     elseif dtype == :Hz
         label = "Bz"
     else
         label = "|B|"
     end        
-    ax.errorbar(t, μ₀*abs.(d)*fTinv; yerr = μ₀*sigma*fTinv*abs.(σ),
+    ax.errorbar(t, μ₀*abs.(d)*fTinv; yerr = μ₀*sigma*fTinv*abs.(σ), color,
     linestyle="none", marker=".", elinewidth=1, capsize=3, label)
 end
 
@@ -406,8 +517,8 @@ function vectorsumsplit(ax, iaxis, aem::Bfield, alpha, forward_lw, color)
         fm = get_fm(aem)
         plotsoundingcurve(ax[iaxis+1], fm, aem.F.times; color, alpha, lw=forward_lw)
     else    
-        plotsoundingcurve(ax[iaxis+1], aem.Hx, aem.F.times; color, alpha, lw=forward_lw)
-        colorused = ax[iaxis+1].lines[end].get_color()
+        colorused = !isnothing(color) ? color : ax[iaxis].lines[end].get_color()
+        plotsoundingcurve(ax[iaxis+1], aem.Hx, aem.F.times; color=colorused, alpha, lw=forward_lw)
         plotsoundingcurve(ax[iaxis+1], aem.Hz, aem.F.times; color=colorused, alpha, lw=forward_lw)
     end
 end    
@@ -430,13 +541,9 @@ function initmodelfield!(aem;  onesigma=true, figsize=(8,6))
     ax
 end 
 
-function plotmodelfield!(aem::Bfield, ρ, nu::Vector{Float64}; onesigma=true, color=nothing, alpha=1, model_lw=1, forward_lw=1, figsize=(8,6), revax=true)
+function plotmodelfield!(aem::Bfield, ρ::AbstractArray, nu::Vector; onesigma=true, color=nothing, alpha=1, model_lw=1, forward_lw=1, figsize=(8,6), revax=true)
     # with nuisance
-    ax = initmodelfield!(aem; onesigma, figsize)
-    plotmodelfield!(ax, 1, aem, vec(ρ), nu; alpha, model_lw, forward_lw, color)
-    ax[1].invert_yaxis()
-    nicenup(ax[1].get_figure(), fsize=12)
-    revax && ax[1].invert_xaxis()
+    plotmodelfield!(aem, [ρ], permutedims(nu); onesigma, color, alpha, model_lw, forward_lw, figsize, revax) 
 end
 
 function plotmodelfield!(aem::Bfield, ρ; onesigma=true, color=nothing, alpha=1, model_lw=1, forward_lw=1, figsize=(8,6), revax=true)
@@ -501,6 +608,7 @@ function makenoisydata!(tempest::Bfield, ρ::Array{Float64,1};
         dataHz = tempest.Hz + σz.*randn(size(σz)),
         σx = σx,
         σz = σz)
+    
 	plotmodelfield!(tempest, ρ, figsize=figsize)
 	nothing
 end
@@ -524,6 +632,10 @@ function set_noisy_data!(tempest::Bfield;
 	tempest.selectz = selectz
 	tempest.ndatax = ndatax
 	tempest.ndataz = ndataz
+
+    # for Gauss-Newton
+    allocateJ(tempest)
+
 	nothing
 end
 
@@ -567,6 +679,9 @@ function getnufromsounding(t::TempestSoundingData)
             t.roll_tx, t.pitch_tx, t.yaw_tx]
 end   
 
+
+returnforwrite(s::TempestSoundingData) = [s.X, s.Y, s.Z, s.fid, 
+    s.linenum, getnufromsounding(s)...]
 
 function read_survey_files(;
     fname_dat="",
@@ -712,8 +827,6 @@ function plotsoundingdata(nsoundings, times, d_Hx, Hx_add_noise, d_Hz, Hz_add_no
     cbHx.ax.set_xlabel("Bx", fontsize=fsize)
     ax[1].set_ylabel("time s")
     axHx = ax[1].twiny()
-    # axHx.semilogy(Hx_add_noise, times, "-k")
-	# axHx.semilogy(Hx_add_noise, times, "--w")
     axHx.semilogy(mean(Hx_add_noise./abs.(d_Hx), dims=1)[:], times)
     axHx.set_xlabel("avg Hx noise fraction")
     ax[2] = subplot(2,2,3,sharex=ax[1], sharey=ax[1])
@@ -727,8 +840,6 @@ function plotsoundingdata(nsoundings, times, d_Hx, Hx_add_noise, d_Hz, Hz_add_no
     ax[2].set_ylabel("time s")
     ax[2].invert_yaxis()
     axHz = ax[2].twiny()
-    # axHz.semilogy(Hz_add_noise, times, "-k")
-	# axHz.semilogy(Hz_add_noise, times, "--w")
     axHz.semilogy(mean(Hz_add_noise./abs.(d_Hz), dims=1)[:], times)
     axHz.set_xlabel("avg Hz noise fraction")
     ax[3] = subplot(2,2,2, sharex=ax[1])
@@ -763,6 +874,7 @@ function makeoperator( sounding::TempestSoundingData;
                        useML = false,
                        dz = 2.,
                        ρbg = 10,
+                       calcjacobian = false, 
                        nlayers = 40,
                        ntimesperdecade = 10,
                        nfreqsperdecade = 5,
@@ -780,7 +892,7 @@ function makeoperator( sounding::TempestSoundingData;
     z, ρ, = makezρ(zboundaries; zfixed=zfixed, ρfixed=ρfixed)
     ρ[z.>=zstart] .= ρbg
     ## Tempest operator creation from sounding data
-	aem = Bfield(;ntimesperdecade, nfreqsperdecade,
+	aem = Bfield(;ntimesperdecade, nfreqsperdecade, calcjacobian,
     zTx = sounding.z_tx, zRx = sounding.z_rx,
 	x_rx = sounding.x_rx, y_rx = sounding.y_rx,
     rx_roll = sounding.roll_rx, rx_pitch = sounding.pitch_rx, rx_yaw = sounding.yaw_rx,
@@ -811,7 +923,7 @@ function makeoperator(aem::Bfield, sounding::TempestSoundingData)
     rx_roll = sounding.roll_rx, rx_pitch = sounding.pitch_rx, rx_yaw = sounding.yaw_rx,
     tx_roll = sounding.roll_tx, tx_pitch = sounding.pitch_tx, tx_yaw = sounding.yaw_tx,
 	ramp = sounding.ramp, times = sounding.times, useML = aem.useML,
-	z=copy(aem.z), ρ=copy(aem.ρ),
+	z=copy(aem.z), ρ=copy(aem.ρ), calcjacobian=aem.F.calcjacobian,
 	addprimary = aem.addprimary, #this ensures that the geometry update actually changes everything that needs to be
     vectorsum = aem.vectorsum
 	)

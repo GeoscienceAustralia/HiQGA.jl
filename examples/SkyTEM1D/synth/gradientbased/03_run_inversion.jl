@@ -2,7 +2,8 @@
 m, χ², λ², idx = transD_GP.gradientinv(σstart, σ0, aem, nstepsmax=20, 
                             ;λ²min, λ²max, β², ntries,
                             lo, hi, regtype);
-## if using bo
+## ONLY if using bo
+if dobo # really, don't do it.
 m, χ², λ², idx = transD_GP.gradientinv(σstart, σ0, aem, nstepsmax=20, 
                             ;β², ntries,
                             lo, hi, regtype,
@@ -16,5 +17,5 @@ m, χ², λ², idx = transD_GP.gradientinv(σstart, σ0, aem, nstepsmax=20,
                             firstvalue = :last,
                             κ = transD_GP.GP.Mat32(),
                             breakonknown = true,
-                            dobo = true);
-
+                            dobo);
+end

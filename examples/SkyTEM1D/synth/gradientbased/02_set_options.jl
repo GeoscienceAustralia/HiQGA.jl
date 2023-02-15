@@ -8,3 +8,4 @@ lo, hi = -3, 1 # min, max log10 conductivity
 λ²min, λ²max=-0.5, 7 # min, max of regularization parameter (Tikhonov parameter)
 ntries = 6 # how many max tries between λ²min, λ²max
 β² = 0.1 # what fraction of roughness penalty to use to enforce a penalty in deviations from background
+dobo = false # don't do it ... enough said

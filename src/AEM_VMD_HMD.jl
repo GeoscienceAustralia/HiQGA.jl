@@ -57,10 +57,18 @@ mutable struct HFieldDHT <: HField
     calcjacobian    :: Bool
     Jtemp           :: Vector
     b               :: Vector # Another Jtemp
-    derivmatrix     :: Array{ComplexF64, 2}
+    derivmatrix_z   :: Array{ComplexF64, 2} # wavenumber domain Jacobian for J0v
+    derivmatrix_az   :: Array{ComplexF64, 2} # wavenumber domain Jacobian for J1h
+    derivmatrix_r   :: Array{ComplexF64, 2} # wavenumber domain Jacobian for J1v
     HFD_z_J         :: Array{ComplexF64, 2}
     HTD_z_J_interp  :: Array{Float64, 2}
     dBzdt_J         :: Array{Float64, 2}
+    HFD_az_J
+    HTD_az_J_interp     
+    dBazdt_J
+    HFD_r_J
+    HTD_r_J_interp     
+    dBrdt_J    
 end
 
 function HFieldDHT(;
@@ -135,18 +143,31 @@ function HFieldDHT(;
         end
     end
     log10interpkᵣ = log10.(interpkᵣ)
+    # vertical
     HFD_z_J     = calcjacobian ? zeros(ComplexF64, nmax, length(freqs)) : zeros(0, 0)
     dBzdt_J     = calcjacobian ? zeros(Float64, nmax, length(times)) : zeros(0, 0)
     HTD_z_J_interp = calcjacobian ? zeros(Float64, nmax, length(interptimes)) : zeros(0, 0)
+    Jac_z = calcjacobian ? zeros(ComplexF64, nkᵣeval, nmax) : zeros(0, 0)
+    # azimuthal
+    HFD_az_J        = (calcjacobian && getazimH) ? zeros(ComplexF64, nmax, length(freqs)) : zeros(0, 0)
+    dBazdt_J        = (calcjacobian && getazimH) ? zeros(Float64, nmax, length(times)) : zeros(0, 0)
+    HTD_az_J_interp = (calcjacobian && getazimH) ? zeros(Float64, nmax, length(interptimes)) : zeros(0, 0)
+    Jac_az = (calcjacobian && getazimH) ? zeros(ComplexF64, nkᵣeval, nmax) : zeros(0, 0)
+    # radial
+    HFD_r_J         = (calcjacobian && getradialH) ? zeros(ComplexF64, nmax, length(freqs)) : zeros(0, 0)
+    dBrdt_J         = (calcjacobian && getradialH) ? zeros(Float64, nmax, length(times)) : zeros(0, 0)
+    HTD_r_J_interp  = (calcjacobian && getradialH) ? zeros(Float64, nmax, length(interptimes)) : zeros(0, 0)
+    Jac_r = (calcjacobian && getradialH) ? zeros(ComplexF64, nkᵣeval, nmax) : zeros(0, 0)
+    #
     Jtemp = calcjacobian ? zeros(ComplexF64, nmax) : zeros(0)
-    Jac = calcjacobian ? zeros(ComplexF64, nkᵣeval, nmax) : zeros(0, 0)
     useprimary = modelprimary ? one(Float64) : zero(Float64)
     HFieldDHT(thickness, pz, ϵᵢ, zintfc, rTE, rTM, zRx, zTx, rTx, rRx, freqs, times, ramp, log10ω, interptimes,
             HFD_z, HFD_r, HFD_az, HFD_z_interp, HFD_r_interp, HFD_az_interp,
             HTD_z_interp, HTD_r_interp, HTD_az_interp, dBzdt, dBrdt, dBazdt, J0_kernel_h, J1_kernel_h, J0_kernel_v, J1_kernel_v, J01kernelhold, lowpassfcs,
             quadnodes, quadweights, preallocate_ω_Hsc(interptimes, lowpassfcs)..., rxwithinloop, provideddt, doconvramp, useprimary,
             nkᵣeval, interpkᵣ, log10interpkᵣ, log10Filter_base, getradialH, getazimH, 
-            calcjacobian, Jtemp, similar(Jtemp), Jac, HFD_z_J, HTD_z_J_interp, dBzdt_J)
+            calcjacobian, Jtemp, similar(Jtemp), Jac_z, Jac_az, Jac_r, HFD_z_J, HTD_z_J_interp, dBzdt_J,  HFD_az_J, HTD_az_J_interp, dBazdt_J, 
+            HFD_r_J, HTD_r_J_interp, dBrdt_J)
 end
 
 #update geometry and dependent parameters - necessary for adjusting geometry
@@ -373,9 +394,6 @@ function getAEM1DKernelsH!(F::HField, kᵣ::Float64, f::Float64, zz::Array{Float
         ϵᵢ[l]      = getepsc(ρ[l], ω)
         pz[l]      = getpz(ϵᵢ[l], kᵣ, ω)
         rTE[intfc] = (pz[intfc] - pz[intfc+1])/(pz[intfc] + pz[intfc+1])
-        # commented out as we aren't yet using TM modes
-        # rTM[intfc] = (ϵᵢ[intfc]*pz[intfc+1] - ϵᵢ[intfc+1]*pz[intfc]) /
-        #              (ϵᵢ[intfc]*pz[intfc+1] + ϵᵢ[intfc+1]*pz[intfc])
         F.thickness[intfc] = z[intfc+1] - z[intfc]
     end
 
@@ -391,8 +409,14 @@ function getAEM1DKernelsH!(F::HField, kᵣ::Float64, f::Float64, zz::Array{Float
     if F.calcjacobian
         ikᵣ = findfirst(isapprox.(kᵣ, F.interpkᵣ))
         for ilayer = 2:nlayers
-            curlyRAprime, = getCurlyR(F.Jtemp[ilayer], pz[iTxLayer], zRx, z, iTxLayer, ω, 0.)# cannot model primary for deriv
-            F.derivmatrix[ikᵣ,ilayer] = 1/pz[iTxLayer]*curlyRAprime*lf_gA_TE*1im/(ω)*log(10)/ρ[ilayer]
+            curlyRAprime, curlyRDprime, curlyRCprime = getCurlyR(F.Jtemp[ilayer], pz[iTxLayer], zRx, z, iTxLayer, ω, 0.)# cannot model primary for deriv
+            F.derivmatrix_z[ikᵣ,ilayer] = 1/pz[iTxLayer]*curlyRAprime*lf_gA_TE*1im/(ω)*log(10)/ρ[ilayer]
+            if F.getazimH
+                F.derivmatrix_az[ikᵣ,ilayer] = pz[iTxLayer]*curlyRCprime*1im*ω/4pi*log(10)/ρ[ilayer]
+            end
+            if F.getradialH
+                F.derivmatrix_r[ikᵣ,ilayer] = curlyRDprime*kᵣ^2/4pi*log(10)/ρ[ilayer]
+            end    
         end    
     end  
     gA_TE            = μ/pz[iTxLayer]*curlyRA*lf_gA_TE
@@ -422,23 +446,21 @@ function getfieldFD!(F::HFieldDHT, z::Array{Float64, 1}, ρ::Array{Float64, 1})
         end # kᵣ loop
         @views begin
             if F.rxwithinloop
-                # splreal = CubicSpline(real(F.J1_kernel_v[:,ifreq]), F.log10interpkᵣ)
-                # splimag = CubicSpline(imag(F.J1_kernel_v[:,ifreq]), F.log10interpkᵣ)
-                # J1_kernel_v = splreal.(F.log10Filter_base) + 1im*splimag.(F.log10Filter_base)
-                # F.HFD_z[ifreq] = dot(J1_kernel_v, Filter_J1)/F.rTx
                 dohankeltx!(F.HFD_z, ifreq, Filter_J1, F.rTx, F.J01kernelhold, F.J1_kernel_v[:,ifreq], F.log10interpkᵣ, F.log10Filter_base)
-                calcfreqdomainjacobian!(F.calcjacobian, ifreq, F.HFD_z_J, F.J01kernelhold, F.derivmatrix, F.log10interpkᵣ, F.log10Filter_base, ρ, Filter_J1, F.rTx)
+                calcfreqdomainjacobian!(F.calcjacobian, ifreq, F.HFD_z_J, F.J01kernelhold, F.derivmatrix_z, F.log10interpkᵣ, F.log10Filter_base, ρ, Filter_J1, F.rTx)
             else
                 # Vertical component
                 dohankeltx!(F.HFD_z, ifreq, Filter_J0, F.rRx, F.J01kernelhold, F.J0_kernel_v[:,ifreq], F.log10interpkᵣ, F.log10Filter_base)
-                calcfreqdomainjacobian!(F.calcjacobian, ifreq, F.HFD_z_J, F.J01kernelhold, F.derivmatrix, F.log10interpkᵣ, F.log10Filter_base, ρ, Filter_J0, F.rRx)
+                calcfreqdomainjacobian!(F.calcjacobian, ifreq, F.HFD_z_J, F.J01kernelhold, F.derivmatrix_z, F.log10interpkᵣ, F.log10Filter_base, ρ, Filter_J0, F.rRx)
                 # radial component
                 if F.getradialH
                     dohankeltx!(F.HFD_r, ifreq, Filter_J1, F.rRx, F.J01kernelhold, F.J1_kernel_v[:,ifreq], F.log10interpkᵣ, F.log10Filter_base)
+                    calcfreqdomainjacobian!(F.calcjacobian, ifreq, F.HFD_r_J, F.J01kernelhold, F.derivmatrix_r, F.log10interpkᵣ, F.log10Filter_base, ρ, Filter_J1, F.rRx)
                 end
                 # for HMD
                 if F.getazimH
                     dohankeltx!(F.HFD_az, ifreq, Filter_J1, F.rRx, F.J01kernelhold, F.J1_kernel_h[:,ifreq], F.log10interpkᵣ, F.log10Filter_base)
+                    calcfreqdomainjacobian!(F.calcjacobian, ifreq, F.HFD_az_J, F.J01kernelhold, F.derivmatrix_az, F.log10interpkᵣ, F.log10Filter_base, ρ, Filter_J1, F.rRx)
                 end
             end
         end #views
@@ -468,6 +490,11 @@ function calcfreqdomainjacobian!(doit, ifreq, HFD_component_J, kernelhold, deriv
     end
 end    
 
+function calctimedomainjacobian(temp, HTD_component_J_interp, ilayer, itime, Filter, t, spl_component_J_real, spl_component_J_imag, l10w, w, H)
+    temp[:] = -imag(conj((spl_component_J_real[ilayer].(l10w) .+ 1im*spl_component_J_imag[ilayer].(l10w)).*H)./w)*2/pi
+    HTD_component_J_interp[ilayer,itime] = dot(temp, Filter)/t
+end
+
 function getfieldTD!(F::HFieldDHT, z::Array{Float64, 1}, ρ::Array{Float64, 1})
     getfieldFD!(F, z, ρ)
     spl_z_real = CubicSpline(real(F.HFD_z), F.log10ω) # TODO preallocate
@@ -480,6 +507,26 @@ function getfieldTD!(F::HFieldDHT, z::Array{Float64, 1}, ρ::Array{Float64, 1})
         spl_az_real = CubicSpline(real(F.HFD_az), F.log10ω) # TODO preallocate
         spl_az_imag = CubicSpline(imag(F.HFD_az), F.log10ω) # TODO preallocate
     end
+    if F.calcjacobian
+        spl_z_J_real, spl_z_J_imag, spl_r_J_real, 
+        spl_r_J_imag, spl_az_J_real, spl_az_J_imag = map(x->Vector{CubicSpline}(undef, length(ρ)), 1:6)
+        for ilayer = 2:length(ρ)
+            # always get vertical components
+            spl_z_J_real[ilayer] = CubicSpline(real(vec(F.HFD_z_J[ilayer,:])), F.log10ω)
+            spl_z_J_imag[ilayer] = CubicSpline(imag(vec(F.HFD_z_J[ilayer,:])), F.log10ω)
+            # radial component
+            if F.getradialH
+                spl_r_J_real[ilayer] = CubicSpline(real(vec(F.HFD_r_J[ilayer,:])), F.log10ω)
+                spl_r_J_imag[ilayer] = CubicSpline(imag(vec(F.HFD_r_J[ilayer,:])), F.log10ω)
+            end    
+            # azimuthal component
+            if F.getazimH
+                spl_az_J_real[ilayer] = CubicSpline(real(vec(F.HFD_az_J[ilayer,:])), F.log10ω)
+                spl_az_J_imag[ilayer] = CubicSpline(imag(vec(F.HFD_az_J[ilayer,:])), F.log10ω)
+            end    
+        end
+        temp = zeros(length(Filter_t_base))
+    end        
     @views begin
         for itime = 1:length(F.interptimes)
             l10w, H = F.interplog10ω[:,itime], F.Hsc[:,itime]
@@ -491,9 +538,7 @@ function getfieldTD!(F::HFieldDHT, z::Array{Float64, 1}, ρ::Array{Float64, 1})
                 F.HTD_z_interp[itime] = dot(F.HFD_z_interp, Filter_t_sin)/t
                 if F.calcjacobian
                     for ilayer = 2:length(ρ)
-                        spl_z_J_real = CubicSpline(real(vec(F.HFD_z_J[ilayer,:])), F.log10ω)
-                        spl_z_J_imag = CubicSpline(imag(vec(F.HFD_z_J[ilayer,:])), F.log10ω)
-                        temp = imag(conj((spl_z_J_real.(l10w) .+ 1im*spl_z_J_imag.(l10w)).*H))*2/pi
+                        temp[:] = imag(conj((spl_z_J_real[ilayer].(l10w) .+ 1im*spl_z_J_imag[ilayer].(l10w)).*H))*2/pi
                         F.HTD_z_J_interp[ilayer,itime] = dot(temp, Filter_t_sin)/t
                     end    
                 end
@@ -520,6 +565,13 @@ function getfieldTD!(F::HFieldDHT, z::Array{Float64, 1}, ρ::Array{Float64, 1})
                     F.HFD_az_interp[:] .= -imag(conj((spl_az_real.(l10w) .+ 1im*spl_az_imag.(l10w)).*H)./w)*2/pi
                     F.HTD_az_interp[itime] = dot(F.HFD_az_interp, Filter_t_cos)/t
                 end
+                if F.calcjacobian
+                    for ilayer = 2:length(ρ)
+                        calctimedomainjacobian(temp, F.HTD_z_J_interp, ilayer, itime, Filter_t_cos, t, spl_z_J_real, spl_z_J_imag, l10w, w, H)
+                        calctimedomainjacobian(temp, F.HTD_r_J_interp, ilayer, itime, Filter_t_cos, t, spl_r_J_real, spl_r_J_imag, l10w, w, H)
+                        calctimedomainjacobian(temp, F.HTD_az_J_interp, ilayer, itime, Filter_t_cos, t, spl_az_J_real, spl_az_J_imag, l10w, w, H)
+                    end    
+                end
             end
         end
     end
@@ -543,7 +595,22 @@ function convramp!(F::HFieldDHT, splz::CubicSpline, splr::CubicSpline, splaz::Cu
     fill!(F.dBzdt, 0.)
     if F.calcjacobian 
         fill!(F.dBzdt_J, 0.)
-        splz_J = [CubicSpline(F.HTD_z_J_interp[ilayer,:], log10.(F.interptimes)) for ilayer = 2:nlayers]
+        splz_J, splr_J, splaz_J = map(x->Vector{CubicSpline}(undef, nlayers), 1:3)
+        for ilayer = 2:nlayers
+            splz_J[ilayer] = CubicSpline(F.HTD_z_J_interp[ilayer,:], log10.(F.interptimes)) 
+            if F.getradialH
+                splr_J[ilayer] = CubicSpline(F.HTD_r_J_interp[ilayer,:], log10.(F.interptimes)) 
+            end
+            if F.getazimH    
+                splaz_J[ilayer] = CubicSpline(F.HTD_az_J_interp[ilayer,:], log10.(F.interptimes)) 
+            end    
+        end
+        if F.getradialH
+            fill!(F.dBrdt_J, 0.)
+        end
+        if F.getazimH
+            fill!(F.dBazdt_J, 0.)
+        end    
     end    
     F.getradialH && fill!(F.dBrdt, 0.)
     F.getazimH && fill!(F.dBazdt, 0.)
@@ -566,17 +633,22 @@ function convramp!(F::HFieldDHT, splz::CubicSpline, splr::CubicSpline, splaz::Cu
             a, b = log10(ta), log10(tb)
             x, w = F.quadnodes, F.quadweights
             F.dBzdt[itime] += (b-a)/2*dot(getrampresponse((b-a)/2*x .+ (a+b)/2, splz), w)*dIdt
-            if F.calcjacobian
-                for ilayer = 2:nlayers
-                    # ilayer - 1 because splaz only has nlayers-1 entries 
-                    F.dBzdt_J[ilayer,itime] += (b-a)/2*dot(getrampresponse((b-a)/2*x .+ (a+b)/2, splz_J[ilayer-1]), w)*dIdt
-                end    
-            end
             if F.getradialH
                 F.dBrdt[itime] += (b-a)/2*dot(getrampresponse((b-a)/2*x .+ (a+b)/2, splr), w)*dIdt
             end
             if F.getazimH
                 F.dBazdt[itime] += (b-a)/2*dot(getrampresponse((b-a)/2*x .+ (a+b)/2, splaz), w)*dIdt
+            end
+            if F.calcjacobian
+                for ilayer = 2:nlayers
+                    F.dBzdt_J[ilayer,itime] += (b-a)/2*dot(getrampresponse((b-a)/2*x .+ (a+b)/2, splz_J[ilayer]), w)*dIdt
+                    if F.getradialH
+                        F.dBrdt_J[ilayer,itime] += (b-a)/2*dot(getrampresponse((b-a)/2*x .+ (a+b)/2, splr_J[ilayer]), w)*dIdt
+                    end
+                    if F.getazimH
+                        F.dBazdt_J[ilayer,itime] += (b-a)/2*dot(getrampresponse((b-a)/2*x .+ (a+b)/2, splaz_J[ilayer]), w)*dIdt
+                    end    
+                end    
             end
         end
     end

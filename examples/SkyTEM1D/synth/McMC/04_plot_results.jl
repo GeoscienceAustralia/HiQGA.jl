@@ -1,4 +1,3 @@
-close("all")
 transD_GP.getchi2forall(opt)
 ax = gcf().axes;
 ax[2].set_ylim(15, 40)

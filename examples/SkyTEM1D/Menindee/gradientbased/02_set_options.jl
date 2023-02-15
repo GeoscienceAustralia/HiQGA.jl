@@ -20,7 +20,7 @@ knownvalue         = 0.7
 breakonknown       = true
 calcjacobian       = true
 ## plot a random sounding and a background response
-aem, zall, = transD_GP.VTEM1DInversion.makeoperator(
+aem, zall, = transD_GP.SkyTEM1DInversion.makeoperator(
     soundings[rand(1:length(soundings))];
     zfixed, ρfixed, zstart, extendfrac, calcjacobian,
     dz, ρbg, nlayers, ntimesperdecade, nfreqsperdecade, plotfield=true)

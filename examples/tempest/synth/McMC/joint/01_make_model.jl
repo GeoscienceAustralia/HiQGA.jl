@@ -1,3 +1,4 @@
+using Revise
 using PyPlot, DelimitedFiles, Random, Statistics, HiQGA.transD_GP
 
 Random.seed!(23)
@@ -25,6 +26,7 @@ tx_yaw = 0.
 # electronics and stuff
 include("electronics_halt.jl")
 ## fill in detail in ohm-m
+## fill in detail in ohm-m
 ρ[(z.>=zstart) .& (z.<50)] .= 20.
 ρ[(z.>=50) .&(z.<80)] .= 1
 ρ[(z.>=80) .&(z.<100)] .= 20
@@ -42,8 +44,7 @@ tempest = transD_GP.TEMPEST1DInversion.Bfield(
 	ramp = ramp, times = times,
 	z=z,
 	ρ=ρ,
-	addprimary = true, #this ensures that the geometry update actually changes everything that needs to be
-    vectorsum  = true #amplitude only inversions
+	addprimary = true #this ensures that the geometry update actually changes everything that needs to be
 )
 # plot before adding noise
 transD_GP.TEMPEST1DInversion.plotmodelfield!(tempest, log10.(ρ[2:end]))
@@ -52,24 +53,3 @@ transD_GP.TEMPEST1DInversion.plotmodelfield!(tempest, log10.(ρ[2:end]))
 transD_GP.TEMPEST1DInversion.makenoisydata!(tempest, log10.(ρ[2:end]),
                         noisefracx = 0.02, noisefracz = 0.02,
                         halt_X = Hx_add_noise*1e-15, halt_Z = Hz_add_noise*1e-15)
-# but model with a coarser grid
-extendfrac, dz = 1.06, 1.15
-zall, znall, zboundaries = transD_GP.setupz(zstart, extendfrac, dz=dz, n=50, showplot=true)
-zgrid, ρgrid, nfixed = transD_GP.makezρ(zboundaries; zfixed=zfixed, ρfixed=ρfixed)
-tempest.z, tempest.ρ = zgrid, copy(ρgrid)
-## only primary field stuff if you want for GA-AEM
-Hxp, Hyp, Hzp = transD_GP.TEMPEST1DInversion.returnprimary!(tempest)
-@assert isapprox(Hxp[1], Hxp[end], atol=1e-4)
-@assert isapprox(Hzp[1], Hzp[end], atol=1e-4)
-Xnoisy, Znoisy = tempest.dataHx - Hxp, tempest.dataHz - Hzp # raw SI units!!
-using DelimitedFiles
-# geometry set to nominal
-frameheight, frame_dx, frame_dy, frame_dz = 120, -115, 0, -40
-rollrx, pitchrx, yawrx, rolltx, pitchtx, yawtx = 0, 0, 0, 0, 0, 0
-X, Y, Z, fid, linenum = 0, 0, 0, 0, 0
-# now write this out
-μ = transD_GP.TEMPEST1DInversion.μ₀
-M = [μ*1e15*Xnoisy'..., μ*1e15*Znoisy'..., μ*1e15*Hxp[1], μ*1e15*Hzp[1], X, Y, Z, fid, linenum, frameheight, frame_dx, frame_dy, frame_dz, rollrx, pitchrx, yawrx, rolltx, pitchtx, yawtx]
-writedlm("data.txt", M')
-A = μ*1e15*[tempest.σx'; tempest.σz']
-writedlm("additive_noise.txt", A)

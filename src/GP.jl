@@ -1,6 +1,8 @@
 module GP
 
-using Statistics, LinearAlgebra, Distributions
+using Statistics, LinearAlgebra, Distributions, PositiveFactorizations
+import Distances as Dst
+
 function gaussiankernel(x::AbstractArray, y::AbstractArray, p)
     return exp(-0.5*norm(x-y,p)^p)
 end
@@ -94,6 +96,64 @@ function GPfit(K::Kernel, ytrain, xtrain, xtest, λ²test::Array{Float64,2}, λ�
         var_y =  var_prior - Kstar*(U\(U'\Kstar'))
     end
     ytest, var_y, var_prior
+end
+
+# preallocated stationary GPfit for efficient BO
+struct KernelStruct
+    ktype :: Kernel
+    var_post
+    Kss
+    Kstar
+    K_y
+    λ²
+    δ
+    ytest
+end    
+
+function KernelStruct(ktype, ntrainmax, λ², δ, xtest)
+    ntest = size(xtest, 2)
+    @assert length(λ²) == size(xtest,1)
+    G = KernelStruct(ktype, zeros(ntest, ntest), zeros(ntest, ntest), zeros(ntest, ntrainmax), 
+        zeros(ntrainmax, ntrainmax), λ², δ, zeros(ntest))
+    priorcov!(G.Kss, G.ktype, xtest, G.λ²)
+    G
+end    
+
+function priorcov!(Kss, ktype, xtest, λ²)
+    map!(x->κ(ktype, x), Kss, Dst.pairwise(Dst.WeightedEuclidean(1 ./λ² ), xtest, dims=2))
+    nothing
+end
+
+function addtrainingpoint(ktype, Kstar, K_y, xtest, xtrain, λ², δ, n)
+    # updates Kstar and K_y without doing it all, only for one added point
+    Kstarv = @view Kstar[:,n]
+    map!(x->κ(ktype, x),Kstarv, Dst.colwise(Dst.WeightedEuclidean(1 ./λ² ), xtrain[:,n], xtest))
+    K_yv = @view K_y[n,1:n]
+    map!(x->κ(ktype, x),K_yv, Dst.colwise(Dst.WeightedEuclidean(1 ./λ² ), xtrain[:,n], xtrain[:,1:n]))
+    K_y[1:n,n] = K_y[n,1:n]
+    K_y[n,n] = K_y[n,n] + δ^2
+    nothing
+end
+
+function GPfitaddpoint(G::KernelStruct, xtrain, ytrain, xtest)
+    @assert length(G.λ²) == size(xtrain,1)
+    my = mean(ytrain, dims=2)
+    rhs = ytrain .- my
+    n = size(xtrain, 2)
+    addtrainingpoint(G.ktype, G.Kstar, G.K_y, xtest, xtrain, G.λ², G.δ, n)
+    ky = @view G.K_y[1:n,1:n]
+    U = cholesky(Positive, ky, Val{false}).U
+    ks = @view G.Kstar[:,1:n]
+    copyto!(G.ytest, my' .+ ks*(U\(U'\rhs')))
+    var_prior = G.Kss
+    G.var_post[:] =  var_prior - ks*(U\(U'\ks'))
+    nothing
+end      
+
+function GPfit(G::KernelStruct, xtrain, ytrain, xtest)
+    for i in 1:size(xtrain, 2)
+        GPfitaddpoint(G, xtrain[:,1:i], ytrain[:,1:i], xtest)
+    end    
 end
 
 abstract type AcqFunc end

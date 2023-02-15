@@ -1,6 +1,6 @@
-using LinearMaps, SparseArrays, PositiveFactorizations
+using LinearMaps, SparseArrays, PositiveFactorizations, LazyGrids
 using Roots:find_zero
-using .AbstractOperator, .GP
+using .AbstractOperator, .GP, Optim
 
 function makeregR0(F::Operator1D)
     n = length(F.ρ) - F.nfixed
@@ -69,7 +69,11 @@ function occamstep(m::AbstractVector, m0::AbstractVector, Δm::AbstractVector, m
             count == 0 && (push!(χ², chi2); push!(λ², nu))
             χ²[i] = chi2
             λ²[i] = nu
-            χ²[i] <= knownvalue && (count = countmax; break)
+            if χ²[i] <= knownvalue
+                count > 0 && map(x->deleteat!(x, i+1:ntries), (mnew, χ², λ²))
+                count = countmax
+                break
+            end    
         end
         if all(χ² .>= χ²₀)
            α = count < countmax - 1 ? α/2 : 0. # make sure we don't start going uphill again
@@ -128,14 +132,11 @@ function initbo(λ²min, λ²max, λ²frac, ntestdivsλ², αmin, αmax, αfrac,
     t, λ²GP
 end    
 
-function bostep(m::AbstractVector, m0::AbstractVector, mnew::Vector{Vector{Float64}}, χ²::Vector{Float64}, λ²sampled::Vector{Vector{Float64}},
-                    t::Array{Float64, 2}, β²::Float64, λ²GP::Array{Float64, 1}, F::Operator, R::SparseMatrixCSC, target, lo, hi;
+function bostep(G::GP.KernelStruct, m::AbstractVector, m0::AbstractVector, mnew::Vector{Vector{Float64}}, χ²::Vector{Float64}, λ²sampled::Vector{Vector{Float64}},
+                    t::Array{Float64, 2}, β²::Float64, F::Operator, R::SparseMatrixCSC, target, lo, hi;
                    regularizeupdate = false, 
                   
                    ## GP stuff
-                   demean = true, 
-                   κ = GP.Mat52(), 
-                   δtry = 1e-2,
                    acqfun = GP.EI(),
                    ntries = 6,
                    firstvalue = :last,
@@ -147,7 +148,7 @@ function bostep(m::AbstractVector, m0::AbstractVector, mnew::Vector{Vector{Float
 
     ttrain = zeros(size(t,1), 0)
     for i = 1:ntries
-        nextpos, = getBOsample(κ, χ²', ttrain, t, λ²GP, δtry, demean, knownvalue, firstvalue, acqfun)
+        nextpos, = getBOsample(G, χ²', ttrain, t, knownvalue, firstvalue, acqfun)
         push!(λ²sampled, [10^t[1, nextpos]; 2^t[2,nextpos]])
         mnew[i] = m + 2^t[2,nextpos]*newtonstep(m, m0, F, 10^t[1,nextpos], β², R, regularizeupdate=regularizeupdate)
         pushback(mnew[i], lo, hi)                        
@@ -170,13 +171,14 @@ function bostep(m::AbstractVector, m0::AbstractVector, mnew::Vector{Vector{Float
     idx, foundroot
 end 
 
-function getBOsample(κ, χ², ttrain, t, λ²GP, δtry, demean, knownvalue, firstvalue, acqfun)
+function getBOsample(G:: GP.KernelStruct, χ², ttrain, t, knownvalue, firstvalue, acqfun)
     # χ², ttrain, t are row major
     ntrain = length(ttrain)
     if ntrain > 0
-        ytest, σ2, = GP.GPfit(κ, χ², ttrain, t, λ²GP, δtry, demean=demean)
-        diagσ2 = diag(σ2)
-        nextpos = argmax(GP.getAF(acqfun, vec(χ²), vec(ytest), diagσ2, findmin=true, knownvalue=knownvalue))          
+        # ytest, σ2, = GP.GPfit(κ, χ², ttrain, t, λ²GP, δtry, demean=demean)
+        GP.GPfitaddpoint(G, ttrain, χ², t)
+        ytest, σ2 = G.ytest, G.var_post
+        nextpos = argmax(GP.getAF(acqfun, vec(χ²), vec(ytest), diag(σ2), findmin=true, knownvalue=knownvalue))          
     else
         nextpos = AFoneiter(firstvalue, size(t, 2))
     end
@@ -219,6 +221,7 @@ function gradientinv(   m::AbstractVector,
                         κ = GP.Mat52(),
                         breakonknown=false,
                         dobo = false,
+                        δtry = 1e-2,
                         fname="")
     R = makereg(regtype, F)                
     ndata = length(F.res)
@@ -230,6 +233,7 @@ function gradientinv(   m::AbstractVector,
     oidx = zeros(Int, nstepsmax)  
     ndata = length(F.res)
     t, λ²GP = initbo(λ²min, λ²max, λ²frac, ntestdivsλ², αmin, αmax, αfrac, ntestdivsα)
+    G = GP.KernelStruct(κ, ntries, λ²GP, δtry, t)
     istep = 1 
     io = open_history(fname)
     if !dobo
@@ -237,8 +241,8 @@ function gradientinv(   m::AbstractVector,
     end              
     while true
         if dobo
-            idx, foundroot = bostep(m, m0, mnew[istep], χ²[istep], λ²[istep], t, β², λ²GP, F, R, target, lo, hi,
-            regularizeupdate=regularizeupdate, ntries=ntries, κ = κ,
+            idx, foundroot = bostep(G, m, m0, mnew[istep], χ²[istep], λ²[istep], t, β², F, R, target, lo, hi,
+            regularizeupdate=regularizeupdate, ntries=ntries,
             knownvalue=knownvalue, firstvalue=firstvalue, breakonknown=breakonknown)         
         else
             idx, foundroot = occamstep(m, m0, Δm, mnew[istep], χ²[istep], λ²[istep], F, R, target, 
@@ -260,6 +264,81 @@ function gradientinv(   m::AbstractVector,
     isa(io, Nothing) || begin @info "Finished "*fname; close(io) end
     return map(x->x[1:istep], (mnew, χ², λ², oidx))
 end    
+
+# nuisance inversion stuff
+function gradientinv(   m::AbstractVector,
+                        m0::AbstractVector,
+                        nu::AbstractVector, 
+                        F::Operator; 
+                        regtype=:R1,
+                        nstepsmax = 10,
+                        ntries = 6,
+                        target = nothing,
+                        lo = -3.,
+                        hi = 1.,
+                        λ²min = 0,
+                        λ²max = 8,
+                        β² = 0.,
+                        nubounds = zeros(0),
+                        ntriesnu = 10,
+                        regularizeupdate = false,
+                        knownvalue=0.7,
+                        breaknuonknown=false,
+                        reducenuto=0.2,
+                        debuglevel = 0,
+                        usebox = true,
+                        boxiters = 2,
+                        fname="")
+    R = makereg(regtype, F)                
+    ndata = length(F.res)
+    isnothing(target) && (target = ndata)
+    target₀ = target
+    mnew = [[similar(m) for i in 1:ntries] for j in 1:nstepsmax]
+    χ²   = [Vector{Float64}(undef, 0) for j in 1:nstepsmax]
+    χ²nu   = [Vector{Float64}(undef, 0) for j in 1:nstepsmax]
+    λ² = [Vector{Vector{Float64}}(undef, 0) for j in 1:nstepsmax]
+    nunew = [Vector{Float64}(undef, 0) for j in 1:nstepsmax]
+    Δm = [similar(m) for i in 1:ntries]
+    oidx = zeros(Int, nstepsmax)
+    ndata = length(F.res)
+    istep = 1 
+    io = open_history(fname)
+    while true
+        # Optim stuff for nuisances
+        f(x) = 2*get_misfit(m, x, F, nubounds)
+        f_abstol = breaknuonknown ? reducenuto*f(nu) : 0.
+        show_trace = debuglevel > 0 ? true : false
+        if usebox
+            res = optimize(f, nubounds[:,1], nubounds[:,2], nu, Fminbox(BFGS()), 
+                Optim.Options(;show_trace, outer_f_abstol=f_abstol, f_abstol, successive_f_tol=0, outer_iterations = boxiters, iterations=ntriesnu)) 
+        else         
+            res = optimize(f, nu, BFGS(), 
+                Optim.Options(;show_trace, f_abstol, iterations=ntriesnu, successive_f_tol=0))
+        end        
+        (debuglevel > 1) && @info res
+        nu = res.minimizer    
+        nunew[istep] = nu
+        # normal Occam for conductivities
+        idx, foundroot = occamstep(m, m0, Δm, mnew[istep], χ²[istep], λ²[istep], F, R, target, 
+            lo, hi, λ²min, λ²max, β², ntries, knownvalue=knownvalue, regularizeupdate = regularizeupdate)
+        prefix = isempty(fname) ? fname : fname*" : "
+        @info prefix*"iteration: $istep χ²: $(χ²[istep][idx]) target: $target"
+        m = mnew[istep][idx]
+        oidx[istep] = idx
+        isa(io, Nothing) || write_history(io, [istep; χ²[istep][idx]/target₀; vec(m); nu])
+        foundroot && break
+        noimprovement = iszero(λ²[istep][idx][2])  ? true : false
+        if (istep == nstepsmax - 1) || noimprovement 
+            target = χ²[istep][idx] # exit with smoothest
+        end    
+        istep += 1
+        istep > nstepsmax && break
+    end
+    isa(io, Nothing) || begin @info "Finished "*fname; close(io) end
+    # nuisances mess up occam so this is a kludge as sometimes a smoothest root is not found
+    (istep > nstepsmax) && (istep -= 1)
+    return map(x->x[1:istep], (mnew, nunew, χ², χ²nu, λ², oidx))
+end
 
 function open_history(fname)
     @assert !isfile(fname) "$fname exists"
