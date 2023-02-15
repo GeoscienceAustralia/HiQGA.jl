@@ -132,14 +132,11 @@ function initbo(λ²min, λ²max, λ²frac, ntestdivsλ², αmin, αmax, αfrac,
     t, λ²GP
 end    
 
-function bostep(m::AbstractVector, m0::AbstractVector, mnew::Vector{Vector{Float64}}, χ²::Vector{Float64}, λ²sampled::Vector{Vector{Float64}},
-                    t::Array{Float64, 2}, β²::Float64, λ²GP::Array{Float64, 1}, F::Operator, R::SparseMatrixCSC, target, lo, hi;
+function bostep(G::GP.KernelStruct, m::AbstractVector, m0::AbstractVector, mnew::Vector{Vector{Float64}}, χ²::Vector{Float64}, λ²sampled::Vector{Vector{Float64}},
+                    t::Array{Float64, 2}, β²::Float64, F::Operator, R::SparseMatrixCSC, target, lo, hi;
                    regularizeupdate = false, 
                   
                    ## GP stuff
-                   demean = true, 
-                   κ = GP.Mat52(), 
-                   δtry = 1e-2,
                    acqfun = GP.EI(),
                    ntries = 6,
                    firstvalue = :last,
@@ -151,7 +148,7 @@ function bostep(m::AbstractVector, m0::AbstractVector, mnew::Vector{Vector{Float
 
     ttrain = zeros(size(t,1), 0)
     for i = 1:ntries
-        nextpos, = getBOsample(κ, χ²', ttrain, t, λ²GP, δtry, demean, knownvalue, firstvalue, acqfun)
+        nextpos, = getBOsample(G, χ²', ttrain, t, knownvalue, firstvalue, acqfun)
         push!(λ²sampled, [10^t[1, nextpos]; 2^t[2,nextpos]])
         mnew[i] = m + 2^t[2,nextpos]*newtonstep(m, m0, F, 10^t[1,nextpos], β², R, regularizeupdate=regularizeupdate)
         pushback(mnew[i], lo, hi)                        
@@ -224,6 +221,7 @@ function gradientinv(   m::AbstractVector,
                         κ = GP.Mat52(),
                         breakonknown=false,
                         dobo = false,
+                        δtry = 1e-2,
                         fname="")
     R = makereg(regtype, F)                
     ndata = length(F.res)
@@ -235,6 +233,7 @@ function gradientinv(   m::AbstractVector,
     oidx = zeros(Int, nstepsmax)  
     ndata = length(F.res)
     t, λ²GP = initbo(λ²min, λ²max, λ²frac, ntestdivsλ², αmin, αmax, αfrac, ntestdivsα)
+    G = GP.KernelStruct(κ, ntries, λ²GP, δtry, t)
     istep = 1 
     io = open_history(fname)
     if !dobo
@@ -242,8 +241,8 @@ function gradientinv(   m::AbstractVector,
     end              
     while true
         if dobo
-            idx, foundroot = bostep(m, m0, mnew[istep], χ²[istep], λ²[istep], t, β², λ²GP, F, R, target, lo, hi,
-            regularizeupdate=regularizeupdate, ntries=ntries, κ = κ,
+            idx, foundroot = bostep(G, m, m0, mnew[istep], χ²[istep], λ²[istep], t, β², F, R, target, lo, hi,
+            regularizeupdate=regularizeupdate, ntries=ntries,
             knownvalue=knownvalue, firstvalue=firstvalue, breakonknown=breakonknown)         
         else
             idx, foundroot = occamstep(m, m0, Δm, mnew[istep], χ²[istep], λ²[istep], F, R, target, 
