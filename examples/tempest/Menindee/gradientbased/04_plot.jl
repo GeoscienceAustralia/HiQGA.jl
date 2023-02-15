@@ -1,6 +1,6 @@
-transD_GP.plotconvandlast(soundings, 5, 2, [:z_rx, :x_rx]; zall,
-    figsize=(15,7), vmin=lo, vmax=hi, postfix="_β²_$(β²)_$(regtype)_bg_$(round(10. ^σ0, sigdigits=4))Spm", prefix=zipsaveprefix,
+transD_GP.plotconvandlast(soundings, 15, 2, [:z_rx, :x_rx]; zall,
+    figsize=(12,7), vmin=lo, vmax=hi, postfix="_β²_$(β²)_$(regtype)_bg_$(round(10. ^σ0, sigdigits=4))Spm", prefix=zipsaveprefix,
     preferEright=true, showplot=true, logscale=true)
-@info "writing PDF ..."
-run(`./pdfscript.sh`)
-@info "done"
+#@info "writing PDF ..."
+#run(`./pdfscript.sh`)
+#@info "done"

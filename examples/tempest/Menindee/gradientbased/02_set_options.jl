@@ -15,7 +15,7 @@ lo                 = -2.5
 hi                 = 0.5
 λ²min              = -0.5
 λ²max              = 8
-β²                 = 0.1
+β²                 = 0.0001
 knownvalue         = 0.7
 showgeomplot       = false
 plotfield          = true
@@ -30,7 +30,7 @@ else
                 -2.5     2.5
                 -1       1]
 end
-nstepsmax      = 30 
+nstepsmax      = 40 
 ntriesnu       = 5
 boxiters       = 3
 usebox         = true
