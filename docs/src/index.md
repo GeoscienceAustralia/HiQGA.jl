@@ -7,7 +7,7 @@ Readily usable geophysical forward operators are to do with AEM, CSEM and MT phy
 This package implements both the nested (2-layer) and vanilla trans-dimensional Gaussian process algorithm as published in 
 - [*Bayesian inversion using nested trans-dimensional Gaussian processes*, A. Ray, Geophysical Journal International, **226(1)**, 2021](https://doi.org/10.1093/gji/ggab114).
 - [*Bayesian geophysical inversion with trans-dimensional Gaussian process machine learning*, A. Ray and D. Myer, Geophysical Journal International **217(3)**, 2019](https://doi.org/10.1093/gji/ggz111).
-- There is also a flavour of within-bounds Gauss-Newton/Occam's inversion implemented. For SkyTEM AEM, this is fully functional, but for other forward propagators you will have to provide a Jacobian (the linearization of the forward operator).
+- There is also a flavour of within-bounds Gauss-Newton/Occam's inversion implemented. For SkyTEM, TEMPEST and VTEM (all AEM), this is fully functional, but for other forward propagators you will have to provide a Jacobian (the linearization of the forward operator).
 
 ## Installation
 [NCI](https://nci.org.au/) users look [here](#Development-setup-on-NCI) first!
