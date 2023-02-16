@@ -23,16 +23,16 @@ vectorsum          = true
 calcjacobian       = true
 ## nuisance stuff
 if vectorsum
-    Δ = [-2.5    2.5
-         -2.5    2.5]
+    Δ = [-3.   3.
+         -3    3.]
 else
-    Δ = [-2.5     2.5
-                -2.5     2.5
-                -1       1]
+    Δ = Δ = [-3.   3.
+             -3    3.
+             -1.5  1.5]
 end
 nstepsmax      = 40 
 ntriesnu       = 5
-boxiters       = 3
+boxiters       = 2
 usebox         = true
 reducenuto     = 0.2
 debuglevel     = 0
