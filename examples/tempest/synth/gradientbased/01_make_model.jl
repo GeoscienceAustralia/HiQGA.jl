@@ -20,7 +20,7 @@ tx_roll = 0.
 tx_pitch = 0.
 tx_yaw = 0.
 # electronics and stuff
-include("../amponly/electronics_halt.jl")
+include("../McMC/amponly/electronics_halt.jl")
 ## fill in detail in ohm-m
 ρ[(z.>=zstart) .& (z.<50)] .= 20.
 ρ[(z.>=50) .&(z.<80)] .= 1
