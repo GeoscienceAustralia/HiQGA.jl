@@ -16,6 +16,7 @@ mutable struct MT1DZ_nodepthprior <: MT1DZ
     freqs
     zboundaries
     irxlayer
+    useML 
 end
 
 function MT1DZ_nodepthprior(;
@@ -25,7 +26,8 @@ function MT1DZ_nodepthprior(;
                             σ_phase_deg = nothing,
                             freqs = nothing,
                             zboundaries = nothing,
-                            irxlayer = nothing)
+                            irxlayer = nothing,
+                            useML = false)
     @assert !isa(d_log10_ρ, Nothing)
     @assert !isa(d_phase_deg, Nothing)
     @assert !isa(σ_log10_ρ, Nothing)
@@ -34,7 +36,7 @@ function MT1DZ_nodepthprior(;
     @assert !isa(zboundaries, Nothing)
     @assert !isa(irxlayer, Nothing)                    
     @assert all(diff(zboundaries) .> 0)
-    MT1DZ_nodepthprior(d_log10_ρ, d_phase_deg, σ_log10_ρ, σ_phase_deg, freqs, zboundaries, irxlayer)
+    MT1DZ_nodepthprior(d_log10_ρ, d_phase_deg, σ_log10_ρ, σ_phase_deg, freqs, zboundaries, irxlayer, useML)
 end
 
 mutable struct MT1DZ_depthprior <: MT1DZ
@@ -45,6 +47,7 @@ mutable struct MT1DZ_depthprior <: MT1DZ
     freqs
     zboundaries
     irxlayer
+    useML
     stretch
     stretchmodel
     low
@@ -74,18 +77,23 @@ end
 
 function get_misfit(ρ::AbstractArray, opt::Options, F::MT1DZ)
     if !opt.debug
-        get_misfit(F.d_log10_ρ, F.d_phase_deg, F.σ_log10_ρ, F.σ_phase_deg, F.freqs, ρ, F.zboundaries, F.irxlayer)
+        get_misfit(F.d_log10_ρ, F.d_phase_deg, F.σ_log10_ρ, F.σ_phase_deg, F.freqs, ρ, F.zboundaries, F.irxlayer, useML=F.useML)
     else
         0.0
     end        
 end
 
-function get_misfit(d_log10_ρ, d_phase_deg, σ_log10_ρ, σ_phase_deg, freqs, ρ, z, irxlayer=1)
+function get_misfit(d_log10_ρ, d_phase_deg, σ_log10_ρ, σ_phase_deg, freqs, ρ, z, irxlayer=1; useML=false)
     Z = get_Z(freqs, ρ, z, irxlayer)
     ρₐ = MT1D.ρapp(freqs, Z)
     ϕ  = MT1D.phase(Z)
     r = [(d_log10_ρ - log10.(ρₐ))./σ_log10_ρ ; (d_phase_deg - ϕ)./σ_phase_deg]
-    r'r/2
+    if useML
+        ndata = length(r)
+        chi2by2 = 0.5*ndata*log(r'r)
+    else
+        chi2by2 = r'r/2
+    end    
 end
 
 get_Z(freqs, ρ, z, irxlayer) = MT1D.Z_f(freqs, ρ, diff(z), irxlayer)
@@ -111,7 +119,7 @@ function create_synthetic(;ρ=nothing, zboundaries=nothing, freqs=nothing,
     d_phase_deg = MT1D.phase(Znoisy)
     σ_log10_ρ = noisefrac/log(10)
     σ_phase_deg = rad2deg(noisefrac/2)
-    F = MT1DZ_nodepthprior(d_log10_ρ, d_phase_deg, σ_log10_ρ, σ_phase_deg, freqs, zboundaries, irxlayer)
+    F = MT1DZ_nodepthprior(;d_log10_ρ, d_phase_deg, σ_log10_ρ, σ_phase_deg, freqs, zboundaries, irxlayer)
     if showplot
         fig = MT1D.plotmodelcurve(1 ./freqs, ρ, zboundaries, logscaledepth=logscaledepth, showfreq=showfreq, irxlayer=irxlayer)
         plotdata(F, fig, iaxis=2, showfreq=showfreq, gridalpha=gridalpha)
@@ -126,14 +134,18 @@ function plotdata(F::MT1DZ; showfreq=false, gridalpha=0.5, figsize=(6,3))
 end
 
 function plotdata(F::MT1DZ, fig; iaxis=1, showfreq=false, gridalpha=0.5)
-    xlabel, abcissa = MT1D.f_or_T(F.freqs, showfreq=showfreq)
+    plotdata(F.d_log10_ρ, F.d_phase_deg, F.σ_log10_ρ, F.σ_phase_deg, F.freqs, fig; iaxis, showfreq, gridalpha)
+end    
+
+function plotdata(d_log10_ρ, d_phase_deg, σ_log10_ρ, σ_phase_deg, freqs, fig; iaxis=1, showfreq=false, gridalpha=0.5)
+    xlabel, abcissa = MT1D.f_or_T(freqs, showfreq=showfreq)
     ax = fig.axes
-    ax[iaxis].errorbar(abcissa, F.d_log10_ρ, F.σ_log10_ρ, linestyle="none", marker=".", elinewidth=0, capsize=3)
-    ax[iaxis+1].errorbar(abcissa, F.d_phase_deg, F.σ_phase_deg, linestyle="none", marker=".", elinewidth=0, capsize=3)
+    ax[iaxis].errorbar(abcissa, d_log10_ρ, σ_log10_ρ, linestyle="none", marker=".", elinewidth=1, capsize=3)
+    ax[iaxis+1].errorbar(abcissa, d_phase_deg, σ_phase_deg, linestyle="none", marker=".", elinewidth=1, capsize=3)
     MT1D.labelaxis(xlabel, ax, iaxis, gridalpha=gridalpha)
     ax[iaxis].set_xscale("log")
     fig.tight_layout()
-end    
+end
 
 function plot_posterior(F::MT1DZ, M::AbstractArray; showfreq=false, gridalpha=0.5, logscaledepth=true, 
                             figsize=(10,4), lcolor="nocolor", modelalpha=0.5)
@@ -170,5 +182,77 @@ function plotpriorenv(F::MT1DZ_depthprior; ax=nothing, lw=2, lc="r", plotlinear=
     ax.step([high; high[end]], [F.zboundaries; zlast], linewidth=lw, color=lc)
     plt.tight_layout()
 end
+
+# read EDI files
+function getnfreqs(fname)
+    f = open(fname)
+    nfreq = 0
+    for (i, str) in enumerate(eachline(f))
+        if occursin("nfreq", lowercase(str))
+            idx = findfirst('=', str)
+            nfreq = parse(Int, str[idx+1:end])
+            break
+        end
+    end
+    close(f)
+    nfreq    
+end    
+
+function readthing(fname, nfreq, freqstring)
+    f = open(fname)
+    freqs = zeros(nfreq)
+    ifreq = 0
+    readfreq = false
+    @info freqstring
+    for (i, str) in enumerate(eachline(f))
+        if any(freqstring .== split(lowercase(str)))
+            readfreq = true
+            continue
+        end
+        if readfreq
+            fthisline = parse.(Float64, split(str))
+            nthisline = length(fthisline)
+            freqs[ifreq+1:ifreq+nthisline] = fthisline
+            ifreq += nthisline
+            if ifreq == nfreq
+                readfreq = false
+                ifreq = 0
+            end
+        end    
+    end
+    close(f)
+    freqs        
+end   
+
+
+function read_edi(fname; showplot=false, figsize=(6,3), showfreq=false, errorfrac=nothing,)
+    readstrings = ["freq", "rhoxy", "rhoyx", "phsxy", "phsyx", "rhoxy.err", "rhoyx.err", "phsxy.err", "phsyx.err"]
+    nfreq = getnfreqs(fname)
+    freqs, 
+    rhoxy,    rhoyx,     phsxy,     phsyx,
+    rhoxyerr, rhoyxerr,  phsxyerr, phsyxerr = 
+    map(x->readthing(fname, nfreq, ">"*x), readstrings)
+    phsyx = 180 .+ phsyx
+    phsxy, phsyx = -phsxy, -phsyx
+    # this is ok if factor between rho xy/yx in rhoapp is 1.25
+    d_log10_ρ = (log10.(rhoxy) + log10.(rhoyx))/2
+    d_phase_deg = (phsxy + phsyx)/2
+    if !isnothing(errorfrac)
+        σ_log10_ρ = errorfrac/log(10)*ones(size(d_log10_ρ))
+        σ_phase_deg = rad2deg.(errorfrac/2*ones(size(d_log10_ρ)))
+    else
+        σ_log10_ρ = 0.5(getlog10ρerr.(rhoxyerr, rhoxy) + getlog10ρerr.(rhoyxerr, rhoyx))
+        σ_phase_deg = 0.5(phsxyerr + phsyxerr)
+    end    
+    if showplot
+        fig, _ = plt.subplots(1, 2; figsize, sharex=true)
+        plotdata(log10.(rhoxy), phsxy, getlog10ρerr.(rhoxyerr, rhoxy), phsxyerr, freqs, fig; iaxis=1, showfreq)
+        plotdata(log10.(rhoyx), phsyx, getlog10ρerr.(rhoyxerr, rhoyx), phsyxerr, freqs, fig; iaxis=1, showfreq)
+        !isnothing(errorfrac) && plotdata(d_log10_ρ, d_phase_deg, σ_log10_ρ, σ_phase_deg, freqs, fig; iaxis=1, showfreq)
+    end
+    freqs, d_log10_ρ, d_phase_deg, σ_log10_ρ, σ_phase_deg
+end
+
+getlog10ρerr(σ, ρₐ) = σ/(ρₐ*log(10))
 
 end

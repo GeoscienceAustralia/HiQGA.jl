@@ -6,7 +6,7 @@ nmax = 200
 # z grid spec starts, the first z and first ρ will be unused in MT
 zstart = 0.0
 extendfrac, dz = 1.22, 15
-zall, znall, zboundaries = transD_GP.setupz(zstart, extendfrac, dz=dz, n=50, showplot=true, atol=1e-3)
+zall, znall, zboundaries = transD_GP.setupz(zstart, extendfrac, dz=dz, n=50, showplot=true)
 z, ρ, nfixed = transD_GP.makezρ(zboundaries; zfixed=zfixed, ρfixed=ρfixed)
 ## COPROD from Occam paper
 T = [28.5 38.5 52.0 70.5 95.5 129.0 174.6 236.2 319.6 432.5 585.1 791.7 1071.1 1449.2 1960.7][:]

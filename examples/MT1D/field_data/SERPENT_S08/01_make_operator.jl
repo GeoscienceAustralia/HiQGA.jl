@@ -1,4 +1,4 @@
-using HiQGA.transD_GP, PyPlot, DelimitedFiles, DataInterpolations
+using HiQGA.transD_GP, PyPlot, DelimitedFiles, HiQGA.transD_GP.CSEM1DEr.DataInterpolations
 ## model fixed parts, i.e., air, but only to be compatible with AEM ...
 zfixed   = [-1e5]
 ρfixed   = [1e12]
@@ -9,6 +9,9 @@ extendfrac, dz = 1.169, 10
 zall, znall, zboundaries = transD_GP.setupz(zstart, extendfrac, dz=dz, n=50, showplot=true)
 z, ρ, nfixed = transD_GP.makezρ(zboundaries; zfixed=zfixed, ρfixed=ρfixed)
 ## SERPENT S08
+# If using data below please cite 
+# A plume origin for hydrous melt at the lithosphere–asthenosphere boundary, Nature
+# https://doi.org/10.1038/s41586-022-04483-w
 D = readdlm("MTS08.txt")
 T = 1 ./D[:,1]
 d_log10_ρ = D[:,2]

@@ -61,6 +61,10 @@ function plotcurve(T, Z, fig; showfreq=false, iaxis=1, gridalpha=0.5, modelalpha
     f = 1 ./T
     ρₐ = ρapp(f, Z)
     ϕ  = phase(Z)
+    plotρappcurve(ρₐ, ϕ, f, fig; showfreq, iaxis, gridalpha, modelalpha, lcolor)
+end    
+
+function plotρappcurve(ρₐ, ϕ, f, fig; showfreq=false, iaxis=1, gridalpha=0.5, modelalpha=0.5, lcolor="nocolor")
     ax = fig.axes
     xlabel, abcissa = f_or_T(f, showfreq=showfreq)
     if lcolor == "nocolor"
@@ -72,7 +76,7 @@ function plotcurve(T, Z, fig; showfreq=false, iaxis=1, gridalpha=0.5, modelalpha
     end    
     labelaxis(xlabel, ax, iaxis, gridalpha=gridalpha)
     fig.tight_layout()
-end    
+end
 
 function f_or_T(f; showfreq=false)
     if showfreq 

@@ -1,5 +1,5 @@
 ## test against Kaufman and Keller 1981 Fig 3.1
-using transD_GP.MT1D
+using HiQGA.transD_GP.MT1D
 ## Nomograms
 ρ1 = 10.
 h1 = 100.
