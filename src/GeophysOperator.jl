@@ -25,4 +25,6 @@ using .MT1D
 include("MT1DInversion.jl")
 include("VTEM1DInversion.jl")
 using .VTEM1DInversion
+include("GenericJointInversion.jl")
+using .GenericJointInversion
 export Operator, get_misfit, Sounding, makeoperator, make_tdgp_opt, getresidual

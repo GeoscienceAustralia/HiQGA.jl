@@ -232,7 +232,7 @@ function makeAEMoperatorandoptions(sounding::Sounding;
                         sdpos = 0.05,
                         sdprop = 0.05,
                         sddc = 0.008,
-                        sampledc = false,
+                        sampledc = true,
                         fbounds = [-0.5 2.5],
                         λ = [2],
                         δ = 0.1,

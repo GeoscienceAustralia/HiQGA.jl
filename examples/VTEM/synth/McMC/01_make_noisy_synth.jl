@@ -10,7 +10,6 @@ zall, znall, zboundaries = transD_GP.setupz(zstart, extendfrac, dz=dz, n=65, sho
 z, ρ, nfixed = transD_GP.makezρ(zboundaries; zfixed=zfixed, ρfixed=ρfixed)
 ## geometry and modeling parameters
 zTx = -30.0
-calcjacobian = true
 include("../waveletapprox/electronics_halt.jl")
 ## make LM operator
 aem = transD_GP.VTEM1DInversion.dBzdt(;
