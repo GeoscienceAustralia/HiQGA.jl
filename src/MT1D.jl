@@ -64,15 +64,16 @@ function plotcurve(T, Z, fig; showfreq=false, iaxis=1, gridalpha=0.5, modelalpha
     plotρappcurve(ρₐ, ϕ, f, fig; showfreq, iaxis, gridalpha, modelalpha, lcolor)
 end    
 
-function plotρappcurve(ρₐ, ϕ, f, fig; showfreq=false, iaxis=1, gridalpha=0.5, modelalpha=0.5, lcolor="nocolor")
+function plotρappcurve(ρₐ, ϕ, f, fig; showfreq=false, iaxis=1, gridalpha=0.5, modelalpha=0.5, 
+    lcolor="nocolor", marker=".", markersize=6, linewidth=2)
     ax = fig.axes
     xlabel, abcissa = f_or_T(f, showfreq=showfreq)
     if lcolor == "nocolor"
         ax[iaxis].semilogx(abcissa, log10.(ρₐ))
         ax[iaxis+1].semilogx(abcissa, ϕ)
     else
-        ax[iaxis].semilogx(abcissa, log10.(ρₐ), alpha=modelalpha, color=lcolor)
-        ax[iaxis+1].semilogx(abcissa, ϕ, alpha=modelalpha, color=lcolor)
+        ax[iaxis].semilogx(abcissa, log10.(ρₐ), alpha=modelalpha, color=lcolor; marker, markersize, linewidth)
+        ax[iaxis+1].semilogx(abcissa, ϕ, alpha=modelalpha, color=lcolor; marker, markersize, linewidth)
     end    
     labelaxis(xlabel, ax, iaxis, gridalpha=gridalpha)
     fig.tight_layout()
@@ -91,7 +92,7 @@ end
 
 function labelaxis(xlabel, ax, iaxis; gridalpha=0.5)
     ax[iaxis].set_xlabel(xlabel)
-    ax[iaxis].set_ylabel(L"\log_{10}\rho_{app}"*" (ohm-m)")
+    ax[iaxis].set_ylabel(L"\log_{10}\rho_{a}"*" (ohm-m)")
     ax[iaxis].grid(b=true, which="both", alpha=gridalpha)
     ax[iaxis+1].set_xlabel(xlabel)
     ax[iaxis+1].set_ylabel("Phase "*L"^\circ")

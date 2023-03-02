@@ -225,7 +225,7 @@ function readthing(fname, nfreq, freqstring)
 end   
 
 
-function read_edi(fname; showplot=false, figsize=(6,3), showfreq=false, errorfrac=nothing,)
+function read_edi(fname; showplot=false, figsize=(9,4), showfreq=false, errorfrac=nothing,)
     readstrings = ["freq", "rhoxy", "rhoyx", "phsxy", "phsyx", "rhoxy.err", "rhoyx.err", "phsxy.err", "phsyx.err"]
     nfreq = getnfreqs(fname)
     freqs, 
@@ -248,11 +248,26 @@ function read_edi(fname; showplot=false, figsize=(6,3), showfreq=false, errorfra
         fig, _ = plt.subplots(1, 2; figsize, sharex=true)
         plotdata(log10.(rhoxy), phsxy, getlog10ρerr.(rhoxyerr, rhoxy), phsxyerr, freqs, fig; iaxis=1, showfreq)
         plotdata(log10.(rhoyx), phsyx, getlog10ρerr.(rhoyxerr, rhoyx), phsyxerr, freqs, fig; iaxis=1, showfreq)
-        !isnothing(errorfrac) && plotdata(d_log10_ρ, d_phase_deg, σ_log10_ρ, σ_phase_deg, freqs, fig; iaxis=1, showfreq)
+        boolidxbad = abs.(log10.(rhoxy) - log10.(rhoyx)) .>= 0.1
+        fig.suptitle("1D out of total: $(sum(.!boolidxbad))/$(length(boolidxbad))")    
+        idx1Dstart = findfirst(.!boolidxbad)
+        idx1Dend = findlast(.!boolidxbad)
+        yminmnaxstem(fig.axes[1], freqs[idx1Dstart], freqs[idx1Dend], d_log10_ρ; showfreq)
+        yminmnaxstem(fig.axes[2], freqs[idx1Dstart], freqs[idx1Dend], d_phase_deg; showfreq)
+        plotdata(d_log10_ρ, d_phase_deg, σ_log10_ρ, σ_phase_deg, freqs, fig; iaxis=1, showfreq)
+        MT1D.plotρappcurve(10 .^d_log10_ρ[boolidxbad], d_phase_deg[boolidxbad], freqs[boolidxbad], 
+            fig; showfreq, iaxis=1, lcolor="red", linewidth=0, marker="v", markersize=10)
     end
     freqs, d_log10_ρ, d_phase_deg, σ_log10_ρ, σ_phase_deg
 end
 
 getlog10ρerr(σ, ρₐ) = σ/(ρₐ*log(10))
+
+function yminmnaxstem(ax, freqstart, freqend, yvec; linewidth=1, showfreq=false)
+    ymin, ymax = extrema(yvec)
+    showfreq || ((freqstart, freqend)= map(freq -> 1. /freq, (freqstart, freqend)))
+    ax.plot(freqstart*ones(2), [ymin, ymax], "--k"; linewidth)
+    ax.plot(freqend*ones(2), [ymin, ymax], "--k"; linewidth)
+end
 
 end
