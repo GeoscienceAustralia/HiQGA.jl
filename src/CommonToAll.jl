@@ -1319,7 +1319,8 @@ end
 function getclosestidx(Xwell, Ywell, soundings::Vector{S}) where S<: Sounding
     XY = hcat([[s.X, s.Y] for s in soundings]...)
     tree = KDTree(XY)
-    idx, = nn(tree, [Xwell;Ywell])
+    idx, dist = nn(tree, [Xwell;Ywell])
+    @info "distance is $dist"
     idx
 end    
 
