@@ -466,9 +466,11 @@ function getchi2forall(opt_in::Options;
     !hidetitle && ax[1].set_title(isns*" sorted by temperature")
     ax[1].plot(iters, kacrosschains[:,1:nchainsatone], "k", alpha=alpha)
     gridon && ax[1].grid()
+    chi2low, chi2high = 0.01*median(X2by2inchains[:,1]), 5*median(X2by2inchains[:,end])
     ax[2].plot(iters, X2by2inchains, alpha=alpha)
     ax[2].plot(iters, X2by2inchains[:,1:nchainsatone], "k", alpha=alpha)
     ax[2].set_ylabel("-Log L")
+	ax[2].set_ylim(chi2low, chi2high)
     gridon && ax[2].grid()
     if !omittemp
         ax[3].plot(iters, Tunsorted, alpha=alpha, color="gray")
