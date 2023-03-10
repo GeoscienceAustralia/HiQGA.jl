@@ -14,7 +14,6 @@ xbounds = permutedims([extrema(x)...]) # discretization bounds
 sdev_pos = [0.05abs(diff([extrema(x)...])[1])]
 sdev_prop = 0.05*diff(fbounds, dims=2)[:]
 ## Initialize a stationary GP using these options
-Random.seed!(12)
 opt = transD_GP.OptionsStat(nmin = nmin,
                         nmax = nmax,
                         xbounds = xbounds,

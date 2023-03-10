@@ -1,5 +1,5 @@
 ## run McMC
-nsamples, nchains, nchainsatone = 5001, 4, 1
+nsamples, nchains, nchainsatone = 100_001, 4, 1
 Tmax = 2.50
 addprocs(nchains)
 @info "workers are $(workers())"

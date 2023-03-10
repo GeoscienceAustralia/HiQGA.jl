@@ -629,28 +629,24 @@ function plot_posterior(F::Operator1D,
                         qp2=0.95,
                         vmaxpc=1.0,
                         cmappdf = "inferno",
-                        figsize=(12,5),
+                        figsize=(10,5),
                         pdfnormalize=false,
                         fsize=14,
-                        showlscale1vd=false,
                         istothepow=false,
                         usekde = false,
                         kdetype = SJ(),
-                        doplot = true,
-                        a = 0.25,
+                        alpha=0.25,
                         lw = 1)
     @assert 0<vmaxpc<=1
     M = assembleTat1(optns, :fstar, burninfrac=burninfrac, temperaturenum=temperaturenum)
-    himage_ns, edges_ns, CI_ns, meanimage_ns, 
-    meandiffimage_ns, sdslope_ns, = gethimage(F, M, optns; temperaturenum=temperaturenum,
+    himage_ns, edges_ns, CI_ns, = gethimage(F, M, optns; temperaturenum=temperaturenum,
                             nbins=nbins, qp1=qp1, qp2=qp2, istothepow=istothepow, usekde, kdetype,
                             islscale=false, pdfnormalize=pdfnormalize)
     M = assembleTat1(opts, :fstar, burninfrac=burninfrac, temperaturenum=temperaturenum)
-    himage, edges, CI, meanimage, 
-    meandiffimage, sdslope, = gethimage(F, M, opts; temperaturenum=temperaturenum,
+    himage, edges, CI,  = gethimage(F, M, opts; temperaturenum=temperaturenum,
                             nbins=nbins, qp1=qp1, qp2=qp2, istothepow=false, usekde, kdetype,
                             islscale=true, pdfnormalize=pdfnormalize)
-    f,ax = plt.subplots(1, 3+convert(Int, showlscale1vd), sharey=true, figsize=figsize)
+    f,ax = plt.subplots(1, 2, sharey=true, figsize=figsize)
     xall = opts.xall
     diffs = diff(xall[:])
     xmesh = vcat(xall[1:end-1] - diffs/2, xall[end]-diffs[end]/2, xall[end])
@@ -659,39 +655,23 @@ function plot_posterior(F::Operator1D,
     im1 = ax[1].pcolormesh(edges_ns[:], xmesh, himage_ns, cmap=cmappdf, vmax=vmax)
     cb1 = colorbar(im1, ax=ax[1])
     cb1.ax.set_xlabel("pdf \nns")
-    @show propmin, propmax = getbounds(CI_ns, optns.fbounds)
+    propmin, propmax = getbounds(CI_ns, optns.fbounds)
     ax[1].set_xlim(propmin, propmax)
-    ax[2].fill_betweenx(xall[:],meandiffimage_ns[:]-sdslope_ns[:],meandiffimage_ns[:]+sdslope_ns[:],alpha=a, color="gray")
-    ax[2].plot(meandiffimage_ns, xall[:], linewidth=lw, color="k")
-    ax[2].set_xlabel("slope")
-
+    
     vmin, vmax = extrema(himage)
     vmax = vmin+vmaxpc*(vmax-vmin)
-    im3 = ax[3].pcolormesh(edges[:], xmesh, himage, cmap=cmappdf, vmax=vmax)
-    ax[3].set_ylim(extrema(xall)...)
+    im2 = ax[2].pcolormesh(edges[:], xmesh, himage, cmap=cmappdf, vmax=vmax)
+    ax[2].set_ylim(extrema(xall)...)
     propmin, propmax = getbounds(CI, opts.fbounds)
-    ax[3].set_xlim(propmin, propmax)
-    ax[3].invert_yaxis()
-    cb3 = colorbar(im3, ax=ax[3])
-    cb3.ax.set_xlabel("pdf \nstationary")
-
-    if showlscale1vd
-        ax[4].plot(meandiffimage[:], xall[:], linewidth=2, color="g", alpha=0.5)
-        ax[4].fill_betweenx(xall[:], meandiffimage[:]-sdslope[:],meandiffimage[:]+sdslope[:], alpha=.5)
-        ax[4].set_xlabel("slope")
-    end
-
-    ax[1].plot(CI_ns, xall[:], linewidth=lw, color="w", alpha=a)
-    # ax[1].plot(CI_ns, xall[:], linewidth=1, color="c", linestyle="--", alpha=0.5)
-    # ax[1].plot(meanimage_ns[:], xall[:], linewidth=2, color="w", alpha=0.5)
-    # ax[1].plot(meanimage_ns[:], xall[:], linewidth=2, color="k", linestyle="--", alpha=0.5)
-    ax[3].plot(CI, xall[:], linewidth=lw, color="w", alpha=a)
-    # ax[3].plot(CI, xall[:], linewidth=1, color="c", linestyle="--", alpha=0.5)
-    # ax[3].plot(meanimage[:], xall[:], linewidth=2, color="w", alpha=0.5)
-    # ax[3].plot(meanimage[:], xall[:], linewidth=2, color="k", linestyle="--", alpha=0.5)
+    ax[2].set_xlim(propmin, propmax)
+    ax[2].invert_yaxis()
+    cb2 = colorbar(im2, ax=ax[2])
+    cb2.ax.set_xlabel("pdf \nstationary")
+    ax[1].plot(CI_ns, xall[:], linewidth=lw, color="w"; alpha)
+    ax[2].plot(CI, xall[:], linewidth=lw, color="w"; alpha)
     ax[1].set_xlabel(L"\log_{10} \rho")
     ax[1].set_ylabel("depth (m)")
-    ax[3].set_xlabel(L"\log_{10} λ")
+    ax[2].set_xlabel(L"\log_{10} λ")
     nicenup(f, fsize=fsize)
 end
 
