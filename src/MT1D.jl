@@ -108,7 +108,7 @@ function plotmodelcurve(T, ρ, z; showfreq=false, figsize=(10,4), gridalpha=0.5,
     fig
 end
 
-function plotmodelcurve(T, ρ, z, fig; showfreq=false, gridalpha=0.5, logscaledepth=false, lcolor="nocolor", modelalpha=0.5, irxlayer=1)
+function plotmodelcurve(T, ρ, z, fig; showfreq=false, gridalpha=0.5, logscaledepth=false, lcolor="nocolor", modelalpha=0.5, irxlayer=1, revax=false)
     f = 1 ./T
     h = diff(z)
     Z = Z_f(f, ρ, h, irxlayer)
@@ -121,6 +121,7 @@ function plotmodelcurve(T, ρ, z, fig; showfreq=false, gridalpha=0.5, logscalede
     end      
     ax[1].set_xlabel("ρ ohm-m")
     ax[1].set_ylabel("Depth m")
+    revax && ax[1].invert_xaxis()
     y1, y2 = ax[1].get_ylim()
     y1 < y2 && ax[1].invert_yaxis()
     if logscaledepth

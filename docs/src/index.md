@@ -194,6 +194,10 @@ pkg> add PyPlot
 ```
 pkg> dev HiQGA
 ```
+Make a pull request if you wish to submit your change -- we welcome feature additions. If you want to switch back to the official version from development mode, do
+```
+pkg> fee HiQGA
+```
 ### References for AEM and CSEM physics 
 
 - [Blatter, D., Key, K., Ray, A., Foley, N., Tulaczyk, S., & Auken, E. (2018). Trans-dimensional Bayesian inversion of airborne transient EM data from Taylor Glacier, Antarctica. Geophysical Journal International, 214(3)](https://doi.org/10.1093/gji/ggy255)
