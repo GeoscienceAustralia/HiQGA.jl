@@ -25,7 +25,8 @@ Random.seed!(42)
 ρ = 10 .^(0.1*randn(length(ρ)) + log10.(ρ))
 ## AMT operator
 freqs = 10 .^range(log10(11.2), log10(8800), length=37)
-FMT = transD_GP.MT1DInversion.create_synthetic(;ρ =  ρ[2:end],zboundaries, 
+# plot with resistivity axis reversed 
+FMT = transD_GP.MT1DInversion.create_synthetic(;ρ =  ρ[2:end],zboundaries, revax=true,
                                             freqs, showplot=true, noisefrac=0.05, logscaledepth=false)
 ## VTEM operator
 zTx = -30.0

@@ -108,7 +108,7 @@ function add_noise(ρ, z, freqs; noisefrac=0.05, rseed=1, irxlayer=1)
 end
 
 function create_synthetic(;ρ=nothing, zboundaries=nothing, freqs=nothing, 
-                        noisefrac=0.05, rseed=1, showplot=true, 
+                        noisefrac=0.05, rseed=1, showplot=true, revax=false,
                         logscaledepth=true, showfreq=false, gridalpha=0.5, irxlayer=1)
     @assert !isa(ρ, Nothing)   
     @assert !isa(zboundaries, Nothing)
@@ -121,7 +121,7 @@ function create_synthetic(;ρ=nothing, zboundaries=nothing, freqs=nothing,
     σ_phase_deg = rad2deg(noisefrac/2)
     F = MT1DZ_nodepthprior(;d_log10_ρ, d_phase_deg, σ_log10_ρ, σ_phase_deg, freqs, zboundaries, irxlayer)
     if showplot
-        fig = MT1D.plotmodelcurve(1 ./freqs, ρ, zboundaries, logscaledepth=logscaledepth, showfreq=showfreq, irxlayer=irxlayer)
+        fig = MT1D.plotmodelcurve(1 ./freqs, ρ, zboundaries; logscaledepth=logscaledepth, showfreq=showfreq, irxlayer=irxlayer, revax)
         plotdata(F, fig, iaxis=2, showfreq=showfreq, gridalpha=gridalpha)
     end
     F
