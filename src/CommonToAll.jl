@@ -1132,9 +1132,9 @@ function plotNEWSlabels(soundings, gridx, gridz, axarray,
             end 
         end
         ha = inverted ? "right" : "left"
-        s.text(gridx[1], minylim, dir1*beginpos, backgroundcolor="w", ha = ha; fontsize)
+        s.text(gridx[1], minylim, dir1*beginpos, backgroundcolor=s.get_facecolor(), ha = ha; fontsize)
         ha = inverted ? "left" : "right"
-        s.text(gridx[end], minylim, dir2*endpos, backgroundcolor="w", ha = ha; fontsize)      
+        s.text(gridx[end], minylim, dir2*endpos, backgroundcolor=s.get_facecolor(), ha = ha; fontsize)      
     end
     flipline(preferNright, preferEright, Nislast, Eislast, axarray[end])
 end
@@ -1169,7 +1169,9 @@ function plotsummarygrids1(soundings, meangrid, phgrid, plgrid, pmgrid, gridx, g
     icol = 1
     if !omitconvergence
         s[icol].plot(R, χ²mean)
-        s[icol].plot(R, ones(length(R)), "--k")
+        linecolor = [s[icol].get_facecolor()...]
+        linecolor[1:3] = abs.(linecolor[1:3] .- 1)
+        s[icol].plot(R, ones(length(R)), "--", color=linecolor)
         s[icol].fill_between(R, vec(χ²mean-χ²sd), vec(χ²mean+χ²sd), alpha=0.5)
         s[icol].set_ylabel(L"ϕ_d")
         titlestring = useML ? "Max likelihood variance adjustment" : "Data misfit"
