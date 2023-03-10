@@ -147,8 +147,8 @@ function plotdata(d_log10_ρ, d_phase_deg, σ_log10_ρ, σ_phase_deg, freqs, fig
     fig.tight_layout()
 end
 
-function plot_posterior(F::MT1DZ, M::AbstractArray; showfreq=false, gridalpha=0.5, logscaledepth=true, 
-                            figsize=(10,4), lcolor="nocolor", modelalpha=0.5)
+function plotmodelfield!(F::MT1DZ, M::AbstractArray; showfreq=false, gridalpha=0.5, logscaledepth=true, 
+                            figsize=(10,4), lcolor="nocolor", modelalpha=0.5, revax=false)
     fig = figure(figsize=(figsize))
     s1 = subplot(131)
     s2 = subplot(132)
@@ -161,7 +161,7 @@ function plot_posterior(F::MT1DZ, M::AbstractArray; showfreq=false, gridalpha=0.
             mnew[:] .= 10 .^m[:]    
         end    
         MT1D.plotmodelcurve(1 ./F.freqs, mnew, F.zboundaries, fig, showfreq=showfreq, irxlayer=F.irxlayer,
-                        gridalpha=gridalpha, logscaledepth=logscaledepth, lcolor=lcolor, modelalpha=modelalpha)
+                        gridalpha=gridalpha, logscaledepth=logscaledepth, lcolor=lcolor, modelalpha=modelalpha; revax)
     end
     plotdata(F, fig, iaxis=2, showfreq=showfreq, gridalpha=gridalpha)    
 end    
