@@ -723,7 +723,11 @@ function plot_posterior(F::Operator1D,
     @assert 0<vmaxpc<=1
     
     if useoptfbounds
-        rhomin, rhomax = extrema(opt.fbounds)
+        if stretchexists(F)
+            rhomin, rhomax = minimum(F.low), maximum(F.low + F.Δ)
+        else
+            rhomin, rhomax = extrema(opt.fbounds)
+        end
     else
         rhomin, rhomax = Inf, -Inf
     end    

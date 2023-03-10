@@ -18,13 +18,13 @@ z, ρ, nfixed = transD_GP.makezρ(zboundaries; zfixed=zfixed, ρfixed=ρfixed)
 ##
 T = 10 .^range(-3, 0, length=10)
 F = transD_GP.MT1DInversion.create_synthetic(ρ =  ρ[2:end], zboundaries = zboundaries, 
-                                            freqs = 1 ./T, rseed=125, showplot=true, noisefrac=0.05, logscaledepth=false)
-## now apply a stretch prior
+                                            freqs = 1 ./T, rseed=132, showplot=true, noisefrac=0.05, logscaledepth=false)
+## now apply a stretch prior -- i.e., depth dependent resitivity prior
 # remember there must be a ρlow and ρhigh at every zall
 ρlow, ρhigh = -0.5*ones(size(zall)), zall*0.001 .+ 2.5
 Δ = ρhigh - ρlow
 F = transD_GP.MT1DInversion.makestretchop(F, ρlow=ρlow, Δ=Δ)
 ax = gcf().axes[1]
-transD_GP.MT1DInversion.plotpriorenv(F, ax=ax, lc = "r")
-F.stretch = true # if wanting to toggle stretch priors
+F.stretch = true # if wanting to toggle stretch priors on and off
+F.stretch && transD_GP.MT1DInversion.plotpriorenv(F, ax=ax, lc = "r")
 
