@@ -13,5 +13,5 @@ if F.stretch
 end    
 ## plot a few models
 m = transD_GP.CommonToAll.assembleTat1(opt, :fstar, temperaturenum=1)
-transD_GP.MT1DInversion.plot_posterior(F, m[1:40:end], lcolor="k", modelalpha=0.2)
+transD_GP.MT1DInversion.plotmodelfield!(F, m[1:40:end], lcolor="k", modelalpha=0.2)
 
