@@ -2,7 +2,7 @@
 fileprefix = "test_stretchis$(string(F.stretch))_"
 # McMC priors
 K = transD_GP.GP.OrstUhn()
-nmin, nmax = 2, 40
+nmin, nmax = 2, 40 # no. of nuclei
 fbounds = F.stretch ? [0 1.] : [-0.5 3] # stretch priors or MT bounds in log10rho
 xall = permutedims(collect(znall)) # discretization 
 xbounds = permutedims([extrema(znall)...]) # discretization bounds

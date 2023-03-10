@@ -11,4 +11,4 @@ ax[1].step(log10.(ρ[2:end]), z[2:end], color="w", linewidth=2)
 ax[1].step(log10.(ρ[2:end]), z[2:end], color="g", linestyle="--")
 ## plot a few models
 m = transD_GP.CommonToAll.assembleTat1(opt, :fstar, temperaturenum=1)
-transD_GP.MT1DInversion.plotmodelfield!(F, m[1:40:end], lcolor="k", modelalpha=0.2, logscaledepth=false)
+transD_GP.MT1DInversion.plotmodelfield!(F, m[end-10:end], lcolor="k", modelalpha=0.2, logscaledepth=false)

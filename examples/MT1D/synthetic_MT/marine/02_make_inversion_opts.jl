@@ -2,7 +2,7 @@
 fileprefix = "MT_synth_"
 # McMC prior stuff
 K = transD_GP.GP.OrstUhn()
-nmin, nmax = 2, 40
+nmin, nmax = 2, 40 # no. of l=nuclei
 fbounds = [-1 3] # MT bounds in log 10 rho
 xall = permutedims(collect(znall)) # discretization
 xbounds = permutedims([extrema(znall)...]) # discretization bounds
