@@ -25,8 +25,8 @@ optlog10λ = transD_GP.OptionsStat(nmin = nminlog10λ,
                         sampledc = sampledcλ,
                         sdev_prop = sdev_proplog10λ,
                         sdev_pos = sdev_poslog10λ,
-                        needλ²fromlog = true,
-                        updatenonstat = true,
+                        needλ²fromlog = true, # needed for variable lengthscales
+                        updatenonstat = true, # needed for variable lengthscales
                         quasimultid = false,
                         K = Klog10λ,
                         save_freq = 20,
