@@ -1,8 +1,8 @@
 ## make options for the lengthscale GP
 # Prior stuff
 log10bounds = [-1.1 -0.9] # length scale bounds in log10 of distance
-δlog10λ = 0.05 # nugget of lengthscales in distnce units
-nminlog10λ, nmaxlog10λ = 2, 30 # no. of GP nuclei for lengthscales
+δlog10λ = 0.02 # nugget of lengthscales in distnce units
+nminlog10λ, nmaxlog10λ = 2, 20 # no. of GP nuclei for lengthscales
 Klog10λ = transD_GP.GP.OrstUhn() # kernel for lengthscales
 λlog10λ = [0.02abs(diff([extrema(x)...])[1])] # lengthscale for lengthscales, is stationary
 demeanλ = false # must be centred about lengthscale of lengthscales -- cannot demean or sample this
