@@ -1,6 +1,6 @@
 using Documenter, HiQGA, Literate
 
-example_src_dir = joinpath(@__DIR__, "..", "examples", "1D", "stat")
+example_src_dir = joinpath(@__DIR__, "..", "examples", "1D", "stationary")
 example_src = joinpath(example_src_dir, "01_make_model.jl")
 example_file = joinpath(example_src_dir, "func2.txt")
 
