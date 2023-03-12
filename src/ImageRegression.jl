@@ -188,7 +188,7 @@ function plot_image_posterior(optns::OptionsNonstat, opts::OptionsStat,
                         qp2=0.95,
                         cmappdf = "magma",
                         cmapmean = "bone",
-                        figsizerows=[11,6],
+                        figsizerows=[10,6],
                         figsizecols=[7.5,9.5],
                         pdfnormalize=false,
                         fsize=10,
@@ -293,7 +293,7 @@ function plot_image_posterior(optns::OptionsNonstat, opts::OptionsStat,
     s1.set_title(central_tendency*" pixel value")
     s1.set_ylabel("distance y")
     s1.set_xlabel("distance x")
-    # s1.set_aspect(aspect)
+    s1.set_aspect(aspect)
     cb1 = colorbar(im1, ax=s1)
     s2 = subplot(323, sharex=s1, sharey=s1)
     im2 = s2.pcolormesh([img.x;img.x[end]], [img.y;img.y[end]], msx, cmap=cmapmean)
@@ -301,12 +301,12 @@ function plot_image_posterior(optns::OptionsNonstat, opts::OptionsStat,
     s2.set_title(central_tendency*" "*L"\log_{10}λ_x")
     s2.set_ylabel("distance y")
     s2.set_xlabel("distance x")
-    # s2.set_aspect(aspect)
+    s2.set_aspect(aspect)
     s3 = subplot(325, sharex=s1, sharey=s1)
     cb2 = colorbar(im2, ax=s2)
     im3 = s3.pcolormesh([img.x;img.x[end]], [img.y;img.y[end]], msy, cmap=cmapmean)
     s3.plot([img.y[colnum], img.y[colnum]], [img.y[1], img.y[end]], "--k", alpha=0.5)
-    # s3.set_aspect(aspect)
+    s3.set_aspect(aspect)
     s3.invert_yaxis()
     s3.set_title(central_tendency*" "*L"\log_{10}λ_y")
     s3.set_ylabel("distance y")
@@ -386,7 +386,7 @@ function plot_image_posterior(opt::Options,
     s1.set_title(central_tendency*" pixel value")
     s1.set_ylabel("distance y")
     s1.invert_yaxis()
-    # s1.set_aspect(aspect)
+    s1.set_aspect(aspect)
     s1.set_xlabel("distance x")
     cb1 = colorbar(im1, ax=s1)
     s2 = subplot(221, sharex=s1)
@@ -405,6 +405,7 @@ function plot_image_posterior(opt::Options,
     s3.set_title("Pixel value PDF")
     s3.set_xlabel("pixel value")
     s3.set_ylabel("distance y")
+    s3.set_aspect(aspect)
     cb3 = colorbar(im3, ax=s3)
     cb3.ax.set_title("pdf")
     nicenup(f, fsize=fsize)
