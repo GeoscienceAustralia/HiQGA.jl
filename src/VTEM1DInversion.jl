@@ -323,6 +323,7 @@ function initmodelfield!(aem;  onesigma=true, figsize=(8,6))
     ax[1].set_ylabel("depth m")
     ax[2].set_ylabel("dBz/dt pV/Am⁴")    
     ax[2].set_xlabel("time s")
+    ax[2].grid(b=true, which="both")
     ax
 end    
 
