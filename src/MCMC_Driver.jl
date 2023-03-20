@@ -32,7 +32,6 @@ function Chain(
     @assert Tmax > 1
     nchains = length(chainprocs)
     npidsperchain = floor(Int, length(chainprocs)/nchains)
-    @info "npidsperchain = $npidsperchain"
     T = 10.0.^range(0, stop = log10(Tmax), length = nchains-nchainsatone+1)
     append!(T, ones(nchainsatone-1))
     chains = Array{Chain, 1}(undef, nchains)
@@ -377,7 +376,6 @@ function init_file_pointers_and_darrays(opt_in::OptionsStat,
     m, mns, mn, opt, optns, optn, stat, statns, statn, F,
     current_misfit = map(x -> DArray(x), (m_, mns_, mn_, opt_, optns_, optn_,
                                     stat_, statns_, statn_, F_in_, current_misfit_))
-    @info "initialisation complete"
     return m, mns, mn, opt, optns, optn, stat, statns, statn, F, current_misfit,
             wp, wpns, wpn, iterlast
 end
@@ -496,7 +494,6 @@ function init_file_pointers_and_darrays(opt_in::OptionsStat,
     current_misfit = map(x -> DArray(x), (m_, mns_, opt_, optns_, 
                                     stat_, statns_, F_in_, current_misfit_,
                                     ))
-    @info "initialisation complete"
     return m, mns, opt, optns, stat, statns, F, current_misfit,
             wp, wpns, iterlast
 end
@@ -606,7 +603,6 @@ function init_file_pointers_and_darrays(opt_in::OptionsStat, optn_in::OptionsNui
     current_misfit = map(x -> DArray(x), (m_, mn_, opt_, optn_,
                                     stat_, statn_, F_in_, current_misfit_,
                                     ))
-    @info "initialisation complete"
     return m, mn, opt, optn, stat, statn, F, current_misfit,
         wp, wpn, iterlast
 end
@@ -705,7 +701,6 @@ function init_file_pointers_and_darrays(opt_in::OptionsStat, F_in::Operator,
     current_misfit = map(x -> DArray(x), (m_, opt_, 
                                     stat_, F_in_, current_misfit_,
                                     ))
-    @info "initialisation complete"
     return m, opt, stat, F, current_misfit,
         wp, iterlast
 end

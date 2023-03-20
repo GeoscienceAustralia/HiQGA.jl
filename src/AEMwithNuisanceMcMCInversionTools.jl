@@ -173,7 +173,6 @@ function loopacrossAEMsoundings(soundings::Array{S, 1}, aem_in::Operator1D, opt_
         @info "soundings in loop $iter of $nsequentialiters", ss
         @sync for (i, s) in Iterators.reverse(enumerate(ss))
             pids = getpids(i, nchainspersounding)
-            @info "pids in sounding $s:", pids
             
             aem = makeoperator(aem_in, soundings[s])
             opt.fdataname = soundings[s].sounding_string*"_"

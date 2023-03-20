@@ -1061,9 +1061,6 @@ function open_history(opt::Options)
     if isfile(opt.costs_filename)
         @assert (opt.history_mode=="a") "$(opt.costs_filename) exists"
     end
-    if opt.report_freq > 0
-        @info("running transD_sampler...")
-    end
     fp_costs = nothing
     if length(opt.costs_filename) > 0
         fp_costs = open(opt.costs_filename, opt.history_mode)
@@ -1083,9 +1080,6 @@ end
 function open_history(optn::OptionsNuisance)
     if isfile(optn.costs_filename)
         @assert (optn.history_mode == "a") "$(optn.costs_filename) exists"
-    end
-    if optn.report_freq > 0
-        @info("running nuisance sampler...")
     end
     fp_costs = nothing
     if length(optn.costs_filename) > 0
@@ -1108,7 +1102,6 @@ function close_history(wp::Writepointers)
     if wp.fp_x_ftrain != nothing
         close(wp.fp_x_ftrain)
     end
-    @info "closed files"
 end
 
 function setrestartflag(opt)
@@ -1122,7 +1115,6 @@ function close_history(wpn::Writepointers_nuisance)
     if wpn.fp_vals != nothing
         close(wpn.fp_vals)
     end
-    @info "closed files"
 end
 
 function clear_history(opt::Options)
