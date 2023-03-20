@@ -99,12 +99,12 @@ function labelaxis(xlabel, ax, iaxis; gridalpha=0.5)
     ax[iaxis+1].grid(b=true, which="both", alpha=gridalpha)
 end    
 
-function plotmodelcurve(T, ρ, z; showfreq=false, figsize=(10,4), gridalpha=0.5, logscaledepth=false, irxlayer=1)
+function plotmodelcurve(T, ρ, z; showfreq=false, figsize=(10,4), gridalpha=0.5, logscaledepth=false, irxlayer=1, revax=false)
     fig = figure(figsize=(figsize))
     s1 = subplot(131)
     s2 = subplot(132)
     s3 = subplot(133, sharex=s2)
-    plotmodelcurve(T, ρ, z, fig, showfreq=showfreq, gridalpha=gridalpha, logscaledepth=logscaledepth, irxlayer=irxlayer)
+    plotmodelcurve(T, ρ, z, fig; showfreq=showfreq, gridalpha=gridalpha, logscaledepth=logscaledepth, irxlayer=irxlayer, revax)
     fig
 end
 
@@ -121,7 +121,10 @@ function plotmodelcurve(T, ρ, z, fig; showfreq=false, gridalpha=0.5, logscalede
     end      
     ax[1].set_xlabel("ρ ohm-m")
     ax[1].set_ylabel("Depth m")
-    revax && ax[1].invert_xaxis()
+    if revax 
+        lims = ax[1].get_xlim()
+        (lims[1]<lims[2]) && ax[1].invert_xaxis()
+    end        
     y1, y2 = ax[1].get_ylim()
     y1 < y2 && ax[1].invert_yaxis()
     if logscaledepth

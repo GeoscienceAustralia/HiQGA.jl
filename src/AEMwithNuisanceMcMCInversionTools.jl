@@ -361,7 +361,9 @@ function plotsummarygrids3(soundings, nuhigh, nulow, numid, phgrid, plgrid, pmgr
     f.suptitle(lname*" Δx=$dr m, Fids: $(length(R))", fontsize=fontsize)
     icol = 1
     s[icol].plot(R, χ²mean)
-    s[icol].plot(R, ones(length(R)), "--k")
+    linecolor = [s[icol].get_facecolor()...]
+    linecolor[1:3] = abs.(linecolor[1:3] .- 1)
+    s[icol].plot(R, ones(length(R)), "--", color=linecolor)
     s[icol].fill_between(R, vec(χ²mean-χ²sd), vec(χ²mean+χ²sd), alpha=0.5)
     s[icol].set_ylabel(L"ϕ_d")
     titlestring = useML ? "Max likelihood variance adjustment" : "Data misfit"
