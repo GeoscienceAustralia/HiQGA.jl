@@ -292,7 +292,6 @@ function loopacrossAEMsoundings(soundings::Array{S, 1}, aem_in::Operator1D, opt_
 
     nsoundings = length(soundings)
     nsequentialiters, nparallelsoundings = splittasks(soundings; nchainspersounding, ppn)
-    opt = deepcopy(opt_in)
     
     for iter = 1:nsequentialiters
         ss = getss(iter, nsequentialiters, nparallelsoundings, nsoundings)
@@ -301,6 +300,7 @@ function loopacrossAEMsoundings(soundings::Array{S, 1}, aem_in::Operator1D, opt_
             pids = getpids(i, nchainspersounding)
             
             aem = makeoperator(aem_in, soundings[s])
+            opt = deepcopy(opt_in)
             opt.fdataname = soundings[s].sounding_string*"_"
 
             @async remotecall_wait(main, pids[1], opt, aem, collect(pids[2:end]),

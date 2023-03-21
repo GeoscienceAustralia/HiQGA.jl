@@ -166,7 +166,6 @@ function loopacrossAEMsoundings(soundings::Array{S, 1}, aem_in::Operator1D, opt_
 
     nsoundings = length(soundings)
     nsequentialiters, nparallelsoundings = splittasks(soundings; nchainspersounding, ppn)
-    opt = deepcopy(opt_in)
     
     for iter = 1:nsequentialiters
         ss = getss(iter, nsequentialiters, nparallelsoundings, nsoundings)
@@ -175,6 +174,7 @@ function loopacrossAEMsoundings(soundings::Array{S, 1}, aem_in::Operator1D, opt_
             pids = getpids(i, nchainspersounding)
             
             aem = makeoperator(aem_in, soundings[s])
+            opt = deepcopy(opt_in) # this is a big bugfix ... https://discourse.julialang.org/t/unexpected-behavior-of-async/91921
             opt.fdataname = soundings[s].sounding_string*"_"
             optn = getoptnfromexisting(optn_in, opt, soundings[s])
 
