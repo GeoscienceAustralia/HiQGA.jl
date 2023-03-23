@@ -3,6 +3,8 @@ using Printf, LinearAlgebra, Statistics, Distributed, PositiveFactorizations,
 
 using .GP
 
+const DEBUGLEVEL_TDGP = 0
+
 abstract type Options end
 
 mutable struct OptionsStat <: Options
@@ -381,7 +383,7 @@ function init(opt::OptionsNuisance, chain_idx::Int)
         if opt.history_mode == "w" # fresh start
             nuisance = opt.bounds[:,1] + diff(opt.bounds, dims = 2)[:].*rand(opt.nnu)
         else # is a restart
-            @info "reading $(opt.vals_filename)"
+            (DEBUGLEVEL_TDGP>0) && @info "reading $(opt.vals_filename)"
             nuisance_data = readdlm(opt.vals_filename, String)
             row = findlast(parse.(Int, nuisance_data[:,1]) .== chain_idx)
             nuisance = parse.(Float64, vec(nuisance_data[row, 3:2+opt.nnu]))
@@ -438,7 +440,7 @@ function initvalues(opt::Options, chain_idx::Int)
         ftrain[:,1:n] = opt.fbounds[:,1] .+ diff(opt.fbounds, dims=2).*rand(size(opt.fbounds, 1), n)
         dcvalue       = opt.fbounds[:,1] .+ diff(opt.fbounds, dims=2).*rand(size(opt.fbounds, 1), 1)
     else # restart
-        @info "opening $(opt.x_ftrain_filename)"
+        (DEBUGLEVEL_TDGP>0) && @info "opening $(opt.x_ftrain_filename)"
         n = history(opt, stat=:nodes, chain_idx=chain_idx)[end]
         xft = history(opt, stat=:x_ftrain, chain_idx=chain_idx)[end]
         dcvalue = history(opt, stat=:dcvalue, chain_idx=chain_idx)[end,:]

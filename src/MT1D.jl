@@ -93,10 +93,10 @@ end
 function labelaxis(xlabel, ax, iaxis; gridalpha=0.5)
     ax[iaxis].set_xlabel(xlabel)
     ax[iaxis].set_ylabel(L"\log_{10}\rho_{a}"*" (ohm-m)")
-    ax[iaxis].grid(b=true, which="both", alpha=gridalpha)
+    ax[iaxis].grid(which="both", alpha=gridalpha)
     ax[iaxis+1].set_xlabel(xlabel)
     ax[iaxis+1].set_ylabel("Phase "*L"^\circ")
-    ax[iaxis+1].grid(b=true, which="both", alpha=gridalpha)
+    ax[iaxis+1].grid(which="both", alpha=gridalpha)
 end    
 
 function plotmodelcurve(T, ρ, z; showfreq=false, figsize=(10,4), gridalpha=0.5, logscaledepth=false, irxlayer=1, revax=false)
@@ -133,7 +133,7 @@ function plotmodelcurve(T, ρ, z, fig; showfreq=false, gridalpha=0.5, logscalede
         ax[1].set_yscale("log")
     end    
     ax[1].set_xscale("log")
-    ax[1].grid(b=true, which="both", alpha=gridalpha)
+    ax[1].grid(which="both", alpha=gridalpha)
     plotcurve(T, Z, fig, showfreq=showfreq, iaxis=2, gridalpha=gridalpha, modelalpha=modelalpha, lcolor=lcolor) 
 end
 
