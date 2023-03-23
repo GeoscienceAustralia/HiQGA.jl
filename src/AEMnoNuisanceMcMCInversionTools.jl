@@ -7,6 +7,7 @@ import ..AbstractOperator.getndata
 import ..Options, ..OptionsStat
 export makeAEMoperatorandoptions, loopacrossAEMsoundings, summaryAEMimages, plotindividualAEMsoundings
 import ..main # McMC function
+import ..DEBUGLEVEL_TDGP
 using ..SoundingDistributor
 using Distributed, Dates, Statistics, DelimitedFiles, PyPlot, Random
 # plotting stuff
@@ -298,7 +299,7 @@ function loopacrossAEMsoundings(soundings::Array{S, 1}, aem_in::Operator1D, opt_
         @info "soundings in loop $iter of $nsequentialiters", ss
         @sync for (i, s) in Iterators.reverse(enumerate(ss))
             pids = getpids(i, nchainspersounding)
-            
+            (DEBUGLEVEL_TDGP > 0) && @info("pids in sounding $s are $pids")
             aem = makeoperator(aem_in, soundings[s])
             opt = deepcopy(opt_in)
             opt.fdataname = soundings[s].sounding_string*"_"

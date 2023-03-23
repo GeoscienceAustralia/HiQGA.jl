@@ -11,6 +11,7 @@ import ..Options, ..OptionsStat, ..OptionsNuisance
 export makeAEMoperatorandnuisanceoptions, loopacrossAEMsoundings, summaryAEMnuisanceimages
 import ..main # McMC function
 using ..SoundingDistributor
+import ..DEBUGLEVEL_TDGP
 using Distributed, Dates, Statistics, DelimitedFiles, PyPlot, Random
 
 function make_tdgp_opt(sounding::Sounding;
@@ -172,7 +173,7 @@ function loopacrossAEMsoundings(soundings::Array{S, 1}, aem_in::Operator1D, opt_
         @info "soundings in loop $iter of $nsequentialiters", ss
         @sync for (i, s) in Iterators.reverse(enumerate(ss))
             pids = getpids(i, nchainspersounding)
-            
+            (DEBUGLEVEL_TDGP > 0) && @info("pids in sounding $s are $pids")
             aem = makeoperator(aem_in, soundings[s])
             opt = deepcopy(opt_in) # this is a big bugfix ... https://discourse.julialang.org/t/unexpected-behavior-of-async/91921
             opt.fdataname = soundings[s].sounding_string*"_"
