@@ -157,7 +157,7 @@ function plotconvandlasteachline(soundings, σ, nu, nufieldnames, ϕd, delr, del
     ax[irow].plot(gridr, topofine, linewidth=topowidth, "-k")
     isnothing(idx) || plotprofile(ax[irow], idx, Z, R)
     # eg = extrema(gridr)
-    isa(yl, Nothing) || ax[3].set_ylim(yl...)
+    isa(yl, Nothing) || ax[irow].set_ylim(yl...)
     ax[irow].set_ylabel("mAHD")
     ax[irow].set_xlabel("Distance m")
     for ia in 2:length(ax)-1
@@ -165,14 +165,13 @@ function plotconvandlasteachline(soundings, σ, nu, nufieldnames, ϕd, delr, del
     end    
     ax[irow].set_xlim(extrema(gridr))
     plotNEWSlabels(soundings, gridr, gridz, [ax[irow]], x0, y0, xend, yend, 
-    preferEright=preferEright, preferNright=preferNright)
-    fig.colorbar(imlast, cax=ax[end], ax=ax[irow])
+        preferEright=preferEright, preferNright=preferNright; fontsize)
     cb = fig.colorbar(imlast, cax=ax[end], orientation="horizontal")
     cb.set_label("Log₁₀ S/m", labelpad=0)
     nicenup(fig, fsize=fontsize, h_pad=0)
     label = fig._suptitle.get_text()
     VE = round(Int, getVE(ax[end-1]))
-    fig.suptitle(label*", VE=$(VE)X")
+    fig.suptitle(label*", VE=$(VE)X"; fontsize)
     saveplot && savefig(lname*".png", dpi=dpi)
     showplot || close(fig)
 end    
