@@ -120,8 +120,8 @@ function plotconvandlasteachline(soundings, σ, ϕd, delr, delz;
     @assert !isnothing(zall)
     # ϕd, σ = readingrid(soundings, zall)
     img, gridr, gridz, topofine, R = makegrid(σ, soundings, zall=zall, dz=delz, dr=delr)
-    fig, ax = plt.subplots(3, 1, gridspec_kw=Dict("height_ratios" => [1,1,4]),
-        figsize=figsize, sharex=true)
+    fig, ax = plt.subplots(4, 1, gridspec_kw=Dict("height_ratios" => [1,1,4,0.25]),
+        figsize=figsize)
     lname = "Line_$(soundings[1].linenum)"*postfix
     x0, y0 = soundings[1].X, soundings[1].Y
     if isdefined(soundings[1], :zTx)
@@ -134,7 +134,6 @@ function plotconvandlasteachline(soundings, σ, ϕd, delr, delz;
     good, bad, ugly = getphidhist(ϕd)
     fig.suptitle(lname*" Δx=$delr m, Fids: $(length(R)) "*L"\phi_{d_{0-1.1}}:"*" $good "*
     L"\phi_{d_{1.1-2}}:"*" $bad "*L"\phi_{d_{2-\infty}}:"*" $ugly", fontsize=fontsize)
-    ax = fig.axes
     ax[1].plot(R, ones(length(R)), "--k")
     ax[1].plot(R, ϕd, ".", markersize=markersize)
     ax[1].set_ylim(0.316, maximum(ax[1].get_ylim()))
@@ -143,6 +142,7 @@ function plotconvandlasteachline(soundings, σ, ϕd, delr, delz;
     ax[2].plot(R, zTx)
     ax[2].set_ylabel("zTx m")
     [a.tick_params(labelbottom=false) for a in ax[1:2]]
+    ax[2].sharex(ax[1])
     imlast = ax[3].imshow(img, extent=[gridr[1], gridr[end], gridz[end], gridz[1]], cmap=cmapσ, aspect="auto", vmin=vmin, vmax=vmax)
     ax[3].plot(gridr, topofine, linewidth=topowidth, "-k")
     isnothing(idx) || plotprofile(ax[3], idx, Z, R)
@@ -150,14 +150,16 @@ function plotconvandlasteachline(soundings, σ, ϕd, delr, delz;
     isa(yl, Nothing) || ax[3].set_ylim(yl...)
     ax[3].set_ylabel("mAHD")
     ax[3].set_xlabel("Distance m")
-    fig.colorbar(imlast, ax=ax[3], location="bottom", shrink=0.6, label="Log₁₀ S/m")
+    ax[3].sharex(ax[2])
     ax[3].set_xlim(extrema(gridr))
     plotNEWSlabels(soundings, gridr, gridz, [ax[3]], x0, y0, xend, yend, 
-    preferEright=preferEright, preferNright=preferNright)
-    nicenup(fig, fsize=fontsize)
+        preferEright=preferEright, preferNright=preferNright; fontsize)
+    cb = fig.colorbar(imlast, cax=ax[end], orientation="horizontal")
+    cb.set_label("Log₁₀ S/m", labelpad=0)
+    nicenup(fig, fsize=fontsize, h_pad=0)
     label = fig._suptitle.get_text()
     VE = round(Int, getVE(ax[end-1]))
-    fig.suptitle(label*", VE=$(VE)X")
+    fig.suptitle(label*", VE=$(VE)X"; fontsize)
     saveplot && savefig(lname*".png", dpi=dpi)
     showplot || close(fig)
 end    
