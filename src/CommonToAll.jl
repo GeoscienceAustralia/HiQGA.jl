@@ -1034,16 +1034,14 @@ function whichislast(soundings::AbstractArray)
     Eislast, Nislast, EWline, NSline
 end
 
-function makesummarygrid(soundings, pl, pm, ph, ρmean, vdmean, vddev, zall, dz; dr=10)
+function makesummarygrid(soundings, pl, pm, ph, ρmean, zall, dz; dr=10)
     # first flip ρ to σ and so pl and ph are interchanged
     phgrid, gridx, gridz, topofine, R = makegrid(-pl, soundings, zall=zall, dz=dz, dr=dr)
     plgrid,                           = makegrid(-ph, soundings, zall=zall, dz=dz, dr=dr)
     pmgrid,                           = makegrid(-pm, soundings, zall=zall, dz=dz, dr=dr)
     σmeangrid,                        = makegrid(-ρmean, soundings, zall=zall, dz=dz, dr=dr)
-    ∇zmeangrid,                       = makegrid(vdmean, soundings, zall=zall, dz=dz, dr=dr)
-    ∇zsdgrid,                         = makegrid(vddev, soundings, zall=zall, dz=dz, dr=dr)
     Z = [s.Z for s in soundings]
-    phgrid, plgrid, pmgrid, σmeangrid, ∇zmeangrid, ∇zsdgrid, gridx, gridz, topofine, R, Z
+    phgrid, plgrid, pmgrid, σmeangrid, gridx, gridz, topofine, R, Z
 end
 
 function makexyzrho(soundings, zall)
