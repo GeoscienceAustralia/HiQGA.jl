@@ -3,6 +3,7 @@ using ..AbstractOperator, ..CommonToAll
 import ..AbstractOperator.makeoperator
 import ..AbstractOperator.loopacrossAEMsoundings
 import ..AbstractOperator.plotmodelfield!
+import ..AbstractOperator.getndata
 import ..AbstractOperator.makebounds
 import ..AbstractOperator.getoptnfromexisting
 import ..AbstractOperator.getnufromsounding
@@ -171,6 +172,7 @@ function loopacrossAEMsoundings(soundings::Array{S, 1}, aem_in::Operator1D, opt_
     for iter = 1:nsequentialiters
         ss = getss(iter, nsequentialiters, nparallelsoundings, nsoundings)
         @info "soundings in loop $iter of $nsequentialiters", ss
+        t2 = time()
         @sync for (i, s) in Iterators.reverse(enumerate(ss))
             pids = getpids(i, nchainspersounding)
             (DEBUGLEVEL_TDGP > 0) && @info("pids in sounding $s are $pids")
@@ -183,7 +185,9 @@ function loopacrossAEMsoundings(soundings::Array{S, 1}, aem_in::Operator1D, opt_
                                     Tmax, nsamples, nchainsatone)
 
         end # @sync
-        @info "done $iter out of $nsequentialiters at $(Dates.now())"
+        dt = time() - t2 #seconds
+        t2 = time()
+        @info "done $iter out of $nsequentialiters at $(Dates.now()) in $dt sec"
     end
 end
 
@@ -214,6 +218,7 @@ function summaryAEMwithnuisanceimages(soundings::Array{S, 1}, opt_in::Options, o
                         yl = nothing,
                         showplot = true,
                         showmean = false,
+                        vectorsum = false,
                         ) where S<: Sounding
 
     linestartidx = splitsoundingsbyline(soundings)                    
@@ -221,7 +226,7 @@ function summaryAEMwithnuisanceimages(soundings::Array{S, 1}, opt_in::Options, o
     for i in 1:nlines
         a = linestartidx[i]
         b = i != nlines ?  linestartidx[i+1]-1 : length(soundings)
-        summaryimages(soundings[a:b], opt_in, optn_in; qp1, qp2, burninfrac, zall,dz, dr, 
+        summaryimages(soundings[a:b], opt_in, optn_in; qp1, qp2, burninfrac, zall,dz, dr, vectorsum,
             fontsize, vmin, vmax, cmap, figsize, topowidth, idx=idx, omitconvergence, useML, 
             preferEright, showplot, preferNright, saveplot, yl, dpi, showmean, numsize, labelnu)
     end
@@ -253,15 +258,16 @@ function summaryimages(soundings::Array{S, 1}, opt_in::Options, optn_in::Options
                         yl = nothing,
                         showplot = true,
                         showmean = false,
+                        vectorsum = false,
                         ) where S<: Sounding
     @assert !(preferNright && preferEright) # can't prefer both labels to the right
-    pl, pm, ph, ρmean, vdmean, vddev, χ²mean, χ²sd, zall, 
-    nulow, numid, nuhigh, nunominal = summarypost(soundings, opt_in, optn_in;
+    pl, pm, ph, ρmean,  χ²mean, χ²sd,  
+    nulow, numid, nuhigh, nunominal = summarypost(soundings, opt_in, optn_in; vectorsum,
                                         qp1, qp2, burninfrac, zall, useML)
 
-    phgrid, plgrid, pmgrid, σmeangrid, ∇zmeangrid,
-    ∇zsdgrid, gridx, gridz, topofine, R, Z = makesummarygrid(soundings, pl, pm, ph, ρmean,
-                                            vdmean, vddev, zall, dz, dr=dr)
+    phgrid, plgrid, pmgrid, σmeangrid, 
+    gridx, gridz, topofine, R, Z = makesummarygrid(soundings, pl, pm, ph, ρmean,
+                                            zall, dz; dr)
 
     lname = "Line $(soundings[1].linenum)"
     plotsummarygrids1(soundings, σmeangrid, phgrid, plgrid, pmgrid, gridx, gridz, topofine, R, Z, χ²mean, χ²sd, lname; qp1, qp2,
@@ -282,58 +288,35 @@ function summarypost(soundings::Vector{S}, opt_in::Options, optn_in::OptionsNuis
         qp2=0.95,
         burninfrac=0.5,
         zall = [-1.],
+        vectorsum = false,
         useML = false) where S<:Sounding
 
     @assert length(zall) != 1
 
     linename = "_line_$(soundings[1].linenum)_summary.txt"
     fnames = ["rho_low", "rho_mid", "rho_hi", "rho_avg",
-        "ddz_mean", "ddz_sdev", "phid_mean", "phid_sdev",
+        "phid_mean", "phid_sdev",
         "nu_low", "nu_mid", "nu_high"].*linename
 
-    opt = deepcopy(opt_in)
     idxnotzero = optn_in.idxnotzero
-    nunominal = zeros(length(idxnotzero), length(soundings))
     if isfile(fnames[1])
+        nunominal = zeros(length(idxnotzero), length(soundings))
         @warn fnames[1]*" exists, reading stored values"
         pl, pm, ph, ρmean,
-        vdmean, vddev, χ²mean, χ²sd, 
+        χ²mean, χ²sd, 
         nulow, numid, nuhigh = map(x->readdlm(x), fnames)
         for idx = 1:length(soundings)
             nunominal[:,idx] = getnufromsounding(soundings[idx])[idxnotzero]
         end                                 
     else
-        # this is a dummy operator for plotting
-        aem, = makeoperator(soundings[1])
-        pl, pm, ph, ρmean, vdmean, vddev = map(x->zeros(length(zall), length(soundings)), 1:6)
-        χ²mean, χ²sd = zeros(length(soundings)), zeros(length(soundings))
-        nulow, numid, nuhigh  = map(x->zeros(length(idxnotzero), length(soundings)), 1:3)
-        for idx = 1:length(soundings)
-            opt.fdataname = soundings[idx].sounding_string*"_"
-            optn = getoptnfromexisting(optn_in, opt, soundings[idx])
-            @info "$idx out of $(length(soundings))\n"
-            opt.xall[:] .= zall
-            nunominal[:,idx] = mean(optn.bounds[idxnotzero,:], dims=2)
-            pl[:,idx], pm[:,idx], ph[:,idx], ρmean[:,idx],
-            vdmean[:,idx], vddev[:,idx] = CommonToAll.plot_posterior(aem, opt, burninfrac=burninfrac,
-                                                    qp1=qp1, qp2=qp2,
-                                                    doplot=false)
-            h, nuquants = plot_posterior(aem, optn, burninfrac=burninfrac, doplot=false)
-            nulow[:, idx]  .= nuquants[:, 1]
-            numid[:, idx]  .= nuquants[:, 2]
-            nuhigh[:, idx] .= nuquants[:, 3]
-            χ² = 2*CommonToAll.assembleTat1(opt, :U, temperaturenum=1, burninfrac=burninfrac)
-            ndata = useML ? sum(.!isnan.(soundings[idx].Hx_data)) : sum(.!isnan.(soundings[idx].Hx_data)) +
-                    sum(.!isnan.(soundings[idx].Hz_data))
-            χ²mean[idx] = mean(χ²)/ndata
-            χ²sd[idx]   = std(χ²)/ndata
-            if useML 
-                χ²mean[idx] = exp(χ²mean[idx]-log(ndata))
-                χ²sd[idx]   = exp(χ²sd[idx]-log(ndata)) # I think, need to check
-            end    
-        end
+        outputs = reduce(hcat, pmap(sounding->processonesounding(opt_in, 
+                                optn_in, sounding, zall, burninfrac, qp1, qp2, idxnotzero, useML, vectorsum), soundings))
+        pl, pm, ph, ρmean,  
+        χ²mean, χ²sd, nulow, 
+        numid, nuhigh, nunominal = map(x->reduce(hcat, x), eachrow(outputs))
+        χ²mean, χ²sd = map(x->vec(x), (χ²mean, χ²sd))
         # write in grid format
-        for (fname, vals) in Dict(zip(fnames, [pl, pm, ph, ρmean, vdmean, vddev, χ²mean, χ²sd, nulow, numid, nuhigh]))
+        for (fname, vals) in Dict(zip(fnames, [pl, pm, ph, ρmean, χ²mean, χ²sd, nulow, numid, nuhigh]))
             writedlm(fname, vals)
         end
         # write in x, y, z, rho format
@@ -342,7 +325,29 @@ function summarypost(soundings::Vector{S}, opt_in::Options, optn_in::OptionsNuis
             writedlm(fnames[i][1:end-4]*"_xyzrho.txt", xyzrho)
         end
     end
-    pl, pm, ph, ρmean, vdmean, vddev, χ²mean, χ²sd, zall, nulow, numid, nuhigh, nunominal
+    pl, pm, ph, ρmean, χ²mean, χ²sd, nulow, numid, nuhigh, nunominal
+end
+
+function processonesounding(opt_in::Options, optn_in::OptionsNuisance, sounding::Sounding, zall, burninfrac, qp1, qp2, idxnotzero, useML, vectorsum)
+    opt = deepcopy(opt_in)
+    opt.fdataname = sounding.sounding_string*"_"
+    optn = getoptnfromexisting(optn_in, opt, sounding)
+    @info ("processing FID $(sounding.fid)")
+    opt.xall[:] .= zall
+    nunominal = mean(optn.bounds[idxnotzero,:], dims=2)
+    aem, = makeoperator(sounding) # this is a dummy operator for plotting
+    pl, pm, ph, ρmean, = CommonToAll.plot_posterior(aem, opt; burninfrac, qp1, qp2, doplot=false)
+    _, nuquants = plot_posterior(aem, optn; burninfrac, doplot=false)
+    nulow, numid, nuhigh = nuquants[:,1], nuquants[:,2], nuquants[:,3]
+    χ² = 2*CommonToAll.assembleTat1(opt, :U; temperaturenum=1, burninfrac)
+    ndata = getndata(sounding, vectorsum)
+    χ²mean = mean(χ²)/ndata
+    χ²sd   = std(χ²)/ndata
+    if useML 
+        χ²mean = exp(χ²mean-log(ndata))
+        χ²sd   = exp(χ²sd-log(ndata)) # I think, need to check
+    end
+    [pl, pm, ph, ρmean, χ²mean, χ²sd, nulow, numid, nuhigh, nunominal]
 end
 
 function plotsummarygrids3(soundings, nuhigh, nulow, numid, phgrid, plgrid, pmgrid, gridx, gridz, topofine, R, Z, χ²mean, χ²sd, lname, nunominal, numsize=2; qp1=0.05, qp2=0.95,
@@ -358,7 +363,7 @@ function plotsummarygrids3(soundings, nuhigh, nulow, numid, phgrid, plgrid, pmgr
     nrows = 1 + nnu + 3 + 1 # add the number of nuisances == no. of rows in nuhigh and 1 for chi2 and 1 for colorbar, not showing mean
     height_ratios = [0.4ones(1+nnu)...,1,1,1,0.1]
     f, s = plt.subplots(nrows, 1, gridspec_kw=Dict("height_ratios" => height_ratios),
-                        figsize=figsize)
+    figsize=figsize)
     f.suptitle(lname*" Δx=$dr m, Fids: $(length(R))", fontsize=fontsize)
     icol = 1
     s[icol].plot(R, χ²mean)
@@ -379,6 +384,7 @@ function plotsummarygrids3(soundings, nuhigh, nulow, numid, phgrid, plgrid, pmgr
 
     saveplot && savefig(lname*"_with_nu.png", dpi=dpi)
 end
+
 
 function plotnuquant(nqlow, nqmid, nqhigh, nunominal, s, gridx, icol, nrows, ms=2, labelnu=[""])
     nnu = min(size(nqlow, 1), size(nunominal, 1)) # in case we've inverted a zero bounds nuisance by mistech...

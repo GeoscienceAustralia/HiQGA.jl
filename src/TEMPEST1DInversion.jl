@@ -6,7 +6,10 @@ import ..AbstractOperator.makebounds
 import ..AbstractOperator.getoptnfromexisting
 import ..AbstractOperator.getnufromsounding
 import ..AbstractOperator.plotmodelfield!
-import ..AbstractOperator.getresidual, ..AbstractOperator.returnforwrite, ..AbstractOperator.setnuboundsandstartforgradinv # for gradientbased
+import ..AbstractOperator.getresidual 
+import ..AbstractOperator.returnforwrite
+import ..AbstractOperator.getndata
+import ..AbstractOperator.setnuboundsandstartforgradinv # for gradientbased
 
 using ..AbstractOperator, ..AEM_VMD_HMD, ..SoundingDistributor
 using PyPlot, LinearAlgebra, ..CommonToAll, Random, DelimitedFiles, Distributed, Dates, Statistics, SparseArrays
@@ -682,6 +685,15 @@ end
 
 returnforwrite(s::TempestSoundingData) = [s.X, s.Y, s.Z, s.fid, 
     s.linenum, getnufromsounding(s)...]
+
+
+function getndata(s::TempestSoundingData, vectorsum)
+    n = getndata(s.Hx_data)[1] + getndata(s.Hz_data)[1]
+    if vectorsum
+        n = n/2 # tacitly assume number of X and Z are same 
+    end
+    n    
+end    
 
 function read_survey_files(;
     fname_dat="",
