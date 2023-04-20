@@ -724,6 +724,7 @@ function read_survey_files(;
 	Z = -1,
     fid = -1,
     linenum = -1,
+    lineslessthan = nothing,
 	fsize = 10)
 
     @assert frame_height > 0
@@ -746,6 +747,9 @@ function read_survey_files(;
 	@assert roll_tx > 0
 	@assert yaw_tx > 0
 	@assert 0 < multnoise < 1.0
+    if !isnothing(lineslessthan)
+        lineslessthan::Int
+    end    
 
     @info "reading $fname_dat"
     if !isnothing(dotillsounding)
@@ -805,6 +809,9 @@ function read_survey_files(;
     fracdone = 0 
     for is in 1:nsoundings
         l, fi = Int(whichline[is]), fiducial[is]
+        if !isnothing(lineslessthan)
+            l > lineslessthan && continue # skips high_alt and repeat lines if specified
+        end    
         dHx, dHz = vec(d_Hx[is,:]), vec(d_Hz[is,:])
         s_array[is] = TempestSoundingData(
             "sounding_$(l)_$fi", easting[is], northing[is],
