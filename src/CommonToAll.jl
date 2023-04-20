@@ -1,7 +1,7 @@
 module CommonToAll
 using PyPlot, StatsBase, Statistics, Distances, LinearAlgebra,
       DelimitedFiles, ..AbstractOperator, NearestNeighbors, Printf, 
-      KernelDensitySJ, KernelDensity, Interpolations
+      KernelDensitySJ, KernelDensity, Interpolations, CSV, DataFrames
 
 import ..Options, ..OptionsStat, ..OptionsNonstat, ..OptionsNuisance,
        ..history, ..GP.κ, ..calcfstar!, ..AbstractOperator.Sounding, 
@@ -12,7 +12,7 @@ export trimxft, assembleTat1, gettargtemps, checkns, getchi2forall, nicenup, plo
         unwrap, getn, geomprogdepth, assemblemodelsatT, getstats, gethimage,
         assemblenuisancesatT, makenuisancehists, stretchexists,
         makegrid, whichislast, makesummarygrid, makearray, plotNEWSlabels, 
-        plotprofile, gridpoints, splitsoundingsbyline, dfn2hdr, getgdfprefix, 
+        plotprofile, gridpoints, splitsoundingsbyline, dfn2hdr, getgdfprefix, readlargetextmatrix,
         pairinteractionplot, flipline, summaryconductivity, plotsummarygrids1, getVE
 
 # Kernel Density stuff
@@ -1366,6 +1366,23 @@ function getgdfprefix(dfnfile::String)
     location = findfirst(".dfn", lowercase(dfnfile))[1] # get file prefix
     dfnfile[1:location-1] # the prefix
 end    
+
+function readlargetextmatrix(fname::String)
+    a = read(fname) # as UInt8
+    map!(c -> c == UInt8('\t') ? UInt8(' ') : c, a, a) # replace tab with space and use memory for a
+    # convert DataFrame to Float64 matrix
+    Array{Float64, 2}(CSV.File(IOBuffer(a); ignorerepeated=true, types=Float64, header=false, delim=' ')|>DataFrame)
+end
+
+function readlargetextmatrix(fname::String, startfrom, skipevery, dotillsounding::Union{Int, Nothing})
+    soundings = readlargetextmatrix(fname)
+    if !isnothing(dotillsounding)
+        soundings = soundings[startfrom:skipevery:dotillsounding,:]
+    else
+        soundings = soundings[startfrom:skipevery:end,:]
+    end
+    soundings
+end
 
 function pairinteractionplot(d; varnames=nothing, figsize=(8.5,6), nbins=25, fontsize=8, fbounds=nothing,
         cmap="bone_r", islogpdf=false, showpdf=false, vecofpoints=nothing, vecofpointscolor=nothing,

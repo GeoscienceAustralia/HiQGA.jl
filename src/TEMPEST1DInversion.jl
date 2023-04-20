@@ -752,11 +752,7 @@ function read_survey_files(;
     end    
 
     @info "reading $fname_dat"
-    if !isnothing(dotillsounding)
-        soundings = readdlm(fname_dat)[startfrom:skipevery:dotillsounding,:]
-    else
-        soundings = readdlm(fname_dat)[startfrom:skipevery:end,:]
-    end
+    soundings = readlargetextmatrix(fname_dat, startfrom, skipevery, dotillsounding)
     easting = soundings[:,X]
     northing = soundings[:,Y]
 	topo = soundings[:,Z]

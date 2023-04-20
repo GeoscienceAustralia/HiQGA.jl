@@ -216,11 +216,7 @@ function read_survey_files(;
     @assert linenum > 0
     @assert fid > 0
     @info "reading $fname_dat"
-    if dotillsounding!= nothing
-        soundings = readdlm(fname_dat)[startfrom:skipevery:dotillsounding,:]
-    else
-        soundings = readdlm(fname_dat)[startfrom:skipevery:end,:]
-    end
+    soundings = readlargetextmatrix(fname_dat, startfrom, skipevery, dotillsounding)
     soundings[soundings .== nanchar] .= NaN
     easting = soundings[:,X]
     northing = soundings[:,Y]
