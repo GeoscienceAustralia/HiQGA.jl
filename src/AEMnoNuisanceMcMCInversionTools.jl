@@ -297,6 +297,7 @@ function loopacrossAEMsoundings(soundings::Array{S, 1}, aem_in::Operator1D, opt_
     for iter = 1:nsequentialiters
         ss = getss(iter, nsequentialiters, nparallelsoundings, nsoundings)
         @info "soundings in loop $iter of $nsequentialiters", ss
+        t2 = time()
         @sync for (i, s) in Iterators.reverse(enumerate(ss))
             pids = getpids(i, nchainspersounding)
             (DEBUGLEVEL_TDGP > 0) && @info("pids in sounding $s are $pids")
@@ -310,7 +311,9 @@ function loopacrossAEMsoundings(soundings::Array{S, 1}, aem_in::Operator1D, opt_
                                     nchainsatone = nchainsatone)
 
         end # @sync
-        @info "done $iter out of $nsequentialiters at $(Dates.now())"
+        dt = time() - t2 #seconds
+        t2 = time()
+        @info "done $iter out of $nsequentialiters at $(Dates.now()) in $dt sec"
     end
 end
 
