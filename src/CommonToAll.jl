@@ -1,7 +1,7 @@
 module CommonToAll
 using PyPlot, StatsBase, Statistics, Distances, LinearAlgebra,
       DelimitedFiles, ..AbstractOperator, NearestNeighbors, Printf, 
-      KernelDensitySJ, KernelDensity, Interpolations, CSV, DataFrames
+      KernelDensitySJ, KernelDensity, Interpolations, CSV
 
 import ..Options, ..OptionsStat, ..OptionsNonstat, ..OptionsNuisance,
        ..history, ..GP.κ, ..calcfstar!, ..AbstractOperator.Sounding, 
@@ -1371,7 +1371,7 @@ function readlargetextmatrix(fname::String)
     a = read(fname) # as UInt8
     map!(c -> c == UInt8('\t') ? UInt8(' ') : c, a, a) # replace tab with space and use memory for a
     # convert DataFrame to Float64 matrix
-    Array{Float64, 2}(CSV.File(IOBuffer(a); ignorerepeated=true, types=Float64, header=false, delim=' ')|>DataFrame)
+    CSV.File(IOBuffer(a); ignorerepeated=true, types=Float64, header=false, delim=' ')|>CSV.Tables.matrix
 end
 
 function readlargetextmatrix(fname::String, startfrom, skipevery, dotillsounding::Union{Int, Nothing})

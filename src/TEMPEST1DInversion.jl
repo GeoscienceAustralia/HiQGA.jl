@@ -825,7 +825,8 @@ function read_survey_files(;
             @info "read $is out of $nsoundings"
         end
     end
-    return s_array
+    idx = [isassigned(s_array, i) for i in 1:length(s_array)]
+    return s_array[idx]
 end
 
 function plotsoundingdata(nsoundings, times, d_Hx, Hx_add_noise, d_Hz, Hz_add_noise, z_tx, z_rx, x_rx, y_rx,
