@@ -284,7 +284,8 @@ function loopacrossAEMsoundings(soundings::Array{S, 1}, aem_in::Operator1D, opt_
                             nsamples           = -1,
                             nchainsatone       =  1,
                             nchainspersounding = -1,
-                            ppn                = -1) where S<:Sounding
+                            ppn                = -1,
+                            nominaltime        = nothing) where S<:Sounding
 
     @assert ppn != -1
     @assert nchainspersounding != -1
@@ -305,10 +306,8 @@ function loopacrossAEMsoundings(soundings::Array{S, 1}, aem_in::Operator1D, opt_
             opt = deepcopy(opt_in)
             opt.fdataname = soundings[s].sounding_string*"_"
 
-            @async remotecall_wait(main, pids[1], opt, aem, collect(pids[2:end]),
-                                    Tmax         = Tmax,
-                                    nsamples     = nsamples,
-                                    nchainsatone = nchainsatone)
+            @async remotecall_wait(main, pids[1], opt, aem, collect(pids[2:end]);
+                                    Tmax, nsamples, nchainsatone, nominaltime)
 
         end # @sync
         dt = time() - t2 #seconds
