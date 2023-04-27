@@ -385,7 +385,7 @@ function domcmciters(iterlast, nsamples, chains, mns::DArray{ModelNonstat}, m::D
             optn::DArray{OptionsNuisance}, statns, stat, statn, current_misfit, F, wpns, wp, wpn, nominaltime)
     # for nonstat, stat, and nuisances all together         
     
-    t2 = time()
+    t, tlong = map(x->time(), 1:2)
     for isample = iterlast+1:iterlast+nsamples
         # we do need each remotecall to finish before 
         # moving on to the next kind of move
@@ -411,7 +411,7 @@ function domcmciters(iterlast, nsamples, chains, mns::DArray{ModelNonstat}, m::D
                                             current_misfit, F,
                                             chain.T, isample, wp, chain_idx, chain.master_pid)
         end
-        t2, doquit = disptime(isample, t2, iterlast, nsamples, nominaltime)
+        t, tlong, doquit = disptime(isample, t, tlong, iterlast, nsamples, nominaltime)
         doquit && break
     end
 end
@@ -506,7 +506,7 @@ function domcmciters(iterlast, nsamples, chains, mns::DArray{ModelNonstat}, m::D
             statns, stat, current_misfit, F, wpns, wp, nominaltime)
     # for nonstat and stat together        
     
-    t2 = time()
+    t, tlong = map(x->time(), 1:2)
     for isample = iterlast+1:iterlast+nsamples
         # we do need each remotecall to finish before 
         # moving on to the next kind of move
@@ -525,7 +525,7 @@ function domcmciters(iterlast, nsamples, chains, mns::DArray{ModelNonstat}, m::D
                                             current_misfit, F,
                                             chain.T, isample, wp, chain_idx, chain.master_pid)
         end
-        t2, doquit = disptime(isample, t2, iterlast, nsamples, nominaltime)
+        t, tlong, doquit = disptime(isample, t, tlong, iterlast, nsamples, nominaltime)
         doquit && break
     end
 end
@@ -618,7 +618,7 @@ function domcmciters(iterlast, nsamples, chains, m::DArray{ModelStat}, mn::DArra
             current_misfit, F, wp, wpn, nominaltime)
     # purely stationary GP moves + nuisance        
     
-    t2 = time()
+    t, tlong = map(x->time(), 1:2)
     for isample = iterlast+1:iterlast+nsamples
         # we do need each remotecall to finish before 
         # moving on to the next kind of move
@@ -637,7 +637,7 @@ function domcmciters(iterlast, nsamples, chains, m::DArray{ModelStat}, mn::DArra
                                             current_misfit, F,
                                             chain.T, isample, wp, chain_idx, chain.master_pid)
         end
-        t2, doquit = disptime(isample, t2, iterlast, nsamples, nominaltime)
+        t, tlong, doquit = disptime(isample, t, tlong, iterlast, nsamples, nominaltime)
         doquit && break
     end
 end
@@ -719,7 +719,7 @@ function domcmciters(iterlast, nsamples, chains, m::DArray{ModelStat},
             current_misfit, F, wp, nominaltime)
     # purely stationary GP moves     
     
-    t2 = time()
+    t, tlong = map(x->time(), 1:2)
     for isample = iterlast+1:iterlast+nsamples
         swap_temps(chains)
         @sync for (chain_idx, chain) in enumerate(chains)
@@ -729,7 +729,7 @@ function domcmciters(iterlast, nsamples, chains, m::DArray{ModelStat},
                                             current_misfit, F,
                                             chain.T, isample, wp, chain_idx, chain.master_pid)
         end
-        t2, doquit = disptime(isample, t2, iterlast, nsamples, nominaltime)
+        t, tlong, doquit = disptime(isample, t, tlong, iterlast, nsamples, nominaltime)
         doquit && break
     end
 end
@@ -783,21 +783,26 @@ function swap_temps(chains::Array{Chain, 1})
     end
 end
 
-function disptime(isample, t2, iterlast, nsamples, nominaltime)
+function disptime(isample, t, tlong, iterlast, nsamples, nominaltime)
     doquit = false
-    if mod(isample-1, 1000) == 0
-        dt = time() - t2 #seconds
-        t2 = time()
-        if isnothing(nominaltime)
-            @info("on pid $(myid()) **$dt**sec** $isample out of $(iterlast+nsamples)")
-        else
-            if dt > nominaltime
-                doquit = true
-            @info("QUIT on pid $(myid()) **$dt**sec** $isample out of $(iterlast+nsamples)")
-            end
-        end        
+    windowtime = 1000
+    nw = 5
+    if mod(isample-1, windowtime) == 0
+        dt = time() - t #seconds
+        t = time()
+        @info("on pid $(myid()) **$(@sprintf("%.2f", dt))**sec** $isample out of $(iterlast+nsamples)")
     end
-    t2, doquit
+    if !isnothing(nominaltime)
+        if mod(isample-1, nw*windowtime) == 0
+            dt = time() - tlong #seconds
+            tlong = time()
+            if (dt/nw) > nominaltime
+                doquit = true
+                @info("QUIT: PID: $(myid()) TIME:**$(@sprintf("%.2f", dt/nw))**SEC AVG** SAMPLE: $isample")
+            end
+        end
+    end    
+    t, tlong, doquit
 end
 
 function write_to_log(fp::IOStream, msg)
