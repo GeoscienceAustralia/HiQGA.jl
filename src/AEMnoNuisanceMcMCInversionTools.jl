@@ -158,6 +158,7 @@ function plotindividualAEMsoundings(soundings::Vector{S}, aem_in::Operator1D, op
     qp2 = 0.95,
     model_lw = 1, 
     forward_lw = 1,
+    linecolor = nothing,
     rseed = 123,
     computeforwards = false,
     nforwards = 100) where S<:Sounding
@@ -179,7 +180,7 @@ function plotindividualAEMsoundings(soundings::Vector{S}, aem_in::Operator1D, op
             if computeforwards
                 M = assembleTat1(opt, :fstar, temperaturenum=1, burninfrac=burninfrac)
                 Random.seed!(rseed)
-                plotmodelfield!(aem, M[randperm(length(M))[1:nforwards]], model_lw, forward_lw)
+                plotmodelfield!(aem, M[randperm(length(M))[1:nforwards]], model_lw, forward_lw, color=linecolor)
             end            
         end
     end
