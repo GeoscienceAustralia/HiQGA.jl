@@ -9,7 +9,7 @@ import ..Options, ..OptionsStat, ..OptionsNonstat, ..OptionsNuisance,
 export trimxft, assembleTat1, gettargtemps, checkns, getchi2forall, nicenup, plotconv,
         plot_posterior, make1Dhist, make1Dhists, setupz, zcontinue, makezρ, plotdepthtransforms,
         unwrap, getn, geomprogdepth, assemblemodelsatT, getstats, gethimage,
-        assemblenuisancesatT, makenuisancehists, stretchexists,
+        assemblenuisancesatT, makenuisancehists, stretchexists, stepmodel,
         makegrid, whichislast, makesummarygrid, makearray, plotNEWSlabels, 
         plotprofile, gridpoints, splitsoundingsbyline, dfn2hdr, getgdfprefix, 
         pairinteractionplot, flipline, summaryconductivity, plotsummarygrids1, getVE
@@ -940,7 +940,16 @@ function gethimage(F::Operator, M::AbstractArray, opt::Options;
     himage, edges, CI, meanimage, Mslope, sdevslope
 end
 
-# plotting codes for 2D sections in AEM
+
+# some plotting codes for  AEM
+function stepmodel(ax, iaxis, color, ρ , aem, model_lw, alpha)
+    nfixed = aem.nfixed
+    if isnothing(color) 
+        ax[iaxis].step(ρ, aem.z[nfixed+1:end], linewidth=model_lw, alpha=alpha)
+    else
+        ax[iaxis].step(ρ, aem.z[nfixed+1:end]; linewidth=model_lw, alpha=alpha, color)
+    end    
+end   
 
 function splitsoundingsbyline(soundings::Array{S, 1}) where S<:Sounding
     alllines = [s.linenum for s in soundings]

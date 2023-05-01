@@ -406,6 +406,8 @@ function plotindividualsoundings(soundings::Vector{S},
     showslope = false,
     plotmean = false,
     pdfclim = nothing,
+    model_lw = 1, 
+    forward_lw = 1,
     qp1=0.05,
     qp2=0.95,
     rseed = 123,
@@ -425,17 +427,17 @@ function plotindividualsoundings(soundings::Vector{S},
             getchi2forall(opt, alpha=0.8; omittemp) # chi2 errors
             CommonToAll.getstats(opt) # ARs for GP model
             CommonToAll.getstats(optn) # ARs for nuisances
-            plot_posterior(aem, opt; burninfrac, nbins, figsize,
+            plot_posterior(aem, opt; burninfrac, nbins, figsize, qp1, qp2,
                             showslope, pdfclim, plotmean) # GP models
             ax = gcf().axes
             ax[1].invert_xaxis()
-            plot_posterior(aem, optn; burninfrac, nbins, figsize) # nuisances
+            plot_posterior(aem, optn; burninfrac, nbins, figsize, qp1, qp2) # nuisances
             if computeforwards
                 m = assembleTat1(opt, :fstar, temperaturenum=1, burninfrac=burninfrac)
                 mn = CommonToAll.assemblenuisancesatT(optn, temperaturenum=1, burninfrac=burninfrac)
                 Random.seed!(rseed)
                 randidx = randperm(length(m))
-                plotmodelfield!(aem, m[randidx[1:nforwards]],
+                plotmodelfield!(aem, m[randidx[1:nforwards]], model_lw, forward_lw,
                                     mn[randidx[1:nforwards],:])
             end
         end
