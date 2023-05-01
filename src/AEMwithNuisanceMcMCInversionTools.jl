@@ -417,6 +417,7 @@ function plotindividualsoundings(soundings::Vector{S},
     qp1=0.05,
     qp2=0.95,
     linecolor = nothing,
+    alpha = 1.,
     rseed = 123,
     computeforwards = false,
     nforwards = 50) where S<:Sounding
@@ -444,7 +445,7 @@ function plotindividualsoundings(soundings::Vector{S},
                 mn = CommonToAll.assemblenuisancesatT(optn, temperaturenum=1, burninfrac=burninfrac)
                 Random.seed!(rseed)
                 randidx = randperm(length(m))
-                plotmodelfield!(aem, m[randidx[1:nforwards]], mn[randidx[1:nforwards],:]; model_lw, forward_lw, color=linecolor)
+                plotmodelfield!(aem, m[randidx[1:nforwards]], mn[randidx[1:nforwards],:]; model_lw, forward_lw, color=linecolor, alpha)
             end
         end
     end
