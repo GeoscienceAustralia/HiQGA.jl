@@ -152,7 +152,7 @@ function plotconvandlasteachline(soundings, σ, nu, nufieldnames, ϕd, delr, del
         ax[irow].set_ylabel("$(nfname)")
         irow += 1
     end    
-    [a.tick_params(labelbottom=false) for a in ax[2:irow-1]]
+    [a.tick_params(labelbottom=false) for a in ax[1:irow-1]]
     imlast = ax[irow].imshow(img, extent=[gridr[1], gridr[end], gridz[end], gridz[1]], cmap=cmapσ, aspect="auto", vmin=vmin, vmax=vmax)
     ax[irow].plot(gridr, topofine, linewidth=topowidth, "-k")
     isnothing(idx) || plotprofile(ax[irow], idx, Z, R)

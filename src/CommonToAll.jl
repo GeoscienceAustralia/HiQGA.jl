@@ -4,7 +4,8 @@ using PyPlot, StatsBase, Statistics, Distances, LinearAlgebra,
       KernelDensitySJ, KernelDensity, Interpolations
 
 import ..Options, ..OptionsStat, ..OptionsNonstat, ..OptionsNuisance,
-       ..history, ..GP.κ, ..calcfstar!, ..AbstractOperator.Sounding
+       ..history, ..GP.κ, ..calcfstar!, ..AbstractOperator.Sounding, 
+       ..DEBUGLEVEL_TDGP
 
 export trimxft, assembleTat1, gettargtemps, checkns, getchi2forall, nicenup, plotconv,
         plot_posterior, make1Dhist, make1Dhists, setupz, zcontinue, makezρ, plotdepthtransforms,
@@ -75,7 +76,7 @@ function assembleTat1(optin::Options, stat::Symbol; burninfrac=0.5, temperaturen
             at1idx[1:start-1] .= false
         end
         ninchain = sum(at1idx)
-        @info "chain $ichain has $ninchain models"
+        (DEBUGLEVEL_TDGP > 0) && @info("chain $ichain has $ninchain models")
         ninchain == 0 && continue
         mat1[imodel+1:imodel+ninchain] .= history(opt, stat=stat, chain_idx=chain_idx)[at1idx]
         imodel += ninchain
@@ -140,7 +141,7 @@ function assemblenuisancesatT(optn::OptionsNuisance;
         at1idx = Tacrosschains[:,ichain].==ttarg
         at1idx[1:firsti-1] .= false
         ninchain = sum(at1idx)
-        @info "chain $ichain has $ninchain models"
+        (DEBUGLEVEL_TDGP > 0) && @info("chain $ichain has $ninchain models")
         ninchain == 0 && continue
         vals_filename = "values_nuisance_"*fdataname*".bin"
         if isfile(vals_filename)
@@ -327,7 +328,7 @@ end
 
 function checkns(optin::Options)
     isns = typeof(optin) == OptionsNonstat
-    @info "ns is $isns"
+    (DEBUGLEVEL_TDGP > 0) && @info("ns is $isns")
     ns = "ns"
     isns || (ns="s")
     return ns
@@ -1043,16 +1044,14 @@ function whichislast(soundings::AbstractArray)
     Eislast, Nislast, EWline, NSline
 end
 
-function makesummarygrid(soundings, pl, pm, ph, ρmean, vdmean, vddev, zall, dz; dr=10)
+function makesummarygrid(soundings, pl, pm, ph, ρmean, zall, dz; dr=10)
     # first flip ρ to σ and so pl and ph are interchanged
     phgrid, gridx, gridz, topofine, R = makegrid(-pl, soundings, zall=zall, dz=dz, dr=dr)
     plgrid,                           = makegrid(-ph, soundings, zall=zall, dz=dz, dr=dr)
     pmgrid,                           = makegrid(-pm, soundings, zall=zall, dz=dz, dr=dr)
     σmeangrid,                        = makegrid(-ρmean, soundings, zall=zall, dz=dz, dr=dr)
-    ∇zmeangrid,                       = makegrid(vdmean, soundings, zall=zall, dz=dz, dr=dr)
-    ∇zsdgrid,                         = makegrid(vddev, soundings, zall=zall, dz=dz, dr=dr)
     Z = [s.Z for s in soundings]
-    phgrid, plgrid, pmgrid, σmeangrid, ∇zmeangrid, ∇zsdgrid, gridx, gridz, topofine, R, Z
+    phgrid, plgrid, pmgrid, σmeangrid, gridx, gridz, topofine, R, Z
 end
 
 function makexyzrho(soundings, zall)

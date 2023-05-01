@@ -71,11 +71,11 @@ function summaryimages(soundings::Array{S, 1}, opt::Options;
                         showmean = false,
                         dpi = 300) where S<:Sounding
     @assert !(preferNright && preferEright) # can't prefer both labels to the right
-    pl, pm, ph, ρmean, vdmean, vddev, χ²mean, χ²sd  = summarypost(soundings, opt; zall, qp1, qp2, burninfrac, useML)
+    pl, pm, ph, ρmean, χ²mean, χ²sd  = summarypost(soundings, opt; zall, qp1, qp2, burninfrac, useML)
 
-    phgrid, plgrid, pmgrid, σmeangrid, ∇zmeangrid,
-    ∇zsdgrid, gridx, gridz, topofine, R, Z = makesummarygrid(soundings, pl, pm, ph, ρmean,
-                                                            vdmean, vddev, zall, dz, dr=dr)
+    phgrid, plgrid, pmgrid, σmeangrid,
+    gridx, gridz, topofine, R, Z = makesummarygrid(soundings, pl, pm, ph, ρmean,
+                                                        zall, dz; dr)
 
     lname = "Line $(soundings[1].linenum)"
     plotsummarygrids1(soundings, σmeangrid, phgrid, plgrid, pmgrid, gridx, gridz, topofine, R, Z, χ²mean, χ²sd, lname; qp1, qp2,
@@ -96,38 +96,19 @@ function summarypost(soundings::Vector{S}, opt::Options;
 
     linename = "_line_$(soundings[1].linenum)_summary.txt"
     fnames = ["rho_low", "rho_mid", "rho_hi", "rho_avg",
-              "ddz_mean", "ddz_sdev", "phid_mean", "phid_sdev"].*linename
+              "phid_mean", "phid_sdev"].*linename
     if isfile(fnames[1])
         @warn fnames[1]*" exists, reading stored values"
         pl, pm, ph, ρmean,
-        vdmean, vddev, χ²mean, χ²sd, = map(x->readdlm(x), fnames)
+        χ²mean, χ²sd = map(x->readdlm(x), fnames)
     else
-        # this is a dummy operator for plotting
-        aem, = makeoperator(soundings[1])
-        # now get the posterior marginals
-        opt.xall[:] .= zall
-        pl, pm, ph, ρmean, vdmean, vddev = map(x->zeros(length(zall), length(soundings)), 1:6)
-        χ²mean, χ²sd = zeros(length(soundings)), zeros(length(soundings))
-        for idx = 1:length(soundings)
-            @info "$idx out of $(length(soundings))\n"
-            opt.fdataname = soundings[idx].sounding_string*"_"
-            opt.xall[:] .= zall
-            pl[:,idx], pm[:,idx], ph[:,idx], ρmean[:,idx],
-            vdmean[:,idx], vddev[:,idx] = CommonToAll.plot_posterior(aem, opt, burninfrac=burninfrac,
-                                                    qp1=qp1, qp2=qp2,
-                                                    doplot=false)
-            χ² = 2*CommonToAll.assembleTat1(opt, :U, temperaturenum=1, burninfrac=burninfrac)
-            ndata = getndata(soundings[idx])
-            χ²mean[idx] = mean(χ²)/ndata
-            χ²sd[idx]   = std(χ²)/ndata
-            if useML
-                # this is approximate as HM and LM have different ML factors sampled 
-                χ²mean[idx] = exp(χ²mean[idx]-log(ndata))
-                χ²sd[idx]   = exp(χ²sd[idx]-log(ndata)) # I think, need to check
-            end    
-        end
+        outputs = reduce(hcat, pmap(sounding->processonesounding(opt, 
+                                sounding, zall, burninfrac, qp1, qp2, useML), soundings))
+        pl, pm, ph, ρmean,  
+        χ²mean, χ²sd = map(x->reduce(hcat, x), eachrow(outputs))
+        χ²mean, χ²sd = map(x->vec(x), (χ²mean, χ²sd))
         # write in grid format
-        for (fname, vals) in Dict(zip(fnames, [pl, pm, ph, ρmean, vdmean, vddev, χ²mean, χ²sd]))
+        for (fname, vals) in Dict(zip(fnames, [pl, pm, ph, ρmean, χ²mean, χ²sd]))
             writedlm(fname, vals)
         end
         # write in x, y, z, rho format
@@ -136,7 +117,26 @@ function summarypost(soundings::Vector{S}, opt::Options;
             writedlm(fnames[i][1:end-4]*"_xyzrho.txt", xyzrho)
         end
     end
-    pl, pm, ph, ρmean, vdmean, vddev, χ²mean, χ²sd
+    pl, pm, ph, ρmean, χ²mean, χ²sd
+end
+
+function processonesounding(opt_in::Options, sounding::Sounding, zall, burninfrac, qp1, qp2, useML)
+    opt = deepcopy(opt_in)
+    opt.fdataname = sounding.sounding_string*"_"
+    @info ("processing FID $(sounding.fid)")
+    opt.xall[:] .= zall
+    aem, = makeoperator(sounding) # this is a dummy operator for plotting
+    pl, pm, ph, ρmean, = CommonToAll.plot_posterior(aem, opt; burninfrac, qp1, qp2, doplot=false)
+    χ² = 2*CommonToAll.assembleTat1(opt, :U, temperaturenum=1, burninfrac=burninfrac)
+    ndata = getndata(sounding)
+    χ²mean = mean(χ²)/ndata
+    χ²sd   = std(χ²)/ndata
+    if useML
+        # this is approximate as HM and LM have different ML factors sampled 
+        χ²mean = exp(χ²mean-log(ndata))
+        χ²sd   = exp(χ²sd-log(ndata)) # I think, need to check
+    end
+    [pl, pm, ph, ρmean, χ²mean, χ²sd]
 end
 
 function getndata(d)

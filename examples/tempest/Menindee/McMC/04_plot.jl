@@ -10,7 +10,7 @@ transD_GP.AEMwithNuisanceMcMCInversionTools.summaryAEMwithnuisanceimages(soundin
                             burninfrac, dz, useML, dr = interpolatedr, fontsize = 10,
                             vmin, vmax, cmap="turbo", figsize=(8,10), idx = idxplot,
                             omitconvergence = false, preferEright = false,  preferNright = false,
-                            saveplot = true,  labelnu = ["zRx m", "xRx m"] 
+                            saveplot = true,  labelnu = ["zRx m", "xRx m"], vectorsum 
                         )
 
 ## now plot individual soundings in in idxplot

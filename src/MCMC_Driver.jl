@@ -775,7 +775,7 @@ function disptime(isample, t2, iterlast, nsamples)
     if mod(isample-1, 1000) == 0
         dt = time() - t2 #seconds
         t2 = time()
-        @info("**$dt**sec** $isample out of $(iterlast+nsamples)")
+        @info("on pid $(myid()) **$dt**sec** $isample out of $(iterlast+nsamples)")
     end
     t2
 end
