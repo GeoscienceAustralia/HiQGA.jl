@@ -491,36 +491,30 @@ function plotdata(ax, d, σ, t; onesigma=true, dtype=nothing)
     linestyle="none", marker=".", elinewidth=1, capsize=3, label)
 end
 
-function plotsoundingcurve(ax, f, t; color=nothing, alpha=1, lw=1)
-    if isnothing(color)
-        ax.semilogx(t, μ₀*abs.(f)*fTinv, alpha=alpha, markersize=2, linewidth=lw)
-    else
-        ax.semilogx(t, μ₀*abs.(f)*fTinv, color=color, alpha=alpha, markersize=2, linewidth=lw)
-    end    
+function plotsoundingcurve(ax, f, t; color="k", alpha=1, lw=1)
+    ax.semilogx(t, μ₀*abs.(f)*fTinv, color=color, alpha=alpha, markersize=2, linewidth=lw)
 end
 
 function plotmodelfield!(ax, iaxis, aem::Bfield, ρ, nu; color=nothing, alpha=1, model_lw=1, forward_lw=1)
     # with nuisance
-    nfixed = aem.nfixed
-    ax[iaxis].step(ρ, aem.z[nfixed+1:end], linewidth=model_lw, alpha=alpha)
+    stepmodel(ax, iaxis, color, ρ, aem, model_lw, alpha)
     getfield!(ρ, nu, aem)
-    vectorsumsplit(ax, iaxis, aem::Bfield, alpha, forward_lw, color)
+    vectorsumsplit(ax, iaxis, aem, alpha, forward_lw, color)
 end 
 
 function plotmodelfield!(ax, iaxis, aem::Bfield, ρ; color=nothing, alpha=1, model_lw=1, forward_lw=1)
     # no nuisance
-    nfixed = aem.nfixed
-    ax[iaxis].step(ρ, aem.z[nfixed+1:end], linewidth=model_lw, alpha=alpha)
+    stepmodel(ax, iaxis, color, ρ, aem, model_lw, alpha)
     getfield!(ρ, aem)
-    vectorsumsplit(ax, iaxis, aem::Bfield, alpha, forward_lw, color)
+    vectorsumsplit(ax, iaxis, aem, alpha, forward_lw, color)
 end 
 
 function vectorsumsplit(ax, iaxis, aem::Bfield, alpha, forward_lw, color)
+    colorused = !isnothing(color) ? color : ax[iaxis].lines[end].get_color()
     if aem.vectorsum
         fm = get_fm(aem)
-        plotsoundingcurve(ax[iaxis+1], fm, aem.F.times; color, alpha, lw=forward_lw)
+        plotsoundingcurve(ax[iaxis+1], fm, aem.F.times; color=colorused, alpha, lw=forward_lw)
     else    
-        colorused = !isnothing(color) ? color : ax[iaxis].lines[end].get_color()
         plotsoundingcurve(ax[iaxis+1], aem.Hx, aem.F.times; color=colorused, alpha, lw=forward_lw)
         plotsoundingcurve(ax[iaxis+1], aem.Hz, aem.F.times; color=colorused, alpha, lw=forward_lw)
     end

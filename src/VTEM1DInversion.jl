@@ -289,12 +289,8 @@ end
 # all plotting codes here assume that the model is in log10 resistivity, SANS
 # the top layer resistivity. For lower level plotting use AEM_VMD_HMD structs
 
-function plotsoundingcurve(ax, f, t; color=nothing, alpha=1, lw=1)
-    if isnothing(color)
-        ax.loglog(t, μ*f*pVinv, alpha=alpha, markersize=2, linewidth=lw)
-    else
-        ax.loglog(t, μ*f*pVinv, color=color, alpha=alpha, markersize=2, linewidth=lw)
-    end    
+function plotsoundingcurve(ax, f, t; color="k", alpha=1, lw=1)
+    ax.loglog(t, μ*f*pVinv, color=color, alpha=alpha, markersize=2, linewidth=lw)
 end
 
 function plotdata(ax, d, σ, t; onesigma=true)
@@ -304,10 +300,10 @@ function plotdata(ax, d, σ, t; onesigma=true)
 end
 
 function plotmodelfield!(ax, iaxis, aem::dBzdt, ρ; color=nothing, alpha=1, model_lw=1, forward_lw=1)
-    nfixed = aem.nfixed
-    ax[iaxis].step(ρ, aem.z[nfixed+1:end], linewidth=model_lw, alpha=alpha)
+    stepmodel(ax, iaxis, color, ρ, aem, model_lw, alpha)
+    colorused = !isnothing(color) ? color : ax[iaxis].lines[end].get_color()
     getfield!(ρ, aem)
-    plotsoundingcurve(ax[iaxis+1], aem.F.dBzdt, aem.F.times; color, alpha, lw=forward_lw)
+    plotsoundingcurve(ax[iaxis+1], aem.F.dBzdt, aem.F.times; color=colorused, alpha, lw=forward_lw)
 end    
 
 function initmodelfield!(aem;  onesigma=true, figsize=(8,6))
