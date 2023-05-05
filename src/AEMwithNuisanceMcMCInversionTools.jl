@@ -220,6 +220,7 @@ function summaryAEMwithnuisanceimages(soundings::Array{S, 1}, opt_in::Options, o
                         showplot = true,
                         showmean = false,
                         vectorsum = false,
+                        Rmax = nothing,
                         ) where S<: Sounding
 
     linestartidx = splitsoundingsbyline(soundings)                    
@@ -229,7 +230,7 @@ function summaryAEMwithnuisanceimages(soundings::Array{S, 1}, opt_in::Options, o
         b = i != nlines ?  linestartidx[i+1]-1 : length(soundings)
         summaryimages(soundings[a:b], opt_in, optn_in; qp1, qp2, burninfrac, zall,dz, dr, vectorsum,
             fontsize, vmin, vmax, cmap, figsize, topowidth, idx=idx, omitconvergence, useML, 
-            preferEright, showplot, preferNright, saveplot, yl, dpi, showmean, numsize, labelnu)
+            preferEright, showplot, preferNright, saveplot, yl, dpi, showmean, numsize, labelnu, Rmax)
     end
     nothing  
 end                        
@@ -260,6 +261,7 @@ function summaryimages(soundings::Array{S, 1}, opt_in::Options, optn_in::Options
                         showplot = true,
                         showmean = false,
                         vectorsum = false,
+                        Rmax = nothing,
                         ) where S<: Sounding
     @assert !(preferNright && preferEright) # can't prefer both labels to the right
     pl, pm, ph, ρmean,  χ²mean, χ²sd,  
@@ -273,7 +275,7 @@ function summaryimages(soundings::Array{S, 1}, opt_in::Options, optn_in::Options
     lname = "Line_$(soundings[1].linenum)"
     plotsummarygrids1(soundings, σmeangrid, phgrid, plgrid, pmgrid, gridx, gridz, topofine, R, Z, χ²mean, χ²sd, lname; qp1, qp2,
                         figsize, fontsize, cmap, vmin, vmax, 
-                        topowidth, idx, omitconvergence, useML,
+                        topowidth, idx, omitconvergence, useML, Rmax, 
                         preferEright, preferNright, saveplot, showplot, dpi,
                         yl, showmean)  
 

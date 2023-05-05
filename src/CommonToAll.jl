@@ -1086,8 +1086,8 @@ function plotNEWSlabels(soundings, gridx, gridz, axarray,
     Eislast, Nislast, EWline, NSline = whichislast(soundings)
     beginpos, endpos = "", ""
     if !any(isnothing.([x0,y0,xend,yend]))
-        beginpos = @sprintf(" %.2f", x0/1000)*@sprintf(" %.2f", y0/1000)
-        endpos = @sprintf(" %.2f", xend/1000)*@sprintf(" %.2f", yend/1000)
+        beginpos = @sprintf(" %.1f", x0/1000)*@sprintf(" %.1f", y0/1000)
+        endpos = @sprintf(" %.1f", xend/1000)*@sprintf(" %.1f", yend/1000)
     end
     for s in axarray
         minylim = minimum(s.get_ylim())
@@ -1161,14 +1161,24 @@ function getRsplits(R, Rmax)
 end    
 
 function plotsummarygrids1(soundings, meangrid, phgrid, plgrid, pmgrid, gridx, gridz, topofine, R, Z, χ²mean, χ²sd, lname; qp1=0.05, qp2=0.95,
-                        figsize=(10,10), fontsize=12, cmap="turbo", vmin=-2, vmax=0.5, Rmax=100_000.,
+                        figsize=(10,10), fontsize=12, cmap="turbo", vmin=-2, vmax=0.5, Rmax=nothing,
                         topowidth=2, idx=nothing, omitconvergence=false, useML=false, preferEright=false, preferNright=false,
                         saveplot=false, yl=nothing, dpi=300, showplot=true, showmean=false)
-
+    if isnothing(Rmax)
+        Rmax = maximum(gridx)
+    end    
     @show idx_split, thereisrmn = getRsplits(gridx, Rmax)
     nimages = length(idx_split)
-    nx = iszero(idx_split[2]) ? idx_split[1] : idx_split[2]-idx_split[1]
     dr = gridx[2] - gridx[1]
+    if iszero(idx_split[1]) && thereisrmn # Rmax is larger than section
+        nx = length(range(gridx[1], Rmax, step=dr))
+    elseif !iszero(idx_split[1]) && !thereisrmn # Rmax is exactly the section length
+        nx = length(gridx)
+    elseif iszero(idx_split[2]) # Rmax is smaller than the section
+        nx = idx_split[1]
+    else    
+        nx = idx_split[2]-idx_split[1] # There are many Rmax length splits 
+    end    
 
     i_idx = 1:nimages
     for i in i_idx
@@ -1184,7 +1194,7 @@ function plotsummarygrids1(soundings, meangrid, phgrid, plgrid, pmgrid, gridx, g
         end
 
         f, s, icol = setupconductivityplot(gridx[a:b], omitconvergence, showmean, R[a_uninterp:b_uninterp], 
-            figsize, fontsize, lname, χ²mean[a_uninterp:b_uninterp], χ²sd[a_uninterp:b_uninterp], useML)
+            figsize, fontsize, lname, χ²mean[a_uninterp:b_uninterp], χ²sd[a_uninterp:b_uninterp], useML, i, nimages)
           
         summaryconductivity(s, icol, f, soundings[a_uninterp:b_uninterp], 
             meangrid[:,a:b], phgrid[:,a:b], plgrid[:,a:b], pmgrid[:,a:b], 
@@ -1196,7 +1206,7 @@ function plotsummarygrids1(soundings, meangrid, phgrid, plgrid, pmgrid, gridx, g
     end    
 end
 
-function setupconductivityplot(gridx, omitconvergence, showmean, R, figsize, fontsize, lname, χ²mean, χ²sd, useML)
+function setupconductivityplot(gridx, omitconvergence, showmean, R, figsize, fontsize, lname, χ²mean, χ²sd, useML, iimage, nimages)
     dr = diff(gridx)[1]
     nrows = omitconvergence ? 5 : 6
     height_ratios = omitconvergence ? [1, 1, 1, 1, 0.1] : [0.4, 1, 1, 1, 1, 0.1]
@@ -1206,7 +1216,7 @@ function setupconductivityplot(gridx, omitconvergence, showmean, R, figsize, fon
     end    
     f, s = plt.subplots(nrows, 1, gridspec_kw=Dict("height_ratios" => height_ratios),
                         figsize=figsize)
-    f.suptitle(lname*" Δx=$dr m, Fids: $(length(R))", fontsize=fontsize)
+    f.suptitle(lname*" Δx=$dr m, Fids: $(length(R)), $(iimage) of $(nimages)", fontsize=fontsize)
     icol = 1
     if !omitconvergence
         s[icol].plot(R, χ²mean)
