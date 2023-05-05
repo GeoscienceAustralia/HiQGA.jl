@@ -1146,10 +1146,57 @@ function plotprofile(ax, idxs, Z, R)
     end
 end
 
+function getRsplits(R, Rmax)
+    q, rmn = divrem(maximum(R), Rmax)
+    thereisrmn = !iszero(rmn)
+    idx = thereisrmn ? zeros(Int, Int(q+1)) : zeros(Int, Int(q)) 
+    i = 1
+    for (ir, r) in enumerate(R)
+        if r >= Rmax*i
+            idx[i] = ir
+            i += 1
+        end
+    end
+    idx, thereisrmn        
+end    
+
 function plotsummarygrids1(soundings, meangrid, phgrid, plgrid, pmgrid, gridx, gridz, topofine, R, Z, χ²mean, χ²sd, lname; qp1=0.05, qp2=0.95,
-                        figsize=(10,10), fontsize=12, cmap="turbo", vmin=-2, vmax=0.5, 
+                        figsize=(10,10), fontsize=12, cmap="turbo", vmin=-2, vmax=0.5, Rmax=100_000.,
                         topowidth=2, idx=nothing, omitconvergence=false, useML=false, preferEright=false, preferNright=false,
                         saveplot=false, yl=nothing, dpi=300, showplot=true, showmean=false)
+
+    @show idx_split, thereisrmn = getRsplits(gridx, Rmax)
+    nimages = length(idx_split)
+    nx = iszero(idx_split[2]) ? idx_split[1] : idx_split[2]-idx_split[1]
+    dr = gridx[2] - gridx[1]
+
+    i_idx = 1:nimages
+    for i in i_idx
+        a = i == firstindex(i_idx) ? 1 : idx_split[i-1]+1
+        b = i != lastindex(i_idx)  ? idx_split[i] : lastindex(gridx)
+        a_uninterp = i == firstindex(i_idx) ? 1 : findlast(R.<=gridx[a])
+        b_uninterp = i != lastindex(i_idx)  ? findlast(R.<=gridx[b]) : lastindex(soundings)
+        
+        if thereisrmn && i == lastindex(i_idx)
+            xrangelast = range(gridx[a], step=dr, length=nx)
+        else 
+            xrangelast = nothing
+        end
+
+        f, s, icol = setupconductivityplot(gridx[a:b], omitconvergence, showmean, R[a_uninterp:b_uninterp], 
+            figsize, fontsize, lname, χ²mean[a_uninterp:b_uninterp], χ²sd[a_uninterp:b_uninterp], useML)
+          
+        summaryconductivity(s, icol, f, soundings[a_uninterp:b_uninterp], 
+            meangrid[:,a:b], phgrid[:,a:b], plgrid[:,a:b], pmgrid[:,a:b], 
+            gridx[a:b], gridz, topofine[a:b], R[a_uninterp:b_uninterp], Z[a_uninterp:b_uninterp], ; qp1, qp2, fontsize, 
+            cmap, vmin, vmax, topowidth, idx, omitconvergence, preferEright, preferNright, yl, showmean, xrangelast)
+        
+        saveplot && savefig(lname*"_split_$(i)_of_$(nimages).png", dpi=dpi)
+        showplot || close(f)
+    end    
+end
+
+function setupconductivityplot(gridx, omitconvergence, showmean, R, figsize, fontsize, lname, χ²mean, χ²sd, useML)
     dr = diff(gridx)[1]
     nrows = omitconvergence ? 5 : 6
     height_ratios = omitconvergence ? [1, 1, 1, 1, 0.1] : [0.4, 1, 1, 1, 1, 0.1]
@@ -1172,17 +1219,12 @@ function plotsummarygrids1(soundings, meangrid, phgrid, plgrid, pmgrid, gridx, g
         s[icol].set_title(titlestring)
         icol += 1
     end
-
-    summaryconductivity(s, icol, f, soundings, meangrid, phgrid, plgrid, pmgrid, gridx, gridz, topofine, R, Z, ; qp1, qp2, fontsize, 
-        cmap, vmin, vmax, topowidth, idx, omitconvergence, preferEright, preferNright, yl, showmean)
-    
-    saveplot && savefig(lname*".png", dpi=dpi)
-    showplot || close(f)
-end
+    f, s, icol
+end    
 
 function summaryconductivity(s, icol, f, soundings, meangrid, phgrid, plgrid, pmgrid, gridx, gridz, topofine, R, Z, ; qp1=0.05, qp2=0.95,
     fontsize=12, cmap="turbo", vmin=-2, vmax=0.5, topowidth=2, idx=nothing, omitconvergence=false, preferEright=false, preferNright=false,
-    yl=nothing,showmean=false)
+    yl=nothing, showmean=false, xrangelast=nothing)
     icolstart = icol
     s[icol].imshow(plgrid, cmap=cmap, aspect="auto", vmax=vmax, vmin = vmin,
                 extent=[gridx[1], gridx[end], gridz[end], gridz[1]])
@@ -1226,7 +1268,12 @@ function summaryconductivity(s, icol, f, soundings, meangrid, phgrid, plgrid, pm
     map(x->x.tick_params(labelbottom=false), s[1:end-2])
     # map(x->x.grid(), s[1:end-1])
     isa(yl, Nothing) || s[end-1].set_ylim(yl...)
-    plotNEWSlabels(soundings, gridx, gridz, s[icolstart:end-1]; preferEright, preferNright, fontsize)
+    x0, y0 = soundings[1].X, soundings[1].Y
+    xend, yend = soundings[end].X, soundings[end].Y
+    if !isnothing(xrangelast)
+        s[icol].set_xlim(extrema(xrangelast))
+    end    
+    plotNEWSlabels(soundings, gridx, gridz, s[icolstart:end-1], x0, y0, xend, yend; preferEright, preferNright, fontsize)
     cb = f.colorbar(imlast, cax=s[end], orientation="horizontal")
     cb.set_label("Log₁₀ S/m", labelpad=0)
     nicenup(f, fsize=fontsize, h_pad=0)

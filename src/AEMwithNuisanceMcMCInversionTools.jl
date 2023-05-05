@@ -270,7 +270,7 @@ function summaryimages(soundings::Array{S, 1}, opt_in::Options, optn_in::Options
     gridx, gridz, topofine, R, Z = makesummarygrid(soundings, pl, pm, ph, ρmean,
                                             zall, dz; dr)
 
-    lname = "Line $(soundings[1].linenum)"
+    lname = "Line_$(soundings[1].linenum)"
     plotsummarygrids1(soundings, σmeangrid, phgrid, plgrid, pmgrid, gridx, gridz, topofine, R, Z, χ²mean, χ²sd, lname; qp1, qp2,
                         figsize, fontsize, cmap, vmin, vmax, 
                         topowidth, idx, omitconvergence, useML,
