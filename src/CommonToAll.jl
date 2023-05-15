@@ -1167,7 +1167,7 @@ function plotsummarygrids1(soundings, meangrid, phgrid, plgrid, pmgrid, gridx, g
     if isnothing(Rmax)
         Rmax = maximum(gridx)
     end    
-    @show idx_split, thereisrmn = getRsplits(gridx, Rmax)
+    idx_split, thereisrmn = getRsplits(gridx, Rmax)
     nimages = length(idx_split)
     dr = gridx[2] - gridx[1]
     if iszero(idx_split[1]) && thereisrmn # Rmax is larger than section

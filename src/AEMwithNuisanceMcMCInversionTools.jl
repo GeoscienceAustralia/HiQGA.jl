@@ -247,8 +247,9 @@ function summaryimages(soundings::Array{S, 1}, opt_in::Options, optn_in::Options
                         vmin = -2,
                         vmax = 0.5,
                         cmap="turbo",
-                        figsize=(6,10),
-                        topowidth=2,
+                        figsize = (6,10),
+                        bigfigsize = figsize,
+                        topowidth = 2,
                         idx = nothing,
                         omitconvergence = false,
                         preferEright = false,
@@ -280,7 +281,7 @@ function summaryimages(soundings::Array{S, 1}, opt_in::Options, optn_in::Options
                         yl, showmean)  
 
     plotsummarygrids3(soundings, nuhigh, nulow, numid, phgrid, plgrid, pmgrid, gridx, gridz, topofine, R, Z, χ²mean, χ²sd, lname, nunominal, numsize, labelnu=labelnu, qp1=qp1, qp2=qp2,
-        figsize=figsize, fontsize=fontsize, cmap=cmap, vmin=vmin, vmax=vmax, 
+        figsize=bigfigsize, fontsize=fontsize, cmap=cmap, vmin=vmin, vmax=vmax, 
         topowidth=topowidth, idx=idx, useML=useML, yl=yl,
         preferEright=preferEright, preferNright=preferNright, saveplot=saveplot)
 
@@ -300,7 +301,16 @@ function summarypost(soundings::Vector{S}, opt_in::Options, optn_in::OptionsNuis
     fnames = ["rho_low", "rho_mid", "rho_hi", "rho_avg",
         "phid_mean", "phid_sdev",
         "nu_low", "nu_mid", "nu_high"].*linename
-
+    # this is a debug
+    # a = Vector{Any}(undef, 10)
+    # for i in 1:4
+    #     a[i] = -999*ones(length(zall))
+    # end
+    # a[5] = -999.
+    # a[6] = -999.
+    # for i in 7:10
+    #     a[i] = -999*ones(2)
+    # end
     idxnotzero = optn_in.idxnotzero
     if isfile(fnames[1])
         nunominal = zeros(length(idxnotzero), length(soundings))
