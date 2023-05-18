@@ -1,7 +1,7 @@
 module CommonToAll
 using PyPlot, StatsBase, Statistics, Distances, LinearAlgebra,
       DelimitedFiles, ..AbstractOperator, NearestNeighbors, Printf, 
-      KernelDensitySJ, KernelDensity, Interpolations, CSV
+      KernelDensitySJ, KernelDensity, Interpolations, CSV, WriteVTK, Distributed
 
 import ..Options, ..OptionsStat, ..OptionsNonstat, ..OptionsNuisance,
        ..history, ..GP.κ, ..calcfstar!, ..AbstractOperator.Sounding, 
@@ -12,8 +12,9 @@ export trimxft, assembleTat1, gettargtemps, checkns, getchi2forall, nicenup, plo
         unwrap, getn, geomprogdepth, assemblemodelsatT, getstats, gethimage,
         assemblenuisancesatT, makenuisancehists, stretchexists, stepmodel,
         makegrid, whichislast, makesummarygrid, makearray, plotNEWSlabels, 
-        plotprofile, gridpoints, splitsoundingsbyline, dfn2hdr, getgdfprefix, readlargetextmatrix,
-        pairinteractionplot, flipline, summaryconductivity, plotsummarygrids1, getVE
+        plotprofile, gridpoints, splitsoundingsbyline, getsoundingsperline,dfn2hdr, 
+        getgdfprefix, readlargetextmatrix, pairinteractionplot, flipline, 
+        summaryconductivity, plotsummarygrids1, getVE, writevtkfromsounding
 
 # Kernel Density stuff
 abstract type KDEtype end
@@ -962,6 +963,45 @@ function splitsoundingsbyline(soundings::Array{S, 1}) where S<:Sounding
     end
     linestartidx
 end 
+
+function getsoundingsperline(soundings::Array{S, 1}) where S<:Sounding
+    linestartidx = splitsoundingsbyline(soundings)                    
+    nlines = length(linestartidx)                   
+    s = map(1:nlines) do i
+        a = linestartidx[i]
+        b = i != nlines ?  linestartidx[i+1]-1 : length(soundings)
+        soundings[a:b]
+    end    
+end    
+
+function writevtkfromsounding(lineofsoundings::Array{S, 1}, zall) where S<:Sounding
+    X, Y, Z = map(x->getfield.(lineofsoundings, x), (:X, :Y, :Z))
+    lnum = lineofsoundings[1].linenum
+    @info("opening summary: Line $(lnum)")
+    rholow, rhomid, rhohigh = map(x->readdlm(x*"_line_$(lnum)_"*"summary.txt"), 
+                                    ["rho_low", "rho_mid", "rho_hi"])
+    Ni, Nj = map(x->length(x), (X, Y))
+    Nk = length(zall)
+    x = [X[i] for i = 1:Ni, j = 1:1, k = 1:Nk]
+    y = [Y[i] for i = 1:Ni, j = 1:1, k = 1:Nk]
+    z = [Z[i] - zall[k] for i = 1:Ni, j = 1:1, k = 1:Nk]
+    σlow, σmid, σhigh = map((rhohigh, rhomid, rholow)) do rho
+        # switch from rho to sigma so low, hi interchanged 
+        [-rho[k, i] for i = 1:Ni, j = 1:1, k = 1:Nk]
+    end
+    vtk_grid("Line_$(lnum)", x, y, z) do vtk
+        vtk["cond_low"]  = σlow
+        vtk["cond_mid"]  = σmid
+        vtk["cond_high"] = σhigh
+    end
+    nothing
+end
+
+function writevtkfromsounding(s::Vector{Array{S, 1}}, zall) where S<:Sounding
+    pmap(s) do x
+        writevtkfromsounding(x, zall)
+    end    
+end    
 
 function makegrid(vals::AbstractArray, soundings::Array{S, 1}; donn=false,
     dr=10, zall=[NaN], dz=-1) where S<:Sounding
