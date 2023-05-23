@@ -15,7 +15,7 @@ export trimxft, assembleTat1, gettargtemps, checkns, getchi2forall, nicenup, plo
         plotprofile, gridpoints, splitsoundingsbyline, getsoundingsperline,dfn2hdr, 
         getgdfprefix, readlargetextmatrix, pairinteractionplot, flipline, 
         summaryconductivity, plotsummarygrids1, getVE, writevtkfromsounding, 
-        readcols, colstovtk
+        readcols, colstovtk, findclosestidxincolfile, zcentertoboundary
 
 # Kernel Density stuff
 abstract type KDEtype end
@@ -651,8 +651,7 @@ function plot_posterior(F::Operator1D,
                             islscale=true, pdfnormalize=pdfnormalize)
     f,ax = plt.subplots(1, 2, sharey=true, figsize=figsize)
     xall = opts.xall
-    diffs = diff(xall[:])
-    xmesh = vcat(xall[1:end-1] - diffs/2, xall[end]-diffs[end]/2, xall[end])
+    xmesh = [zcentertoboundary(xall); xall[end]]
     vmin, vmax = extrema(himage_ns)
     vmax = vmin+vmaxpc*(vmax-vmin)
     im1 = ax[1].pcolormesh(edges_ns[:], xmesh, himage_ns, cmap=cmappdf, vmax=vmax)
@@ -726,8 +725,7 @@ function plot_posterior(F::Operator1D,
             f, ax = plt.subplots(1,1, sharey=true, figsize=figsize, squeeze=false)
         end    
         xall = opt.xall
-        diffs = diff(xall[:])
-        xmesh = vcat(xall[1:end-1] - diffs/2, xall[end]-diffs[end]/2, xall[end])
+        xmesh = [zcentertoboundary(xall); xall[end]]
         vmin, vmax = extrema(himage)
         vmax = vmin+vmaxpc*(vmax-vmin)
         im1 = ax[1].pcolormesh(edges[:], xmesh, himage, cmap=cmappdf, vmax=vmax)
@@ -1043,13 +1041,25 @@ function thicktodepth(thick; hasthick=true)
     zall    
 end
 
+function zcentertoboundary(zall)
+    zb = zeros(length(zall))
+    zb[1] = 0.
+    zb[2] = 2*zall[1]
+    for i in 3:length(zb)
+        delz = 2(zall[i-1] - zb[i-1])
+        zb[i] = zb[i-1] + delz
+    end    
+    zb
+end    
+
 function findclosestidxincolfile(Xwanted, Ywanted, cols::Vector, fname::String; decfactor=1, hasthick=true)
     X, Y, σ, thick = readcols(cols, fname; decfactor)
     thick = thick[1,:]
     zall = thicktodepth(thick; hasthick)
+    zb = zcentertoboundary(zall)
     XY = [X';Y']
     idx = getclosestidx(XY, Xwanted, Ywanted)
-    σ[idx,:]
+    σ[idx,:], zb
 end
 
 function makegrid(vals::AbstractArray, soundings::Array{S, 1}; donn=false,

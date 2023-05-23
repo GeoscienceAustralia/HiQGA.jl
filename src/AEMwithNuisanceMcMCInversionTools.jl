@@ -432,6 +432,7 @@ function plotindividualsoundings(soundings::Vector{S},
     linecolor = nothing,
     alpha = 1.,
     rseed = 123,
+    usekde = false,
     computeforwards = false,
     nforwards = 50) where S<:Sounding
 
@@ -449,7 +450,7 @@ function plotindividualsoundings(soundings::Vector{S},
             CommonToAll.getstats(opt) # ARs for GP model
             CommonToAll.getstats(optn) # ARs for nuisances
             plot_posterior(aem, opt; burninfrac, nbins, figsize, qp1, qp2,
-                            showslope, pdfclim, plotmean) # GP models
+                            showslope, pdfclim, plotmean, usekde) # GP models
             ax = gcf().axes
             ax[1].invert_xaxis()
             plot_posterior(aem, optn; burninfrac, nbins, figsize, qp1, qp2) # nuisances

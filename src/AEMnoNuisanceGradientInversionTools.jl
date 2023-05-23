@@ -71,6 +71,9 @@ function plotconvandlast(soundings, delr, delz;
             isnothing(doesmatch) && continue
             @info lnames[doesmatch]
             @show idspec = idx[doesmatch]
+            for id in idspec
+                @info "X, Y = $(soundings[a:b][id].X), $(soundings[a:b][id].Y)"
+            end    
         end    
         plotconvandlasteachline(soundings[a:b], view(σ, a:b, :)', view(ϕd, a:b), delr, delz; 
             zall = zall, idx=idspec, yl=yl,

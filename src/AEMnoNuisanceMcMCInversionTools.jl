@@ -161,6 +161,7 @@ function plotindividualAEMsoundings(soundings::Vector{S}, aem_in::Operator1D, op
     linecolor = nothing,
     alpha = 1.,
     rseed = 123,
+    usekde = false,
     computeforwards = false,
     nforwards = 100) where S<:Sounding
     
@@ -175,13 +176,13 @@ function plotindividualAEMsoundings(soundings::Vector{S}, aem_in::Operator1D, op
             getchi2forall(opt, alpha=0.8, omittemp=omittemp)
             CommonToAll.getstats(opt)
             plot_posterior(aem, opt; burninfrac, nbins, figsize, 
-                    showslope, pdfclim, plotmean, qp1, qp2)
+                    showslope, pdfclim, plotmean, qp1, qp2, usekde)
             ax = gcf().axes
             ax[1].invert_xaxis()
             if computeforwards
                 M = assembleTat1(opt, :fstar, temperaturenum=1, burninfrac=burninfrac)
                 Random.seed!(rseed)
-                plotmodelfield!(aem, M[randperm(length(M))[1:nforwards]], model_lw, forward_lw, color=linecolor, alpha)
+                plotmodelfield!(aem, M[randperm(length(M))[1:nforwards]]; model_lw, forward_lw, color=linecolor, alpha)
             end            
         end
     end
