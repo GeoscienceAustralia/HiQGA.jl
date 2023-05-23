@@ -14,7 +14,8 @@ export trimxft, assembleTat1, gettargtemps, checkns, getchi2forall, nicenup, plo
         makegrid, whichislast, makesummarygrid, makearray, plotNEWSlabels, 
         plotprofile, gridpoints, splitsoundingsbyline, getsoundingsperline,dfn2hdr, 
         getgdfprefix, readlargetextmatrix, pairinteractionplot, flipline, 
-        summaryconductivity, plotsummarygrids1, getVE, writevtkfromsounding
+        summaryconductivity, plotsummarygrids1, getVE, writevtkfromsounding, 
+        readcols, colstovtk
 
 # Kernel Density stuff
 abstract type KDEtype end
@@ -1003,6 +1004,54 @@ function writevtkfromsounding(s::Vector{Array{S, 1}}, zall) where S<:Sounding
     end    
 end    
 
+function readcols(cols::Vector, fname::String; decfactor=1)
+    d = readlargetextmatrix(fname)[1:decfactor:end,:]
+    map(cols) do n
+        if (isa(n, Array))
+            d[:,n[1]:n[2]]
+        else
+            d[:,n]
+        end    
+    end    
+end    
+
+function colstovtk(cols::Vector, fname::String; decfactor=1, hasthick=true)
+    X, Y, Z, σ, thick = readcols(cols, fname; decfactor)
+    thick = thick[1,:]
+    zall = thicktodepth(thick; hasthick)   
+    Ni = length(X)
+    Nk = length(zall)
+    x = [X[i] for i = 1:Ni, j = 1:1, k = 1:Nk]
+    y = [Y[i] for i = 1:Ni, j = 1:1, k = 1:Nk]
+    z = [Z[i] - zall[k] for i = 1:Ni, j = 1:1, k = 1:Nk]
+    σvtk = [σ[i, k] for i = 1:Ni, j = 1:1, k = 1:Nk]
+    fstring = basename(fname)
+    dstring = dirname(fname)
+    vtk_grid(joinpath(dstring, "LEI_Line_"*fstring), x, y, z) do vtk
+        vtk["cond_LEI"]  = log10.(σvtk)
+    end
+    nothing
+end
+
+function thicktodepth(thick; hasthick=true)
+    if hasthick
+        zb = [0; cumsum(thick)]
+        zall = 0.5(zb[1:end-1]+zb[2:end])
+    else
+        zall = thick    
+    end
+    zall    
+end
+
+function findclosestidxincolfile(Xwanted, Ywanted, cols::Vector, fname::String; decfactor=1, hasthick=true)
+    X, Y, σ, thick = readcols(cols, fname; decfactor)
+    thick = thick[1,:]
+    zall = thicktodepth(thick; hasthick)
+    XY = [X';Y']
+    idx = getclosestidx(XY, Xwanted, Ywanted)
+    σ[idx,:]
+end
+
 function makegrid(vals::AbstractArray, soundings::Array{S, 1}; donn=false,
     dr=10, zall=[NaN], dz=-1) where S<:Sounding
     @assert all(.!isnan.(zall)) 
@@ -1411,8 +1460,12 @@ end
 
 function getclosestidx(Xwell, Ywell, soundings::Vector{S}) where S<: Sounding
     XY = hcat([[s.X, s.Y] for s in soundings]...)
+    getclosestidx(XY, Xwell, Ywell)
+end    
+
+function getclosestidx(XY, Xwanted, Ywanted)
     tree = KDTree(XY)
-    idx, dist = nn(tree, [Xwell;Ywell])
+    idx, dist = nn(tree, [Xwanted;Ywanted])
     @info "distance is $dist"
     idx
 end    
