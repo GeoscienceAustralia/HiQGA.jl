@@ -2,7 +2,7 @@ transD_GP.getchi2forall(opt)
 ##
 opt.xall[:] .= zall
 transD_GP.plot_posterior(tempest, opt, burninfrac=0.5, figsize=(6,6), cmappdf="hot",
-        qp1=0.05, qp2=0.95, nbins=50, vmaxpc=1)
+        qp1=0.1, qp2=0.9, nbins=50, vmaxpc=1)
 ax = gcf().axes
 ax[1].invert_xaxis()
 ax[1].step(log10.(ρ[2:end]), z[2:end], color="r", alpha=0.5)
