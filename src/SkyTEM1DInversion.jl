@@ -216,11 +216,7 @@ function read_survey_files(;
     @assert linenum > 0
     @assert fid > 0
     @info "reading $fname_dat"
-    if dotillsounding!= nothing
-        soundings = readdlm(fname_dat)[startfrom:skipevery:dotillsounding,:]
-    else
-        soundings = readdlm(fname_dat)[startfrom:skipevery:end,:]
-    end
+    soundings = readlargetextmatrix(fname_dat, startfrom, skipevery, dotillsounding)
     soundings[soundings .== nanchar] .= NaN
     easting = soundings[:,X]
     northing = soundings[:,Y]
@@ -467,12 +463,8 @@ end
 # all plotting codes here assume that the model is in log10 resistivity, SANS
 # the top layer resistivity. For lower level plotting use AEM_VMD_HMD structs
 
-function plotsoundingcurve(ax, f, t; color=nothing, alpha=1, lw=1)
-    if isnothing(color)
-        ax.loglog(t, μ₀*f*pVinv, alpha=alpha, markersize=2, linewidth=lw)
-    else
-        ax.loglog(t, μ₀*f*pVinv, color=color, alpha=alpha, markersize=2, linewidth=lw)
-    end    
+function plotsoundingcurve(ax, f, t; color="k", alpha=1, lw=1)
+    ax.loglog(t, μ₀*f*pVinv, color=color, alpha=alpha, markersize=2, linewidth=lw)
 end
 
 function plotdata(ax, d, σ, t; onesigma=true, dtype=:LM)
@@ -484,8 +476,7 @@ function plotdata(ax, d, σ, t; onesigma=true, dtype=:LM)
 end
 
 function plotmodelfield!(ax, iaxis, aem::dBzdt, ρ; color=nothing, alpha=1, model_lw=1, forward_lw=1)
-    nfixed = aem.nfixed
-    ax[iaxis].step(ρ, aem.z[nfixed+1:end], linewidth=model_lw, alpha=alpha)
+    stepmodel(ax, iaxis, color, ρ, aem, model_lw, alpha)
     getfield!(ρ, aem)
     colorused = !isnothing(color) ? color : ax[iaxis].lines[end].get_color()
     plotsoundingcurve(ax[iaxis+1], aem.Flow.dBzdt, aem.Flow.times; color=colorused, alpha, lw=forward_lw)

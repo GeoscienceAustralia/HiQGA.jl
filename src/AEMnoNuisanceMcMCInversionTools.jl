@@ -57,8 +57,8 @@ function summaryimages(soundings::Array{S, 1}, opt::Options;
                         fontsize = 10,
                         vmin = -2,
                         vmax = 0.5,
-                        cmap="turbo",
-                        figsize=(6,10),
+                        cmap ="turbo",
+                        figsize = (6,10),
                         topowidth=2,
                         idx = nothing,
                         omitconvergence = false,
@@ -77,7 +77,7 @@ function summaryimages(soundings::Array{S, 1}, opt::Options;
     gridx, gridz, topofine, R, Z = makesummarygrid(soundings, pl, pm, ph, ρmean,
                                                         zall, dz; dr)
 
-    lname = "Line $(soundings[1].linenum)"
+    lname = "Line_$(soundings[1].linenum)"
     plotsummarygrids1(soundings, σmeangrid, phgrid, plgrid, pmgrid, gridx, gridz, topofine, R, Z, χ²mean, χ²sd, lname; qp1, qp2,
                         figsize, fontsize, cmap, vmin, vmax, 
                         topowidth, idx, omitconvergence, useML,
@@ -154,9 +154,14 @@ function plotindividualAEMsoundings(soundings::Vector{S}, aem_in::Operator1D, op
     showslope = false,
     plotmean = false,
     pdfclim = nothing,
-    qp1=0.05,
-    qp2=0.95,
+    qp1 = 0.05,
+    qp2 = 0.95,
+    model_lw = 1, 
+    forward_lw = 1,
+    linecolor = nothing,
+    alpha = 1.,
     rseed = 123,
+    usekde = false,
     computeforwards = false,
     nforwards = 100) where S<:Sounding
     
@@ -171,13 +176,13 @@ function plotindividualAEMsoundings(soundings::Vector{S}, aem_in::Operator1D, op
             getchi2forall(opt, alpha=0.8, omittemp=omittemp)
             CommonToAll.getstats(opt)
             plot_posterior(aem, opt; burninfrac, nbins, figsize, 
-                    showslope, pdfclim, plotmean, qp1, qp2)
+                    showslope, pdfclim, plotmean, qp1, qp2, usekde)
             ax = gcf().axes
             ax[1].invert_xaxis()
             if computeforwards
                 M = assembleTat1(opt, :fstar, temperaturenum=1, burninfrac=burninfrac)
                 Random.seed!(rseed)
-                plotmodelfield!(aem, M[randperm(length(M))[1:nforwards]])
+                plotmodelfield!(aem, M[randperm(length(M))[1:nforwards]]; model_lw, forward_lw, color=linecolor, alpha)
             end            
         end
     end
@@ -284,7 +289,8 @@ function loopacrossAEMsoundings(soundings::Array{S, 1}, aem_in::Operator1D, opt_
                             nsamples           = -1,
                             nchainsatone       =  1,
                             nchainspersounding = -1,
-                            ppn                = -1) where S<:Sounding
+                            ppn                = -1,
+                            nominaltime        = nothing) where S<:Sounding
 
     @assert ppn != -1
     @assert nchainspersounding != -1
@@ -297,6 +303,7 @@ function loopacrossAEMsoundings(soundings::Array{S, 1}, aem_in::Operator1D, opt_
     for iter = 1:nsequentialiters
         ss = getss(iter, nsequentialiters, nparallelsoundings, nsoundings)
         @info "soundings in loop $iter of $nsequentialiters", ss
+        t2 = time()
         @sync for (i, s) in Iterators.reverse(enumerate(ss))
             pids = getpids(i, nchainspersounding)
             (DEBUGLEVEL_TDGP > 0) && @info("pids in sounding $s are $pids")
@@ -304,13 +311,13 @@ function loopacrossAEMsoundings(soundings::Array{S, 1}, aem_in::Operator1D, opt_
             opt = deepcopy(opt_in)
             opt.fdataname = soundings[s].sounding_string*"_"
 
-            @async remotecall_wait(main, pids[1], opt, aem, collect(pids[2:end]),
-                                    Tmax         = Tmax,
-                                    nsamples     = nsamples,
-                                    nchainsatone = nchainsatone)
+            @async remotecall_wait(main, pids[1], opt, aem, collect(pids[2:end]);
+                                    Tmax, nsamples, nchainsatone, nominaltime)
 
         end # @sync
-        @info "done $iter out of $nsequentialiters at $(Dates.now())"
+        dt = time() - t2 #seconds
+        t2 = time()
+        @info "done $iter out of $nsequentialiters at $(Dates.now()) in $dt sec"
     end
 end
 

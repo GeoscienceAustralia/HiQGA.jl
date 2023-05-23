@@ -159,7 +159,8 @@ function loopacrossAEMsoundings(soundings::Array{S, 1}, aem_in::Operator1D, opt_
                             nsamples           = -1,
                             nchainsatone       =  1,
                             nchainspersounding = -1,
-                            ppn                = -1) where S<:Sounding
+                            ppn                = -1,
+                            nominaltime        = nothing) where S<:Sounding
 
     @assert ppn != -1
     @assert nchainspersounding != -1
@@ -182,7 +183,7 @@ function loopacrossAEMsoundings(soundings::Array{S, 1}, aem_in::Operator1D, opt_
             optn = getoptnfromexisting(optn_in, opt, soundings[s])
 
             @async remotecall_wait(main, pids[1], opt, optn, aem, collect(pids[2:end]);
-                                    Tmax, nsamples, nchainsatone)
+                                    Tmax, nsamples, nchainsatone, nominaltime)
 
         end # @sync
         dt = time() - t2 #seconds
@@ -219,6 +220,7 @@ function summaryAEMwithnuisanceimages(soundings::Array{S, 1}, opt_in::Options, o
                         showplot = true,
                         showmean = false,
                         vectorsum = false,
+                        Rmax = nothing,
                         ) where S<: Sounding
 
     linestartidx = splitsoundingsbyline(soundings)                    
@@ -228,7 +230,7 @@ function summaryAEMwithnuisanceimages(soundings::Array{S, 1}, opt_in::Options, o
         b = i != nlines ?  linestartidx[i+1]-1 : length(soundings)
         summaryimages(soundings[a:b], opt_in, optn_in; qp1, qp2, burninfrac, zall,dz, dr, vectorsum,
             fontsize, vmin, vmax, cmap, figsize, topowidth, idx=idx, omitconvergence, useML, 
-            preferEright, showplot, preferNright, saveplot, yl, dpi, showmean, numsize, labelnu)
+            preferEright, showplot, preferNright, saveplot, yl, dpi, showmean, numsize, labelnu, Rmax)
     end
     nothing  
 end                        
@@ -245,8 +247,9 @@ function summaryimages(soundings::Array{S, 1}, opt_in::Options, optn_in::Options
                         vmin = -2,
                         vmax = 0.5,
                         cmap="turbo",
-                        figsize=(6,10),
-                        topowidth=2,
+                        figsize = (6,10),
+                        bigfigsize = figsize,
+                        topowidth = 2,
                         idx = nothing,
                         omitconvergence = false,
                         preferEright = false,
@@ -259,6 +262,7 @@ function summaryimages(soundings::Array{S, 1}, opt_in::Options, optn_in::Options
                         showplot = true,
                         showmean = false,
                         vectorsum = false,
+                        Rmax = nothing,
                         ) where S<: Sounding
     @assert !(preferNright && preferEright) # can't prefer both labels to the right
     pl, pm, ph, ρmean,  χ²mean, χ²sd,  
@@ -269,15 +273,15 @@ function summaryimages(soundings::Array{S, 1}, opt_in::Options, optn_in::Options
     gridx, gridz, topofine, R, Z = makesummarygrid(soundings, pl, pm, ph, ρmean,
                                             zall, dz; dr)
 
-    lname = "Line $(soundings[1].linenum)"
+    lname = "Line_$(soundings[1].linenum)"
     plotsummarygrids1(soundings, σmeangrid, phgrid, plgrid, pmgrid, gridx, gridz, topofine, R, Z, χ²mean, χ²sd, lname; qp1, qp2,
                         figsize, fontsize, cmap, vmin, vmax, 
-                        topowidth, idx, omitconvergence, useML,
+                        topowidth, idx, omitconvergence, useML, Rmax, 
                         preferEright, preferNright, saveplot, showplot, dpi,
                         yl, showmean)  
 
     plotsummarygrids3(soundings, nuhigh, nulow, numid, phgrid, plgrid, pmgrid, gridx, gridz, topofine, R, Z, χ²mean, χ²sd, lname, nunominal, numsize, labelnu=labelnu, qp1=qp1, qp2=qp2,
-        figsize=figsize, fontsize=fontsize, cmap=cmap, vmin=vmin, vmax=vmax, 
+        figsize=bigfigsize, fontsize=fontsize, cmap=cmap, vmin=vmin, vmax=vmax, 
         topowidth=topowidth, idx=idx, useML=useML, yl=yl,
         preferEright=preferEright, preferNright=preferNright, saveplot=saveplot)
 
@@ -297,7 +301,16 @@ function summarypost(soundings::Vector{S}, opt_in::Options, optn_in::OptionsNuis
     fnames = ["rho_low", "rho_mid", "rho_hi", "rho_avg",
         "phid_mean", "phid_sdev",
         "nu_low", "nu_mid", "nu_high"].*linename
-
+    # this is a debug
+    # a = Vector{Any}(undef, 10)
+    # for i in 1:4
+    #     a[i] = -999*ones(length(zall))
+    # end
+    # a[5] = -999.
+    # a[6] = -999.
+    # for i in 7:10
+    #     a[i] = -999*ones(2)
+    # end
     idxnotzero = optn_in.idxnotzero
     if isfile(fnames[1])
         nunominal = zeros(length(idxnotzero), length(soundings))
@@ -412,9 +425,14 @@ function plotindividualsoundings(soundings::Vector{S},
     showslope = false,
     plotmean = false,
     pdfclim = nothing,
+    model_lw = 1, 
+    forward_lw = 1,
     qp1=0.05,
     qp2=0.95,
+    linecolor = nothing,
+    alpha = 1.,
     rseed = 123,
+    usekde = false,
     computeforwards = false,
     nforwards = 50) where S<:Sounding
 
@@ -431,18 +449,17 @@ function plotindividualsoundings(soundings::Vector{S},
             getchi2forall(opt, alpha=0.8; omittemp) # chi2 errors
             CommonToAll.getstats(opt) # ARs for GP model
             CommonToAll.getstats(optn) # ARs for nuisances
-            plot_posterior(aem, opt; burninfrac, nbins, figsize,
-                            showslope, pdfclim, plotmean) # GP models
+            plot_posterior(aem, opt; burninfrac, nbins, figsize, qp1, qp2,
+                            showslope, pdfclim, plotmean, usekde) # GP models
             ax = gcf().axes
             ax[1].invert_xaxis()
-            plot_posterior(aem, optn; burninfrac, nbins, figsize) # nuisances
+            plot_posterior(aem, optn; burninfrac, nbins, figsize, qp1, qp2) # nuisances
             if computeforwards
                 m = assembleTat1(opt, :fstar, temperaturenum=1, burninfrac=burninfrac)
                 mn = CommonToAll.assemblenuisancesatT(optn, temperaturenum=1, burninfrac=burninfrac)
                 Random.seed!(rseed)
                 randidx = randperm(length(m))
-                plotmodelfield!(aem, m[randidx[1:nforwards]],
-                                    mn[randidx[1:nforwards],:])
+                plotmodelfield!(aem, m[randidx[1:nforwards]], mn[randidx[1:nforwards],:]; model_lw, forward_lw, color=linecolor, alpha)
             end
         end
     end

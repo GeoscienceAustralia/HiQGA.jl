@@ -1,7 +1,7 @@
 module CommonToAll
 using PyPlot, StatsBase, Statistics, Distances, LinearAlgebra,
       DelimitedFiles, ..AbstractOperator, NearestNeighbors, Printf, 
-      KernelDensitySJ, KernelDensity, Interpolations
+      KernelDensitySJ, KernelDensity, Interpolations, CSV, WriteVTK, Distributed
 
 import ..Options, ..OptionsStat, ..OptionsNonstat, ..OptionsNuisance,
        ..history, ..GP.κ, ..calcfstar!, ..AbstractOperator.Sounding, 
@@ -10,10 +10,12 @@ import ..Options, ..OptionsStat, ..OptionsNonstat, ..OptionsNuisance,
 export trimxft, assembleTat1, gettargtemps, checkns, getchi2forall, nicenup, plotconv,
         plot_posterior, make1Dhist, make1Dhists, setupz, zcontinue, makezρ, plotdepthtransforms,
         unwrap, getn, geomprogdepth, assemblemodelsatT, getstats, gethimage,
-        assemblenuisancesatT, makenuisancehists, stretchexists,
+        assemblenuisancesatT, makenuisancehists, stretchexists, stepmodel,
         makegrid, whichislast, makesummarygrid, makearray, plotNEWSlabels, 
-        plotprofile, gridpoints, splitsoundingsbyline, dfn2hdr, getgdfprefix, 
-        pairinteractionplot, flipline, summaryconductivity, plotsummarygrids1, getVE
+        plotprofile, gridpoints, splitsoundingsbyline, getsoundingsperline,dfn2hdr, 
+        getgdfprefix, readlargetextmatrix, pairinteractionplot, flipline, 
+        summaryconductivity, plotsummarygrids1, getVE, writevtkfromsounding, 
+        readcols, colstovtk, findclosestidxincolfile, zcentertoboundary
 
 # Kernel Density stuff
 abstract type KDEtype end
@@ -649,8 +651,7 @@ function plot_posterior(F::Operator1D,
                             islscale=true, pdfnormalize=pdfnormalize)
     f,ax = plt.subplots(1, 2, sharey=true, figsize=figsize)
     xall = opts.xall
-    diffs = diff(xall[:])
-    xmesh = vcat(xall[1:end-1] - diffs/2, xall[end]-diffs[end]/2, xall[end])
+    xmesh = [zcentertoboundary(xall); xall[end]]
     vmin, vmax = extrema(himage_ns)
     vmax = vmin+vmaxpc*(vmax-vmin)
     im1 = ax[1].pcolormesh(edges_ns[:], xmesh, himage_ns, cmap=cmappdf, vmax=vmax)
@@ -724,8 +725,7 @@ function plot_posterior(F::Operator1D,
             f, ax = plt.subplots(1,1, sharey=true, figsize=figsize, squeeze=false)
         end    
         xall = opt.xall
-        diffs = diff(xall[:])
-        xmesh = vcat(xall[1:end-1] - diffs/2, xall[end]-diffs[end]/2, xall[end])
+        xmesh = [zcentertoboundary(xall); xall[end]]
         vmin, vmax = extrema(himage)
         vmax = vmin+vmaxpc*(vmax-vmin)
         im1 = ax[1].pcolormesh(edges[:], xmesh, himage, cmap=cmappdf, vmax=vmax)
@@ -941,7 +941,16 @@ function gethimage(F::Operator, M::AbstractArray, opt::Options;
     himage, edges, CI, meanimage, Mslope, sdevslope
 end
 
-# plotting codes for 2D sections in AEM
+
+# some plotting codes for  AEM
+function stepmodel(ax, iaxis, color, ρ , aem, model_lw, alpha)
+    nfixed = aem.nfixed
+    if isnothing(color) 
+        ax[iaxis].step(ρ, aem.z[nfixed+1:end], linewidth=model_lw, alpha=alpha)
+    else
+        ax[iaxis].step(ρ, aem.z[nfixed+1:end]; linewidth=model_lw, alpha=alpha, color)
+    end    
+end   
 
 function splitsoundingsbyline(soundings::Array{S, 1}) where S<:Sounding
     alllines = [s.linenum for s in soundings]
@@ -953,6 +962,105 @@ function splitsoundingsbyline(soundings::Array{S, 1}) where S<:Sounding
     end
     linestartidx
 end 
+
+function getsoundingsperline(soundings::Array{S, 1}) where S<:Sounding
+    linestartidx = splitsoundingsbyline(soundings)                    
+    nlines = length(linestartidx)                   
+    s = map(1:nlines) do i
+        a = linestartidx[i]
+        b = i != nlines ?  linestartidx[i+1]-1 : length(soundings)
+        soundings[a:b]
+    end    
+end    
+
+function writevtkfromsounding(lineofsoundings::Array{S, 1}, zall) where S<:Sounding
+    X, Y, Z = map(x->getfield.(lineofsoundings, x), (:X, :Y, :Z))
+    lnum = lineofsoundings[1].linenum
+    @info("opening summary: Line $(lnum)")
+    rholow, rhomid, rhohigh = map(x->readdlm(x*"_line_$(lnum)_"*"summary.txt"), 
+                                    ["rho_low", "rho_mid", "rho_hi"])
+    Ni, Nj = map(x->length(x), (X, Y))
+    Nk = length(zall)
+    x = [X[i] for i = 1:Ni, j = 1:1, k = 1:Nk]
+    y = [Y[i] for i = 1:Ni, j = 1:1, k = 1:Nk]
+    z = [Z[i] - zall[k] for i = 1:Ni, j = 1:1, k = 1:Nk]
+    σlow, σmid, σhigh = map((rhohigh, rhomid, rholow)) do rho
+        # switch from rho to sigma so low, hi interchanged 
+        [-rho[k, i] for i = 1:Ni, j = 1:1, k = 1:Nk]
+    end
+    vtk_grid("Line_$(lnum)", x, y, z) do vtk
+        vtk["cond_low"]  = σlow
+        vtk["cond_mid"]  = σmid
+        vtk["cond_high"] = σhigh
+    end
+    nothing
+end
+
+function writevtkfromsounding(s::Vector{Array{S, 1}}, zall) where S<:Sounding
+    pmap(s) do x
+        writevtkfromsounding(x, zall)
+    end    
+end    
+
+function readcols(cols::Vector, fname::String; decfactor=1)
+    d = readlargetextmatrix(fname)[1:decfactor:end,:]
+    map(cols) do n
+        if (isa(n, Array))
+            d[:,n[1]:n[2]]
+        else
+            d[:,n]
+        end    
+    end    
+end    
+
+function colstovtk(cols::Vector, fname::String; decfactor=1, hasthick=true)
+    X, Y, Z, σ, thick = readcols(cols, fname; decfactor)
+    thick = thick[1,:]
+    zall = thicktodepth(thick; hasthick)   
+    Ni = length(X)
+    Nk = length(zall)
+    x = [X[i] for i = 1:Ni, j = 1:1, k = 1:Nk]
+    y = [Y[i] for i = 1:Ni, j = 1:1, k = 1:Nk]
+    z = [Z[i] - zall[k] for i = 1:Ni, j = 1:1, k = 1:Nk]
+    σvtk = [σ[i, k] for i = 1:Ni, j = 1:1, k = 1:Nk]
+    fstring = basename(fname)
+    dstring = dirname(fname)
+    vtk_grid(joinpath(dstring, "LEI_Line_"*fstring), x, y, z) do vtk
+        vtk["cond_LEI"]  = log10.(σvtk)
+    end
+    nothing
+end
+
+function thicktodepth(thick; hasthick=true)
+    if hasthick
+        zb = [0; cumsum(thick)]
+        zall = 0.5(zb[1:end-1]+zb[2:end])
+    else
+        zall = thick    
+    end
+    zall    
+end
+
+function zcentertoboundary(zall)
+    zb = zeros(length(zall))
+    zb[1] = 0.
+    zb[2] = 2*zall[1]
+    for i in 3:length(zb)
+        delz = 2(zall[i-1] - zb[i-1])
+        zb[i] = zb[i-1] + delz
+    end    
+    zb
+end    
+
+function findclosestidxincolfile(Xwanted, Ywanted, cols::Vector, fname::String; decfactor=1, hasthick=true)
+    X, Y, σ, thick = readcols(cols, fname; decfactor)
+    thick = thick[1,:]
+    zall = thicktodepth(thick; hasthick)
+    zb = zcentertoboundary(zall)
+    XY = [X';Y']
+    idx = getclosestidx(XY, Xwanted, Ywanted)
+    σ[idx,:], zb
+end
 
 function makegrid(vals::AbstractArray, soundings::Array{S, 1}; donn=false,
     dr=10, zall=[NaN], dz=-1) where S<:Sounding
@@ -1077,8 +1185,8 @@ function plotNEWSlabels(soundings, gridx, gridz, axarray,
     Eislast, Nislast, EWline, NSline = whichislast(soundings)
     beginpos, endpos = "", ""
     if !any(isnothing.([x0,y0,xend,yend]))
-        beginpos = @sprintf(" %.2f", x0/1000)*@sprintf(" %.2f", y0/1000)
-        endpos = @sprintf(" %.2f", xend/1000)*@sprintf(" %.2f", yend/1000)
+        beginpos = @sprintf(" %.1f", x0/1000)*@sprintf(" %.1f", y0/1000)
+        endpos = @sprintf(" %.1f", xend/1000)*@sprintf(" %.1f", yend/1000)
     end
     for s in axarray
         minylim = minimum(s.get_ylim())
@@ -1137,10 +1245,67 @@ function plotprofile(ax, idxs, Z, R)
     end
 end
 
+function getRsplits(R, Rmax)
+    q, rmn = divrem(maximum(R), Rmax)
+    thereisrmn = !iszero(rmn)
+    idx = thereisrmn ? zeros(Int, Int(q+1)) : zeros(Int, Int(q)) 
+    i = 1
+    for (ir, r) in enumerate(R)
+        if r >= Rmax*i
+            idx[i] = ir
+            i += 1
+        end
+    end
+    idx, thereisrmn        
+end    
+
 function plotsummarygrids1(soundings, meangrid, phgrid, plgrid, pmgrid, gridx, gridz, topofine, R, Z, χ²mean, χ²sd, lname; qp1=0.05, qp2=0.95,
-                        figsize=(10,10), fontsize=12, cmap="turbo", vmin=-2, vmax=0.5, 
+                        figsize=(10,10), fontsize=12, cmap="turbo", vmin=-2, vmax=0.5, Rmax=nothing,
                         topowidth=2, idx=nothing, omitconvergence=false, useML=false, preferEright=false, preferNright=false,
                         saveplot=false, yl=nothing, dpi=300, showplot=true, showmean=false)
+    if isnothing(Rmax)
+        Rmax = maximum(gridx)
+    end    
+    idx_split, thereisrmn = getRsplits(gridx, Rmax)
+    nimages = length(idx_split)
+    dr = gridx[2] - gridx[1]
+    if iszero(idx_split[1]) && thereisrmn # Rmax is larger than section
+        nx = length(range(gridx[1], Rmax, step=dr))
+    elseif !iszero(idx_split[1]) && !thereisrmn # Rmax is exactly the section length
+        nx = length(gridx)
+    elseif iszero(idx_split[2]) # Rmax is smaller than the section
+        nx = idx_split[1]
+    else    
+        nx = idx_split[2]-idx_split[1] # There are many Rmax length splits 
+    end    
+
+    i_idx = 1:nimages
+    for i in i_idx
+        a = i == firstindex(i_idx) ? 1 : idx_split[i-1]+1
+        b = i != lastindex(i_idx)  ? idx_split[i] : lastindex(gridx)
+        a_uninterp = i == firstindex(i_idx) ? 1 : findlast(R.<=gridx[a])
+        b_uninterp = i != lastindex(i_idx)  ? findlast(R.<=gridx[b]) : lastindex(soundings)
+        
+        if thereisrmn && i == lastindex(i_idx)
+            xrangelast = range(gridx[a], step=dr, length=nx)
+        else 
+            xrangelast = nothing
+        end
+
+        f, s, icol = setupconductivityplot(gridx[a:b], omitconvergence, showmean, R[a_uninterp:b_uninterp], 
+            figsize, fontsize, lname, χ²mean[a_uninterp:b_uninterp], χ²sd[a_uninterp:b_uninterp], useML, i, nimages)
+          
+        summaryconductivity(s, icol, f, soundings[a_uninterp:b_uninterp], 
+            meangrid[:,a:b], phgrid[:,a:b], plgrid[:,a:b], pmgrid[:,a:b], 
+            gridx[a:b], gridz, topofine[a:b], R[a_uninterp:b_uninterp], Z[a_uninterp:b_uninterp], ; qp1, qp2, fontsize, 
+            cmap, vmin, vmax, topowidth, idx, omitconvergence, preferEright, preferNright, yl, showmean, xrangelast)
+        
+        saveplot && savefig(lname*"_split_$(i)_of_$(nimages).png", dpi=dpi)
+        showplot || close(f)
+    end    
+end
+
+function setupconductivityplot(gridx, omitconvergence, showmean, R, figsize, fontsize, lname, χ²mean, χ²sd, useML, iimage, nimages)
     dr = diff(gridx)[1]
     nrows = omitconvergence ? 5 : 6
     height_ratios = omitconvergence ? [1, 1, 1, 1, 0.1] : [0.4, 1, 1, 1, 1, 0.1]
@@ -1150,7 +1315,7 @@ function plotsummarygrids1(soundings, meangrid, phgrid, plgrid, pmgrid, gridx, g
     end    
     f, s = plt.subplots(nrows, 1, gridspec_kw=Dict("height_ratios" => height_ratios),
                         figsize=figsize)
-    f.suptitle(lname*" Δx=$dr m, Fids: $(length(R))", fontsize=fontsize)
+    f.suptitle(lname*" Δx=$dr m, Fids: $(length(R)), $(iimage) of $(nimages)", fontsize=fontsize)
     icol = 1
     if !omitconvergence
         s[icol].plot(R, χ²mean)
@@ -1163,17 +1328,12 @@ function plotsummarygrids1(soundings, meangrid, phgrid, plgrid, pmgrid, gridx, g
         s[icol].set_title(titlestring)
         icol += 1
     end
-
-    summaryconductivity(s, icol, f, soundings, meangrid, phgrid, plgrid, pmgrid, gridx, gridz, topofine, R, Z, ; qp1, qp2, fontsize, 
-        cmap, vmin, vmax, topowidth, idx, omitconvergence, preferEright, preferNright, yl, showmean)
-    
-    saveplot && savefig(lname*".png", dpi=dpi)
-    showplot || close(f)
-end
+    f, s, icol
+end    
 
 function summaryconductivity(s, icol, f, soundings, meangrid, phgrid, plgrid, pmgrid, gridx, gridz, topofine, R, Z, ; qp1=0.05, qp2=0.95,
     fontsize=12, cmap="turbo", vmin=-2, vmax=0.5, topowidth=2, idx=nothing, omitconvergence=false, preferEright=false, preferNright=false,
-    yl=nothing,showmean=false)
+    yl=nothing, showmean=false, xrangelast=nothing)
     icolstart = icol
     s[icol].imshow(plgrid, cmap=cmap, aspect="auto", vmax=vmax, vmin = vmin,
                 extent=[gridx[1], gridx[end], gridz[end], gridz[1]])
@@ -1217,7 +1377,12 @@ function summaryconductivity(s, icol, f, soundings, meangrid, phgrid, plgrid, pm
     map(x->x.tick_params(labelbottom=false), s[1:end-2])
     # map(x->x.grid(), s[1:end-1])
     isa(yl, Nothing) || s[end-1].set_ylim(yl...)
-    plotNEWSlabels(soundings, gridx, gridz, s[icolstart:end-1]; preferEright, preferNright, fontsize)
+    x0, y0 = soundings[1].X, soundings[1].Y
+    xend, yend = soundings[end].X, soundings[end].Y
+    if !isnothing(xrangelast)
+        s[icol].set_xlim(extrema(xrangelast))
+    end    
+    plotNEWSlabels(soundings, gridx, gridz, s[icolstart:end-1], x0, y0, xend, yend; preferEright, preferNright, fontsize)
     cb = f.colorbar(imlast, cax=s[end], orientation="horizontal")
     cb.set_label("Log₁₀ S/m", labelpad=0)
     nicenup(f, fsize=fontsize, h_pad=0)
@@ -1305,8 +1470,12 @@ end
 
 function getclosestidx(Xwell, Ywell, soundings::Vector{S}) where S<: Sounding
     XY = hcat([[s.X, s.Y] for s in soundings]...)
+    getclosestidx(XY, Xwell, Ywell)
+end    
+
+function getclosestidx(XY, Xwanted, Ywanted)
     tree = KDTree(XY)
-    idx, dist = nn(tree, [Xwell;Ywell])
+    idx, dist = nn(tree, [Xwanted;Ywanted])
     @info "distance is $dist"
     idx
 end    
@@ -1366,6 +1535,23 @@ function getgdfprefix(dfnfile::String)
     location = findfirst(".dfn", lowercase(dfnfile))[1] # get file prefix
     dfnfile[1:location-1] # the prefix
 end    
+
+function readlargetextmatrix(fname::String)
+    a = read(fname) # as UInt8
+    map!(c -> c == UInt8('\t') ? UInt8(' ') : c, a, a) # replace tab with space and use memory for a
+    # convert DataFrame to Float64 matrix
+    CSV.File(IOBuffer(a); ignorerepeated=true, types=Float64, header=false, delim=' ')|>CSV.Tables.matrix
+end
+
+function readlargetextmatrix(fname::String, startfrom, skipevery, dotillsounding::Union{Int, Nothing})
+    soundings = readlargetextmatrix(fname)
+    if !isnothing(dotillsounding)
+        soundings = soundings[startfrom:skipevery:dotillsounding,:]
+    else
+        soundings = soundings[startfrom:skipevery:end,:]
+    end
+    soundings
+end
 
 function pairinteractionplot(d; varnames=nothing, figsize=(8.5,6), nbins=25, fontsize=8, fbounds=nothing,
         cmap="bone_r", islogpdf=false, showpdf=false, vecofpoints=nothing, vecofpointscolor=nothing,

@@ -1,13 +1,13 @@
-## BO nuisance stuff
+## nuisance stuff
 if tempest.vectorsum
     nustart  = [zRx-1, x_rx-1]
-    nubounds = [zRx-2.5   zRx+2.5
-                x_rx-2.5 x_rx+2.5]
+    nubounds = [zRx-3   zRx+3
+                x_rx-3 x_rx+3]
 else
-    nustart  = [zRx-2, x_rx+2, rx_pitch+0.5]
-    nubounds = [zRx-2.5      zRx+2.5
-                x_rx-2.5     x_rx+2.5
-                rx_pitch-1 rx_pitch+1]
+    nustart  = [zRx-1, x_rx+1, rx_pitch+0.5]
+    nubounds = [zRx-3      zRx+3
+                x_rx-3     x_rx+3
+                rx_pitch-1.5 rx_pitch+1.5]
 end         
 ## do the inversion
 tempest = deepcopy(Torig);

@@ -491,36 +491,30 @@ function plotdata(ax, d, σ, t; onesigma=true, dtype=nothing)
     linestyle="none", marker=".", elinewidth=1, capsize=3, label)
 end
 
-function plotsoundingcurve(ax, f, t; color=nothing, alpha=1, lw=1)
-    if isnothing(color)
-        ax.semilogx(t, μ₀*abs.(f)*fTinv, alpha=alpha, markersize=2, linewidth=lw)
-    else
-        ax.semilogx(t, μ₀*abs.(f)*fTinv, color=color, alpha=alpha, markersize=2, linewidth=lw)
-    end    
+function plotsoundingcurve(ax, f, t; color="k", alpha=1, lw=1)
+    ax.semilogx(t, μ₀*abs.(f)*fTinv, color=color, alpha=alpha, markersize=2, linewidth=lw)
 end
 
 function plotmodelfield!(ax, iaxis, aem::Bfield, ρ, nu; color=nothing, alpha=1, model_lw=1, forward_lw=1)
     # with nuisance
-    nfixed = aem.nfixed
-    ax[iaxis].step(ρ, aem.z[nfixed+1:end], linewidth=model_lw, alpha=alpha)
+    stepmodel(ax, iaxis, color, ρ, aem, model_lw, alpha)
     getfield!(ρ, nu, aem)
-    vectorsumsplit(ax, iaxis, aem::Bfield, alpha, forward_lw, color)
+    vectorsumsplit(ax, iaxis, aem, alpha, forward_lw, color)
 end 
 
 function plotmodelfield!(ax, iaxis, aem::Bfield, ρ; color=nothing, alpha=1, model_lw=1, forward_lw=1)
     # no nuisance
-    nfixed = aem.nfixed
-    ax[iaxis].step(ρ, aem.z[nfixed+1:end], linewidth=model_lw, alpha=alpha)
+    stepmodel(ax, iaxis, color, ρ, aem, model_lw, alpha)
     getfield!(ρ, aem)
-    vectorsumsplit(ax, iaxis, aem::Bfield, alpha, forward_lw, color)
+    vectorsumsplit(ax, iaxis, aem, alpha, forward_lw, color)
 end 
 
 function vectorsumsplit(ax, iaxis, aem::Bfield, alpha, forward_lw, color)
+    colorused = !isnothing(color) ? color : ax[iaxis].lines[end].get_color()
     if aem.vectorsum
         fm = get_fm(aem)
-        plotsoundingcurve(ax[iaxis+1], fm, aem.F.times; color, alpha, lw=forward_lw)
+        plotsoundingcurve(ax[iaxis+1], fm, aem.F.times; color=colorused, alpha, lw=forward_lw)
     else    
-        colorused = !isnothing(color) ? color : ax[iaxis].lines[end].get_color()
         plotsoundingcurve(ax[iaxis+1], aem.Hx, aem.F.times; color=colorused, alpha, lw=forward_lw)
         plotsoundingcurve(ax[iaxis+1], aem.Hz, aem.F.times; color=colorused, alpha, lw=forward_lw)
     end
@@ -724,6 +718,7 @@ function read_survey_files(;
 	Z = -1,
     fid = -1,
     linenum = -1,
+    lineslessthan = nothing,
 	fsize = 10)
 
     @assert frame_height > 0
@@ -746,13 +741,12 @@ function read_survey_files(;
 	@assert roll_tx > 0
 	@assert yaw_tx > 0
 	@assert 0 < multnoise < 1.0
+    if !isnothing(lineslessthan)
+        lineslessthan::Int
+    end    
 
     @info "reading $fname_dat"
-    if !isnothing(dotillsounding)
-        soundings = readdlm(fname_dat)[startfrom:skipevery:dotillsounding,:]
-    else
-        soundings = readdlm(fname_dat)[startfrom:skipevery:end,:]
-    end
+    soundings = readlargetextmatrix(fname_dat, startfrom, skipevery, dotillsounding)
     easting = soundings[:,X]
     northing = soundings[:,Y]
 	topo = soundings[:,Z]
@@ -805,6 +799,9 @@ function read_survey_files(;
     fracdone = 0 
     for is in 1:nsoundings
         l, fi = Int(whichline[is]), fiducial[is]
+        if !isnothing(lineslessthan)
+            l > lineslessthan && continue # skips high_alt and repeat lines if specified
+        end    
         dHx, dHz = vec(d_Hx[is,:]), vec(d_Hz[is,:])
         s_array[is] = TempestSoundingData(
             "sounding_$(l)_$fi", easting[is], northing[is],
@@ -822,7 +819,8 @@ function read_survey_files(;
             @info "read $is out of $nsoundings"
         end
     end
-    return s_array
+    idx = [isassigned(s_array, i) for i in 1:length(s_array)]
+    return s_array[idx]
 end
 
 function plotsoundingdata(nsoundings, times, d_Hx, Hx_add_noise, d_Hz, Hz_add_noise, z_tx, z_rx, x_rx, y_rx,
