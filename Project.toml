@@ -39,6 +39,7 @@ Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 WriteVTK = "64499a7a-5c06-52f2-abe2-ccb03c286192"
 
 [compat]
+CSV = "0.10.9"
 DataInterpolations = "3.6.1"
 Distances = "0.10.7"
 DistributedArrays = "0.6.6"
@@ -61,4 +62,5 @@ PyPlot = "2.10.0"
 Roots = "2.0.0"
 SpecialFunctions = "1.6, 2"
 StatsBase = "0.33.16"
+WriteVTK = "1.18.0"
 julia = "1.7"
