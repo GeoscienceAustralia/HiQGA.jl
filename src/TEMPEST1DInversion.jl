@@ -692,88 +692,105 @@ end
 function read_survey_files(;
     fname_dat="",
     fname_specs_halt="",
-    frame_height = -2,
-    frame_dz = -2,
-    frame_dx = -2,
-    frame_dy = -2,
-	Hxp = -1,
-	Hzp = -1,
-    Hxs = [-2, 2],
-    Hzs = [-2, 2],
+    frame_height = -99999999,
+    frame_dz = -99999999,
+    frame_dx = -99999999,
+    frame_dy = -99999999,
+	Hxp = -99999999,
+	Hzp = -99999999,
+    Hxs = [-99999999, -99999999],
+    Hzs = [-99999999, -99999999],
     units = 1e-15,
-	yaw_rx = -1,
-	pitch_rx = -1,
-	roll_rx = -1,
-	yaw_tx = -1,
-	pitch_tx = -1,
-	roll_tx = -1,
+	yaw_rx = -99999999,
+	pitch_rx = -99999999,
+	roll_rx = -99999999,
+	yaw_tx = -99999999,
+	pitch_tx = -99999999,
+	roll_tx = -99999999,
     figsize = (10,6),
     dotillsounding = nothing,
     makeqcplots = true,
     startfrom = 1,
     skipevery = 1,
     multnoise = 0.02,
-    X = -1,
-    Y = -1,
-	Z = -1,
-    fid = -1,
-    linenum = -1,
+    X = -99999999,
+    Y = -99999999,
+	Z = -99999999,
+    fid = -99999999,
+    linenum = -99999999,
     lineslessthan = nothing,
 	fsize = 10)
 
-    @assert frame_height > 0
-    @assert frame_dz > 0
-    @assert frame_dx > 0
-    @assert frame_dy > 0
-    @assert all(Hxs .> 0)
-    @assert all(Hzs .> 0)
-	@assert Hxp > 0
-	@assert Hzp > 0
-    @assert X > 0
-    @assert Y > 0
-	@assert Z > 0
-    @assert linenum > 0
-    @assert fid > 0
-	@assert pitch_rx > 0
-	@assert roll_rx > 0
-	@assert yaw_rx > 0
-	@assert pitch_tx > 0
-	@assert roll_tx > 0
-	@assert yaw_tx > 0
+    @assert frame_height > -99999999
+    @assert frame_dz > -99999999
+    @assert frame_dx > -99999999
+    @assert frame_dy > -99999999
+    @assert all(Hxs .> -99999999)
+    @assert all(Hzs .> -99999999)
+	@assert Hxp > -99999999
+	@assert Hzp > -99999999
+    @assert X > -99999999
+    @assert Y > -99999999
+	@assert Z > -99999999
+    @assert linenum > -99999999
+    @assert fid > -99999999
+	@assert pitch_rx > -99999999
+	@assert roll_rx > -99999999
+	@assert yaw_rx > -99999999
+	@assert pitch_tx > -99999999
+	@assert roll_tx > -99999999
+	@assert yaw_tx > -99999999
 	@assert 0 < multnoise < 1.0
     if !isnothing(lineslessthan)
         lineslessthan::Int
     end    
 
     @info "reading $fname_dat"
-    soundings = readlargetextmatrix(fname_dat, startfrom, skipevery, dotillsounding)
-    easting = soundings[:,X]
-    northing = soundings[:,Y]
-	topo = soundings[:,Z]
-    fiducial = soundings[:,fid]
-    whichline = soundings[:,linenum]
+    # soundings = readlargetextmatrix(fname_dat, startfrom, skipevery, dotillsounding)
+    cols = [X, Y, Z, fid, linenum, [Hxs[1], Hxs[2]], [Hzs[1], Hzs[2]], Hxp, Hzp, frame_height,
+    frame_dz, frame_dx, frame_dy, pitch_rx, yaw_rx, roll_rx, pitch_tx, yaw_tx, roll_tx]
+    
+    easting, northing, topo, fiducial, whichline, 
+    d_Hxs, d_Hzs, d_Hxp, d_Hzp, z_tx, dz_rx, x_rx, y_rx, d_pitch_rx, d_yaw_rx, d_roll_rx,
+    d_pitch_tx, d_yaw_tx, d_roll_tx = readcols(cols, fname_dat; decfactor=skipevery, 
+                                        startfrom, dotill=dotillsounding)
+    
+    σ_Hx = multnoise*d_Hxs # noise proportional to 2ndary
+    σ_Hz = multnoise*d_Hzs # noise proportional to 2ndary
+	
+    d_Hx = d_Hxs .+ d_Hxp
+    @warn "!!! assuming Hzs and Hzp in same z dirn"
+    d_Hz = d_Hzs .+ d_Hzp
 
-	d_Hx = soundings[:,Hxs[1]:Hxs[2]] # secondary field
-    d_Hz = soundings[:,Hzs[1]:Hzs[2]] # secondary field
-    σ_Hx = multnoise*d_Hx # noise proportional to 2ndary
-    σ_Hz = multnoise*d_Hz # noise proportional to 2ndary
-	d_Hx .+= soundings[:,Hxp] # add primary field
-	d_Hz .+= soundings[:,Hzp] # add primary field
+    if frame_dz>0
+        z_rx = -(z_tx + dz_rx) # Flipping to my earth geometry
+        @warn "!!! flipping sign of z_rx to align with z down !!!"
+    end
+    if frame_height>0    
+        z_tx = -z_tx # Flipping to my earth geometry
+        @warn "!!! flipping sign of z_tx to align with z down !!!"
+    end
+    if frame_dy>0        
+        y_rx = -y_rx # Flipping to my earth geometry
+        @warn "!!! flipping sign of y_rx to align with z down !!!"
+    end
 
-    z_tx = soundings[:,frame_height]
-    z_rx = -(z_tx + soundings[:,frame_dz]) # Flipping to my earth geometry
-    z_tx = -z_tx # Flipping to my earth geometry
-    x_rx = soundings[:,frame_dx]
-	y_rx = -soundings[:,frame_dy] # Flipping to my earth geometry
-
-	d_pitch_rx = -soundings[:,pitch_rx] # Flipping to GA-AEM geometry
-	d_yaw_rx = -soundings[:,yaw_rx] # Flipping to GA-AEM geometry
-	d_roll_rx = soundings[:,roll_rx]
-
-	d_pitch_tx = -soundings[:,pitch_tx] # Flipping to GA-AEM geometry
-	d_yaw_tx = -soundings[:,yaw_tx] # Flipping to GA-AEM geometry
-	d_roll_tx = soundings[:,roll_tx]
-
+    if pitch_rx>0
+        d_pitch_rx = -d_pitch_rx # Flipping to GA-AEM geometry
+        @warn "!!! flipping sign of pitch_rx to align with Rx z up !!!"
+    end
+    if yaw_rx>0    
+        d_yaw_rx   = -d_yaw_rx # Flipping to GA-AEM geometry
+        @warn "!!! flipping sign of yaw_rx to align with Rx z up !!!"
+	end
+    if pitch_tx>0
+        d_pitch_tx = -d_pitch_tx # Flipping to GA-AEM geometry
+        @warn "!!! flipping sign of pitch_tx to align with Rx z up !!!"
+    end
+    if yaw_tx>0    
+        d_yaw_tx   = -d_yaw_tx # Flipping to GA-AEM geometry
+        @warn "!!! flipping sign of yaw_tx to align with Rx z up !!!"
+    end
     @info "reading $fname_specs_halt"
     include(fname_specs_halt)
     @assert size(d_Hx, 2) == length(times)
@@ -785,12 +802,15 @@ function read_survey_files(;
     Hx_add_noise[:] .*= units
     Hz_add_noise[:] .*= units
     d_Hx[:]     .*= units
-    d_Hz[:]     .*= -units # Flipping the Z component to align with GA_AEM rx
-
+    d_Hz[:]     .*= units
+    if Hzp>0 || Hzs[1]>0
+        d_Hz     = -d_Hz # Flipping the Z component to align with GA_AEM rx
+        @warn "!!! flipping sign of d_Hz to align with Rx z up !!!"
+    end    
     σ_Hx = sqrt.(σ_Hx.^2 .+ (Hx_add_noise').^2)
     σ_Hz = sqrt.(σ_Hz.^2 .+ (Hz_add_noise').^2)
 
-    nsoundings = size(soundings, 1)
+    nsoundings = size(d_Hz, 1)
     makeqcplots && plotsoundingdata(nsoundings, times, d_Hx, σ_Hx, d_Hz, σ_Hz, z_tx, z_rx, x_rx, y_rx,
     d_yaw_tx, d_pitch_tx, d_roll_tx, d_yaw_rx, d_pitch_rx, d_roll_rx,
     figsize, fsize)

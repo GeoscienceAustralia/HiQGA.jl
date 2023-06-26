@@ -1002,13 +1002,21 @@ function writevtkfromsounding(s::Vector{Array{S, 1}}, zall) where S<:Sounding
     end    
 end    
 
-function readcols(cols::Vector, fname::String; decfactor=1)
-    d = readlargetextmatrix(fname)[1:decfactor:end,:]
+function readcols(cols::Vector, fname::String; decfactor=1, startfrom=1, dotill=nothing)
+    d = readlargetextmatrix(fname, startfrom, decfactor, dotill)
     map(cols) do n
+        # take signs of column numbers into account
         if (isa(n, Array))
-            d[:,n[1]:n[2]]
+            sign(n[1])*d[:,abs(n[1]):abs(n[2])]
         else
-            d[:,n]
+            if isa(n, Integer)
+                sign(n)*d[:,abs(n)]
+            elseif isa(n, Real)
+                # pass through value
+                fill(n, size(d,1))
+            else
+                @error  "unknown entry type"  
+            end        
         end    
     end    
 end    
