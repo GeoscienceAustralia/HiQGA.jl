@@ -3,7 +3,10 @@ using PyPlot, DelimitedFiles, Random, Statistics, HiQGA.transD_GP, Test
 zfixed = [-1e5]
 ρfixed = [1e12]
 
-## geometry parameters for tempest
+## geometry parameters for tempest 
+# z down position coordinates
+# GA-AEM z up rotation coordinates
+# +x is flight direction
 zTx = -120
 zRx = -80
 x_rx = -115.0
@@ -28,7 +31,7 @@ geovec = transD_GP.TEMPEST1DInversion.extractnu(tempest)
 transD_GP.TEMPEST1DInversion.returnprimary!(tempest, geovec)
 μ = transD_GP.AEM_VMD_HMD.μ
 @testset begin
-    # values from Ross
+    # values from Ross in fT
     Bx, By, Bz = 30.2751, -3.7899, -13.8092
     @test isapprox(tempest.Hx[1]*μ*1e15, Bx, rtol=.001)
     @test isapprox(tempest.Hy[1]*μ*1e15, By, rtol=.001)
