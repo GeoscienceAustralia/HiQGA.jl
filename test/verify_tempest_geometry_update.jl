@@ -74,7 +74,7 @@ tempest = transD_GP.TEMPEST1DInversion.Bfield(
 	addprimary = addprimary
 )
 
-transD_GP.TEMPEST1DInversion.plotmodelfield!(tempest, z, ρ)
+transD_GP.TEMPEST1DInversion.plotmodelfield!(tempest, log10.(ρ[2:end]))
 ## update it
 zTx2 = zTx + 20
 zRx2 = zRx + 5

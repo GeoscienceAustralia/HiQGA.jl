@@ -168,7 +168,7 @@ end
 
 #TODO for nuisance moves in an MCMC chain
 function update_geometry(tempest::Bfield, geovec::Array{Float64,1},
-	order_rx = "ypr", order_tx = "ypr")
+	order_rx = "ypr", order_tx = "ypr"; onlyprimary=false)
 	length(geovec) == 10 ||
 		throw(DimensionMismatch("TEMPEST geometry set with vector of wrong length."))
 	zTx = geovec[1]
@@ -184,14 +184,14 @@ function update_geometry(tempest::Bfield, geovec::Array{Float64,1},
 	tx_pitch = geovec[9]
 	tx_yaw = geovec[10]
 
-	#make new rotation matrices
+	# make new rotation matrices
 	Rot_rx = makerotationmatrix(order = order_rx,
 		yaw = rx_yaw, pitch = rx_pitch, roll = rx_roll, doinv = true)
 	Rot_tx = makerotationmatrix(order = order_tx,
 		yaw = tx_yaw, pitch = tx_pitch, roll = tx_roll)
 
-	#do update on internal VMD model
-	AEM_VMD_HMD.update_ZR!(tempest.F, zTx, zRx, nothing, sqrt(x_rx^2 + y_rx^2))
+	# do update on internal VMD model
+    onlyprimary || AEM_VMD_HMD.update_ZR!(tempest.F, zTx, zRx, nothing, sqrt(x_rx^2 + y_rx^2))
 	tempest.x_rx = x_rx
 	tempest.y_rx = y_rx
 	tempest.Rot_rx = Rot_rx
@@ -223,6 +223,13 @@ function returnprimary!(tempestin)
 	tempest.Hx, tempest.Hy, tempest.Hz
 end
 
+function returnprimary!(tempest, geovec)
+    # only primary field calculations for given geovec
+    update_geometry(tempest, geovec, onlyprimary=true)
+    reducegreenstensor!(tempest, onlyprimary=true)
+    tempest.Hx, tempest.Hy, tempest.Hz
+end    
+
 # all calling functions underneath here for misfit, field, etc. assume model is in log10 resistivity
 # SANS the top. For lower level field calculation use AEM_VMD_HMD structs
 
@@ -239,7 +246,7 @@ function getfield!(m::Array{Float64}, mn::Array{Float64}, tempest::Bfield)
     nothing
 end
 
-function reducegreenstensor!(tempest)
+function reducegreenstensor!(tempest; onlyprimary = false)
 	x, y   = tempest.x_rx, tempest.y_rx
 	r      = tempest.F.rRx
 	J1h    = tempest.F.dBazdt
@@ -262,26 +269,36 @@ function reducegreenstensor!(tempest)
 	xz    = x*z
 	yz    = y*z
 
-	HMDx = [y2mx2/r3*J1h + x2/r2*J0v,
-		    -2xy/r3*J1h  + xy/r2*J0v,
-		    -x/r*J1v                       ]
+    if !onlyprimary
+        HMDx = [y2mx2/r3*J1h + x2/r2*J0v,
+                -2xy/r3*J1h  + xy/r2*J0v,
+                -x/r*J1v                       ]
 
-	HMDy = [HMDx[2],
-	 		-y2mx2/r3*J1h + y2/r2*J0v,
-	 		-y/r*J1v		    		   ]
+        HMDy = [HMDx[2],
+                -y2mx2/r3*J1h + y2/r2*J0v,
+                -y/r*J1v		    		   ]
 
-	VMDz = [x/r*J1v,
-			y/r*J1v,
-			J0v                            ]
+        VMDz = [x/r*J1v,
+                y/r*J1v,
+                J0v                            ]
+    else
+        HMDx, HMDy, VMDz = map(y->map(x->zeros(size(J0v)), 1:3), 1:3)
+    end
 
-    if tempest.addprimary
-        HMDxp = [3x2 - R2, 3xy     , 3xz      ]/fpiR5
-        HMDyp = [3xy     , 3y2 - R2, 3yz      ]/fpiR5
-        VMDzp = [3xz     , 3yz     , 3z^2 - R2]/fpiR5
+    if tempest.addprimary || onlyprimary
+        HMDxp = [3x2 - R2, 3xy     , 3xz      ]/fpiR5*currentfac
+        HMDyp = [3xy     , 3y2 - R2, 3yz      ]/fpiR5*currentfac
+        VMDzp = [3xz     , 3yz     , 3z^2 - R2]/fpiR5*currentfac
         for idim in 1:3
-            HMDx[idim] .+= currentfac*HMDxp[idim]
-            HMDy[idim] .+= currentfac*HMDyp[idim]
-            VMDz[idim] .+= currentfac*VMDzp[idim]
+            if onlyprimary
+                HMDx[idim] .= HMDxp[idim]
+                HMDy[idim] .= HMDyp[idim]
+                VMDz[idim] .= VMDzp[idim]
+            else    
+                HMDx[idim] .+= HMDxp[idim]
+                HMDy[idim] .+= HMDyp[idim]
+                VMDz[idim] .+= VMDzp[idim]
+            end    
         end
     end
 
@@ -916,7 +933,6 @@ function makeoperator( sounding::TempestSoundingData;
     @assert dz > 0.0
     @assert ρbg > 0.0
     @assert nlayers > 1
-    nmax = nlayers+1
 
     zall, znall, zboundaries = setupz(zstart, extendfrac, dz=dz, n=nlayers, showplot=showgeomplot)
     z, ρ, = makezρ(zboundaries; zfixed=zfixed, ρfixed=ρfixed)

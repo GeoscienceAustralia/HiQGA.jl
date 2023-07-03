@@ -1015,7 +1015,7 @@ function readcols(cols::Vector, fname::String; decfactor=1, startfrom=1, dotill=
                 # pass through value
                 fill(n, size(d,1))
             else
-                @error  "unknown entry type"  
+                @error "unknown entry type"  
             end        
         end    
     end    

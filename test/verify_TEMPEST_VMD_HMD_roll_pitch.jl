@@ -69,13 +69,3 @@ for (ifn, fn) in enumerate(fnames)
 	plt.suptitle("$fn:\ntx_pitch:$tx_pitch, tx_roll:$tx_roll,  tx_yaw=$tx_yaw,\nrx_pitch:$rx_pitch, rx_roll:$rx_roll,  rx_yaw=$rx_yaw")
 	plt.tight_layout()
 end
-## time many random layers
-profileit=true
-if profileit
-	using BenchmarkTools
-	Random.seed!(435)
-	nlayers = 50
-	z = [-1e5, 0, 20, 50 .+ cumsum(15*rand(nlayers-3))...]
-	ρ = [1e13, 10, 1, 10 .^(-0.5 .+ 1.5*rand(nlayers-3))...]
-	@btime transD_GP.TEMPEST1DInversion.getfieldTD!($tempest, $z, $ρ)
-end
