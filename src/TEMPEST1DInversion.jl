@@ -191,7 +191,7 @@ function update_geometry(tempest::Bfield, geovec::Array{Float64,1},
 		yaw = tx_yaw, pitch = tx_pitch, roll = tx_roll)
 
 	# do update on internal VMD model
-    onlyprimary || AEM_VMD_HMD.update_ZR!(tempest.F, zTx, zRx, nothing, sqrt(x_rx^2 + y_rx^2))
+    AEM_VMD_HMD.update_ZR!(tempest.F, zTx, zRx, nothing, sqrt(x_rx^2 + y_rx^2); onlyprimary)
 	tempest.x_rx = x_rx
 	tempest.y_rx = y_rx
 	tempest.Rot_rx = Rot_rx

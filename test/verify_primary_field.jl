@@ -7,16 +7,17 @@ zfixed = [-1e5]
 # z down position coordinates
 # GA-AEM z up rotation coordinates
 # +x is flight direction
-zTx = -120
-zRx = -80
-x_rx = -115.0
-y_rx = 0.
-rx_roll = 3.
-rx_pitch = 6.
-rx_yaw = 10.
-tx_roll = 5.
-tx_pitch = 4.
-tx_yaw = -7
+# this is a bad geovec, not true, updated version underneath
+zTx      = -110
+zRx      = -70
+x_rx     = -113.0
+y_rx     = 2.
+rx_roll  = 4.
+rx_pitch = 7.
+rx_yaw   = 8.
+tx_roll  = 7.
+tx_pitch = 3.
+tx_yaw   = -2
 # electronics and stuff
 include("tempest_electronics_halt.jl")
 ## create tempest operator 
@@ -27,7 +28,8 @@ tempest = transD_GP.TEMPEST1DInversion.Bfield(
 	ramp = ramp, times = times,
 	addprimary = true
 )
-geovec = transD_GP.TEMPEST1DInversion.extractnu(tempest)
+# true geovec from Ross
+geovec = [-120, -80, -115, 0, 3, 6, 10, 5, 4, -7.]
 transD_GP.TEMPEST1DInversion.returnprimary!(tempest, geovec)
 μ = transD_GP.AEM_VMD_HMD.μ
 @testset begin

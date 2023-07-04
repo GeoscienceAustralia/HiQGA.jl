@@ -172,34 +172,36 @@ end
 
 #update geometry and dependent parameters - necessary for adjusting geometry
 #e.g. inverting nuisance parameters
-function update_ZR!(F::HFieldDHT, zTx, zRx, rTx, rRx)
-    if F.rTx != nothing
-        if F.rTx >= F.rRx
-            F.interpkᵣ *= F.rTx
-            F.log10interpkᵣ .+= log10(F.rTx)
-            F.log10Filter_base .+= log10(F.rTx)
+function update_ZR!(F::HFieldDHT, zTx, zRx, rTx, rRx; onlyprimary=false)
+    if !onlyprimary # Hankel transforms not involved, primary dipole field 
+        if F.rTx != nothing
+            if F.rTx >= F.rRx
+                F.interpkᵣ *= F.rTx
+                F.log10interpkᵣ .+= log10(F.rTx)
+                F.log10Filter_base .+= log10(F.rTx)
+            else
+                F.interpkᵣ *= F.rRx
+                F.log10interpkᵣ .+= log10(F.rRx)
+                F.log10Filter_base .+= log10(F.rRx)
+            end
         else
-            F.interpkᵣ *= F.rRx
-            F.log10interpkᵣ .+= log10(F.rRx)
             F.log10Filter_base .+= log10(F.rRx)
         end
-    else
-        F.log10Filter_base .+= log10(F.rRx)
-    end
 
-    if rTx != nothing
-        if rTx >= rRx
-            F.interpkᵣ /= rTx
-            F.log10interpkᵣ .-= log10(rTx)
-            F.log10Filter_base .-= log10(rTx)
+        if rTx != nothing
+            if rTx >= rRx
+                F.interpkᵣ /= rTx
+                F.log10interpkᵣ .-= log10(rTx)
+                F.log10Filter_base .-= log10(rTx)
+            else
+                F.interpkᵣ /= rRx
+                F.log10interpkᵣ .-= log10(rRx)
+                F.log10Filter_base .-= log10(rRx)
+            end
         else
-            F.interpkᵣ /= rRx
-            F.log10interpkᵣ .-= log10(rRx)
             F.log10Filter_base .-= log10(rRx)
         end
-    else
-        F.log10Filter_base .-= log10(rRx)
-    end
+    end    
     F.rTx = rTx
     F.rRx = rRx
     F.zTx = zTx
