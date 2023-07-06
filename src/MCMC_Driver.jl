@@ -386,7 +386,7 @@ function domcmciters(iterlast, nsamples, chains, mns::DArray{ModelNonstat}, m::D
     # for nonstat, stat, and nuisances all together         
     
     t, tlong = map(x->time(), 1:2)
-    for isample = iterlast+1:iterlast+nsamples
+    for isample = iterlast+1:nsamples
         # we do need each remotecall to finish before 
         # moving on to the next kind of move
         swap_temps(chains)
@@ -507,7 +507,7 @@ function domcmciters(iterlast, nsamples, chains, mns::DArray{ModelNonstat}, m::D
     # for nonstat and stat together        
     
     t, tlong = map(x->time(), 1:2)
-    for isample = iterlast+1:iterlast+nsamples
+    for isample = iterlast+1:nsamples
         # we do need each remotecall to finish before 
         # moving on to the next kind of move
         swap_temps(chains)
@@ -619,7 +619,7 @@ function domcmciters(iterlast, nsamples, chains, m::DArray{ModelStat}, mn::DArra
     # purely stationary GP moves + nuisance        
     
     t, tlong = map(x->time(), 1:2)
-    for isample = iterlast+1:iterlast+nsamples
+    for isample = iterlast+1:nsamples
         # we do need each remotecall to finish before 
         # moving on to the next kind of move
         swap_temps(chains)
@@ -720,7 +720,7 @@ function domcmciters(iterlast, nsamples, chains, m::DArray{ModelStat},
     # purely stationary GP moves     
     
     t, tlong = map(x->time(), 1:2)
-    for isample = iterlast+1:iterlast+nsamples
+    for isample = iterlast+1:nsamples
         swap_temps(chains)
         @sync for (chain_idx, chain) in enumerate(chains)
             # purely stationary GP moves 
@@ -790,7 +790,7 @@ function disptime(isample, t, tlong, iterlast, nsamples, nominaltime)
     if mod(isample-1, windowtime) == 0
         dt = time() - t #seconds
         t = time()
-        @info("on pid $(myid()) **$(@sprintf("%.2f", dt))**sec** $isample out of $(iterlast+nsamples)")
+        @info("on pid $(myid()) **$(@sprintf("%.2f", dt))**sec** $isample out of $(nsamples)")
     end
     if !isnothing(nominaltime)
         if mod(isample-1, nw*windowtime) == 0
