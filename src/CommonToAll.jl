@@ -1353,7 +1353,7 @@ end
 function plotsummarygrids1(soundings, meangrid, phgrid, plgrid, pmgrid, gridx, gridz, topofine, R, Z, χ²mean, χ²sd, lname; qp1=0.05, qp2=0.95,
                         figsize=(10,10), fontsize=12, cmap="turbo", vmin=-2, vmax=0.5, Rmax=nothing,
                         topowidth=2, idx=nothing, omitconvergence=false, useML=false, preferEright=false, preferNright=false,
-                        saveplot=false, yl=nothing, dpi=300, showplot=true, showmean=false)
+                        saveplot=false, yl=nothing, dpi=300, showplot=true, showmean=false, logscale=true)
     if isnothing(Rmax)
         Rmax = maximum(gridx)
     end    
@@ -1384,7 +1384,7 @@ function plotsummarygrids1(soundings, meangrid, phgrid, plgrid, pmgrid, gridx, g
         end
 
         f, s, icol = setupconductivityplot(gridx[a:b], omitconvergence, showmean, R[a_uninterp:b_uninterp], 
-            figsize, fontsize, lname, χ²mean[a_uninterp:b_uninterp], χ²sd[a_uninterp:b_uninterp], useML, i, nimages)
+            figsize, fontsize, lname, χ²mean[a_uninterp:b_uninterp], χ²sd[a_uninterp:b_uninterp], useML, i, nimages, logscale)
           
         summaryconductivity(s, icol, f, soundings[a_uninterp:b_uninterp], 
             meangrid[:,a:b], phgrid[:,a:b], plgrid[:,a:b], pmgrid[:,a:b], 
@@ -1396,7 +1396,7 @@ function plotsummarygrids1(soundings, meangrid, phgrid, plgrid, pmgrid, gridx, g
     end    
 end
 
-function setupconductivityplot(gridx, omitconvergence, showmean, R, figsize, fontsize, lname, χ²mean, χ²sd, useML, iimage, nimages)
+function setupconductivityplot(gridx, omitconvergence, showmean, R, figsize, fontsize, lname, χ²mean, χ²sd, useML, iimage, nimages, logscale)
     dr = diff(gridx)[1]
     nrows = omitconvergence ? 5 : 6
     height_ratios = omitconvergence ? [1, 1, 1, 1, 0.1] : [0.4, 1, 1, 1, 1, 0.1]
@@ -1417,6 +1417,7 @@ function setupconductivityplot(gridx, omitconvergence, showmean, R, figsize, fon
         s[icol].set_ylabel(L"ϕ_d")
         titlestring = useML ? "Max likelihood variance adjustment" : "Data misfit"
         s[icol].set_title(titlestring)
+        logscale && s[icol].set_yscale("log")
         icol += 1
     end
     f, s, icol

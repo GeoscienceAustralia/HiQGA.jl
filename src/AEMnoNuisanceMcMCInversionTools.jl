@@ -33,6 +33,7 @@ function summaryAEMimages(soundings::Array{S, 1}, opt::Options;
                         yl = nothing,
                         showplot = true,
                         showmean = false,
+                        logscale = true,
                         dpi = 300) where S<:Sounding
     
     linestartidx = splitsoundingsbyline(soundings)                    
@@ -42,7 +43,7 @@ function summaryAEMimages(soundings::Array{S, 1}, opt::Options;
         b = i != nlines ?  linestartidx[i+1]-1 : length(soundings)
         summaryimages(soundings[a:b], opt; qp1, qp2, burninfrac, zall,dz, dr, 
             fontsize, vmin, vmax, cmap, figsize, topowidth, idx=idx, omitconvergence, useML, 
-            preferEright, showplot, preferNright, saveplot, yl, dpi, showmean)
+            preferEright, showplot, preferNright, saveplot, yl, dpi, showmean, logscale)
     end
     nothing    
 end
@@ -67,6 +68,7 @@ function summaryimages(soundings::Array{S, 1}, opt::Options;
                         preferNright = false,
                         saveplot = false,
                         yl = nothing,
+                        logscale = true,
                         showplot = true,
                         showmean = false,
                         dpi = 300) where S<:Sounding
@@ -82,7 +84,7 @@ function summaryimages(soundings::Array{S, 1}, opt::Options;
                         figsize, fontsize, cmap, vmin, vmax, 
                         topowidth, idx, omitconvergence, useML,
                         preferEright, preferNright, saveplot, showplot, dpi,
-                        yl, showmean)                  
+                        yl, showmean, logscale)                  
 end
 
 function summarypost(soundings::Vector{S}, opt::Options;
