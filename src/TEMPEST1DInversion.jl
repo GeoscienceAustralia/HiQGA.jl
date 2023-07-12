@@ -214,13 +214,10 @@ function getfieldTD!(tempest::Bfield, z::Array{Float64, 1}, ρ::Array{Float64, 1
 	nothing
 end
 
-function returnprimary!(tempestin)
-# only useful for synthetics I guess
-    tempest = deepcopy(tempestin)
-    tempest.ρ .= 10 # no contrasts at all
-    tempest.addprimary = true
-    getfieldTD!(tempest, tempest.z, tempest.ρ)
-	tempest.Hx, tempest.Hy, tempest.Hz
+function returnprimary!(tempest)
+    # only useful for synthetics I guess
+    geovec = extractnu(tempest)
+    returnprimary!(tempest, geovec)
 end
 
 function returnprimary!(tempest, geovec)
@@ -594,7 +591,7 @@ end
 # for synthetics
 function makenoisydata!(tempest::Bfield, ρ::Array{Float64,1};
 	noisefracx = 0.02, noisefracz = 0.02, rseed=123, figsize=(8,5),
-	halt_X = nothing, halt_Z = nothing)
+	halt_X = nothing, halt_Z = nothing, showplot=true)
 	if halt_X != nothing
         @assert length(halt_X) == length(tempest.F.times)
     else
@@ -623,8 +620,34 @@ function makenoisydata!(tempest::Bfield, ρ::Array{Float64,1};
         σx = σx,
         σz = σz)
     
-	plotmodelfield!(tempest, ρ, figsize=figsize)
+	showplot && plotmodelfield!(tempest, ρ, figsize=figsize)
 	nothing
+end
+
+function makenoisydatafile!(fname::String, tempest::Bfield, ρ::Vector{Array{Float64,1}};
+	noisefracx = 0.02, noisefracz = 0.02,
+	halt_X = nothing, halt_Z = nothing)
+    d = map(zip(ρ, 1:length(ρ))) do (rho, i)
+        makenoisydata!(tempest, rho; 
+            rseed=i, # clunky but ok
+            noisefracx, noisefracz,
+	        halt_X, halt_Z, showplot=false)
+        Hx, Hz = copy(tempest.Hx), copy(tempest.Hz)     
+        Hxp, _, Hzp = returnprimary!(tempest)    
+        [Hx' Hz' Hxp[1] Hzp[1]]*μ₀*fTinv # in fT
+    end
+    reduce(vcat, d)
+    headers = 
+    """
+    Hx\t1-$(length(tempest.Hx))
+    Hz\t$(length(tempest.Hx)+1)-$(length(tempest.Hx)+length(tempest.Hz)) 
+    Hxp\t$(length(tempest.Hx)+length(tempest.Hz)+1) 
+    Hzp\t$(length(tempest.Hx)+length(tempest.Hz)+1+1)
+    """
+    f = open(fname*".hdr", "w")
+    write(f, headers)
+    close(f)
+    writedlm(fname, d)
 end
 
 function set_noisy_data!(tempest::Bfield;

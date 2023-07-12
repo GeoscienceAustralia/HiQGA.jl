@@ -7,7 +7,8 @@ zfixed = [-1e5]
 # z down position coordinates
 # GA-AEM z up rotation coordinates
 # +x is flight direction
-# this is a bad geovec, not true, updated version underneath
+# this is a bad geovec to initialise the tempest operator, 
+# it is not true, updated version underneath for test
 zTx      = -110
 zRx      = -70
 x_rx     = -113.0
