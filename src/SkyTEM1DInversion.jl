@@ -379,7 +379,7 @@ function computeMLfactor(aem)
 end
 
 function makenoisydata!(aem, ρ; 
-        rseed=123, noisefrac=0.03, σ_halt_low=nothing, σ_halt_high=nothing, useML=false,
+        rseed=123, noisefrac=0.03, σ_halt_low=nothing, σ_halt_high=nothing, useML=false, showplot = true,
         onesigma=true, color=nothing, alpha=1, model_lw=1, forward_lw=1, figsize=(8,6), revax=true)
     # σ_halt always assumed in Bfield units of pV
     getfield!(ρ, aem)
@@ -405,10 +405,31 @@ function makenoisydata!(aem, ρ;
     aem.res, aem.J, aem.W = allocateJ(aem.Flow, aem.Fhigh, aem.σlow, aem.σhigh, 
                     aem.selectlow, aem.selecthigh, aem.nfixed, length(aem.ρ))
 
-    plotmodelfield!(aem, ρ; onesigma, color, alpha, model_lw, forward_lw, figsize, revax)
+    
+    showplot && plotmodelfield!(aem, ρ; onesigma, color, alpha, model_lw, forward_lw, figsize, revax)
     nothing
 end
 
+function makenoisydatafile!(fname::String, aem::dBzdt, ρ::Vector{Array{Float64,1}};
+	noisefrac = 0.03, σ_halt_low=nothing, σ_halt_high=nothing)
+    d = map(zip(ρ, 1:length(ρ))) do (rho, i)
+        makenoisydata!(aem, rho; 
+            rseed=i, # clunky but ok
+            noisefrac,  σ_halt_low,  σ_halt_high, showplot=false)
+        dlow, dhigh = copy(aem.dlow), copy(aem.dhigh)     
+        [dlow' dhigh']*μ₀*pVinv # in pV
+    end
+    reduce(vcat, d)
+    headers = 
+    """
+    LM_data\t1-$(length(aem.dlow))
+    HM_data\t$(length(aem.dlow)+1)-$(length(aem.dlow)+length(aem.dhigh)) 
+    """
+    f = open(fname*".hdr", "w")
+    write(f, headers)
+    close(f)
+    writedlm(fname, d)
+end
 
 function makeoperator(sounding::SkyTEMsoundingData;
                        zfixed   = [-1e5],
