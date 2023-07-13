@@ -624,26 +624,45 @@ function makenoisydata!(tempest::Bfield, ρ::Array{Float64,1};
 	nothing
 end
 
-function makenoisydatafile!(fname::String, tempest::Bfield, ρ::Vector{Array{Float64,1}};
+function makenoisydatafile!(fname::String, tempest::Bfield, ρ::Vector{Array{Float64,1}}, xrange;
 	noisefracx = 0.02, noisefracz = 0.02,
 	halt_X = nothing, halt_Z = nothing)
-    d = map(zip(ρ, 1:length(ρ))) do (rho, i)
+    d = map(enumerate(ρ)) do (i, rho)
         makenoisydata!(tempest, rho; 
             rseed=i, # clunky but ok
             noisefracx, noisefracz,
 	        halt_X, halt_Z, showplot=false)
-        Hx, Hz = copy(tempest.Hx), copy(tempest.Hz)     
-        Hxp, _, Hzp = returnprimary!(tempest)    
-        [i Hx'*μ₀*fTinv Hz'*μ₀*fTinv Hxp[1]*μ₀*fTinv Hzp[1]*μ₀*fTinv] # fid and fields in fT
+        Hxs, Hzs = copy(tempest.Hx), copy(tempest.Hz)     
+        Hxp, _, Hzp = returnprimary!(tempest)
+        Hxs, Hzs = Hxs-Hxp, Hzs-Hzp   
+        hcat([i 1 xrange[i] 0 0 -tempest.F.zTx -abs(tempest.F.zTx-tempest.F.zRx)],
+        [tempest.x_rx -tempest.y_rx],
+        [tempest.rx_roll tempest.rx_pitch tempest.rx_yaw],
+        [tempest.tx_roll tempest.tx_pitch tempest.tx_yaw],
+        [Hxs'*μ₀*fTinv Hzs'*μ₀*fTinv Hxp[1]*μ₀*fTinv Hzp[1]*μ₀*fTinv])
     end
     reduce(vcat, d)
     headers = 
     """
     FID\t1
-    Hx\t1-$(1+length(tempest.Hx))
-    Hz\t$(1+length(tempest.Hx)+1)-$(1+length(tempest.Hx)+length(tempest.Hz)) 
-    Hxp\t$(1+length(tempest.Hx)+length(tempest.Hz)+1) 
-    Hzp\t$(1+length(tempest.Hx)+length(tempest.Hz)+1+1)
+    Line\t2
+    Easting\t3
+    Northing\t4
+    Height\t5
+    frame_height\t6
+    frame_dz\t7
+    frame_dx\t8
+    frame_dy\t9
+    rx_roll\t10
+    rx_pitch\t11
+    rx_yaw\t12
+    tx_roll\t13
+    tx_pitch\t14
+    tx_yaw\t15
+    Hxs\t16-$(15+length(tempest.Hx))
+    Hzs\t$(15+length(tempest.Hx)+1)-$(15+length(tempest.Hx)+length(tempest.Hz)) 
+    Hxp\t$(15+length(tempest.Hx)+length(tempest.Hz)+1) 
+    Hzp\t$(15+length(tempest.Hx)+length(tempest.Hz)+1+1)
     """
     f = open(fname*".hdr", "w")
     write(f, headers)

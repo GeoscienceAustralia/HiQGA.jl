@@ -410,21 +410,29 @@ function makenoisydata!(aem, ρ;
     nothing
 end
 
-function makenoisydatafile!(fname::String, aem::dBzdt, ρ::Vector{Array{Float64,1}};
+function makenoisydatafile!(fname::String, aem::dBzdt, ρ::Vector{Array{Float64,1}}, xrange;
 	noisefrac = 0.03, σ_halt_low=nothing, σ_halt_high=nothing)
     d = map(zip(ρ, 1:length(ρ))) do (rho, i)
         makenoisydata!(aem, rho; 
             rseed=i, # clunky but ok
             noisefrac,  σ_halt_low,  σ_halt_high, showplot=false)
         dlow, dhigh = copy(aem.dlow), copy(aem.dhigh)     
-        [i dlow'*pVinv dhigh'*μ₀*pVinv] # fid and dBzdt in pV
+        [i 1 xrange[i] 0 0 -aem.Flow.zTx abs(aem.Flow.zTx-aem.Flow.zRx) aem.Flow.rRx 0 dlow'*μ₀*pVinv dhigh'*μ₀*pVinv] 
     end
     reduce(vcat, d)
     headers = 
     """
     FID\t1
-    LM_data\t1-$(1+length(aem.dlow))
-    HM_data\t$(1+length(aem.dlow)+1)-$(length(aem.dlow)+length(aem.dhigh)) 
+    Line\t2
+    Easting\t3
+    Northing\t4
+    Height\t5
+    frame_height\t6
+    frame_dz\t7
+    frame_dx\t8
+    frame_dy\t9
+    LM_data\t10-$(9+length(aem.dlow))
+    HM_data\t$(9+length(aem.dlow)+1)-$(9+length(aem.dlow)+length(aem.dhigh)) 
     """
     f = open(fname*".hdr", "w")
     write(f, headers)
