@@ -417,13 +417,14 @@ function makenoisydatafile!(fname::String, aem::dBzdt, ρ::Vector{Array{Float64,
             rseed=i, # clunky but ok
             noisefrac,  σ_halt_low,  σ_halt_high, showplot=false)
         dlow, dhigh = copy(aem.dlow), copy(aem.dhigh)     
-        [dlow' dhigh']*μ₀*pVinv # in pV
+        [i dlow'*pVinv dhigh'*μ₀*pVinv] # fid and dBzdt in pV
     end
     reduce(vcat, d)
     headers = 
     """
-    LM_data\t1-$(length(aem.dlow))
-    HM_data\t$(length(aem.dlow)+1)-$(length(aem.dlow)+length(aem.dhigh)) 
+    FID\t1
+    LM_data\t1-$(1+length(aem.dlow))
+    HM_data\t$(1+length(aem.dlow)+1)-$(length(aem.dlow)+length(aem.dhigh)) 
     """
     f = open(fname*".hdr", "w")
     write(f, headers)

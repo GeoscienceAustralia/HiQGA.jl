@@ -634,15 +634,16 @@ function makenoisydatafile!(fname::String, tempest::Bfield, ρ::Vector{Array{Flo
 	        halt_X, halt_Z, showplot=false)
         Hx, Hz = copy(tempest.Hx), copy(tempest.Hz)     
         Hxp, _, Hzp = returnprimary!(tempest)    
-        [Hx' Hz' Hxp[1] Hzp[1]]*μ₀*fTinv # in fT
+        [i Hx'*μ₀*fTinv Hz'*μ₀*fTinv Hxp[1]*μ₀*fTinv Hzp[1]*μ₀*fTinv] # fid and fields in fT
     end
     reduce(vcat, d)
     headers = 
     """
-    Hx\t1-$(length(tempest.Hx))
-    Hz\t$(length(tempest.Hx)+1)-$(length(tempest.Hx)+length(tempest.Hz)) 
-    Hxp\t$(length(tempest.Hx)+length(tempest.Hz)+1) 
-    Hzp\t$(length(tempest.Hx)+length(tempest.Hz)+1+1)
+    FID\t1
+    Hx\t1-$(1+length(tempest.Hx))
+    Hz\t$(1+length(tempest.Hx)+1)-$(1+length(tempest.Hx)+length(tempest.Hz)) 
+    Hxp\t$(1+length(tempest.Hx)+length(tempest.Hz)+1) 
+    Hzp\t$(1+length(tempest.Hx)+length(tempest.Hz)+1+1)
     """
     f = open(fname*".hdr", "w")
     write(f, headers)
