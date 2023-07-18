@@ -131,7 +131,7 @@ function assemblenuisancesatT(optn::OptionsNuisance;
     #this will never give a bounds error
     #because of the assert above
     firsti = round(Int, niters*burninfrac)
-    firsti == 0 && (start = 1)
+    firsti == 0 && (firsti = 1)
     # firsti = 1 + floor(Int, niters*burninfrac)
     ttarg = sortedTs[temperaturenum]
     nmodels = sum(Tacrosschains[firsti:end,:] .== ttarg)
