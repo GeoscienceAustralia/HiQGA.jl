@@ -627,19 +627,21 @@ end
 function makenoisydatafile!(fname::String, tempest::Bfield, ρ::Vector{Array{Float64,1}}, xrange;
 	noisefracx = 0.02, noisefracz = 0.02,
 	halt_X = nothing, halt_Z = nothing)
+    # remember to flip Hz, pitch and yaw from GA-AEM to z down TEMPEST
+    # remember to flip y_rx and z_rx, z_tx from my system to TEMPEST
     d = map(enumerate(ρ)) do (i, rho)
         makenoisydata!(tempest, rho; 
             rseed=i, # clunky but ok
             noisefracx, noisefracz,
 	        halt_X, halt_Z, showplot=false)
-        Hxs, Hzs = copy(tempest.Hx), copy(tempest.Hz)     
+        Hxs, Hzs = copy(tempest.dataHx), copy(tempest.dataHz)     
         Hxp, _, Hzp = returnprimary!(tempest)
         Hxs, Hzs = Hxs-Hxp, Hzs-Hzp   
         hcat([i 1 xrange[i] 0 0 -tempest.F.zTx -abs(tempest.F.zTx-tempest.F.zRx)],
         [tempest.x_rx -tempest.y_rx],
-        [tempest.rx_roll tempest.rx_pitch tempest.rx_yaw],
-        [tempest.tx_roll tempest.tx_pitch tempest.tx_yaw],
-        [Hxs'*μ₀*fTinv Hzs'*μ₀*fTinv Hxp[1]*μ₀*fTinv Hzp[1]*μ₀*fTinv])
+        [tempest.rx_roll -tempest.rx_pitch -tempest.rx_yaw],
+        [tempest.tx_roll -tempest.tx_pitch -tempest.tx_yaw],
+        [Hxs'*μ₀*fTinv -Hzs'*μ₀*fTinv Hxp[1]*μ₀*fTinv -Hzp[1]*μ₀*fTinv])
     end
     reduce(vcat, d)
     headers = 
