@@ -27,8 +27,7 @@ jobs:
       - name: Build docs
         run: |
           cd docs
-          julia -e 'ENV["PYTHON"]=""; using Pkg; Pkg.add("PyPlot")'
-          julia make.jl
+          julia -e 'ENV["PYTHON"]=""; using Pkg; Pkg.add("PyPlot")'; include("make.jl")
       - name: Publish docs
         uses: JamesIves/github-pages-deploy-action@v4.2.5
         with:
