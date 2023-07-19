@@ -15,7 +15,7 @@ export trimxft, assembleTat1, gettargtemps, checkns, getchi2forall, nicenup, plo
         plotprofile, gridpoints, splitsoundingsbyline, getsoundingsperline,dfn2hdr, 
         getgdfprefix, readlargetextmatrix, pairinteractionplot, flipline, 
         summaryconductivity, plotsummarygrids1, getVE, writevtkfromsounding, 
-        readcols, colstovtk, findclosestidxincolfile, zcentertoboundary
+        readcols, colstovtk, findclosestidxincolfile, zcentertoboundary, writeijkfromsounding
 
 # Kernel Density stuff
 abstract type KDEtype end
@@ -131,7 +131,7 @@ function assemblenuisancesatT(optn::OptionsNuisance;
     #this will never give a bounds error
     #because of the assert above
     firsti = round(Int, niters*burninfrac)
-    firsti == 0 && (start = 1)
+    firsti == 0 && (firsti = 1)
     # firsti = 1 + floor(Int, niters*burninfrac)
     ttarg = sortedTs[temperaturenum]
     nmodels = sum(Tacrosschains[firsti:end,:] .== ttarg)
@@ -1002,13 +1002,21 @@ function writevtkfromsounding(s::Vector{Array{S, 1}}, zall) where S<:Sounding
     end    
 end    
 
-function readcols(cols::Vector, fname::String; decfactor=1)
-    d = readlargetextmatrix(fname)[1:decfactor:end,:]
+function readcols(cols::Vector, fname::String; decfactor=1, startfrom=1, dotill=nothing)
+    d = readlargetextmatrix(fname, startfrom, decfactor, dotill)
     map(cols) do n
+        # take signs of column numbers into account
         if (isa(n, Array))
-            d[:,n[1]:n[2]]
+            sign(n[1])*d[:,abs(n[1]):abs(n[2])]
         else
-            d[:,n]
+            if isa(n, Integer)
+                sign(n)*d[:,abs(n)]
+            elseif isa(n, Real)
+                # pass through value
+                fill(n, size(d,1))
+            else
+                @error "unknown entry type"  
+            end        
         end    
     end    
 end    
@@ -1050,7 +1058,90 @@ function zcentertoboundary(zall)
         zb[i] = zb[i-1] + delz
     end    
     zb
-end    
+end
+
+function writeijkfromsounding(s::Vector{Array{S, 1}}, zall) where S<:Sounding
+    pmap(s) do x
+        writeijkfromsounding(x, zall)
+    end    
+end 
+
+function writeijkfromsounding(lineofsoundings::Array{S, 1}, zall) where S<:Sounding
+    X, Y, Z = map(x->getfield.(lineofsoundings, x), (:X, :Y, :Z))
+    lnum = lineofsoundings[1].linenum
+    @info("opening summary: Line $(lnum)")
+    rholow, rhomid, rhohigh = map(x->readdlm(x*"_line_$(lnum)_"*"summary.txt"), 
+                                    ["rho_low", "rho_mid", "rho_hi"])
+    Ni, Nj = map(x->length(x), (X, Y))
+    Nk = length(zall)
+    x = [X[i] for i = 1:Ni, j = 1:1, k = 1:Nk]
+    y = [Y[i] for i = 1:Ni, j = 1:1, k = 1:Nk]
+    z = [Z[i] - zall[k] for i = 1:Ni, j = 1:1, k = 1:Nk]
+    i = [i-1 for i = 1:Ni, j = 1:1, k = 1:Nk]
+    j = [k-1 for i = 1:Ni, j = 1:1, k = 1:Nk]
+    k = zeros(size(j))
+    σlow, σmid, σhigh = map((rhohigh, rhomid, rholow)) do rho
+        # switch from rho to sigma so low, hi interchanged 
+        [-rho[k, i] for i = 1:Ni, j = 1:1, k = 1:Nk]
+    end
+    str = ["low", "mid", "high"]
+    map(zip(str, [σlow, σmid, σhigh ])) do (f, σ)
+        writeijkfromgrid(f, lnum, σ, x, y, z, i, j, k, Ni, Nk)
+    end    
+    nothing
+end
+
+function writeijkfromgrid(str, lnum, σ, x, y, z, i, j, k, Ni, Nk)
+    fname_data = "$(lnum)_"*str*".sg.data"
+    fname_header = fname_data[1:end-5]
+    # write_data
+    open(fname_data, "w") do f
+        write(f, "*\n")
+        write(f, "*   X   Y   Z  log10Spm  I   J   K\n")
+        write(f, "*\n")
+    end
+    io = open(fname_data, "a")
+    for c in 1:length(σ)
+        msg = @sprintf("%.2f %.2f %.2f %.4f %10i %10i %10i\n", x[c], y[c], z[c], σ[c], i[c], j[c], k[c])
+        write(io, msg)
+    end
+    close(io)
+    # write header
+    io = open(fname_header, "w")
+    headerlines = """
+    GOCAD SGrid 1
+    HEADER {
+    name:$(lnum)
+    painted:true
+    *painted*variable:Conductivity
+    ascii:on
+    double_precision_binary:off
+    cage:false
+    volume:true
+    *volume*grid:false
+    *volume*transparency_allowed:false
+    *volume*points:false
+    shaded_painted:false
+    precise_painted:true
+    *psections*grid:false
+    *psections*solid:true
+    dead_cells_faces:false
+    }
+
+    AXIS_N $(Ni) $(Nk) 1
+    PROP_ALIGNMENT POINTS
+    ASCII_DATA_FILE $(fname_data)
+
+    PROPERTY 1 log10Cond
+    PROP_UNIT 1 log10Spm
+    PROP_NO_DATA_VALUE 1 -999
+
+    END
+    """
+    write(io, headerlines)
+    close(io)
+    nothing    
+end
 
 function findclosestidxincolfile(Xwanted, Ywanted, cols::Vector, fname::String; decfactor=1, hasthick=true)
     X, Y, σ, thick = readcols(cols, fname; decfactor)
@@ -1262,7 +1353,7 @@ end
 function plotsummarygrids1(soundings, meangrid, phgrid, plgrid, pmgrid, gridx, gridz, topofine, R, Z, χ²mean, χ²sd, lname; qp1=0.05, qp2=0.95,
                         figsize=(10,10), fontsize=12, cmap="turbo", vmin=-2, vmax=0.5, Rmax=nothing,
                         topowidth=2, idx=nothing, omitconvergence=false, useML=false, preferEright=false, preferNright=false,
-                        saveplot=false, yl=nothing, dpi=300, showplot=true, showmean=false)
+                        saveplot=false, yl=nothing, dpi=300, showplot=true, showmean=false, logscale=true)
     if isnothing(Rmax)
         Rmax = maximum(gridx)
     end    
@@ -1293,7 +1384,7 @@ function plotsummarygrids1(soundings, meangrid, phgrid, plgrid, pmgrid, gridx, g
         end
 
         f, s, icol = setupconductivityplot(gridx[a:b], omitconvergence, showmean, R[a_uninterp:b_uninterp], 
-            figsize, fontsize, lname, χ²mean[a_uninterp:b_uninterp], χ²sd[a_uninterp:b_uninterp], useML, i, nimages)
+            figsize, fontsize, lname, χ²mean[a_uninterp:b_uninterp], χ²sd[a_uninterp:b_uninterp], useML, i, nimages, logscale)
           
         summaryconductivity(s, icol, f, soundings[a_uninterp:b_uninterp], 
             meangrid[:,a:b], phgrid[:,a:b], plgrid[:,a:b], pmgrid[:,a:b], 
@@ -1305,7 +1396,7 @@ function plotsummarygrids1(soundings, meangrid, phgrid, plgrid, pmgrid, gridx, g
     end    
 end
 
-function setupconductivityplot(gridx, omitconvergence, showmean, R, figsize, fontsize, lname, χ²mean, χ²sd, useML, iimage, nimages)
+function setupconductivityplot(gridx, omitconvergence, showmean, R, figsize, fontsize, lname, χ²mean, χ²sd, useML, iimage, nimages, logscale)
     dr = diff(gridx)[1]
     nrows = omitconvergence ? 5 : 6
     height_ratios = omitconvergence ? [1, 1, 1, 1, 0.1] : [0.4, 1, 1, 1, 1, 0.1]
@@ -1326,6 +1417,7 @@ function setupconductivityplot(gridx, omitconvergence, showmean, R, figsize, fon
         s[icol].set_ylabel(L"ϕ_d")
         titlestring = useML ? "Max likelihood variance adjustment" : "Data misfit"
         s[icol].set_title(titlestring)
+        logscale && s[icol].set_yscale("log")
         icol += 1
     end
     f, s, icol

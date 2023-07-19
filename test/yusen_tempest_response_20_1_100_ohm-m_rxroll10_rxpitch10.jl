@@ -32,7 +32,9 @@ tempest = transD_GP.TEMPEST1DInversion.Bfield(
 					  tx_roll = tx_roll,
 					  tx_pitch = tx_pitch,
 					  tx_yaw = tx_yaw,
-					  addprimary = addprimary)
+					  addprimary = addprimary,
+                 z = zfixed,
+					  ρ = rho)
 # X and Z components in fT from GA-AEM
 ross_primary=[28.5962      -13.689]
 ross_secondary=[

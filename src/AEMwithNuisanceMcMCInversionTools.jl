@@ -218,6 +218,7 @@ function summaryAEMwithnuisanceimages(soundings::Array{S, 1}, opt_in::Options, o
                         saveplot = true,
                         yl = nothing,
                         showplot = true,
+                        logscale = true,
                         showmean = false,
                         vectorsum = false,
                         Rmax = nothing,
@@ -229,7 +230,7 @@ function summaryAEMwithnuisanceimages(soundings::Array{S, 1}, opt_in::Options, o
         a = linestartidx[i]
         b = i != nlines ?  linestartidx[i+1]-1 : length(soundings)
         summaryimages(soundings[a:b], opt_in, optn_in; qp1, qp2, burninfrac, zall,dz, dr, vectorsum,
-            fontsize, vmin, vmax, cmap, figsize, topowidth, idx=idx, omitconvergence, useML, 
+            fontsize, vmin, vmax, cmap, figsize, topowidth, idx=idx, omitconvergence, useML, logscale,
             preferEright, showplot, preferNright, saveplot, yl, dpi, showmean, numsize, labelnu, Rmax)
     end
     nothing  
@@ -256,6 +257,7 @@ function summaryimages(soundings::Array{S, 1}, opt_in::Options, optn_in::Options
                         preferNright = false,
                         numsize=1,
                         labelnu = [""],
+                        logscale = true,
                         dpi = 300,
                         saveplot = true,
                         yl = nothing,
@@ -276,13 +278,13 @@ function summaryimages(soundings::Array{S, 1}, opt_in::Options, optn_in::Options
     lname = "Line_$(soundings[1].linenum)"
     plotsummarygrids1(soundings, σmeangrid, phgrid, plgrid, pmgrid, gridx, gridz, topofine, R, Z, χ²mean, χ²sd, lname; qp1, qp2,
                         figsize, fontsize, cmap, vmin, vmax, 
-                        topowidth, idx, omitconvergence, useML, Rmax, 
+                        topowidth, idx, omitconvergence, useML, Rmax, logscale,
                         preferEright, preferNright, saveplot, showplot, dpi,
                         yl, showmean)  
 
-    plotsummarygrids3(soundings, nuhigh, nulow, numid, phgrid, plgrid, pmgrid, gridx, gridz, topofine, R, Z, χ²mean, χ²sd, lname, nunominal, numsize, labelnu=labelnu, qp1=qp1, qp2=qp2,
+    plotsummarygrids3(soundings, nuhigh, nulow, numid, phgrid, plgrid, pmgrid, gridx, gridz, topofine, R, Z, χ²mean, χ²sd, lname, nunominal, numsize; labelnu=labelnu, qp1=qp1, qp2=qp2,
         figsize=bigfigsize, fontsize=fontsize, cmap=cmap, vmin=vmin, vmax=vmax, 
-        topowidth=topowidth, idx=idx, useML=useML, yl=yl,
+        topowidth=topowidth, idx=idx, useML=useML, yl=yl, logscale=logscale, showplot,
         preferEright=preferEright, preferNright=preferNright, saveplot=saveplot)
 
 end
@@ -301,17 +303,17 @@ function summarypost(soundings::Vector{S}, opt_in::Options, optn_in::OptionsNuis
     fnames = ["rho_low", "rho_mid", "rho_hi", "rho_avg",
         "phid_mean", "phid_sdev",
         "nu_low", "nu_mid", "nu_high"].*linename
-    # this is a debug
-    # a = Vector{Any}(undef, 10)
-    # for i in 1:4
-    #     a[i] = -999*ones(length(zall))
-    # end
-    # a[5] = -999.
-    # a[6] = -999.
-    # for i in 7:10
-    #     a[i] = -999*ones(2)
-    # end
     idxnotzero = optn_in.idxnotzero
+    # this is a debug
+    a = Vector{Any}(undef, 10)
+    for i in 1:4
+        a[i] = -999*ones(length(zall))
+    end
+    a[5] = -999.
+    a[6] = -999.
+    for i in 7:10
+        a[i] = -999*ones(length(idxnotzero))
+    end
     if isfile(fnames[1])
         nunominal = zeros(length(idxnotzero), length(soundings))
         @warn fnames[1]*" exists, reading stored values"
@@ -323,7 +325,8 @@ function summarypost(soundings::Vector{S}, opt_in::Options, optn_in::OptionsNuis
         end                                 
     else
         outputs = reduce(hcat, pmap(sounding->processonesounding(opt_in, 
-                                optn_in, sounding, zall, burninfrac, qp1, qp2, idxnotzero, useML, vectorsum), soundings))
+                                optn_in, sounding, zall, burninfrac, qp1, qp2, idxnotzero, useML, vectorsum), soundings;
+                                on_error=ex->a))
         pl, pm, ph, ρmean,  
         χ²mean, χ²sd, nulow, 
         numid, nuhigh, nunominal = map(x->reduce(hcat, x), eachrow(outputs))
@@ -364,7 +367,7 @@ function processonesounding(opt_in::Options, optn_in::OptionsNuisance, sounding:
 end
 
 function plotsummarygrids3(soundings, nuhigh, nulow, numid, phgrid, plgrid, pmgrid, gridx, gridz, topofine, R, Z, χ²mean, χ²sd, lname, nunominal, numsize=2; qp1=0.05, qp2=0.95,
-    figsize=(10,10), fontsize=12, cmap="viridis", vmin=-2, vmax=0.5, 
+    figsize=(10,10), fontsize=12, cmap="viridis", vmin=-2, vmax=0.5, logscale=true, showplot = true,
     topowidth=2, idx=nothing, useML=false, preferEright=false, preferNright=false, labelnu=[""], yl = nothing, dpi=300,
     saveplot=true)
     
@@ -387,6 +390,7 @@ function plotsummarygrids3(soundings, nuhigh, nulow, numid, phgrid, plgrid, pmgr
     s[icol].set_ylabel(L"ϕ_d")
     titlestring = useML ? "Max likelihood variance adjustment" : "Data misfit"
     s[icol].set_title(titlestring)
+    logscale && s[icol].set_yscale("log")
     icol += 1
     
     icol = plotnuquant(nulow, numid, nuhigh, nunominal, s, R, icol, nrows, numsize, labelnu)
@@ -396,6 +400,7 @@ function plotsummarygrids3(soundings, nuhigh, nulow, numid, phgrid, plgrid, pmgr
         cmap, vmin, vmax, topowidth, idx, omitconvergence=false, preferEright, preferNright, yl, showmean=false)
 
     saveplot && savefig(lname*"_with_nu.png", dpi=dpi)
+    showplot || close(f)
 end
 
 

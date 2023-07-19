@@ -168,7 +168,7 @@ end
 
 #TODO for nuisance moves in an MCMC chain
 function update_geometry(tempest::Bfield, geovec::Array{Float64,1},
-	order_rx = "ypr", order_tx = "ypr")
+	order_rx = "ypr", order_tx = "ypr"; onlyprimary=false)
 	length(geovec) == 10 ||
 		throw(DimensionMismatch("TEMPEST geometry set with vector of wrong length."))
 	zTx = geovec[1]
@@ -184,14 +184,14 @@ function update_geometry(tempest::Bfield, geovec::Array{Float64,1},
 	tx_pitch = geovec[9]
 	tx_yaw = geovec[10]
 
-	#make new rotation matrices
+	# make new rotation matrices
 	Rot_rx = makerotationmatrix(order = order_rx,
 		yaw = rx_yaw, pitch = rx_pitch, roll = rx_roll, doinv = true)
 	Rot_tx = makerotationmatrix(order = order_tx,
 		yaw = tx_yaw, pitch = tx_pitch, roll = tx_roll)
 
-	#do update on internal VMD model
-	AEM_VMD_HMD.update_ZR!(tempest.F, zTx, zRx, nothing, sqrt(x_rx^2 + y_rx^2))
+	# do update on internal VMD model
+    AEM_VMD_HMD.update_ZR!(tempest.F, zTx, zRx, nothing, sqrt(x_rx^2 + y_rx^2); onlyprimary)
 	tempest.x_rx = x_rx
 	tempest.y_rx = y_rx
 	tempest.Rot_rx = Rot_rx
@@ -214,14 +214,18 @@ function getfieldTD!(tempest::Bfield, z::Array{Float64, 1}, ρ::Array{Float64, 1
 	nothing
 end
 
-function returnprimary!(tempestin)
-# only useful for synthetics I guess
-    tempest = deepcopy(tempestin)
-    tempest.ρ .= 10 # no contrasts at all
-    tempest.addprimary = true
-    getfieldTD!(tempest, tempest.z, tempest.ρ)
-	tempest.Hx, tempest.Hy, tempest.Hz
+function returnprimary!(tempest)
+    # only useful for synthetics I guess
+    geovec = extractnu(tempest)
+    returnprimary!(tempest, geovec)
 end
+
+function returnprimary!(tempest, geovec)
+    # only primary field calculations for given geovec
+    update_geometry(tempest, geovec, onlyprimary=true)
+    reducegreenstensor!(tempest, onlyprimary=true)
+    tempest.Hx, tempest.Hy, tempest.Hz
+end    
 
 # all calling functions underneath here for misfit, field, etc. assume model is in log10 resistivity
 # SANS the top. For lower level field calculation use AEM_VMD_HMD structs
@@ -239,7 +243,7 @@ function getfield!(m::Array{Float64}, mn::Array{Float64}, tempest::Bfield)
     nothing
 end
 
-function reducegreenstensor!(tempest)
+function reducegreenstensor!(tempest; onlyprimary = false)
 	x, y   = tempest.x_rx, tempest.y_rx
 	r      = tempest.F.rRx
 	J1h    = tempest.F.dBazdt
@@ -262,26 +266,36 @@ function reducegreenstensor!(tempest)
 	xz    = x*z
 	yz    = y*z
 
-	HMDx = [y2mx2/r3*J1h + x2/r2*J0v,
-		    -2xy/r3*J1h  + xy/r2*J0v,
-		    -x/r*J1v                       ]
+    if !onlyprimary
+        HMDx = [y2mx2/r3*J1h + x2/r2*J0v,
+                -2xy/r3*J1h  + xy/r2*J0v,
+                -x/r*J1v                       ]
 
-	HMDy = [HMDx[2],
-	 		-y2mx2/r3*J1h + y2/r2*J0v,
-	 		-y/r*J1v		    		   ]
+        HMDy = [HMDx[2],
+                -y2mx2/r3*J1h + y2/r2*J0v,
+                -y/r*J1v		    		   ]
 
-	VMDz = [x/r*J1v,
-			y/r*J1v,
-			J0v                            ]
+        VMDz = [x/r*J1v,
+                y/r*J1v,
+                J0v                            ]
+    else
+        HMDx, HMDy, VMDz = map(y->map(x->zeros(size(J0v)), 1:3), 1:3)
+    end
 
-    if tempest.addprimary
-        HMDxp = [3x2 - R2, 3xy     , 3xz      ]/fpiR5
-        HMDyp = [3xy     , 3y2 - R2, 3yz      ]/fpiR5
-        VMDzp = [3xz     , 3yz     , 3z^2 - R2]/fpiR5
+    if tempest.addprimary || onlyprimary
+        HMDxp = [3x2 - R2, 3xy     , 3xz      ]/fpiR5*currentfac
+        HMDyp = [3xy     , 3y2 - R2, 3yz      ]/fpiR5*currentfac
+        VMDzp = [3xz     , 3yz     , 3z^2 - R2]/fpiR5*currentfac
         for idim in 1:3
-            HMDx[idim] .+= currentfac*HMDxp[idim]
-            HMDy[idim] .+= currentfac*HMDyp[idim]
-            VMDz[idim] .+= currentfac*VMDzp[idim]
+            if onlyprimary
+                HMDx[idim] .= HMDxp[idim]
+                HMDy[idim] .= HMDyp[idim]
+                VMDz[idim] .= VMDzp[idim]
+            else    
+                HMDx[idim] .+= HMDxp[idim]
+                HMDy[idim] .+= HMDyp[idim]
+                VMDz[idim] .+= VMDzp[idim]
+            end    
         end
     end
 
@@ -577,7 +591,7 @@ end
 # for synthetics
 function makenoisydata!(tempest::Bfield, ρ::Array{Float64,1};
 	noisefracx = 0.02, noisefracz = 0.02, rseed=123, figsize=(8,5),
-	halt_X = nothing, halt_Z = nothing)
+	halt_X = nothing, halt_Z = nothing, showplot=true)
 	if halt_X != nothing
         @assert length(halt_X) == length(tempest.F.times)
     else
@@ -606,8 +620,56 @@ function makenoisydata!(tempest::Bfield, ρ::Array{Float64,1};
         σx = σx,
         σz = σz)
     
-	plotmodelfield!(tempest, ρ, figsize=figsize)
+	showplot && plotmodelfield!(tempest, ρ, figsize=figsize)
 	nothing
+end
+
+function makenoisydatafile!(fname::String, tempest::Bfield, ρ::Vector{Array{Float64,1}}, xrange;
+	noisefracx = 0.02, noisefracz = 0.02,
+	halt_X = nothing, halt_Z = nothing)
+    # remember to flip Hz, pitch and yaw from GA-AEM to z down TEMPEST
+    # remember to flip y_rx and z_rx, z_tx from my system to TEMPEST
+    d = map(enumerate(ρ)) do (i, rho)
+        makenoisydata!(tempest, rho; 
+            rseed=i, # clunky but ok
+            noisefracx, noisefracz,
+	        halt_X, halt_Z, showplot=false)
+        Hxs, Hzs = copy(tempest.dataHx), copy(tempest.dataHz)     
+        Hxp, _, Hzp = returnprimary!(tempest)
+        Hxs, Hzs = Hxs-Hxp, Hzs-Hzp   
+        hcat([i 1 xrange[i] 0 0 -tempest.F.zTx -abs(tempest.F.zTx-tempest.F.zRx)],
+        [tempest.x_rx -tempest.y_rx],
+        [tempest.rx_roll -tempest.rx_pitch -tempest.rx_yaw],
+        [tempest.tx_roll -tempest.tx_pitch -tempest.tx_yaw],
+        [Hxs'*μ₀*fTinv -Hzs'*μ₀*fTinv Hxp[1]*μ₀*fTinv -Hzp[1]*μ₀*fTinv])
+    end
+    reduce(vcat, d)
+    headers = 
+    """
+    FID\t1
+    Line\t2
+    Easting\t3
+    Northing\t4
+    Height\t5
+    frame_height\t6
+    frame_dz\t7
+    frame_dx\t8
+    frame_dy\t9
+    rx_roll\t10
+    rx_pitch\t11
+    rx_yaw\t12
+    tx_roll\t13
+    tx_pitch\t14
+    tx_yaw\t15
+    Hxs\t16-$(15+length(tempest.Hx))
+    Hzs\t$(15+length(tempest.Hx)+1)-$(15+length(tempest.Hx)+length(tempest.Hz)) 
+    Hxp\t$(15+length(tempest.Hx)+length(tempest.Hz)+1) 
+    Hzp\t$(15+length(tempest.Hx)+length(tempest.Hz)+1+1)
+    """
+    f = open(fname*".hdr", "w")
+    write(f, headers)
+    close(f)
+    writedlm(fname, d)
 end
 
 function set_noisy_data!(tempest::Bfield;
@@ -692,88 +754,105 @@ end
 function read_survey_files(;
     fname_dat="",
     fname_specs_halt="",
-    frame_height = -2,
-    frame_dz = -2,
-    frame_dx = -2,
-    frame_dy = -2,
-	Hxp = -1,
-	Hzp = -1,
-    Hxs = [-2, 2],
-    Hzs = [-2, 2],
+    frame_height = -99999999,
+    frame_dz = -99999999,
+    frame_dx = -99999999,
+    frame_dy = -99999999,
+	Hxp = -99999999,
+	Hzp = -99999999,
+    Hxs = [-99999999, -99999999],
+    Hzs = [-99999999, -99999999],
     units = 1e-15,
-	yaw_rx = -1,
-	pitch_rx = -1,
-	roll_rx = -1,
-	yaw_tx = -1,
-	pitch_tx = -1,
-	roll_tx = -1,
+	yaw_rx = -99999999,
+	pitch_rx = -99999999,
+	roll_rx = -99999999,
+	yaw_tx = -99999999,
+	pitch_tx = -99999999,
+	roll_tx = -99999999,
     figsize = (10,6),
     dotillsounding = nothing,
     makeqcplots = true,
     startfrom = 1,
     skipevery = 1,
     multnoise = 0.02,
-    X = -1,
-    Y = -1,
-	Z = -1,
-    fid = -1,
-    linenum = -1,
+    X = -99999999,
+    Y = -99999999,
+	Z = -99999999,
+    fid = -99999999,
+    linenum = -99999999,
     lineslessthan = nothing,
 	fsize = 10)
 
-    @assert frame_height > 0
-    @assert frame_dz > 0
-    @assert frame_dx > 0
-    @assert frame_dy > 0
-    @assert all(Hxs .> 0)
-    @assert all(Hzs .> 0)
-	@assert Hxp > 0
-	@assert Hzp > 0
-    @assert X > 0
-    @assert Y > 0
-	@assert Z > 0
-    @assert linenum > 0
-    @assert fid > 0
-	@assert pitch_rx > 0
-	@assert roll_rx > 0
-	@assert yaw_rx > 0
-	@assert pitch_tx > 0
-	@assert roll_tx > 0
-	@assert yaw_tx > 0
+    @assert frame_height > -99999999
+    @assert frame_dz > -99999999
+    @assert frame_dx > -99999999
+    @assert frame_dy > -99999999
+    @assert all(Hxs .> -99999999)
+    @assert all(Hzs .> -99999999)
+	@assert Hxp > -99999999
+	@assert Hzp > -99999999
+    @assert X > -99999999
+    @assert Y > -99999999
+	@assert Z > -99999999
+    @assert linenum > -99999999
+    @assert fid > -99999999
+	@assert pitch_rx > -99999999
+	@assert roll_rx > -99999999
+	@assert yaw_rx > -99999999
+	@assert pitch_tx > -99999999
+	@assert roll_tx > -99999999
+	@assert yaw_tx > -99999999
 	@assert 0 < multnoise < 1.0
     if !isnothing(lineslessthan)
         lineslessthan::Int
     end    
 
     @info "reading $fname_dat"
-    soundings = readlargetextmatrix(fname_dat, startfrom, skipevery, dotillsounding)
-    easting = soundings[:,X]
-    northing = soundings[:,Y]
-	topo = soundings[:,Z]
-    fiducial = soundings[:,fid]
-    whichline = soundings[:,linenum]
+    # soundings = readlargetextmatrix(fname_dat, startfrom, skipevery, dotillsounding)
+    cols = [X, Y, Z, fid, linenum, [Hxs[1], Hxs[2]], [Hzs[1], Hzs[2]], Hxp, Hzp, frame_height,
+    frame_dz, frame_dx, frame_dy, pitch_rx, yaw_rx, roll_rx, pitch_tx, yaw_tx, roll_tx]
+    
+    easting, northing, topo, fiducial, whichline, 
+    d_Hxs, d_Hzs, d_Hxp, d_Hzp, z_tx, dz_rx, x_rx, y_rx, d_pitch_rx, d_yaw_rx, d_roll_rx,
+    d_pitch_tx, d_yaw_tx, d_roll_tx = readcols(cols, fname_dat; decfactor=skipevery, 
+                                        startfrom, dotill=dotillsounding)
+    
+    σ_Hx = multnoise*d_Hxs # noise proportional to 2ndary
+    σ_Hz = multnoise*d_Hzs # noise proportional to 2ndary
+	
+    d_Hx = d_Hxs .+ d_Hxp
+    @warn "!!! assuming Hzs and Hzp in same z dirn"
+    d_Hz = d_Hzs .+ d_Hzp
 
-	d_Hx = soundings[:,Hxs[1]:Hxs[2]] # secondary field
-    d_Hz = soundings[:,Hzs[1]:Hzs[2]] # secondary field
-    σ_Hx = multnoise*d_Hx # noise proportional to 2ndary
-    σ_Hz = multnoise*d_Hz # noise proportional to 2ndary
-	d_Hx .+= soundings[:,Hxp] # add primary field
-	d_Hz .+= soundings[:,Hzp] # add primary field
+    if frame_dz>0
+        z_rx = -(z_tx + dz_rx) # Flipping to my earth geometry
+        @warn "!!! flipping sign of z_rx to align with z down !!!"
+    end
+    if frame_height>0    
+        z_tx = -z_tx # Flipping to my earth geometry
+        @warn "!!! flipping sign of z_tx to align with z down !!!"
+    end
+    if frame_dy>0        
+        y_rx = -y_rx # Flipping to my earth geometry
+        @warn "!!! flipping sign of y_rx to align with z down !!!"
+    end
 
-    z_tx = soundings[:,frame_height]
-    z_rx = -(z_tx + soundings[:,frame_dz]) # Flipping to my earth geometry
-    z_tx = -z_tx # Flipping to my earth geometry
-    x_rx = soundings[:,frame_dx]
-	y_rx = -soundings[:,frame_dy] # Flipping to my earth geometry
-
-	d_pitch_rx = -soundings[:,pitch_rx] # Flipping to GA-AEM geometry
-	d_yaw_rx = -soundings[:,yaw_rx] # Flipping to GA-AEM geometry
-	d_roll_rx = soundings[:,roll_rx]
-
-	d_pitch_tx = -soundings[:,pitch_tx] # Flipping to GA-AEM geometry
-	d_yaw_tx = -soundings[:,yaw_tx] # Flipping to GA-AEM geometry
-	d_roll_tx = soundings[:,roll_tx]
-
+    if pitch_rx>0
+        d_pitch_rx = -d_pitch_rx # Flipping to GA-AEM geometry
+        @warn "!!! flipping sign of pitch_rx to align with Rx z up !!!"
+    end
+    if yaw_rx>0    
+        d_yaw_rx   = -d_yaw_rx # Flipping to GA-AEM geometry
+        @warn "!!! flipping sign of yaw_rx to align with Rx z up !!!"
+	end
+    if pitch_tx>0
+        d_pitch_tx = -d_pitch_tx # Flipping to GA-AEM geometry
+        @warn "!!! flipping sign of pitch_tx to align with Rx z up !!!"
+    end
+    if yaw_tx>0    
+        d_yaw_tx   = -d_yaw_tx # Flipping to GA-AEM geometry
+        @warn "!!! flipping sign of yaw_tx to align with Rx z up !!!"
+    end
     @info "reading $fname_specs_halt"
     include(fname_specs_halt)
     @assert size(d_Hx, 2) == length(times)
@@ -785,12 +864,15 @@ function read_survey_files(;
     Hx_add_noise[:] .*= units
     Hz_add_noise[:] .*= units
     d_Hx[:]     .*= units
-    d_Hz[:]     .*= -units # Flipping the Z component to align with GA_AEM rx
-
+    d_Hz[:]     .*= units
+    if Hzp>0 || Hzs[1]>0
+        d_Hz     = -d_Hz # Flipping the Z component to align with GA_AEM rx
+        @warn "!!! flipping sign of d_Hz to align with Rx z up !!!"
+    end    
     σ_Hx = sqrt.(σ_Hx.^2 .+ (Hx_add_noise').^2)
     σ_Hz = sqrt.(σ_Hz.^2 .+ (Hz_add_noise').^2)
 
-    nsoundings = size(soundings, 1)
+    nsoundings = size(d_Hz, 1)
     makeqcplots && plotsoundingdata(nsoundings, times, d_Hx, σ_Hx, d_Hz, σ_Hz, z_tx, z_rx, x_rx, y_rx,
     d_yaw_tx, d_pitch_tx, d_roll_tx, d_yaw_rx, d_pitch_rx, d_roll_rx,
     figsize, fsize)
@@ -896,7 +978,6 @@ function makeoperator( sounding::TempestSoundingData;
     @assert dz > 0.0
     @assert ρbg > 0.0
     @assert nlayers > 1
-    nmax = nlayers+1
 
     zall, znall, zboundaries = setupz(zstart, extendfrac, dz=dz, n=nlayers, showplot=showgeomplot)
     z, ρ, = makezρ(zboundaries; zfixed=zfixed, ρfixed=ρfixed)
