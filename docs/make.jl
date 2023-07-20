@@ -1,6 +1,7 @@
 using Documenter, Literate, Pkg
 ENV["PYTHON"]=""
 Pkg.build("PyCall")
+using PyCall
 const matplotlib = pyimport_conda("matplotlib", "matplotlib", "conda-forge")
 import HiQGA # 
 
