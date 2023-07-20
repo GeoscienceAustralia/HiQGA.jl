@@ -1,4 +1,4 @@
-using Documenter, Literate, Pkg
+using Documenter, Literate
 import HiQGA # 
 
 # example_src_dir = joinpath(@__DIR__, "..", "examples", "1D", "stationary")
