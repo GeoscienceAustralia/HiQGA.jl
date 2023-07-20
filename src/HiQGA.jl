@@ -7,6 +7,7 @@ const matplotlib = PyNULL()
 const plt = PyNULL()
 
 function __init__()
+    @info "I made it here"
     copy!(matplotlib, pyimport_conda("matplotlib", "matplotlib", "conda-forge"))
     copy!(plt, pyimport_conda("matplotlib.pyplot", "matplotlib", "conda-forge"))
 end
