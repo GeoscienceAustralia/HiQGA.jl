@@ -22,7 +22,7 @@ jobs:
         run: |
           julia -e 'using Pkg; Pkg.add(["Documenter", "Literate", "PyCall", "Conda"])'; \
           julia -e 'ENV["PYTHON"]=""; using Pkg; Pkg.build("PyCall")'; \
-          julia -e 'using Conda; Conda.add("matplotlib")'
+          julia -e 'using Conda; Conda.add("matplotlib", channel="conda-forge")'
       - name: Install HiQGA in Julia
         run: |
           julia -e 'using Pkg; Pkg.develop(path=".")'
