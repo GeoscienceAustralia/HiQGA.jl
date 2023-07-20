@@ -4,7 +4,6 @@ authors = ["richardt94 <29562583+richardt94@users.noreply.github.com>"]
 version = "0.3.7"
 
 [deps]
-Conda = "8f4d0f93-b110-5947-807f-2305c1781a2d"
 CSV = "336ed68f-0bac-5ca0-87d4-7b16caf5d00b"
 DataInterpolations = "82cc6244-b520-54b8-b5a6-8a565e85f1d0"
 Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
@@ -29,6 +28,7 @@ NearestNeighbors = "b8a86587-4115-5ab1-83bc-aa920d37bbce"
 Optim = "429524aa-4258-5aef-a3af-852621145aeb"
 PositiveFactorizations = "85a6dd25-e78a-55b7-8502-1745935b8125"
 Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
+PyCall = "438e738f-606a-5dbb-bf0a-cddfbfd45ab0"
 PyPlot = "d330b81b-6aea-500a-939a-2ce795aea3ee"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 Roots = "f2b01f46-fcfa-551c-844a-d8ac1e96c665"
@@ -40,7 +40,6 @@ Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 WriteVTK = "64499a7a-5c06-52f2-abe2-ccb03c286192"
 
 [compat]
-Conda = "1.9.1"
 CSV = "0.10.9"
 DataInterpolations = "3.6.1"
 Distances = "0.10.7"
