@@ -20,7 +20,7 @@ jobs:
           version: ${{ matrix.julia-version }}
       - name: Install Documenter and use automanaged Conda
         run: |
-          julia -e 'using Pkg; Pkg.add(["Documenter", "Literate", "PyCall"])'
+          julia -e 'using Pkg; Pkg.add(["Documenter", "Literate", "PyCall"])'; \
           julia -e 'ENV["PYTHON"]=""; using Pkg; Pkg.build("PyCall")'
       - name: Install HiQGA in Julia
         run: |
