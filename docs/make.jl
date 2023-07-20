@@ -1,8 +1,4 @@
 using Documenter, Literate, Pkg
-ENV["PYTHON"]=""
-Pkg.build("PyCall")
-using PyCall
-const matplotlib = pyimport_conda("matplotlib", "matplotlib", "conda-forge")
 import HiQGA # 
 
 # example_src_dir = joinpath(@__DIR__, "..", "examples", "1D", "stationary")
