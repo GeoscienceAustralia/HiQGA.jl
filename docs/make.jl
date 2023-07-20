@@ -1,5 +1,5 @@
 using Documenter, Literate
-# using HiQGA # commented 19/07 because trouble installing conda for docs
+using HiQGA # commented 19/07 because trouble installing conda for docs
 
 # example_src_dir = joinpath(@__DIR__, "..", "examples", "1D", "stationary")
 # example_src = joinpath(example_src_dir, "01_make_model.jl")
