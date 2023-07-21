@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        julia-version: ["1.7"]
+        julia-version: ["1.9"]
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -31,21 +31,19 @@ jobs:
         uses: julia-actions/setup-julia@v1
         with:
           version: ${{ matrix.julia-version }}
-      - name: Install Documenter and use automanaged Conda
+      - name: test automanaged Conda and PyPlot
         run: |
-          julia -e 'using Pkg; Pkg.add(["Documenter", "Literate", "Conda"])'; \
-          julia -e 'using Conda; Conda.add("matplotlib")'; \
-          julia -e 'using Conda; readdir(joinpath(Conda.ROOTENV,"pkgs")); 
+          julia -e 'import Pkg; Pkg.add("Conda"); using Conda; Conda.add("matplotlib");
             ENV["PYTHON"] = joinpath(Conda.ROOTENV, "bin", "python");
-            import Pkg; Pkg.add("PyCall"); Pkg.build("PyCall")'
-      - name: Install HiQGA in Julia
-        run: |
-          julia -e 'using Pkg; Pkg.develop(path=".")'
-      - name: Build docs
-        run: |
-          echo "not skipping"
-          cd docs
-          julia make.jl
+            Pkg.add("PyCall"); Pkg.build("PyCall")';
+      # - name: Install HiQGA in Julia
+      #   run: |
+      #     julia -e 'using Pkg; Pkg.develop(path=".")'
+      # - name: Build docs
+      #   run: |
+      #     echo "not skipping"
+      #     cd docs
+      #     julia make.jl
       # - name: Publish docs
       #   uses: JamesIves/github-pages-deploy-action@v4.4.3
       #   with:
