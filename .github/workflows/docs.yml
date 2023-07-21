@@ -39,12 +39,12 @@ jobs:
           for dirname in readdir(Conda.ROOTENV)
            dir = joinpath(Conda.ROOTENV, dirname)
            isdir(dir) && (@info(dir); @info readdir(dir))
-          end'
-          # julia -e 'ENV["PYTHON"]=""; using Pkg; Pkg.build("PyCall")'; \
+          end'; \
+          julia -e 'using Conda; Conda.add("matplotlib")'
           # julia -e 'using Conda; Conda.add("matplotlib", channel="conda-forge"); 
-      - name: Install HiQGA in Julia
-        run: |
-          julia -e 'using Pkg; Pkg.develop(path=".")'
+      # - name: Install HiQGA in Julia
+      #   run: |
+      #     julia -e 'using Pkg; Pkg.develop(path=".")'
       - name: Build docs
         run: |
           echo "skipping"
