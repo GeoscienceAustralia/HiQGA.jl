@@ -1,7 +1,6 @@
-import Pkg
-Pkg.add("Conda")
-using Conda
+import Pkg, Conda
+@info "building!"
 Conda.add("matplotlib")
 ENV["PYTHON"] = joinpath(Conda.ROOTENV, "bin", "python")
-Pkg.add("PyCall"); Pkg.build("PyCall")
-Pkg.add("PyPlot")';
+Pkg.build("PyCall")
+@info "built PyCall!"
