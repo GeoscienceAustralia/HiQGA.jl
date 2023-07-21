@@ -4,7 +4,7 @@ on:
     branches:
       - master
       - CI_check
-      -CI_check_pip
+      - CI_check_pip
 
 jobs:
   build-and-publish:
