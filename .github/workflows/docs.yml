@@ -3,7 +3,7 @@ name: docs
 on:
   push:
     branches: 
-    - CI_check_pip
+    - master
     
 jobs:
   build-and-publish:
