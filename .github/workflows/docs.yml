@@ -35,13 +35,8 @@ jobs:
         run: |
           julia -e 'using Pkg; Pkg.add(["Documenter", "Literate", "Conda"])'; \
           julia -e 'using Conda; Conda.pip_interop(true); Conda.pip("install", "matplotlib")'; \
-          # @show ENV["PYTHON"] = get(ENV, "CONDA_JL_CONDA_EXE", "nothing");
-          # for dirname in readdir(Conda.ROOTENV)
-          #  dir = joinpath(Conda.ROOTENV, dirname)
-          #  isdir(dir) && (@info(dir); @info readdir(dir))
-          # end'; \
           julia -e 'using Conda; Conda.add("matplotlib")'; \
-          julia -e 'using Pkg, PyCall; Pkg.build("PyCall")'
+          julia -e 'import Pkg, Pkg.add("PyCall"); Pkg.build("PyCall")'
       # - name: Install HiQGA in Julia
       #   run: |
       #     julia -e 'using Pkg; Pkg.develop(path=".")'
