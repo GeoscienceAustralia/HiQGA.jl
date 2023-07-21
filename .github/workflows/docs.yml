@@ -1,11 +1,10 @@
 name: docs
+
 on:
   push:
-    branches:
-      - master
-      - CI_check
-      - CI_check_pip
-
+    branches: 
+    - CI_check_pip
+    
 jobs:
   build-and-publish:
     concurrency: docs-${{ github.ref }} #to stop simultaneous docs builds
@@ -17,19 +16,20 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
       - name: Set up Julia ${{ matrix.julia-version }}
-        uses: julia-actions/setup-julia@v1
+        uses: julia-actions/setup-julia@latest
         with:
           version: ${{ matrix.julia-version }}
-      - name: Build HiQGA
+      - name: Install Documenter and hack PyPlot to use automanaged Conda
+        run: |
+          julia -e 'using Pkg; Pkg.add(["Documenter", "Literate"])'
       - uses: julia-actions/julia-buildpkg@latest
-      - name: Test HiQGA
-      - uses: julia-actions/julia-runtest@latest
-#       - name: import HiQGA
-#         run: |
-#           echo "not skipping"
-#           julia -E 'import HiQGA'
-      # - name: Publish docs
-      #   uses: JamesIves/github-pages-deploy-action@v4.4.3
-      #   with:
-      #     branch: gh-pages
-      #     folder: docs/build
+      - name: Build docs
+        run: |
+          cd docs
+          julia make.jl
+      - name: Publish docs
+        uses: JamesIves/github-pages-deploy-action@v4.4.3
+        with:
+          branch: gh-pages
+          folder: docs/build
+
