@@ -4,9 +4,11 @@ name: CI
 # events but only for the master branch
 on:
   push:
-    branches: [ CI_check_pip ]
+    branches:
+    - master
   pull_request:
-    branches: [ master ]
+    branches: 
+    - master
     
 jobs:
   test:
