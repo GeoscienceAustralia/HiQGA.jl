@@ -43,8 +43,8 @@ jobs:
       - name: Build docs
         run: |
           echo "skipping"
-          # cd docs
-          # julia make.jl
+          cd docs
+          julia make.jl
       - name: Publish docs
         uses: JamesIves/github-pages-deploy-action@v4.4.3
         with:
