@@ -40,8 +40,8 @@ jobs:
            dir = joinpath(Conda.ROOTENV, dirname)
            isdir(dir) && (@info(dir); @info readdir(dir))
           end'; \
-          julia -e 'using Conda; Conda.add("matplotlib")'
-          # julia -e 'using Conda; Conda.add("matplotlib", channel="conda-forge"); 
+          julia -e 'using Conda; Conda.add("matplotlib")'; \
+          julia -e 'using Pkg, PyCall; Pkg.build("PyCall")'
       # - name: Install HiQGA in Julia
       #   run: |
       #     julia -e 'using Pkg; Pkg.develop(path=".")'
