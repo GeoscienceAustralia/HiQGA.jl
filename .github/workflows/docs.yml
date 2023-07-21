@@ -16,34 +16,18 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v3
-      # - name: setup-conda
-      #   uses: s-weigand/setup-conda@v1.2.1
-      #   with:
-      #     # Whether to activate the conda base env (Default: 'true')
-      #     activate-conda: true
-      #     # If conda should be updated before running other commands (Default: 'false')
-      #     update-conda: false
-      #     # Python version which should be installed with conda (default: 'Default')
-      #     python-version: default
-      #     # Additional channels like 'conda-forge' which can be used to install packages
-      #     conda-channels: true   
       - name: Set up Julia ${{ matrix.julia-version }}
         uses: julia-actions/setup-julia@v1
         with:
           version: ${{ matrix.julia-version }}
-      # - name: test automanaged Conda and PyPlot
-      #   run: |
-      #     julia -e 'import Pkg; Pkg.add("Conda"); using Conda; Conda.add("matplotlib");
-      #       ENV["PYTHON"] = joinpath(Conda.ROOTENV, "bin", "python");
-      #       Pkg.add("PyCall"); Pkg.build("PyCall"); Pkg.add("PyPlot")'; \
-      #     julia -e 'import PyPlot'
-      - name: Install HiQGA in Julia
-        run: |
-          julia -e 'using Pkg; Pkg.develop(path=".")'
       - name: Build HiQGA
-        run: |
-          echo "not skipping"
-          julia -E 'import HiQGA'
+      - uses: julia-actions/julia-buildpkg@latest
+      - name: Test HiQGA
+      - uses: julia-actions/julia-runtest@latest
+#       - name: import HiQGA
+#         run: |
+#           echo "not skipping"
+#           julia -E 'import HiQGA'
       # - name: Publish docs
       #   uses: JamesIves/github-pages-deploy-action@v4.4.3
       #   with:
