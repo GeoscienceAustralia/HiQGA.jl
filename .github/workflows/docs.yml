@@ -36,9 +36,9 @@ jobs:
           julia -e 'using Pkg; Pkg.add(["Documenter", "Literate", "Conda"])'; \
           julia -e 'using Conda; Conda.add("matplotlib")'; \
           julia -e 'import Pkg; Pkg.add("PyCall"); Pkg.build("PyCall")'
-      # - name: Install HiQGA in Julia
-      #   run: |
-      #     julia -e 'using Pkg; Pkg.develop(path=".")'
+      - name: Install HiQGA in Julia
+        run: |
+          julia -e 'using Pkg; Pkg.develop(path=".")'
       - name: Build docs
         run: |
           echo "not skipping"
