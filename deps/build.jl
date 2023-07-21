@@ -1,4 +1,5 @@
 import Pkg
+@info "building!"
 Pkg.add("Conda")
 using Conda
 Conda.add("matplotlib")
