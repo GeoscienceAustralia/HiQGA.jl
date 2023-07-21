@@ -34,9 +34,12 @@ jobs:
       - name: Install Documenter and use automanaged Conda
         run: |
           julia -e 'using Pkg; Pkg.add(["Documenter", "Literate", "PyCall", "Conda"])'; \
-          julia -e 'using Conda; Conda.pip_interop(true); Conda.pip("-m install", "matplotlib");
+          julia -e 'using Conda; Conda.pip_interop(true); Conda.pip("install", "matplotlib");
           @show ENV["PYTHON"] = get(ENV, "CONDA_JL_CONDA_EXE", "nothing");
-          @show Conda.ROOTENV; @show readdir(Conda.ROOTENV); @show readdir(joinpath(Conda.ROOTENV, "pkgs"))'
+          for dirname in readdir(Conda.ROOTENV)
+           dir = joinpath(Conda.ROOTENV, dirname)
+           isdir(dir) && (@info(dir); @info readdir(dir))
+          end'
           # julia -e 'ENV["PYTHON"]=""; using Pkg; Pkg.build("PyCall")'; \
           # julia -e 'using Conda; Conda.add("matplotlib", channel="conda-forge"); 
       - name: Install HiQGA in Julia
