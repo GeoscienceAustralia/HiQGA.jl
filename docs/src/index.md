@@ -196,7 +196,7 @@ pkg> dev HiQGA
 ```
 Make a pull request if you wish to submit your change -- we welcome feature additions. If you want to switch back to the official version from development mode, do
 ```
-pkg> fee HiQGA
+pkg> free HiQGA
 ```
 ### References for AEM and CSEM physics 
 
