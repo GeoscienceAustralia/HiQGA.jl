@@ -591,7 +591,8 @@ end
 # for synthetics
 function makenoisydata!(tempest::Bfield, ρ::Array{Float64,1};
 	noisefracx = 0.02, noisefracz = 0.02, rseed=123, figsize=(8,5),
-	halt_X = nothing, halt_Z = nothing, showplot=true)
+	halt_X = nothing, halt_Z = nothing, showplot=true,
+    units = 1/fTinv)
 	if halt_X != nothing
         @assert length(halt_X) == length(tempest.F.times)
     else
@@ -607,8 +608,8 @@ function makenoisydata!(tempest::Bfield, ρ::Array{Float64,1};
     # when we compute full field next
 	tempest.addprimary = false
 	getfield!(ρ, tempest)
-	σx = sqrt.((noisefracx*abs.(tempest.Hx)).^2 + (halt_X/μ₀).^2)
-	σz = sqrt.((noisefracz*abs.(tempest.Hz)).^2 + (halt_Z/μ₀).^2)
+	σx = sqrt.((noisefracx*abs.(tempest.Hx)).^2 + (units*halt_X/μ₀).^2)
+	σz = sqrt.((noisefracz*abs.(tempest.Hz)).^2 + (units*halt_Z/μ₀).^2)
 	# reset the tempest primary field modeling flag to original
 	tempest.addprimary = primaryflag
 	# now compute full field with primary if flag says so (usual case)
@@ -626,7 +627,8 @@ end
 
 function makenoisydatafile!(fname::String, tempest::Bfield, ρ::Vector{Array{Float64,1}}, xrange;
 	noisefracx = 0.02, noisefracz = 0.02,
-	halt_X = nothing, halt_Z = nothing)
+	halt_X = nothing, halt_Z = nothing, 
+    units = 1/fTinv)
     # remember to flip Hz, pitch and yaw from GA-AEM to z down TEMPEST
     # remember to flip y_rx and z_rx, z_tx from my system to TEMPEST
     d = map(enumerate(ρ)) do (i, rho)
@@ -641,7 +643,7 @@ function makenoisydatafile!(fname::String, tempest::Bfield, ρ::Vector{Array{Flo
         [tempest.x_rx -tempest.y_rx],
         [tempest.rx_roll -tempest.rx_pitch -tempest.rx_yaw],
         [tempest.tx_roll -tempest.tx_pitch -tempest.tx_yaw],
-        [Hxs'*μ₀*fTinv -Hzs'*μ₀*fTinv Hxp[1]*μ₀*fTinv -Hzp[1]*μ₀*fTinv])
+        [Hxs'*μ₀/units -Hzs'*μ₀/units Hxp[1]*μ₀/units -Hzp[1]*μ₀/units])
     end
     reduce(vcat, d)
     headers = 
@@ -762,7 +764,7 @@ function read_survey_files(;
 	Hzp = -99999999,
     Hxs = [-99999999, -99999999],
     Hzs = [-99999999, -99999999],
-    units = 1e-15,
+    units = 1/fTinv,
 	yaw_rx = -99999999,
 	pitch_rx = -99999999,
 	roll_rx = -99999999,

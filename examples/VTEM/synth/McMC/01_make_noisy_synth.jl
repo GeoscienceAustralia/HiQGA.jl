@@ -25,5 +25,6 @@ times, ramp, rTx, zTx, z, ρ)
 Random.seed!(11)
 ρ = 10 .^(0.1*randn(length(ρ)) + log10.(ρ))
 ## make noisy synthetic
-transD_GP.VTEM1DInversion.makenoisydata!(aem, log10.(ρ[2:end]); σ_halt)
+transD_GP.VTEM1DInversion.makenoisydata!(aem, log10.(ρ[2:end]); 
+    σ_halt, units=1e-12)
    

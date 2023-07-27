@@ -187,7 +187,7 @@ function read_survey_files(;
     LM_σ = [-2, 2],
     HM_σ = [-2, 2],
     relerror = false,
-    units=1e-12,
+    units=1/pVinv,
     figsize = (9,7),
     makeqcplots = true,
     dotillsounding = nothing,
@@ -380,19 +380,20 @@ end
 
 function makenoisydata!(aem, ρ; 
         rseed=123, noisefrac=0.03, σ_halt_low=nothing, σ_halt_high=nothing, useML=false, showplot = true,
-        onesigma=true, color=nothing, alpha=1, model_lw=1, forward_lw=1, figsize=(8,6), revax=true)
-    # σ_halt always assumed in Bfield units of pV
+        onesigma=true, color=nothing, alpha=1, model_lw=1, forward_lw=1, figsize=(8,6), revax=true,
+        # σ_halt always assumed in Bfield units of pV
+        units = 1/pVinv)
     getfield!(ρ, aem)
     # low moment first
     f = aem.Flow.dBzdt
-    σ_halt = isnothing(σ_halt_low) ? zeros(size(f)) : 1/pVinv*σ_halt_low/μ₀
+    σ_halt = isnothing(σ_halt_low) ? zeros(size(f)) : units*σ_halt_low/μ₀
     σ = sqrt.((noisefrac*abs.(f)).^2 + σ_halt.^2)
     Random.seed!(rseed)
     aem.dlow = f + σ.*randn(size(f))
     aem.σlow = copy(σ)
     # high moment next
     f = aem.Fhigh.dBzdt
-    σ_halt = isnothing(σ_halt_high) ? zeros(size(f)) : 1/pVinv*σ_halt_high/μ₀
+    σ_halt = isnothing(σ_halt_high) ? zeros(size(f)) : units*σ_halt_high/μ₀
     σ = sqrt.((noisefrac*abs.(f)).^2 + σ_halt.^2)
     aem.dhigh = f + σ.*randn(size(f))
     aem.σhigh = copy(σ)
@@ -411,13 +412,13 @@ function makenoisydata!(aem, ρ;
 end
 
 function makenoisydatafile!(fname::String, aem::dBzdt, ρ::Vector{Array{Float64,1}}, xrange;
-	noisefrac = 0.03, σ_halt_low=nothing, σ_halt_high=nothing)
+	noisefrac = 0.03, σ_halt_low=nothing, σ_halt_high=nothing, units=1/pVinv)
     d = map(zip(ρ, 1:length(ρ))) do (rho, i)
         makenoisydata!(aem, rho; 
             rseed=i, # clunky but ok
             noisefrac,  σ_halt_low,  σ_halt_high, showplot=false)
         dlow, dhigh = copy(aem.dlow), copy(aem.dhigh)     
-        [i 1 xrange[i] 0 0 -aem.Flow.zTx abs(aem.Flow.zTx-aem.Flow.zRx) aem.Flow.rRx 0 dlow'*μ₀*pVinv dhigh'*μ₀*pVinv] 
+        [i 1 xrange[i] 0 0 -aem.Flow.zTx abs(aem.Flow.zTx-aem.Flow.zRx) aem.Flow.rRx 0 dlow'*μ₀/units dhigh'*μ₀/units] 
     end
     reduce(vcat, d)
     headers = 
