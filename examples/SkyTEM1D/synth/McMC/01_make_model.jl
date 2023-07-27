@@ -34,4 +34,5 @@ Random.seed!(11)
 transD_GP.SkyTEM1DInversion.plotmodelfield!(aem, log10.(ρ[2:end]))
 ## add noise to data
 transD_GP.SkyTEM1DInversion.makenoisydata!(aem, log10.(ρ[2:end]); 
-    σ_halt_low=LM_noise, σ_halt_high=HM_noise)
+    σ_halt_low=LM_noise, σ_halt_high=HM_noise,
+    units=1e-12)

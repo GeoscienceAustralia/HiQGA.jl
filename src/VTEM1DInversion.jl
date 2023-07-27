@@ -139,7 +139,7 @@ function read_survey_files(;
     fname_specs_halt="",
     frame_height = -2,
     d        = [-2, -2],
-    units=1e-12,
+    units=1/pVinv,
     figsize = (8,4),
     fontsize = 10,
     makeqcplots = true,
@@ -213,7 +213,8 @@ function plotsoundingdata(d, σ, times, zTx; figsize=(8,4), fontsize=1)
     ax[1].set_ylabel("time s")
     ax[1].tick_params(labelbottom=false)
     axx = ax[1].twiny()
-    axx.semilogy(mean(σ./abs.(d), dims=1)[:], times)
+    axx.semilogy(mean(σ./abs.(d), dims=1)[:], times, "r")
+    axx.semilogy(mean(σ./abs.(d), dims=1)[:], times, "--w")
     axx.set_xlabel("avg noise fraction")
     ax[2].plot(1:nsoundings, zTx, label="zTx")
     ax[2].set_xlabel("sounding #")
@@ -336,13 +337,14 @@ function plotmodelfield!(aem::dBzdt, manyρ::Vector{T}; onesigma=true,
 end 
 
 # noisy synthetic model making
-function makenoisydata!(aem, ρ; 
+function makenoisydata!(aem, ρ;
         rseed=123, noisefrac=0.03, σ_halt=nothing, useML=false,
-        onesigma=true, color=nothing, alpha=1, model_lw=1, forward_lw=1, figsize=(8,6), revax=true)
-    # σ_halt always assumed in Bfield units of pV
+        onesigma=true, color=nothing, alpha=1, model_lw=1, forward_lw=1, figsize=(8,6), revax=true,
+        # σ_halt default assumed in Bfield units of pV
+        units=1/pVinv)
     getfield!(ρ, aem)
     f = aem.F.dBzdt
-    σ_halt = isnothing(σ_halt) ? zeros(size(f)) : 1/pVinv*σ_halt/μ
+    σ_halt = isnothing(σ_halt) ? zeros(size(f)) : units*σ_halt/μ
     σ = sqrt.((noisefrac*abs.(f)).^2 + σ_halt.^2)
     Random.seed!(rseed)
     aem.d = f + σ.*randn(size(f))

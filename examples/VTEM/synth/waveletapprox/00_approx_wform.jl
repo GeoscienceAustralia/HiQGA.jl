@@ -1,4 +1,4 @@
-using DelimitedFiles, PyPlot, NearestNeighbors, DataInterpolations
+using DelimitedFiles, PyPlot, DataInterpolations
 skipstart = 6
 A = readdlm("VTEM-plus-7.3ms-pulse-darlingparoo.cfm"; skipstart)
 ##
@@ -28,7 +28,7 @@ for ipoint = nwidth+1:length(idx)-nwidth
         end    
     else
         δlast = δ[lastpointidx]
-        if abs((δ[ipoint]-δlast)/δ[ipoint-1]) > slopethreshfrac
+        if abs((δ[ipoint]-δlast)/δ[ipoint]) > slopethreshfrac
             lastpointidx = ipoint
             idx[ipoint]  = true
         end        
