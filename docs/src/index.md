@@ -105,9 +105,10 @@ julia> MPIPreferences.use_system_binary(;library_names=["/apps/intel-mpi/2019.8.
 └   mpiexec = "mpiexec"
 ```
 
-Once the configuration is completed, install MPI.jl and MPIClusterManagers.jl.
+Once the configuration is completed, install MPI.jl and MPIClusterManagers.jl. 
+We had errors with some other versions of MPI on NCI maybe not an issue any more ...
 ```
-pkg>add MPI, MPIClusterManagers, Distributed
+pkg>add MPI@0.19.2, MPIClusterManagers, Distributed
 ```
 Just to be safe, ensure that MPI has indeed built wth the version you have specified above:
 ```
@@ -180,27 +181,34 @@ module load python3/3.8.5
 source /g/data/z67/matplotlib-venv/bin/activate
 PYTHON=/g/data/z67/matplotlib-venv/bin/python julia
 ```
-Install and build PyCall:
-```
-pkg> add PyCall
-pkg> build PyCall
-julia> exit()
-```
-exit Julia and then restart Julia and in Pkg mode:
+Install and build PyPlot:
 ```
 pkg> add PyPlot
 ```
-- Install HiQGA in development mode:
+Install latest HiQGA release version:
+```
+pkg> add HiQGA
+```
+then exit julia with
+```
+julia>exit()
+```
+The next time you start julia you have HiQGA ready for use with
+```
+julia>using HiQGA
+```
+navigate to the [examples](https://github.com/GeoscienceAustralia/HiQGA.jl/tree/master/examples) folder to run some example scripts. **You can end here as a regular user, however for development mode see below.**
+### For installing development mode pre-release versions
 ```
 pkg> dev HiQGA
 ```
-Make a pull request if you wish to submit your change -- we welcome feature additions. If you want to switch back to the official version from development mode, do
+**Make a pull request if you wish to submit your change -- we welcome feature additions**. If you want to switch back to the official version from development mode, do
 ```
 pkg> free HiQGA
 ```
 ### References for AEM and CSEM physics 
 
 - [Blatter, D., Key, K., Ray, A., Foley, N., Tulaczyk, S., & Auken, E. (2018). Trans-dimensional Bayesian inversion of airborne transient EM data from Taylor Glacier, Antarctica. Geophysical Journal International, 214(3)](https://doi.org/10.1093/gji/ggy255)
-
+- [Brodie, R. C. (2010). Holistic inversion of airborne electromagnetic data. PhD thesis, Australian National University](https://openresearch-repository.anu.edu.au/bitstream/1885/49403/4/02Whole.pdf).
 - [Ray, A., & Key, K. (2012). Bayesian inversion of marine CSEM data with a trans-dimensional self parametrizing algorithm. Geophysical Journal International, 191(3), 1135-1151.](https://doi.org/10.1111/j.1365-246X.2012.05677.x)
 
