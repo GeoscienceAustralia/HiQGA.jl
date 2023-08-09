@@ -1573,7 +1573,7 @@ function getclosestidx(XY, Xwanted, Ywanted)
 end    
 
 #function to read the *dfn file and extract the column number and column names as a *.txt file 
-function dfn2hdr(dfnfile::String)
+function dfn2hdr(dfnfile::String; writecorrecteddfn=false)
     dfn = readlines(dfnfile)
     dfn = dfn[(.!contains.(dfn, "RT=PROJ") .& .!contains.(dfn, "RT=TRNS")
               .& .!contains.(dfn, "RT=COMM"))]
@@ -1584,8 +1584,9 @@ function dfn2hdr(dfnfile::String)
 
     cumulative_columns = 0  #this will set up a cumulative variable 
     
-    fname_hdr = getgdfprefix(dfnfile)*".hdr" # the name of HDR file associated with DFN
-    io = open(fname_hdr,"w")
+    # the name of HDR file associated with DFN
+    fname_hdr = getgdfprefix(dfnfile)*(writecorrecteddfn ? "_corrected.hdr" : ".hdr") 
+    io = open(fname_hdr,"w")    
     data_first = false
     for row = dfn
         m = match(rectype_rgx, row)
@@ -1604,6 +1605,9 @@ function dfn2hdr(dfnfile::String)
         end
 
         firstcol = cumulative_columns + 1 + data_first
+        if writecorrecteddfn 
+            firstcol -= 1
+        end    
         lastcol = firstcol + inc - 1
         cumulative_columns += inc
         
@@ -1622,6 +1626,30 @@ function dfn2hdr(dfnfile::String)
     end
     close(io)
 end
+
+function correctOMaseggdf(fname::String; writecorrecteddfn="false")
+    f = open(fname)
+    fcorr = open(fname[1:end-4]*"_corrected.dat", "w")
+    for (i, str) in enumerate(eachline(f))
+        if startswith(str, "DATA")
+            newline = replace(str, "DATA" => "", count=1)*"\n"
+            write(fcorr, newline)
+        end    
+    end
+    close.([f, fcorr])
+    if writecorrecteddfn
+        smallfile, capsfile = fname[1:end-3].*["DFN", "dfn"]
+        if isfile(smallfile)
+            file = smallfile
+        elseif isfile(capsfile)
+            file = capsfile
+        else
+            @error "file not found"
+        end
+        dfn2hdr(file; writecorrecteddfn)
+    end    
+    nothing
+end    
 
 function getgdfprefix(dfnfile::String)
     location = findfirst(".dfn", lowercase(dfnfile))[1] # get file prefix
