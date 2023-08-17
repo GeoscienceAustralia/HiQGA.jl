@@ -163,13 +163,16 @@ and you should see output like:
 ```
 This is the basic recipe for all the cluster HiQGA jobs on NCI. After the call to `manager = MPIClusterManagers.start_main_loop(MPI_TRANSPORT_ALL)`, standard MPI execution stops, and we return to an explicit manager-worker mode with code execution only continuing on the manager which is Julia process 1.
 ### Installing PyPlot on NCI
-Due to indode restrictions on NCI, we've resorted to using a communal matplotlib install as follows:
-- Remove Conda, PyPlot, PyCall, HiQGA from your julia environment if it already exists
+Add HiQGA just as usual: 
+```
+pkg>add HiQGA
+```
+However, this installs PyPlot through Conda by default. Due to indode restrictions on NCI, we've resorted to using a communal matplotlib install as follows:
+- Remove Conda, PyPlot, PyCall from your julia environment if it already exists
 ```
 pkg> rm Conda
 pkg> rm PyCall
 pkg> rm PyPlot
-pkg> rm HiQGA
 ```
 - Delete the conda directory from your .julia directory (or wherever your julia depot is):
 ```
@@ -185,9 +188,9 @@ Install and build PyPlot:
 ```
 pkg> add PyPlot
 ```
-Install latest HiQGA release version:
+build the installed HiQGA release:
 ```
-pkg> add HiQGA
+pkg> build HiQGA
 ```
 then exit julia with
 ```
