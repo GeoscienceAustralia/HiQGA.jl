@@ -10,6 +10,7 @@ import ..AbstractOperator.getresidual
 import ..AbstractOperator.returnforwrite
 import ..AbstractOperator.getndata
 import ..AbstractOperator.setnuboundsandstartforgradinv # for gradientbased
+import ..AbstractOperator.setnuforinvtype
 
 using ..AbstractOperator, ..AEM_VMD_HMD, ..SoundingDistributor
 using PyPlot, LinearAlgebra, ..CommonToAll, Random, DelimitedFiles, Distributed, Dates, Statistics, SparseArrays

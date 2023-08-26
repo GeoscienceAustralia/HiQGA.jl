@@ -7,6 +7,8 @@ import ..AbstractOperator.Sounding
 import ..AbstractOperator.returnforwrite
 import ..AbstractOperator.loopacrossAEMsoundings
 import ..AbstractOperator.plotconvandlast
+import ..AbstractOperator.plotmodelfield!
+import ..AbstractOperator.setnuforinvtype
 import ..gradientinv
 export plotconvandlast, loopacrossAEMsoundings
 # for deterministic inversions, read in
@@ -53,6 +55,8 @@ function plotconvandlast(soundings, delr, delz, nufieldnames::Vector{Symbol};
         lnames = nothing,
         idx = nothing, # array of arrrays per line
         yl = nothing,
+        plotforward = false,
+        aem_in = nothing,
         dpi=400)
     linestartidx = splitsoundingsbyline(soundings)                    
     nlines = length(linestartidx)
@@ -75,6 +79,19 @@ function plotconvandlast(soundings, delr, delz, nufieldnames::Vector{Symbol};
             isnothing(doesmatch) && continue
             @info lnames[doesmatch]
             @show idspec = idx[doesmatch]
+            for id in idspec
+                @info "X, Y = $(soundings[a:b][id].X), $(soundings[a:b][id].Y)"
+            end
+        end
+        if plotforward && !isnothing(idspec) && !isnothing(aem_in)
+            for id in idspec
+                aem = makeoperator(aem_in, soundings[a:b][id])
+                m = -vec(σ[id,:]) #log 10 ρ
+                mn = setnuforinvtype(aem, vec(nu[id,:]))
+                plotmodelfield!(aem, m, mn)
+                gcf().suptitle("Line $(soundings[a].linenum) index:$id")
+                nicenup(gcf())
+            end    
         end    
         plotconvandlasteachline(soundings[a:b], view(σ, a:b, :)', view(nu, a:b, :), nufieldnames, view(ϕd, a:b), delr, delz; 
             zall = zall, idx=idspec, yl=yl,
