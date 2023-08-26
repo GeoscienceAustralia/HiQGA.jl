@@ -723,6 +723,7 @@ mutable struct TempestSoundingData <: Sounding
     σ_z     :: Array{Float64, 1}
     Hx_data :: Array{Float64, 1}
     Hz_data :: Array{Float64, 1}
+    forceML :: Bool
 end
 
 function getnufromsounding(t::TempestSoundingData)
@@ -783,7 +784,10 @@ function read_survey_files(;
     fid = -99999999,
     linenum = -99999999,
     lineslessthan = nothing,
-	fsize = 10)
+	fsize = 10,
+    dabsmin = nothing, # for very low amp
+    earlyreturn = false, # to figure out very low amp
+    )
 
     @assert frame_height > -99999999
     @assert frame_dz > -99999999
@@ -822,9 +826,6 @@ function read_survey_files(;
     σ_Hx = multnoise*d_Hxs # noise proportional to 2ndary
     σ_Hz = multnoise*d_Hzs # noise proportional to 2ndary
 	
-    d_Hx = d_Hxs .+ d_Hxp
-    @warn "!!! assuming Hzs and Hzp in same z dirn"
-    d_Hz = d_Hzs .+ d_Hzp
 
     if frame_dz>0
         z_rx = -(z_tx + dz_rx) # Flipping to my earth geometry
@@ -855,6 +856,15 @@ function read_survey_files(;
         d_yaw_tx   = -d_yaw_tx # Flipping to GA-AEM geometry
         @warn "!!! flipping sign of yaw_tx to align with Rx z up !!!"
     end
+    
+    d_Hxs[:]     .*= units
+    d_Hzs[:]     .*= units
+    d_Hxp         *= units
+    d_Hzp         *= units
+    d_Hx = d_Hxs .+ d_Hxp
+    @warn "!!! assuming Hzs and Hzp in same z dirn"
+    d_Hz = d_Hzs .+ d_Hzp
+    
     @info "reading $fname_specs_halt"
     include(fname_specs_halt)
     @assert size(d_Hx, 2) == length(times)
@@ -865,8 +875,6 @@ function read_survey_files(;
 	σ_Hz .*= units
     Hx_add_noise[:] .*= units
     Hz_add_noise[:] .*= units
-    d_Hx[:]     .*= units
-    d_Hz[:]     .*= units
     if Hzp>0 || Hzs[1]>0
         d_Hz     = -d_Hz # Flipping the Z component to align with GA_AEM rx
         @warn "!!! flipping sign of d_Hz to align with Rx z up !!!"
@@ -875,18 +883,23 @@ function read_survey_files(;
     σ_Hz = sqrt.(σ_Hz.^2 .+ (Hz_add_noise').^2)
 
     nsoundings = size(d_Hz, 1)
-    makeqcplots && plotsoundingdata(nsoundings, times, d_Hx, σ_Hx, d_Hz, σ_Hz, z_tx, z_rx, x_rx, y_rx,
+    makeqcplots && plotsoundingdata(nsoundings, times, d_Hxs, σ_Hx, d_Hzs, σ_Hz, z_tx, z_rx, x_rx, y_rx,
     d_yaw_tx, d_pitch_tx, d_roll_tx, d_yaw_rx, d_pitch_rx, d_roll_rx,
     figsize, fsize)
 
+    earlyreturn && return d_Hxs, d_Hzs
+
     s_array = Array{TempestSoundingData, 1}(undef, nsoundings)
     fracdone = 0 
+    countforceML = 0
     for is in 1:nsoundings
         l, fi = Int(whichline[is]), fiducial[is]
         if !isnothing(lineslessthan)
             l > lineslessthan && continue # skips high_alt and repeat lines if specified
         end    
         dHx, dHz = vec(d_Hx[is,:]), vec(d_Hz[is,:])
+        forceML = checkifdatalow(d_Hxs[is,:], d_Hzs[is,:], dabsmin)
+        countforceML += forceML ? 1 : 0
         s_array[is] = TempestSoundingData(
             "sounding_$(l)_$fi", easting[is], northing[is],
             topo[is], fi, l,
@@ -895,7 +908,7 @@ function read_survey_files(;
             d_roll_tx[is], d_pitch_tx[is], d_yaw_tx[is],
             z_tx[is],
             times, ramp,
-            σ_Hx[is,:], σ_Hz[is,:], dHx, dHz
+            σ_Hx[is,:], σ_Hz[is,:], dHx, dHz, forceML
             )
         fracnew = round(Int, is/nsoundings*100)
         if (fracnew-fracdone)>10
@@ -904,12 +917,25 @@ function read_survey_files(;
         end
     end
     idx = [isassigned(s_array, i) for i in 1:length(s_array)]
+    !isnothing(dabsmin) && @info("low-amplitude forceML on $countforceML out of $(sum(idx)): $(round(100*countforceML/sum(idx)))%")
     return s_array[idx]
+end
+
+function checkifdatalow(d_Hxs, d_Hzs, dabsmin)
+    forceML = false
+    if !isnothing(dabsmin)
+        dabs = sqrt.(d_Hxs.^2 + d_Hzs.^2)
+        if mean(dabs) < dabsmin
+            forceML = true
+        end    
+    end
+    forceML    
 end
 
 function plotsoundingdata(nsoundings, times, d_Hx, Hx_add_noise, d_Hz, Hz_add_noise, z_tx, z_rx, x_rx, y_rx,
         d_yaw_tx, d_pitch_tx, d_roll_tx, d_yaw_rx, d_pitch_rx, d_roll_rx,
         figsize, fsize)
+    # d_Hx, d_Hz are secondary fields!
     f = figure(figsize=figsize)
     ax = Array{Any, 1}(undef, 4)
     ax[1] = subplot(2,2,1)
@@ -918,11 +944,11 @@ function plotsoundingdata(nsoundings, times, d_Hx, Hx_add_noise, d_Hz, Hz_add_no
     im1 = ax[1].pcolormesh(1:nsoundings, times, plot_dHx, shading="nearest")
     ax[1].set_xlabel("sounding #")
     cbHx = colorbar(im1, ax=ax[1])
-    cbHx.ax.set_xlabel("Bx", fontsize=fsize)
+    cbHx.ax.set_xlabel("Bx secondary", fontsize=fsize)
     ax[1].set_ylabel("time s")
     axHx = ax[1].twiny()
-    axHx.semilogy(mean(Hx_add_noise./abs.(d_Hx), dims=1)[:], times, "r")
-    axHx.semilogy(mean(Hx_add_noise./abs.(d_Hx), dims=1)[:], times, "--w")
+    axHx.semilogy(infmean(Hx_add_noise./abs.(d_Hx), 1)[:], times, "r")
+    axHx.semilogy(infmean(Hx_add_noise./abs.(d_Hx), 1)[:], times, "--w")
     axHx.set_xlabel("avg Hx noise fraction")
     ax[2] = subplot(2,2,3,sharex=ax[1], sharey=ax[1])
     plot_dHz = permutedims(d_Hz)
@@ -930,13 +956,13 @@ function plotsoundingdata(nsoundings, times, d_Hx, Hx_add_noise, d_Hz, Hz_add_no
     im2 = ax[2].pcolormesh(1:nsoundings, times, plot_dHz, shading="nearest")
     ax[2].set_xlabel("sounding #")
     cbHz = colorbar(im2, ax=ax[2])
-    cbHz.ax.set_xlabel("Bz", fontsize=fsize)
+    cbHz.ax.set_xlabel("Bz secondary", fontsize=fsize)
     ax[1].set_ylabel("time s")
     ax[2].set_ylabel("time s")
     ax[2].invert_yaxis()
     axHz = ax[2].twiny()
-    axHz.semilogy(mean(Hz_add_noise./abs.(d_Hz), dims=1)[:], times, "r")
-    axHz.semilogy(mean(Hz_add_noise./abs.(d_Hz), dims=1)[:], times, "--w")
+    axHz.semilogy(infmean(Hz_add_noise./abs.(d_Hz), 1)[:], times, "r")
+    axHz.semilogy(infmean(Hz_add_noise./abs.(d_Hz), 1)[:], times, "--w")
     axHz.set_xlabel("avg Hz noise fraction")
     ax[3] = subplot(2,2,2, sharex=ax[1])
 	ax[3].plot(1:nsoundings, z_tx, label="z_tx", "--")
@@ -1012,12 +1038,14 @@ end
 function makeoperator(aem::Bfield, sounding::TempestSoundingData)
     ntimesperdecade = gettimesperdec(aem.F.interptimes)
     nfreqsperdecade = gettimesperdec(aem.F.freqs)
+    @assert !(aem.useML & sounding.forceML) "useML and forceML through dabsmin cannot both be true"
     aemout = Bfield(;ntimesperdecade, nfreqsperdecade,
     zTx = sounding.z_tx, zRx = sounding.z_rx,
 	x_rx = sounding.x_rx, y_rx = sounding.y_rx,
     rx_roll = sounding.roll_rx, rx_pitch = sounding.pitch_rx, rx_yaw = sounding.yaw_rx,
     tx_roll = sounding.roll_tx, tx_pitch = sounding.pitch_tx, tx_yaw = sounding.yaw_tx,
-	ramp = sounding.ramp, times = sounding.times, useML = aem.useML,
+	ramp = sounding.ramp, times = sounding.times, 
+    useML = (aem.useML | sounding.forceML), # OR logic for useML with true, true disqualified earlier
 	z=copy(aem.z), ρ=copy(aem.ρ), calcjacobian=aem.F.calcjacobian,
 	addprimary = aem.addprimary, #this ensures that the geometry update actually changes everything that needs to be
     vectorsum = aem.vectorsum
