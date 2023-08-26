@@ -81,7 +81,7 @@ function plotconvandlast(soundings, delr, delz;
         if plotforward && !isnothing(idspec) && !isnothing(aem_in)
             for id in idspec
                 aem = makeoperator(aem_in, soundings[a:b][id])
-                m = -vec(σ[id,:]) #log 10 ρ
+                m = -vec(σ[a:b,:][id,:]) #log 10 ρ
                 plotmodelfield!(aem, m)
                 gcf().suptitle("Line $(soundings[a].linenum) index:$id")
                 nicenup(gcf())
