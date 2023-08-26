@@ -6,6 +6,7 @@ import ..AbstractOperator.Sounding
 import ..AbstractOperator.returnforwrite
 import ..AbstractOperator.loopacrossAEMsoundings
 import ..AbstractOperator.plotconvandlast
+import ..AbstractOperator.plotmodelfield!
 import ..gradientinv
 export plotconvandlast, loopacrossAEMsoundings
 # for deterministic inversions, read in
