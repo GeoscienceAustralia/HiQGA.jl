@@ -86,8 +86,8 @@ function plotconvandlast(soundings, delr, delz, nufieldnames::Vector{Symbol};
         if plotforward && !isnothing(idspec) && !isnothing(aem_in)
             for id in idspec
                 aem = makeoperator(aem_in, soundings[a:b][id])
-                m = -vec(σ[id,:]) #log 10 ρ
-                mn = setnuforinvtype(aem, vec(nu[id,:]))
+                m = -vec(σ[a:b,:][id,:]) #log 10 ρ
+                mn = setnuforinvtype(aem, vec(nu[a:b,:][id,:]))
                 plotmodelfield!(aem, m, mn)
                 gcf().suptitle("Line $(soundings[a].linenum) index:$id")
                 nicenup(gcf())
