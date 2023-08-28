@@ -65,20 +65,10 @@ function plotconvandlast(soundings, delr, delz;
     σ = A[:,end-nlayers:end-1]
     ϕd = A[:,end]
     for i in 1:nlines
-        a = linestartidx[i]
-        b = i != nlines ?  linestartidx[i+1]-1 : length(soundings)
-        idspec = nothing
-        if !isnothing(lnames) # only specific lines wanted, nothing means all lines
-            @assert length(lnames) == length(idx)
-            doesmatch = findfirst(lnames .== soundings[a].linenum) 
-            isnothing(doesmatch) && continue
-            @info lnames[doesmatch]
-            @show idspec = idx[doesmatch]
-            for id in idspec
-                @info "X, Y = $(soundings[a:b][id].X), $(soundings[a:b][id].Y)"
-            end    
-        end
-        if plotforward && !isnothing(idspec) && !isnothing(aem_in)
+        a, b = linestartend(linestartidx, i, nlines, soundings)
+        continueflag, idspec = docontinue(lnames, idx, soundings, a, b)
+        continueflag && continue
+        if plotforward && !isempty(idspec) && !isnothing(aem_in)
             for id in idspec
                 aem = makeoperator(aem_in, soundings[a:b][id])
                 m = -vec(σ[a:b,:][id,:]) #log 10 ρ
