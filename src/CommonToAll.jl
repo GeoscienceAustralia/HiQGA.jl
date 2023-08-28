@@ -12,10 +12,11 @@ export trimxft, assembleTat1, gettargtemps, checkns, getchi2forall, nicenup, plo
         unwrap, getn, geomprogdepth, assemblemodelsatT, getstats, gethimage,
         assemblenuisancesatT, makenuisancehists, stretchexists, stepmodel,
         makegrid, whichislast, makesummarygrid, makearray, plotNEWSlabels, 
-        plotprofile, gridpoints, splitsoundingsbyline, getsoundingsperline,dfn2hdr, 
-        getgdfprefix, readlargetextmatrix, pairinteractionplot, flipline, 
+        plotprofile, gridpoints, splitsoundingsbyline, getsoundingsperline, docontinue, linestartend,
+        compatidxwarn, dfn2hdr, getgdfprefix, readlargetextmatrix, pairinteractionplot, flipline, 
         summaryconductivity, plotsummarygrids1, getVE, writevtkfromsounding, 
-        readcols, colstovtk, findclosestidxincolfile, zcentertoboundary, writeijkfromsounding
+        readcols, colstovtk, findclosestidxincolfile, zcentertoboundary, writeijkfromsounding,
+        nanmean, infmean, nanstd, infstd, kde_sj
 
 # Kernel Density stuff
 abstract type KDEtype end
@@ -865,6 +866,12 @@ function (foo::kde_sj)(xvals)
     density(foo.data, foo.bw, xvals)
 end
 
+function kde_sj(x; npoints=40)
+    points = range(extrema(x)...,length=npoints)
+    datapdf = kde_sj(data=x)
+    datapdf(points), points
+end
+
 # LSCV KDE
 struct kde_cv <: KDEstimator
     U
@@ -967,11 +974,48 @@ function getsoundingsperline(soundings::Array{S, 1}) where S<:Sounding
     linestartidx = splitsoundingsbyline(soundings)                    
     nlines = length(linestartidx)                   
     s = map(1:nlines) do i
-        a = linestartidx[i]
-        b = i != nlines ?  linestartidx[i+1]-1 : length(soundings)
+        a, b = linestartend(linestartidx, i, nlines, soundings)
         soundings[a:b]
     end    
 end    
+
+function linestartend(linestartidx, i, nlines, soundings)
+    a = linestartidx[i]
+    b = i != nlines ?  linestartidx[i+1]-1 : length(soundings)
+    a, b
+end    
+
+function compatidxwarn(idx, lnames)
+    if !isempty(idx)
+        if typeof(idx) == Array{Int64, 1} # if old format
+            @warn "idx is same across ALL lines, not specific to line"
+        else
+            @assert !isnothing(lnames)
+            @assert typeof(idx)==Vector{Vector{Int64}} "must be array of arrays per line"
+        end    
+    end
+end
+
+function docontinue(lnames, idx, soundings, a, b)
+    continueflag = false
+    idspec = []
+    if !isempty(lnames) # only specific lines wanted, empty means all lines
+        @assert length(lnames) == length(idx)
+        doesmatch = findfirst(lnames .== soundings[a].linenum) 
+        if isnothing(doesmatch) 
+            continueflag = true # do continue
+        else
+            @info lnames[doesmatch]
+            @show idspec = idx[doesmatch]
+            for id in idspec
+                @info "X, Y = $(soundings[a:b][id].X), $(soundings[a:b][id].Y)"
+            end
+        end    
+    else # idx for the entire array of soundings
+        idspec = idx
+    end
+    return continueflag, idspec 
+end
 
 function writevtkfromsounding(lineofsoundings::Array{S, 1}, zall) where S<:Sounding
     X, Y, Z = map(x->getfield.(lineofsoundings, x), (:X, :Y, :Z))
@@ -1760,6 +1804,16 @@ function pairinteractionplot(d; varnames=nothing, figsize=(8.5,6), nbins=25, fon
     ax[end].set_xlim(ax[end-1].get_ylim())
     nicenup(f, fsize=fontsize)
 end
+
+nanmean(x) = mean(filter(!isnan,x))
+nanmean(x, dims) = mapslices(nanmean,x,dims=dims)
+nanstd(x) = std(filter(!isnan,x))
+nanstd(x, dims) = mapslices(nanstd, x, dims=dims)
+
+infmean(x) = mean(filter(!isinf,x))
+infmean(x, dims) = mapslices(infmean,x,dims=dims)
+infstd(x) = std(filter(!isinf,x))
+infstd(x, dims) = mapslices(infstd, x, dims=dims)
 
 getrowwise(i,j,nvars) = (i-1)*nvars+j
 getcolwise(i,j,nvars) = (j-1)*nvars+i

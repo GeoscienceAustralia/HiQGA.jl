@@ -9,7 +9,7 @@ import ..AbstractOperator.getoptnfromexisting
 import ..AbstractOperator.getnufromsounding
 
 import ..Options, ..OptionsStat, ..OptionsNuisance
-export makeAEMoperatorandnuisanceoptions, loopacrossAEMsoundings, summaryAEMnuisanceimages
+export makeAEMoperatorandnuisanceoptions, loopacrossAEMsoundings, summaryAEMwithnuisanceimages, plotindividualAEMsoundingswithnuisance
 import ..main # McMC function
 using ..SoundingDistributor
 import ..DEBUGLEVEL_TDGP
@@ -153,7 +153,7 @@ function makeAEMoperatorandnuisanceoptions(sounding::Sounding;
     aem, opt, optn, zall
 end
 
-# Driver code for McMC inversion with no nuisances
+# Driver code for McMC inversion with nuisances
 function loopacrossAEMsoundings(soundings::Array{S, 1}, aem_in::Operator1D, opt_in::Options, optn_in::OptionsNuisance;
                             Tmax               = -1,
                             nsamples           = -1,
@@ -208,7 +208,8 @@ function summaryAEMwithnuisanceimages(soundings::Array{S, 1}, opt_in::Options, o
                         cmap="turbo",
                         figsize=(6,10),
                         topowidth=2,
-                        idx = nothing,
+                        lnames = [], # array of lines
+                        idx = [], # array of arrrays per line
                         omitconvergence = false,
                         preferEright = false,
                         preferNright = false,
@@ -223,14 +224,15 @@ function summaryAEMwithnuisanceimages(soundings::Array{S, 1}, opt_in::Options, o
                         vectorsum = false,
                         Rmax = nothing,
                         ) where S<: Sounding
-
+    compatidxwarn(idx, lnames)
     linestartidx = splitsoundingsbyline(soundings)                    
     nlines = length(linestartidx)                   
     for i in 1:nlines
-        a = linestartidx[i]
-        b = i != nlines ?  linestartidx[i+1]-1 : length(soundings)
+        a, b = linestartend(linestartidx, i, nlines, soundings)
+        continueflag, idspec = docontinue(lnames, idx, soundings, a, b)
+        continueflag && continue
         summaryimages(soundings[a:b], opt_in, optn_in; qp1, qp2, burninfrac, zall,dz, dr, vectorsum,
-            fontsize, vmin, vmax, cmap, figsize, topowidth, idx=idx, omitconvergence, useML, logscale,
+            fontsize, vmin, vmax, cmap, figsize, topowidth, idx=idspec, omitconvergence, useML, logscale,
             preferEright, showplot, preferNright, saveplot, yl, dpi, showmean, numsize, labelnu, Rmax)
     end
     nothing  
@@ -251,7 +253,7 @@ function summaryimages(soundings::Array{S, 1}, opt_in::Options, optn_in::Options
                         figsize = (6,10),
                         bigfigsize = figsize,
                         topowidth = 2,
-                        idx = nothing,
+                        idx = [],
                         omitconvergence = false,
                         preferEright = false,
                         preferNright = false,
@@ -304,7 +306,7 @@ function summarypost(soundings::Vector{S}, opt_in::Options, optn_in::OptionsNuis
         "phid_mean", "phid_sdev",
         "nu_low", "nu_mid", "nu_high"].*linename
     idxnotzero = optn_in.idxnotzero
-    # this is a debug
+    # this is a debug for unfinished soundings
     a = Vector{Any}(undef, 10)
     for i in 1:4
         a[i] = -999*ones(length(zall))
@@ -359,7 +361,11 @@ function processonesounding(opt_in::Options, optn_in::OptionsNuisance, sounding:
     ndata = getndata(sounding, vectorsum)
     χ²mean = mean(χ²)/ndata
     χ²sd   = std(χ²)/ndata
-    if useML 
+    if sounding.forceML
+        χ²mean = 1.
+        χ²sd   = 0.
+    elseif useML
+        # same ML factor for Hx and Hz beware
         χ²mean = exp(χ²mean-log(ndata))
         χ²sd   = exp(χ²sd-log(ndata)) # I think, need to check
     end
@@ -421,7 +427,7 @@ end
 
 function plotindividualsoundings(soundings::Vector{S}, 
     aem_in::Operator1D, opt_in::Options, optn_in::OptionsNuisance, 
-    idxplot::Vector{Int};
+    idxplot;
     zall = [-1.],
     burninfrac=0.5,
     nbins = 50,
@@ -437,38 +443,56 @@ function plotindividualsoundings(soundings::Vector{S},
     linecolor = nothing,
     alpha = 1.,
     rseed = 123,
+    lnames = [],
     usekde = false,
     computeforwards = false,
-    nforwards = 50) where S<:Sounding
+    nforwards = 20) where S<:Sounding
 
+    compatidxwarn(idxplot, lnames)
+    linestartidx = splitsoundingsbyline(soundings)                    
+    nlines = length(linestartidx)        
     @assert length(zall) != 1
-    
     opt = deepcopy(opt_in)
     opt.xall[:] = zall
-    for idx = 1:length(soundings)
-        if in(idx, idxplot)
+    for i in 1:nlines
+        a, b = linestartend(linestartidx, i, nlines, soundings)
+        continueflag, idspec = docontinue(lnames, idxplot, soundings, a, b)
+        continueflag && continue
+        for idx in idspec
             @info "Sounding number: $idx"
-            aem = makeoperator(aem_in, soundings[idx])
-            opt.fdataname = soundings[idx].sounding_string*"_"
-            optn = getoptnfromexisting(optn_in, opt, soundings[idx]) 
+            aem = makeoperator(aem_in, soundings[a:b][idx])
+            opt.fdataname = soundings[a:b][idx].sounding_string*"_"
+            optn = getoptnfromexisting(optn_in, opt, soundings[a:b][idx]) 
             getchi2forall(opt, alpha=0.8; omittemp) # chi2 errors
             CommonToAll.getstats(opt) # ARs for GP model
+            gcf().suptitle("Line $(soundings[a].linenum) index:$idx")
+            nicenup(gcf())
             CommonToAll.getstats(optn) # ARs for nuisances
+            gcf().suptitle("Line $(soundings[a].linenum) index:$idx")
+            nicenup(gcf())
             plot_posterior(aem, opt; burninfrac, nbins, figsize, qp1, qp2,
                             showslope, pdfclim, plotmean, usekde) # GP models
             ax = gcf().axes
+            gcf().suptitle("Line $(soundings[a].linenum) index:$idx")
             ax[1].invert_xaxis()
+            nicenup(gcf())
             plot_posterior(aem, optn; burninfrac, nbins, figsize, qp1, qp2) # nuisances
+            gcf().suptitle("Line $(soundings[a].linenum) index:$idx")
+            nicenup(gcf())
             if computeforwards
                 m = assembleTat1(opt, :fstar, temperaturenum=1, burninfrac=burninfrac)
                 mn = CommonToAll.assemblenuisancesatT(optn, temperaturenum=1, burninfrac=burninfrac)
                 Random.seed!(rseed)
                 randidx = randperm(length(m))
                 plotmodelfield!(aem, m[randidx[1:nforwards]], mn[randidx[1:nforwards],:]; model_lw, forward_lw, color=linecolor, alpha)
+                gcf().suptitle("Line $(soundings[a].linenum) index:$idx")
+                nicenup(gcf())
             end
         end
-    end
+    end    
 end
+
+plotindividualAEMsoundingswithnuisance = plotindividualsoundings
 
 end # module
 

@@ -7,6 +7,8 @@ import ..AbstractOperator.Sounding
 import ..AbstractOperator.returnforwrite
 import ..AbstractOperator.loopacrossAEMsoundings
 import ..AbstractOperator.plotconvandlast
+import ..AbstractOperator.plotmodelfield!
+import ..AbstractOperator.setnuforinvtype
 import ..gradientinv
 export plotconvandlast, loopacrossAEMsoundings
 # for deterministic inversions, read in
@@ -50,9 +52,11 @@ function plotconvandlast(soundings, delr, delz, nufieldnames::Vector{Symbol};
         prefix = "",
         markersize = 2,
         logscale = false,
-        lnames = nothing,
-        idx = nothing, # array of arrrays per line
+        lnames = [], # array of lines
+        idx = [], # array of arrays per line
         yl = nothing,
+        plotforward = false,
+        aem_in = nothing,
         dpi=400)
     linestartidx = splitsoundingsbyline(soundings)                    
     nlines = length(linestartidx)
@@ -66,15 +70,18 @@ function plotconvandlast(soundings, delr, delz, nufieldnames::Vector{Symbol};
     nu = A[:,end-nnu:end-1]
     ϕd = A[:,end]
     for i in 1:nlines
-        a = linestartidx[i]
-        b = i != nlines ?  linestartidx[i+1]-1 : length(soundings)
-        idspec = nothing
-        if !isnothing(lnames) # only specific lines wanted, nothing means all lines
-            @assert length(lnames) == length(idx)
-            doesmatch = findfirst(lnames .== soundings[a].linenum) 
-            isnothing(doesmatch) && continue
-            @info lnames[doesmatch]
-            @show idspec = idx[doesmatch]
+        a, b = linestartend(linestartidx, i, nlines, soundings)
+        continueflag, idspec = docontinue(lnames, idx, soundings, a, b)
+        continueflag && continue
+        if plotforward && !isempty(idspec) && !isnothing(aem_in)
+            for id in idspec
+                aem = makeoperator(aem_in, soundings[a:b][id])
+                m = -vec(σ[a:b,:][id,:]) #log 10 ρ
+                mn = setnuforinvtype(aem, vec(nu[a:b,:][id,:]))
+                plotmodelfield!(aem, m, mn)
+                gcf().suptitle("Line $(soundings[a].linenum) index:$id")
+                nicenup(gcf())
+            end    
         end    
         plotconvandlasteachline(soundings[a:b], view(σ, a:b, :)', view(nu, a:b, :), nufieldnames, view(ϕd, a:b), delr, delz; 
             zall = zall, idx=idspec, yl=yl,

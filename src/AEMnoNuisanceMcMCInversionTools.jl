@@ -24,7 +24,8 @@ function summaryAEMimages(soundings::Array{S, 1}, opt::Options;
                         cmap="turbo",
                         figsize=(6,10),
                         topowidth=2,
-                        idx = nothing,
+                        lnames = [], # array of lines
+                        idx = [], # array of arrrays per line
                         omitconvergence = false,
                         useML = false,
                         preferEright = false,
@@ -35,14 +36,15 @@ function summaryAEMimages(soundings::Array{S, 1}, opt::Options;
                         showmean = false,
                         logscale = true,
                         dpi = 300) where S<:Sounding
-    
+    compatidxwarn(idx, lnames)
     linestartidx = splitsoundingsbyline(soundings)                    
     nlines = length(linestartidx)                   
     for i in 1:nlines
-        a = linestartidx[i]
-        b = i != nlines ?  linestartidx[i+1]-1 : length(soundings)
+        a, b = linestartend(linestartidx, i, nlines, soundings)
+        continueflag, idspec = docontinue(lnames, idx, soundings, a, b)
+        continueflag && continue
         summaryimages(soundings[a:b], opt; qp1, qp2, burninfrac, zall,dz, dr, 
-            fontsize, vmin, vmax, cmap, figsize, topowidth, idx=idx, omitconvergence, useML, 
+            fontsize, vmin, vmax, cmap, figsize, topowidth, idx=idspec, omitconvergence, useML, 
             preferEright, showplot, preferNright, saveplot, yl, dpi, showmean, logscale)
     end
     nothing    
@@ -61,7 +63,7 @@ function summaryimages(soundings::Array{S, 1}, opt::Options;
                         cmap ="turbo",
                         figsize = (6,10),
                         topowidth=2,
-                        idx = nothing,
+                        idx = [],
                         omitconvergence = false,
                         useML = false,
                         preferEright = false,
@@ -99,6 +101,13 @@ function summarypost(soundings::Vector{S}, opt::Options;
     linename = "_line_$(soundings[1].linenum)_summary.txt"
     fnames = ["rho_low", "rho_mid", "rho_hi", "rho_avg",
               "phid_mean", "phid_sdev"].*linename
+    # this is a debug for unfinished soundings
+    a = Vector{Any}(undef, 6)
+    for i in 1:4
+        a[i] = -999*ones(length(zall))
+    end
+    a[5] = -999.
+    a[6] = -999.
     if isfile(fnames[1])
         @warn fnames[1]*" exists, reading stored values"
         pl, pm, ph, ρmean,
@@ -133,7 +142,10 @@ function processonesounding(opt_in::Options, sounding::Sounding, zall, burninfra
     ndata = getndata(sounding)
     χ²mean = mean(χ²)/ndata
     χ²sd   = std(χ²)/ndata
-    if useML
+    if sounding.forceML
+        χ²mean = 1.
+        χ²sd   = 0.
+    elseif useML
         # this is approximate as HM and LM have different ML factors sampled 
         χ²mean = exp(χ²mean-log(ndata))
         χ²sd   = exp(χ²sd-log(ndata)) # I think, need to check
@@ -147,7 +159,8 @@ function getndata(d)
     ndata, select
 end
 
-function plotindividualAEMsoundings(soundings::Vector{S}, aem_in::Operator1D, opt_in::Options, idxplot::Vector{Int};
+function plotindividualAEMsoundings(soundings::Vector{S}, aem_in::Operator1D, opt_in::Options, idxplot; # idxplot is an array of arrays
+    lnames = [], # array of lines
     zall=[-1.],
     burninfrac=0.5,
     nbins = 50,
@@ -165,29 +178,43 @@ function plotindividualAEMsoundings(soundings::Vector{S}, aem_in::Operator1D, op
     rseed = 123,
     usekde = false,
     computeforwards = false,
-    nforwards = 100) where S<:Sounding
+    nforwards = 20) where S<:Sounding
     
+    compatidxwarn(idxplot, lnames)
+    linestartidx = splitsoundingsbyline(soundings)                    
+    nlines = length(linestartidx)        
     @assert length(zall) != 1
     opt = deepcopy(opt_in)
     opt.xall[:] = zall
-    for idx = 1:length(soundings)
-        if in(idx, idxplot)
+    for i in 1:nlines
+        a, b = linestartend(linestartidx, i, nlines, soundings)
+        continueflag, idspec = docontinue(lnames, idxplot, soundings, a, b)
+        continueflag && continue
+        for idx in idspec
             @info "Sounding number: $idx"
-            aem = makeoperator(aem_in, soundings[idx])
-            opt.fdataname = soundings[idx].sounding_string*"_"
+            aem = makeoperator(aem_in, soundings[a:b][idx])
+            opt.fdataname = soundings[a:b][idx].sounding_string*"_"
             getchi2forall(opt, alpha=0.8, omittemp=omittemp)
+            gcf().suptitle("Line $(soundings[a].linenum) index:$idx")
+            nicenup(gcf())
             CommonToAll.getstats(opt)
+            gcf().suptitle("Line $(soundings[a].linenum) index:$idx")
+            nicenup(gcf())
             plot_posterior(aem, opt; burninfrac, nbins, figsize, 
                     showslope, pdfclim, plotmean, qp1, qp2, usekde)
             ax = gcf().axes
+            gcf().suptitle("Line $(soundings[a].linenum) index:$idx")
             ax[1].invert_xaxis()
+            nicenup(gcf())
             if computeforwards
                 M = assembleTat1(opt, :fstar, temperaturenum=1, burninfrac=burninfrac)
                 Random.seed!(rseed)
                 plotmodelfield!(aem, M[randperm(length(M))[1:nforwards]]; model_lw, forward_lw, color=linecolor, alpha)
+                gcf().suptitle("Line $(soundings[a].linenum) index:$idx")
+                nicenup(gcf())
             end            
         end
-    end
+    end    
 end
 
 # stuff needed for McMC driver code

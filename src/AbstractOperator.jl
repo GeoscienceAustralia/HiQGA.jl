@@ -36,5 +36,7 @@ function getnufromsounding end
 function setnuboundsandstartforgradinv end
 # for plotting the last iteration of gradient inversions
 function plotconvandlast end
+# set the nuisance inversion full vector from the few being inverted
+function setnuforinvtype end
 export Operator, Operator1D, Operator2D, Sounding
 end
