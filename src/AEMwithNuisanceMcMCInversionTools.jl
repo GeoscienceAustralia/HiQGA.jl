@@ -9,7 +9,7 @@ import ..AbstractOperator.getoptnfromexisting
 import ..AbstractOperator.getnufromsounding
 
 import ..Options, ..OptionsStat, ..OptionsNuisance
-export makeAEMoperatorandnuisanceoptions, loopacrossAEMsoundings, summaryAEMnuisanceimages
+export makeAEMoperatorandnuisanceoptions, loopacrossAEMsoundings, summaryAEMwithnuisanceimages, plotindividualAEMsoundingswithnuisance
 import ..main # McMC function
 using ..SoundingDistributor
 import ..DEBUGLEVEL_TDGP
@@ -153,7 +153,7 @@ function makeAEMoperatorandnuisanceoptions(sounding::Sounding;
     aem, opt, optn, zall
 end
 
-# Driver code for McMC inversion with no nuisances
+# Driver code for McMC inversion with nuisances
 function loopacrossAEMsoundings(soundings::Array{S, 1}, aem_in::Operator1D, opt_in::Options, optn_in::OptionsNuisance;
                             Tmax               = -1,
                             nsamples           = -1,
@@ -208,8 +208,8 @@ function summaryAEMwithnuisanceimages(soundings::Array{S, 1}, opt_in::Options, o
                         cmap="turbo",
                         figsize=(6,10),
                         topowidth=2,
-                        lnames = nothing, # array of lines
-                        idx = nothing, # array of arrrays per line
+                        lnames = [], # array of lines
+                        idx = [], # array of arrrays per line
                         omitconvergence = false,
                         preferEright = false,
                         preferNright = false,
@@ -253,7 +253,7 @@ function summaryimages(soundings::Array{S, 1}, opt_in::Options, optn_in::Options
                         figsize = (6,10),
                         bigfigsize = figsize,
                         topowidth = 2,
-                        idx = nothing,
+                        idx = [],
                         omitconvergence = false,
                         preferEright = false,
                         preferNright = false,
@@ -427,7 +427,7 @@ end
 
 function plotindividualsoundings(soundings::Vector{S}, 
     aem_in::Operator1D, opt_in::Options, optn_in::OptionsNuisance, 
-    idxplot::Vector{Int};
+    idxplot;
     zall = [-1.],
     burninfrac=0.5,
     nbins = 50,
@@ -443,6 +443,7 @@ function plotindividualsoundings(soundings::Vector{S},
     linecolor = nothing,
     alpha = 1.,
     rseed = 123,
+    lnames = [],
     usekde = false,
     computeforwards = false,
     nforwards = 20) where S<:Sounding
@@ -490,6 +491,8 @@ function plotindividualsoundings(soundings::Vector{S},
         end
     end    
 end
+
+plotindividualAEMsoundingswithnuisance = plotindividualsoundings
 
 end # module
 

@@ -986,7 +986,7 @@ function linestartend(linestartidx, i, nlines, soundings)
 end    
 
 function compatidxwarn(idx, lnames)
-    if !isnothing(idx)
+    if !isempty(idx)
         if typeof(idx) == Array{Int64, 1} # if old format
             @warn "idx is same across ALL lines, not specific to line"
         else
@@ -996,11 +996,10 @@ function compatidxwarn(idx, lnames)
     end
 end
 
-
 function docontinue(lnames, idx, soundings, a, b)
     continueflag = false
     idspec = []
-    if !isnothing(lnames) # only specific lines wanted, nothing means all lines
+    if !isempty(lnames) # only specific lines wanted, empty means all lines
         @assert length(lnames) == length(idx)
         doesmatch = findfirst(lnames .== soundings[a].linenum) 
         if isnothing(doesmatch) 

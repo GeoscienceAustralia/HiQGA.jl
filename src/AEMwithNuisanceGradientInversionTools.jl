@@ -52,8 +52,8 @@ function plotconvandlast(soundings, delr, delz, nufieldnames::Vector{Symbol};
         prefix = "",
         markersize = 2,
         logscale = false,
-        lnames = nothing,
-        idx = nothing, # array of arrrays per line
+        lnames = [], # array of lines
+        idx = [], # array of arrays per line
         yl = nothing,
         plotforward = false,
         aem_in = nothing,

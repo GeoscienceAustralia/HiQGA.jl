@@ -49,8 +49,8 @@ function plotconvandlast(soundings, delr, delz;
         prefix = "",
         markersize = 2,
         logscale = false,
-        lnames = nothing,
-        idx = nothing, # array of arrrays per line
+        lnames = [],
+        idx = [], # array of arrrays per line
         yl = nothing,
         plotforward = false,
         aem_in = nothing,

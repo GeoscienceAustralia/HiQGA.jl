@@ -24,8 +24,8 @@ function summaryAEMimages(soundings::Array{S, 1}, opt::Options;
                         cmap="turbo",
                         figsize=(6,10),
                         topowidth=2,
-                        lnames = nothing, # array of lines
-                        idx = nothing, # array of arrrays per line
+                        lnames = [], # array of lines
+                        idx = [], # array of arrrays per line
                         omitconvergence = false,
                         useML = false,
                         preferEright = false,
@@ -63,7 +63,7 @@ function summaryimages(soundings::Array{S, 1}, opt::Options;
                         cmap ="turbo",
                         figsize = (6,10),
                         topowidth=2,
-                        idx = nothing,
+                        idx = [],
                         omitconvergence = false,
                         useML = false,
                         preferEright = false,
@@ -160,7 +160,7 @@ function getndata(d)
 end
 
 function plotindividualAEMsoundings(soundings::Vector{S}, aem_in::Operator1D, opt_in::Options, idxplot; # idxplot is an array of arrays
-    lnames = nothing, # array of lines
+    lnames = [], # array of lines
     zall=[-1.],
     burninfrac=0.5,
     nbins = 50,
