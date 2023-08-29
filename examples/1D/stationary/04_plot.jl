@@ -1,5 +1,5 @@
 ## plot
-transD_GP.getchi2forall(opt, fsize=8, alpha=0.5)
+transD_GP.getchi2forall(opt, fsize=8)
 transD_GP.plot_posterior(line, opt, burninfrac=0.5, plotmean=false)
 ax = gcf().axes
 p = ax[1].scatter(ynoisy, x, c="w", alpha=0.2, s=25)
