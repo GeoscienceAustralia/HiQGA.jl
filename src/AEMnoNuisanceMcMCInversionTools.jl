@@ -142,9 +142,11 @@ function processonesounding(opt_in::Options, sounding::Sounding, zall, burninfra
     ndata = getndata(sounding)
     χ²mean = mean(χ²)/ndata
     χ²sd   = std(χ²)/ndata
-    if sounding.forceML
-        χ²mean = 1.
-        χ²sd   = 0.
+    if hasproperty(sounding, :force_ML) 
+        if sounding.forceML
+            χ²mean = 1.
+            χ²sd   = 0.
+        end     
     elseif useML
         # this is approximate as HM and LM have different ML factors sampled 
         χ²mean = exp(χ²mean-log(ndata))
