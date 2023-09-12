@@ -163,18 +163,16 @@ and you should see output like:
 ```
 This is the basic recipe for all the cluster HiQGA jobs on NCI. After the call to `manager = MPIClusterManagers.start_main_loop(MPI_TRANSPORT_ALL)`, standard MPI execution stops, and we return to an explicit manager-worker mode with code execution only continuing on the manager which is Julia process 1.
 ### Installing PyPlot on NCI
-Add HiQGA just as usual: 
-```
-pkg>add HiQGA
-```
-However, this installs PyPlot through Conda by default. Due to indode restrictions on NCI, we've resorted to using a communal matplotlib install as follows:
-- Remove Conda, PyPlot, PyCall from your julia environment if it already exists
+**_Do NOT Add HiQGA in the usual way by doing `pkg>add HiQGA` as this installs PyPlot through Conda by default._** 
+Due to indode restrictions on NCI, we've resorted to using a communal matplotlib install as follows:
+- Remove Conda, PyPlot, PyCall and HiQGA from your julia environment if already installed
 ```
 pkg> rm Conda
 pkg> rm PyCall
 pkg> rm PyPlot
+pkg> rm HiQGA 
 ```
-- Delete the conda directory from your .julia directory (or wherever your julia depot is):
+- Delete the `conda` directory from your .julia directory (or wherever your julia depot is):
 ```
 rm -rf conda/
 ```
@@ -184,21 +182,26 @@ module load python3/3.8.5
 source /g/data/z67/matplotlib-venv/bin/activate
 PYTHON=/g/data/z67/matplotlib-venv/bin/python julia
 ```
-Install and build PyPlot:
+Install PyCall and build PyPlot:
 ```
+pkg> add PyCall
 pkg> add PyPlot
-```
-build the installed HiQGA release:
-```
-pkg> build HiQGA
 ```
 then exit julia with
 ```
-julia>exit()
+julia> exit()
+```
+add the latest released version of HiQGA:
+```
+pkg> add HiQGA
+```
+then exit julia with
+```
+julia> exit()
 ```
 The next time you start julia you have HiQGA ready for use with
 ```
-julia>using HiQGA
+julia> using HiQGA
 ```
 navigate to the [examples](https://github.com/GeoscienceAustralia/HiQGA.jl/tree/master/examples) folder to run some example scripts. **You can end here as a regular user, however for development mode see below.**
 ### For installing development mode pre-release versions
