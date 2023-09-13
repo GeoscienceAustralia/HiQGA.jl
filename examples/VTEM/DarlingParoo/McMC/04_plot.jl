@@ -1,5 +1,5 @@
 dr = 20
-idx = 1:100:length(soundings)
+idx = [1,2]
 burninfrac = 0.5
 vmin, vmax = -2.5, 0.5
 transD_GP.summaryAEMimages(soundings, opt;

@@ -1,5 +1,5 @@
 
-idxplot = [2]
+idxplot = [1,2]
 burninfrac = 0.5
 nbins = 50
 computeforwards, nforwards = true, 2
