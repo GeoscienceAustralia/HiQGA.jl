@@ -4,11 +4,10 @@ zfixed = [-1e5]
 ρfixed = [1e12]
 
 ## geometry parameters for tempest 
-# z down position coordinates
-# GA-AEM z up rotation coordinates
-# +x is flight direction
-# this is a bad geovec to initialise the tempest operator, 
-# it is not true, updated version underneath for test
+# z down position coordinates for my code (automatically done when reading data)
+# But I use GA-AEM z up rotation coordinates (always)
+# +x is flight direction (always)
+# this is a random geometry vector to initialise the tempest operator 
 zTx      = -110
 zRx      = -70
 x_rx     = -113.0
@@ -29,7 +28,11 @@ tempest = transD_GP.TEMPEST1DInversion.Bfield(
 	ramp = ramp, times = times,
 	addprimary = true
 )
-# true geovec from Ross
+# true geovec from Ross to compare with and ensure 
+# that updates take place to tempest operator
+# remember, Z and Y are in Z down for my code 
+# so need to be flipped for modeling except when reading in a data file
+# but rotations are always in GA-AEM Z up format
 geovec = [-120, -80, -115, 0, 3, 6, 10, 5, 4, -7.]
 transD_GP.TEMPEST1DInversion.returnprimary!(tempest, geovec)
 μ = transD_GP.AEM_VMD_HMD.μ
