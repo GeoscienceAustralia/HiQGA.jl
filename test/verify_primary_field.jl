@@ -28,16 +28,27 @@ tempest = transD_GP.TEMPEST1DInversion.Bfield(
 	ramp = ramp, times = times,
 	addprimary = true
 )
-# true geovec from Ross to compare with and ensure 
-# that updates take place to tempest operator
-# remember, Z and Y are in Z down for my code 
-# so need to be flipped for modeling except when reading in a data file
+# true geovec from Ross (GA-AEM) to compare with and ensure 
+# that updates take place to tempest operator.
+# Z and Y are in Z down for HiQGA so need to be sign 
+# flipped from Z up for modeling except when reading in a data file
 # but rotations are always in GA-AEM Z up format
 geovec = [-120, -80, -115, 0, 3, 6, 10, 5, 4, -7.]
+# above is equivalent to GA-AEM:
+# tx_height: 120 // FLIP 
+# tx_roll: 5
+# tx_pitch: 4
+# tx_yaw: -7
+# txrx_dx: -115
+# txrx_dy: 0 // FLIP
+# txrx_dz: -40
+# rx_roll: 3
+# rx_pitch: 6
+# rx_yaw: 10
 transD_GP.TEMPEST1DInversion.returnprimary!(tempest, geovec)
 μ = transD_GP.AEM_VMD_HMD.μ
 @testset begin
-    # values from Ross in fT
+    # B field values from Ross in fT
     Bx, By, Bz = 30.2751, -3.7899, -13.8092
     @test isapprox(tempest.Hx[1]*μ*1e15, Bx, rtol=.001)
     @test isapprox(tempest.Hy[1]*μ*1e15, By, rtol=.001)
