@@ -200,7 +200,7 @@ function loopacrossAEMsoundings(soundings::Array{S, 1}, aem_in, σstart, σ0;
     @assert nsequentialiters  != -1
     nparallelsoundings = nworkers()
     nsoundings = length(soundings)
-    zall = zboundarytocenter(aem.z[aem.nfixed+1:end]; fudgelast=false) # needed for sounding compression in write
+    zall = zboundarytocenter(aem_in.z[aem_in.nfixed+1:end]; fudgelast=false) # needed for sounding compression in write
     for iter = 1:nsequentialiters
         if iter<nsequentialiters
             ss = (iter-1)*nparallelsoundings+1:iter*nparallelsoundings
