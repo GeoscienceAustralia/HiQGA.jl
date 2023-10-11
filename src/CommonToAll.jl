@@ -15,8 +15,8 @@ export trimxft, assembleTat1, gettargtemps, checkns, getchi2forall, nicenup, plo
         plotprofile, gridpoints, splitsoundingsbyline, getsoundingsperline, docontinue, linestartend,
         compatidxwarn, dfn2hdr, getgdfprefix, readlargetextmatrix, pairinteractionplot, flipline, 
         summaryconductivity, plotsummarygrids1, getVE, writevtkfromsounding, 
-        readcols, colstovtk, findclosestidxincolfile, zcentertoboundary, writeijkfromsounding,
-        nanmean, infmean, nanstd, infstd, kde_sj
+        readcols, colstovtk, findclosestidxincolfile, zcentertoboundary, zboundarytocenter, 
+        writeijkfromsounding, nanmean, infmean, nanstd, infstd, kde_sj
 
 # Kernel Density stuff
 abstract type KDEtype end
@@ -1105,6 +1105,15 @@ function zcentertoboundary(zall)
     end    
     zb
 end
+
+function zboundarytocenter(zb; fudgelast=false)
+    thickness = diff(zb)
+    zall = zb[1:end-1] + thickness/2
+    if fudgelast
+        zall = [zall; zb[end]+thickness[end]/2]
+    end
+    zall    
+end    
 
 function writeijkfromsounding(s::Vector{Array{S, 1}}, zall) where S<:Sounding
     pmap(s) do x
