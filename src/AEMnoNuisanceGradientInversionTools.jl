@@ -172,10 +172,6 @@ end
 # driver for gradient based AEM inversion
 function loopacrossAEMsoundings(soundings::Array{S, 1}, aem_in, σstart, σ0; 
                             nsequentialiters   =-1,
-                            zstart             = 0.0,
-                            extendfrac         = 1.06,
-                            dz                 = 2.,
-                            nlayers            = 50,
                             regtype            = :R1,
                             nstepsmax          = 10,
                             ntries             = 6,
@@ -204,7 +200,7 @@ function loopacrossAEMsoundings(soundings::Array{S, 1}, aem_in, σstart, σ0;
     @assert nsequentialiters  != -1
     nparallelsoundings = nworkers()
     nsoundings = length(soundings)
-    zall, = setupz(zstart, extendfrac, dz=dz, n=nlayers) # needed for sounding compression
+    zall = zboundarytocenter(aem_in.z[aem_in.nfixed+1:end]; fudgelast=false) # needed for sounding compression in write
     for iter = 1:nsequentialiters
         if iter<nsequentialiters
             ss = (iter-1)*nparallelsoundings+1:iter*nparallelsoundings

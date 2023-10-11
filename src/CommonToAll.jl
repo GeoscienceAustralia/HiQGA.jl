@@ -15,8 +15,8 @@ export trimxft, assembleTat1, gettargtemps, checkns, getchi2forall, nicenup, plo
         plotprofile, gridpoints, splitsoundingsbyline, getsoundingsperline, docontinue, linestartend,
         compatidxwarn, dfn2hdr, getgdfprefix, readlargetextmatrix, pairinteractionplot, flipline, 
         summaryconductivity, plotsummarygrids1, getVE, writevtkfromsounding, 
-        readcols, colstovtk, findclosestidxincolfile, zcentertoboundary, writeijkfromsounding,
-        nanmean, infmean, nanstd, infstd, kde_sj
+        readcols, colstovtk, findclosestidxincolfile, zcentertoboundary, zboundarytocenter, 
+        writeijkfromsounding, nanmean, infmean, nanstd, infstd, kde_sj
 
 # Kernel Density stuff
 abstract type KDEtype end
@@ -985,7 +985,7 @@ function linestartend(linestartidx, i, nlines, soundings)
     a, b
 end    
 
-function compatidxwarn(idx, lnames)
+function compatidxwarn(idx, lnames) 
     if !isempty(idx)
         if typeof(idx) == Array{Int64, 1} # if old format
             @warn "idx is same across ALL lines, not specific to line"
@@ -1000,16 +1000,18 @@ function docontinue(lnames, idx, soundings, a, b)
     continueflag = false
     idspec = []
     if !isempty(lnames) # only specific lines wanted, empty means all lines
-        @assert length(lnames) == length(idx)
         doesmatch = findfirst(lnames .== soundings[a].linenum) 
         if isnothing(doesmatch) 
             continueflag = true # do continue
         else
             @info lnames[doesmatch]
-            @show idspec = idx[doesmatch]
-            for id in idspec
-                @info "X, Y = $(soundings[a:b][id].X), $(soundings[a:b][id].Y)"
-            end
+            if !isempty(idx)
+                @assert length(lnames) == length(idx)
+                @show idspec = idx[doesmatch]
+                for id in idspec
+                    @info "X, Y = $(soundings[a:b][id].X), $(soundings[a:b][id].Y)"
+                end
+            end    
         end    
     else # idx for the entire array of soundings
         idspec = idx
@@ -1103,6 +1105,15 @@ function zcentertoboundary(zall)
     end    
     zb
 end
+
+function zboundarytocenter(zb; fudgelast=false)
+    thickness = diff(zb)
+    zall = zb[1:end-1] + thickness/2
+    if fudgelast
+        zall = [zall; zb[end]+thickness[end]/2]
+    end
+    zall    
+end    
 
 function writeijkfromsounding(s::Vector{Array{S, 1}}, zall) where S<:Sounding
     pmap(s) do x
