@@ -103,8 +103,18 @@ function HFieldDHT(;
     ϵᵢ      = similar(pz)
     rTE       = zeros(length(pz)-1)
     rTM       = similar(rTE)
-    if freqhigh < 3/minimum(times)
-       freqhigh = 3/minimum(times)
+    
+    mintime = minimum(times)
+    ## all this below for pesky zero time at start instead of shutoff ...
+    @assert mintime > 0 # else interpolation in log10 trouble
+    if doconvramp
+        if isapprox(ramp[1,1], 0, atol=1e-8)
+            mintime = ramp[2,1] # should be around 1.28e-5 to 2.5e-5 for HeliTEM
+            # @warn "automatically setting impulse response mintime to $mintime"
+        end
+    end
+    if freqhigh < 3/mintime
+       freqhigh = 3/mintime
     end
     if freqlow > 0.33/maximum(times)
        freqlow = 0.33/maximum(times)
@@ -115,8 +125,8 @@ function HFieldDHT(;
     interpkᵣ = 10 .^range(minimum(log10.(Filter_base))-0.5, maximum(log10.(Filter_base))+0.5, length = nkᵣeval)
     J0_kernel_h, J1_kernel_h, J0_kernel_v, J1_kernel_v = map(x->zeros(ComplexF64, length(interpkᵣ), length(freqs)), 1:4)
     J01kernelhold = zeros(ComplexF64, length(Filter_base))
-    log10ω = log10.(2*pi*freqs)
-    interptimes = 10 .^(minimum(log10.(times))-1:1/ntimesperdecade:maximum(log10.(times))+1)
+    log10ω = log10.(2*pi*freqs)    
+    interptimes = 10 .^(log10(mintime)-1:1/ntimesperdecade:maximum(log10.(times))+1)
     HFD_z       = zeros(ComplexF64, length(freqs)) # space domain fields in freq
     HFD_r       = zeros(ComplexF64, length(freqs)) # space domain fields in freq
     HFD_az       = zeros(ComplexF64, length(freqs)) # space domain fields in freq
@@ -623,7 +633,7 @@ function convramp!(F::HFieldDHT, splz::CubicSpline, splr::CubicSpline, splaz::Cu
             dI   = F.ramp[iramp+1,2] - F.ramp[iramp,2]
             dIdt = dI/dt
 
-            if rta > F.times[itime]
+            if rta >= F.times[itime] # geq instead of eq as we could have an unlcky time
                 break
             end
             if rtb > F.times[itime] # end in this interval
@@ -631,7 +641,7 @@ function convramp!(F::HFieldDHT, splz::CubicSpline, splr::CubicSpline, splaz::Cu
             end
 
             ta = F.times[itime]-rta
-            tb = max(F.times[itime]-rtb, 1e-8) # rtb > rta, so make sure this is not zero...
+            tb = max(F.times[itime]-rtb, 1e-8) # rtb > rta, so make sure this is not zero because integ is in log10...
             a, b = log10(ta), log10(tb)
             x, w = F.quadnodes, F.quadweights
             F.dBzdt[itime] += (b-a)/2*dot(getrampresponse((b-a)/2*x .+ (a+b)/2, splz), w)*dIdt

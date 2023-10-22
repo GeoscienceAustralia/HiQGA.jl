@@ -14,10 +14,10 @@ rRx = 0.0
 zRx = -30.0
 zTx = -30.0
 freqlow = 1e-3
-freqhigh = 1e6
+freqhigh = 5e5
 nkᵣeval = 50
 ntimesperdecade = 10
-nfreqsperdecade = 6
+nfreqsperdecade = 5
 calcjacobian = true
 include("../waveletapprox/electronics_halt.jl")
 ## LM operator

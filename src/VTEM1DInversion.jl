@@ -47,6 +47,9 @@ function dBzdt(;times           = [1.],
         σ               = zeros(0),
         showgates       = false,
         modelprimary    = false,
+        lowpassfcs      = [],
+        freqlow         = 1e-3,
+        freqhigh        = 5e5, 
         )
    
     @assert size(σ)  == size(d)
@@ -54,7 +57,8 @@ function dBzdt(;times           = [1.],
 
     F = AEM_VMD_HMD.HFieldDHT(;
         times, ramp, nmax, zTx, rTx,
-        rRx = 0., zRx,
+        rRx = 0., zRx, 
+        lowpassfcs, freqlow, freqhigh,
         calcjacobian, nfreqsperdecade,
         ntimesperdecade, modelprimary
     )
@@ -186,7 +190,6 @@ function read_survey_files(;
     σ_halt[:] .*= units
     d[:]      .*= units
     σ           = sqrt.((multnoise*d).^2 .+ (σ_halt').^2)
-
     makeqcplots && plotsoundingdata(d, σ, times, zTx, zRx; figsize, fontsize)
     nsoundings = size(d, 1)
     s_array = Array{VTEMsoundingData, 1}(undef, nsoundings)
@@ -194,7 +197,7 @@ function read_survey_files(;
     for is in 1:nsoundings
         l, f = Int(whichline[is]), fiducial[is]
         s_array[is] = VTEMsoundingData(;zTx=zTx[is], zRx=zRx[is], rTx, 
-            times, ramp, noise=σ[is,:], data=d[is,:], 
+            times, ramp, noise=σ[is,:], data=d[is,:], lowpassfcs,
             sounding_string="sounding_$(l)_$f",
             X=easting[is], Y=northing[is], Z=topo[is], fid=f,
             linenum=l)
@@ -386,7 +389,7 @@ function makeoperator(sounding::VTEMsoundingData;
     z, ρ, = makezρ(zboundaries; zfixed, ρfixed)
     ρ[z.>=zstart] .= ρbg
     aem = dBzdt(;d=sounding.data/μ, σ=sounding.noise/μ, modelprimary,
-        times=sounding.times, ramp=sounding.ramp, ntimesperdecade, nfreqsperdecade,
+        times=sounding.times, ramp=sounding.ramp, ntimesperdecade, nfreqsperdecade, lowpassfcs=sounding.lowpassfcs,
         rTx=sounding.rTx, zTx=sounding.zTx, zRx=sounding.zRx, z, ρ, calcjacobian, useML, showgates=plotfield)
     plotfield && plotmodelfield!(aem, log10.(ρ[2:end]))
     aem, zall, znall, zboundaries
@@ -396,7 +399,7 @@ function makeoperator(aem::dBzdt, sounding::VTEMsoundingData)
     ntimesperdecade = gettimesperdec(aem.F.interptimes)
     nfreqsperdecade = gettimesperdec(aem.F.freqs)
     modelprimary = aem.F.useprimary === 1. ? true : false
-    dBzdt(;d=sounding.data/μ, σ=sounding.noise/μ, modelprimary,
+    dBzdt(;d=sounding.data/μ, σ=sounding.noise/μ, modelprimary, lowpassfcs=sounding.lowpassfcs,
         times=sounding.times, ramp=sounding.ramp, ntimesperdecade, nfreqsperdecade,
         rTx=sounding.rTx, zTx=sounding.zTx, zRx=sounding.zRx,
         z=copy(aem.z), ρ=copy(aem.ρ), 
