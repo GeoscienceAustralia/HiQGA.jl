@@ -13,8 +13,8 @@ z, ρ, nfixed = transD_GP.makezρ(zboundaries; zfixed=zfixed, ρfixed=ρfixed)
 rRx = 0.0
 zRx = -30.0
 zTx = -30.0
-freqlow = 1e-3
-freqhigh = 5e5
+freqlow = 1e-4
+freqhigh = 1e6
 nkᵣeval = 50
 ntimesperdecade = 10
 nfreqsperdecade = 5

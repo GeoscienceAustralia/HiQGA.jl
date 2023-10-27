@@ -48,8 +48,8 @@ function dBzdt(;times           = [1.],
         showgates       = false,
         modelprimary    = false,
         lowpassfcs      = [],
-        freqlow         = 1e-3,
-        freqhigh        = 5e5, 
+        freqlow         = 1e-4,
+        freqhigh        = 1e6, 
         )
    
     @assert size(σ)  == size(d)

@@ -21,6 +21,7 @@ mutable struct HFieldDHT <: HField
     ramp            :: Array{Float64, 2}
     log10ω          :: Array{Float64, 1}
     interptimes     :: Array{Float64, 1}
+    minresptime
     HFD_z           :: Array{ComplexF64, 1}
     HFD_r           :: Array{ComplexF64, 1}
     HFD_az          :: Array{ComplexF64, 1}
@@ -92,6 +93,7 @@ function HFieldDHT(;
       getazimH  = false,
       freqlow = 1e-4,
       freqhigh = 1e6,
+      minresptime = 1.e-6, # I think responses earlier than this are unstable
       calcjacobian = false
   )
     @assert all(freqs .> 0.)
@@ -104,29 +106,32 @@ function HFieldDHT(;
     rTE       = zeros(length(pz)-1)
     rTM       = similar(rTE)
     
-    mintime = minimum(times)
     ## all this below for pesky zero time at start instead of shutoff ...
+    mintime = minimum(times)
+    if freqhigh < 3/mintime
+        freqhigh = 3/mintime
+    end
     @assert mintime > 0 # else interpolation in log10 trouble
     if doconvramp
+        checkrampformintime(times, ramp, minresptime)
         if isapprox(ramp[1,1], 0, atol=1e-8)
             mintime = ramp[2,1] # should be around 1.28e-5 to 2.5e-5 for HeliTEM
-            # @warn "automatically setting impulse response mintime to $mintime"
+            # @warn "automatically setting step response mintime to $mintime"
         end
+        mintime = 10^(log10(mintime) - 1) # go back a decade further than asked for
+        mintime = max(mintime, minresptime) # we can't handle responses shorter than minresptime -- unstable IDFT
     end
-    if freqhigh < 3/mintime
-       freqhigh = 3/mintime
-    end
+    interptimes = 10 .^(log10(mintime):1/ntimesperdecade:maximum(log10.(times))+1)
     if freqlow > 0.33/maximum(times)
        freqlow = 0.33/maximum(times)
     end
     if isempty(freqs)
-        freqs = 10 .^(log10(freqlow):1/nfreqsperdecade:log10(freqhigh))
+       freqs = 10 .^(log10(freqlow):1/nfreqsperdecade:log10(freqhigh))
     end
     interpkᵣ = 10 .^range(minimum(log10.(Filter_base))-0.5, maximum(log10.(Filter_base))+0.5, length = nkᵣeval)
     J0_kernel_h, J1_kernel_h, J0_kernel_v, J1_kernel_v = map(x->zeros(ComplexF64, length(interpkᵣ), length(freqs)), 1:4)
     J01kernelhold = zeros(ComplexF64, length(Filter_base))
     log10ω = log10.(2*pi*freqs)    
-    interptimes = 10 .^(log10(mintime)-1:1/ntimesperdecade:maximum(log10.(times))+1)
     HFD_z       = zeros(ComplexF64, length(freqs)) # space domain fields in freq
     HFD_r       = zeros(ComplexF64, length(freqs)) # space domain fields in freq
     HFD_az       = zeros(ComplexF64, length(freqs)) # space domain fields in freq
@@ -171,13 +176,33 @@ function HFieldDHT(;
     #
     Jtemp = calcjacobian ? zeros(ComplexF64, nmax) : zeros(0)
     useprimary = modelprimary ? one(Float64) : zero(Float64)
-    HFieldDHT(thickness, pz, ϵᵢ, zintfc, rTE, rTM, zRx, zTx, rTx, rRx, freqs, times, ramp, log10ω, interptimes,
+    HFieldDHT(thickness, pz, ϵᵢ, zintfc, rTE, rTM, zRx, zTx, rTx, rRx, freqs, times, ramp, log10ω, interptimes, minresptime,
             HFD_z, HFD_r, HFD_az, HFD_z_interp, HFD_r_interp, HFD_az_interp,
             HTD_z_interp, HTD_r_interp, HTD_az_interp, dBzdt, dBrdt, dBazdt, J0_kernel_h, J1_kernel_h, J0_kernel_v, J1_kernel_v, J01kernelhold, lowpassfcs,
             quadnodes, quadweights, preallocate_ω_Hsc(interptimes, lowpassfcs)..., rxwithinloop, provideddt, doconvramp, useprimary,
             nkᵣeval, interpkᵣ, log10interpkᵣ, log10Filter_base, getradialH, getazimH, 
             calcjacobian, Jtemp, similar(Jtemp), Jac_z, Jac_az, Jac_r, HFD_z_J, HTD_z_J_interp, dBzdt_J,  HFD_az_J, HTD_az_J_interp, dBazdt_J, 
             HFD_r_J, HTD_r_J_interp, dBrdt_J)
+end
+
+function checkrampformintime(times, ramp, minresptime)
+    # this checks we don't have ultra small tobs - ramp_time_a
+    for itime = 1:length(times)
+        for iramp = 1:size(ramp,1)-1
+            rta, rtb  = ramp[iramp,1], ramp[iramp+1,1]
+            if rta >= times[itime] # geq instead of gt as we could have an unlcky time
+                break
+            end
+            if rtb > times[itime] # end in this interval
+                rtb = times[itime]
+            end
+            # just so we know, rta < rtb and rta < t so rta < rtb <= t
+            ta = times[itime]-rta 
+            tb = max(times[itime]-rtb, minresptime) # rtb > rta, so make sure this is not zero because integ is in log10...
+            @assert ta>tb # else we're in trouble
+        end
+    end
+    nothing
 end
 
 #update geometry and dependent parameters - necessary for adjusting geometry
@@ -641,7 +666,7 @@ function convramp!(F::HFieldDHT, splz::CubicSpline, splr::CubicSpline, splaz::Cu
             end
 
             ta = F.times[itime]-rta
-            tb = max(F.times[itime]-rtb, 1e-8) # rtb > rta, so make sure this is not zero because integ is in log10...
+            tb = max(F.times[itime]-rtb, F.minresptime)# rtb > rta, so make sure this is not zero because integ is in log10...
             a, b = log10(ta), log10(tb)
             x, w = F.quadnodes, F.quadweights
             F.dBzdt[itime] += (b-a)/2*dot(getrampresponse((b-a)/2*x .+ (a+b)/2, splz), w)*dIdt

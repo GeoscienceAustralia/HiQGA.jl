@@ -111,7 +111,7 @@ function Bfield(;
 	F = AEM_VMD_HMD.HFieldDHT(;nmax, calcjacobian,
 	                      ntimesperdecade = ntimesperdecade,
 	                      nfreqsperdecade = nfreqsperdecade,
-						  freqlow=1e-5,
+						#   freqlow =1e-5,
 						  nkᵣeval = nkᵣeval,
 	                      times  = times,
 	                      ramp   = ramp,
