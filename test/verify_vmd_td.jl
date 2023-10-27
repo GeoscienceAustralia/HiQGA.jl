@@ -1,4 +1,4 @@
-using PyPlot, Revise, HiQGA.transD_GP, Random
+using PyPlot, HiQGA.transD_GP, Random
 ## set up
 nfreqsperdecade     = 20
 ntimesperdecade     = 20
@@ -8,30 +8,31 @@ doconvramp          = false
 nkᵣeval             = 200
 times               = 10 .^LinRange(-5,-1.1, 60)
 lowpassfcs          = [1e6]
-freqhigh = 1e6
-freqlow = 1e-8
+freqhigh = 1e5
+freqlow = 1e-7
 ## model
 zfixed   = [-1e5,   0]
 rho      = [1e12,   100]
 nmax = 200
 ##  geometry
 rRx = 100.
-zRx = 0.
+zRx = -0.01
 zTx = 0.
-modelprimary = true
 ##
-F = transD_GP.AEM_VMD_HMD.HFieldDHT(freqlow = freqlow,
-                      freqhigh = freqhigh,
-                      zTx    = zTx,
-                      rRx    = rRx,
-                      times = times,
-                      nfreqsperdecade = nfreqsperdecade,
-                      ntimesperdecade = ntimesperdecade,
-                      zRx    = zRx,
-                      nkᵣeval = nkᵣeval,
-                      modelprimary = modelprimary,
-                      provideddt = provideddt,
-                      lowpassfcs = lowpassfcs)
+F = transD_GP.AEM_VMD_HMD.HFieldDHT(;
+                            freqlow = freqlow,
+                            freqhigh = freqhigh,
+                            zTx    = zTx,
+                            rRx    = rRx,
+                            times = times,
+                            doconvramp,
+                            nfreqsperdecade = nfreqsperdecade,
+                            ntimesperdecade = ntimesperdecade,
+                            zRx    = zRx,
+                            nkᵣeval = nkᵣeval,
+                            modelprimary = modelprimary,
+                            provideddt = provideddt,
+                            lowpassfcs = lowpassfcs);
 transD_GP.AEM_VMD_HMD.getfieldTD!(F, zfixed, rho)
 ## plot FD
 figure()
@@ -60,7 +61,7 @@ title("Compare with W&H Fig 4.4")
 plt.tight_layout()
 ## Radial fields
 figure(figsize=(4,7))
-F.useprimary = 0.
+# F.useprimary = 0.
 F.getradialH = true
 F.provideddt = true
 transD_GP.AEM_VMD_HMD.getfieldTD!(F, zfixed, rho)

@@ -16,7 +16,7 @@ Flm = transD_GP.AEM_VMD_HMD.HFieldDHT(
                       rTx    = rTx,
                       zRx    = zRxLM,
                       freqlow = freqlow
-                      )
+                      );
 ## HM operator
 Fhm = transD_GP.AEM_VMD_HMD.HFieldDHT(
                       ntimesperdecade = ntimesperdecade,

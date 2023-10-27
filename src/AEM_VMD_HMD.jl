@@ -80,7 +80,7 @@ function HFieldDHT(;
       zTx       = -35.0,
       zRx       = -37.5,
       times     = 10 .^LinRange(-6, -1, 50),
-      ramp      = ones(10, 10),
+      ramp      = ones(10, 2),
       nfreqsperdecade = 5,
       ntimesperdecade = 10,
       glegintegorder = 5,
@@ -107,21 +107,17 @@ function HFieldDHT(;
     rTM       = similar(rTE)
     
     ## all this below for pesky zero time at start instead of shutoff ...
-    mintime = minimum(times)
+    mintime, maxtime = extrema(times)
+    @assert mintime > 0 # else interpolation in log10 trouble
+    @show mintime = 10^(log10(mintime) - 1) # go back a decade further than asked for
+    @show maxtime = 10^(log10(maxtime) + 1) # go ahead a decade further
+    if doconvramp
+         mintime, maxtime = checkrampformintime(times, ramp, minresptime, mintime, maxtime)
+    end
+    interptimes = 10 .^(log10(mintime) : 1/ntimesperdecade : log10(maxtime))
     if freqhigh < 3/mintime
         freqhigh = 3/mintime
     end
-    @assert mintime > 0 # else interpolation in log10 trouble
-    if doconvramp
-        checkrampformintime(times, ramp, minresptime)
-        if isapprox(ramp[1,1], 0, atol=1e-8)
-            mintime = ramp[2,1] # should be around 1.28e-5 to 2.5e-5 for HeliTEM
-            # @warn "automatically setting step response mintime to $mintime"
-        end
-        mintime = 10^(log10(mintime) - 1) # go back a decade further than asked for
-        mintime = max(mintime, minresptime) # we can't handle responses shorter than minresptime -- unstable IDFT
-    end
-    interptimes = 10 .^(log10(mintime):1/ntimesperdecade:maximum(log10.(times))+1)
     if freqlow > 0.33/maximum(times)
        freqlow = 0.33/maximum(times)
     end
@@ -185,8 +181,10 @@ function HFieldDHT(;
             HFD_r_J, HTD_r_J_interp, dBrdt_J)
 end
 
-function checkrampformintime(times, ramp, minresptime)
+function checkrampformintime(times, ramp, minresptime, mintime, maxtime)
     # this checks we don't have ultra small tobs - ramp_time_a
+    minta = Inf
+    maxta = -Inf
     for itime = 1:length(times)
         for iramp = 1:size(ramp,1)-1
             rta, rtb  = ramp[iramp,1], ramp[iramp+1,1]
@@ -200,9 +198,25 @@ function checkrampformintime(times, ramp, minresptime)
             ta = times[itime]-rta 
             tb = max(times[itime]-rtb, minresptime) # rtb > rta, so make sure this is not zero because integ is in log10...
             @assert ta>tb # else we're in trouble
+            if ta < minta
+                minta = ta
+            end
+            if ta > maxta
+                maxta = ta
+            end    
         end
+        # if minta < mintime
+            mintime = max(0.5minta, minresptime) 
+            # though I believe mintime = minta always is safe.
+        # end
+        # if maxta > maxtime
+            # too high a time requires very low freqs 
+            # maxtime = maxta # should work but doesn't with SkyTEM / VTEM checks
+            maxtime = min(3maxta, maxtime)
+        # end    
     end
-    nothing
+    # @info minta, maxta
+    mintime, maxtime
 end
 
 #update geometry and dependent parameters - necessary for adjusting geometry
