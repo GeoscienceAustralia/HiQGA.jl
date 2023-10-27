@@ -205,17 +205,15 @@ function checkrampformintime(times, ramp, minresptime, mintime, maxtime)
                 maxta = ta
             end    
         end
-        # if minta < mintime
-            mintime = max(0.5minta, minresptime) 
-            # though I believe mintime = minta always is safe.
-        # end
-        # if maxta > maxtime
-            # too high a time requires very low freqs 
-            # maxtime = maxta # should work but doesn't with SkyTEM / VTEM checks
-            maxtime = min(3maxta, maxtime)
-        # end    
     end
-    # @info minta, maxta
+    # if minta < mintime
+        mintime = max(0.5minta, minresptime) 
+        # though I believe mintime = minta always is safe.
+    # end
+    # if maxta > maxtime
+        maxtime = min(1.5maxta, maxtime)
+        # 1.5 to make sure we clear maxta in the interptimes
+    # end    
     mintime, maxtime
 end
 
