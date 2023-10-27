@@ -109,8 +109,8 @@ function HFieldDHT(;
     ## all this below for pesky zero time at start instead of shutoff ...
     mintime, maxtime = extrema(times)
     @assert mintime > 0 # else interpolation in log10 trouble
-    @show mintime = 10^(log10(mintime) - 1) # go back a decade further than asked for
-    @show maxtime = 10^(log10(maxtime) + 1) # go ahead a decade further
+    mintime = 10^(log10(mintime) - 1) # go back a decade further than asked for
+    maxtime = 10^(log10(maxtime) + 1) # go ahead a decade further
     if doconvramp
          mintime, maxtime = checkrampformintime(times, ramp, minresptime, mintime, maxtime)
     end
