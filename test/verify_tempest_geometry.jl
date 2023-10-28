@@ -8,7 +8,7 @@ nmax = 100
 
 zstart = 0.
 extendfrac, dz = 1.06, 2.
-zall, znall, zboundaries = transD_GP.setupz(zstart, extendfrac, dz=dz, n=40, showplot=true)
+zall, znall, zboundaries = transD_GP.setupz(zstart, extendfrac, dz=dz, n=40, showplot=false)
 z, ρ, nfixed = transD_GP.makezρ(zboundaries; zfixed=zfixed, ρfixed=ρfixed)
 @info z
 
@@ -66,7 +66,7 @@ tempest = transD_GP.TEMPEST1DInversion.Bfield(
 	addprimary = true #this ensures that the geometry update actually changes everything that needs to be
 )
 # plot before testing
-transD_GP.TEMPEST1DInversion.plotmodelfield!(tempest,z,ρ)
+transD_GP.TEMPEST1DInversion.plotmodelfield!(tempest,log10.(ρ[2:end]))
 
 μ = transD_GP.TEMPEST1DInversion.μ₀
 Bx, By, Bz = tempest.Hx[1]*μ*1e15, tempest.Hy[1]*μ*1e15, tempest.Hz[1]*μ*1e15

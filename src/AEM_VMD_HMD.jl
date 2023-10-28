@@ -112,7 +112,7 @@ function HFieldDHT(;
     mintime = 10^(log10(mintime) - 1) # go back a decade further than asked for
     maxtime = 10^(log10(maxtime) + 1) # go ahead a decade further
     if doconvramp
-         mintime, maxtime = checkrampformintime(times, ramp, minresptime, mintime, maxtime)
+         mintime, maxtime = checkrampformintime(times, ramp, minresptime, maxtime)
     end
     interptimes = 10 .^(log10(mintime) : 1/ntimesperdecade : log10(maxtime))
     if freqhigh < 3/mintime
@@ -181,7 +181,7 @@ function HFieldDHT(;
             HFD_r_J, HTD_r_J_interp, dBrdt_J)
 end
 
-function checkrampformintime(times, ramp, minresptime, mintime, maxtime)
+function checkrampformintime(times, ramp, minresptime, maxtime)
     # this checks we don't have ultra small tobs - ramp_time_a
     minta = Inf
     maxta = -Inf
@@ -206,10 +206,8 @@ function checkrampformintime(times, ramp, minresptime, mintime, maxtime)
             end    
         end
     end
-    # if minta < mintime
         mintime = max(0.5minta, minresptime) 
         # though I believe mintime = minta always is safe.
-    # end
     # if maxta > maxtime
         maxtime = min(1.5maxta, maxtime)
         # 1.5 to make sure we clear maxta in the interptimes
