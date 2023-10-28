@@ -1,13 +1,13 @@
 using PyPlot, HiQGA.transD_GP, Random
 ## set up
-nfreqsperdecade     = 20
-ntimesperdecade     = 20
+nfreqsperdecade     = 10
+ntimesperdecade     = 10 # only for interpolation in plots
 modelprimary        = true
 provideddt          = true
 doconvramp          = false
-nkᵣeval             = 200
-times               = 10 .^LinRange(-5,-1.1, 60)
-lowpassfcs          = [1e6]
+nkᵣeval             = 120 # for HT
+times               = 10 .^LinRange(-5,-1.1, 5)
+lowpassfcs          = []
 freqhigh = 1e5
 freqlow = 1e-7
 ## model

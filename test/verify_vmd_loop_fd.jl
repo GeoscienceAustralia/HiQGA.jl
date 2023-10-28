@@ -13,12 +13,14 @@ rRx = 100.
 zRx = -0.011
 zTx = -0.01
 nkᵣeval = 200
+doconvramp = false
 ## VMD
 modelprimary = true
-Fvmd = transD_GP.AEM_VMD_HMD.HFieldDHT(
+Fvmd = transD_GP.AEM_VMD_HMD.HFieldDHT(;
                       nmax   = nmax,
                       zTx    = zTx,
                       rRx    = rRx,
+                      doconvramp,
                       freqs  = freqs,
                       zRx    = zRx,
                       nkᵣeval = nkᵣeval,
@@ -26,12 +28,13 @@ Fvmd = transD_GP.AEM_VMD_HMD.HFieldDHT(
 transD_GP.AEM_VMD_HMD.getfieldFD!(Fvmd, zfixed, rho)
 ## now use a tiny loop radius - VMD approximation is worse as radius gets larger
 rTx = 0.001
-Floop = transD_GP.AEM_VMD_HMD.HFieldDHT(
+Floop = transD_GP.AEM_VMD_HMD.HFieldDHT(;
                       nmax   = nmax,
                       zTx    = zTx,
                       rRx    = rRx,
                       rTx    = rTx,
                       freqs  = freqs,
+                      doconvramp,
                       zRx    = zRx,
                       nkᵣeval = nkᵣeval,
                       modelprimary = modelprimary)
@@ -46,12 +49,13 @@ ax[1].legend()
 ax[1].set_title("Compare with W&H Fig 4.2")
 ## Compare H radial
 getradialH = true
-Fvmd = transD_GP.AEM_VMD_HMD.HFieldDHT(
+Fvmd = transD_GP.AEM_VMD_HMD.HFieldDHT(;
                       nmax   = nmax,
                       zTx    = 0,
                       rRx    = rRx,
                       freqs  = freqs,
                       zRx    = 0,
+                      doconvramp,
                       nkᵣeval = nkᵣeval,
                       modelprimary = false, # says W&H for within plane of observation !!
                       getradialH = getradialH)
@@ -70,13 +74,14 @@ zTx = -0.01
 zRx = -0.02
 rRx = 0.001
 rTx = 50.0
-Floopin = transD_GP.AEM_VMD_HMD.HFieldDHT(
+Floopin = transD_GP.AEM_VMD_HMD.HFieldDHT(;
                       nmax   = nmax,
                       zTx    = zTx,
                       rRx    = rRx,
                       rTx    = rTx,
                       freqs  = freqs,
                       zRx    = zRx,
+                      doconvramp,
                       nkᵣeval = nkᵣeval,
                       modelprimary = modelprimary)
 transD_GP.AEM_VMD_HMD.getfieldFD!(Floopin, zfixed, rho)
