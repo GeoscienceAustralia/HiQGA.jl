@@ -34,6 +34,7 @@ function dBzdt(;times           = [1.],
         ramp            = [0. 1],
         rTx             = 10.,  
         zTx             = -30.,
+        zRx             = -30.01, # now Z down for use
         useML           = false,
         z               = [-1.],
         ρ               = [-1.],
@@ -46,6 +47,9 @@ function dBzdt(;times           = [1.],
         σ               = zeros(0),
         showgates       = false,
         modelprimary    = false,
+        lowpassfcs      = [],
+        freqlow         = 1e-4,
+        freqhigh        = 1e6, 
         )
    
     @assert size(σ)  == size(d)
@@ -53,7 +57,8 @@ function dBzdt(;times           = [1.],
 
     F = AEM_VMD_HMD.HFieldDHT(;
         times, ramp, nmax, zTx, rTx,
-        rRx = 0., zRx = zTx-0.01,
+        rRx = 0., zRx, 
+        lowpassfcs, freqlow, freqhigh,
         calcjacobian, nfreqsperdecade,
         ntimesperdecade, modelprimary
     )
@@ -100,6 +105,7 @@ mutable struct VTEMsoundingData <: Sounding
     fid             :: Float64
     linenum         :: Int
     zTx             :: Float64
+    zRx             :: Float64
     rTx             :: Float64
     lowpassfcs      :: Array{Float64, 1}
     times           :: Array{Float64, 1}
@@ -109,14 +115,15 @@ mutable struct VTEMsoundingData <: Sounding
 end
 
 returnforwrite(s::VTEMsoundingData) = [s.X, s.Y, s.Z, s.fid, 
-    s.linenum, s.zTx, s.rTx]
+    s.linenum, s.zTx, s.zRx, s.rTx]
 
 function getndata(S::VTEMsoundingData)
     getndata(S.data)[1]
 end    
 
 function VTEMsoundingData(;rRx=nothing, zRx=nothing, zTx=12.,
-                            rTx=-12.,lowpassfcs=[],
+                            rTx=-12.,lowpassfcs=[], 
+                            tx_rx_dz = -0.01, # not reading but using format Z down -ve is rx above tx
                             times=[1., 2.], ramp=[1 2; 3 4],
                             noise=[1.], data=[1.], 
                             sounding_string="sounding", X=nothing, Y=nothing, Z=nothing,
@@ -124,13 +131,13 @@ function VTEMsoundingData(;rRx=nothing, zRx=nothing, zTx=12.,
     @assert rTx > 0
     @assert zTx < 0 # my coordinate system z down 
     isnothing(rRx) && (rRx = 0.)
-    isnothing(zRx) && (zRx = zTx-0.1) # place receiver just above tx centre
+    isnothing(zRx) && (zRx = zTx + tx_rx_dz) 
     !isempty(lowpassfcs) && @assert all(lowpassfcs .> 0)
     @assert all(diff(times) .>0 )
     @assert all(diff(ramp[:,1]) .>0 )
     @assert all((noise .>0) .| isnan.(noise))
     @assert length(data) == length(noise)
-    VTEMsoundingData(sounding_string, X, Y, Z, fid, linenum, zTx, rTx,
+    VTEMsoundingData(sounding_string, X, Y, Z, fid, linenum, zTx, zRx, rTx,
         lowpassfcs, times, ramp, noise, data)
 end
 
@@ -152,6 +159,7 @@ function read_survey_files(;
     Z = -1,
     fid = -1,
     linenum = -1,
+    tx_rx_dz_pass_through = 0.01, # Z up GA-AEM reading convention +ve is rx above tx
     nanchar = "*")
 
     @assert frame_height > 0
@@ -171,8 +179,10 @@ function read_survey_files(;
     fiducial = soundings[:,fid]
     whichline = soundings[:,linenum]
     d = soundings[:,d[1]:d[2]]
-    zTx = -soundings[:,frame_height] # my coordinate system
- 
+    zTx = soundings[:,frame_height] # read in Z up
+    zRx = -(zTx .+ tx_rx_dz_pass_through)  # my coordinate system Z down
+    zTx = -zTx # my coordinate system Z down
+
     @info "reading $fname_specs_halt"
     include(fname_specs_halt)
     @assert size(d, 2) == length(times)
@@ -180,15 +190,14 @@ function read_survey_files(;
     σ_halt[:] .*= units
     d[:]      .*= units
     σ           = sqrt.((multnoise*d).^2 .+ (σ_halt').^2)
-
-    makeqcplots && plotsoundingdata(d, σ, times, zTx; figsize, fontsize)
+    makeqcplots && plotsoundingdata(d, σ, times, zTx, zRx; figsize, fontsize)
     nsoundings = size(d, 1)
     s_array = Array{VTEMsoundingData, 1}(undef, nsoundings)
     fracdone = 0 
     for is in 1:nsoundings
         l, f = Int(whichline[is]), fiducial[is]
-        s_array[is] = VTEMsoundingData(;zTx=zTx[is], rTx, 
-            times, ramp, noise=σ[is,:], data=d[is,:], 
+        s_array[is] = VTEMsoundingData(;zTx=zTx[is], zRx=zRx[is], rTx, 
+            times, ramp, noise=σ[is,:], data=d[is,:], lowpassfcs,
             sounding_string="sounding_$(l)_$f",
             X=easting[is], Y=northing[is], Z=topo[is], fid=f,
             linenum=l)
@@ -201,7 +210,7 @@ function read_survey_files(;
     return s_array
 end
 
-function plotsoundingdata(d, σ, times, zTx; figsize=(8,4), fontsize=1)
+function plotsoundingdata(d, σ, times, zTx, zRx; figsize=(8,4), fontsize=1)
     f, ax = plt.subplots(2, 2, figsize=figsize, gridspec_kw=Dict("width_ratios" => [1,0.01]))
     nsoundings = size(d, 1)
     plot_d = permutedims(d)
@@ -216,9 +225,11 @@ function plotsoundingdata(d, σ, times, zTx; figsize=(8,4), fontsize=1)
     axx.semilogy(mean(σ./abs.(d), dims=1)[:], times, "r")
     axx.semilogy(mean(σ./abs.(d), dims=1)[:], times, "--w")
     axx.set_xlabel("avg noise fraction")
+    ax[2].plot(1:nsoundings, zRx, label="zRx")
     ax[2].plot(1:nsoundings, zTx, label="zTx")
     ax[2].set_xlabel("sounding #")
     ax[2].set_ylabel("height m")
+    ax[2].invert_yaxis()
     ax[2].sharex(ax[1])
     ax[2].legend()
     ax[2,2].axis("off")
@@ -378,8 +389,8 @@ function makeoperator(sounding::VTEMsoundingData;
     z, ρ, = makezρ(zboundaries; zfixed, ρfixed)
     ρ[z.>=zstart] .= ρbg
     aem = dBzdt(;d=sounding.data/μ, σ=sounding.noise/μ, modelprimary,
-        times=sounding.times, ramp=sounding.ramp, ntimesperdecade, nfreqsperdecade,
-        rTx=sounding.rTx, zTx=sounding.zTx, z, ρ, calcjacobian, useML, showgates=plotfield)
+        times=sounding.times, ramp=sounding.ramp, ntimesperdecade, nfreqsperdecade, lowpassfcs=sounding.lowpassfcs,
+        rTx=sounding.rTx, zTx=sounding.zTx, zRx=sounding.zRx, z, ρ, calcjacobian, useML, showgates=plotfield)
     plotfield && plotmodelfield!(aem, log10.(ρ[2:end]))
     aem, zall, znall, zboundaries
 end
@@ -388,9 +399,10 @@ function makeoperator(aem::dBzdt, sounding::VTEMsoundingData)
     ntimesperdecade = gettimesperdec(aem.F.interptimes)
     nfreqsperdecade = gettimesperdec(aem.F.freqs)
     modelprimary = aem.F.useprimary === 1. ? true : false
-    dBzdt(;d=sounding.data/μ, σ=sounding.noise/μ, modelprimary,
+    dBzdt(;d=sounding.data/μ, σ=sounding.noise/μ, modelprimary, lowpassfcs=sounding.lowpassfcs,
         times=sounding.times, ramp=sounding.ramp, ntimesperdecade, nfreqsperdecade,
-        rTx=sounding.rTx, zTx=sounding.zTx, z=copy(aem.z), ρ=copy(aem.ρ), 
+        rTx=sounding.rTx, zTx=sounding.zTx, zRx=sounding.zRx,
+        z=copy(aem.z), ρ=copy(aem.ρ), 
         aem.F.calcjacobian, aem.useML, showgates=false)
 end
 

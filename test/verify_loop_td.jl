@@ -5,15 +5,15 @@ rho      = [1e20,   1,  ]
 nmax = 200
 ##  geometry
 rTx = 15
-rRx = 0.001
-zRx = -0.001
-zTx = -0.002
+rRx = 0.0
+zRx = -0.01
+zTx = -0.005
 doconvramp = false
 modelprimary = true
 nkᵣeval = 200
 ntimesperdecade = 15
 nfreqsperdecade = 15
-times = 10 .^LinRange(-6,1,40)
+times = 10 .^LinRange(-5,0,5)
 ## build operator
 F = transD_GP.AEM_VMD_HMD.HFieldDHT(
                       ntimesperdecade = ntimesperdecade,
