@@ -157,7 +157,7 @@ The next time you start julia you have HiQGA ready for use with
 julia> using HiQGA
 ```
 navigate to the [examples](https://github.com/GeoscienceAustralia/HiQGA.jl/tree/master/examples) folder to run some example scripts. **You can end here as a regular user, however for development mode see below.**
-### For installing development mode pre-release versions
+## For installing development mode pre-release versions
 ```
 pkg> dev HiQGA
 ```
@@ -165,7 +165,7 @@ pkg> dev HiQGA
 ```
 pkg> free HiQGA
 ```
-### References for AEM and CSEM physics 
+## References for AEM and CSEM physics 
 
 - [Blatter, D., Key, K., Ray, A., Foley, N., Tulaczyk, S., & Auken, E. (2018). Trans-dimensional Bayesian inversion of airborne transient EM data from Taylor Glacier, Antarctica. Geophysical Journal International, 214(3)](https://doi.org/10.1093/gji/ggy255)
 - [Brodie, R. C. (2010). Holistic inversion of airborne electromagnetic data. PhD thesis, Australian National University](https://openresearch-repository.anu.edu.au/bitstream/1885/49403/4/02Whole.pdf).
