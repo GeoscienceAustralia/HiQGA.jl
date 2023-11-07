@@ -20,7 +20,7 @@ pkg> add HiQGA
 If installing to [follow along](https://www.youtube.com/watch?v=edgzr8vpCKY&list=PL0jP_ahe-BFmRWx6IT9G2zbFHA6qmJ52f&index=6) for the 2022 AEM [workshop branch](https://github.com/GeoscienceAustralia/HiQGA.jl/tree/workshop) use instead of the above `pkg> add HiQGA@0.2.2`
 
 ## Usage
-Examples of how to use the package can be found in the `examples` directory. Simply `cd` to the relevant example directory and `include` the .`jl` files in the order they are named. If using VSCode make sure to do *Julia: Change to this Directory* from the three dots menu on the top right. The Markov Chain Monte Carlo sampler is configured to support parallel tempering on multiple CPUs - some of the examples accomplish this with Julia's built-in multiprocessing, and others use MPI in order to support inversions on HPC clusters that don't work with Julia's default SSH-based multiprocessing. The MPI examples require [MPI.jl](https://github.com/JuliaParallel/MPI.jl) and [MPIClusterManagers.jl](https://github.com/JuliaParallel/MPIClusterManagers.jl/), which are not installed as dependencies for this package, so you will need to ensure they are installed and configured correctly to run these examples. See [here](#Installing-MPI.jl-and-MPIClusterManagers.jl-on-NCI) for MPI on the NCI.
+Examples of how to use the package can be found in the `examples` directory. Simply `cd` to the relevant example directory and `include` the .`jl` files in the order they are named. If using VSCode make sure to do *Julia: Change to this Directory* from the three dots menu on the top right. The Markov Chain Monte Carlo sampler is configured to support parallel tempering on multiple CPUs - some of the examples accomplish this with Julia's built-in multiprocessing, and others use MPI in order to support inversions on HPC clusters that don't work with Julia's default SSH-based multiprocessing. The MPI examples require [MPI.jl](https://github.com/JuliaParallel/MPI.jl) and [MPIClusterManagers.jl](https://github.com/JuliaParallel/MPIClusterManagers.jl/), which are not installed as dependencies for this package, so you will need to ensure they are installed and configured correctly to run these examples. See [here](#installing-mpijl-and-mpiclustermanagersjl-on-nci) for MPI on the NCI.
 
 Some example scripts have as a dependency [Revise.jl](https://github.com/timholy/Revise.jl) as we're still actively [developing this package](https://pkgdocs.julialang.org/v1/getting-started/), so you may need to install [Revise](https://github.com/timholy/Revise.jl) if not already installed. All Julia users should be developing with [Revise](https://github.com/timholy/Revise.jl)! After installation, to run the examples, simply clone the package separately (or download as a ZIP), navigate to the `examples` folder and run the scripts in their numerical order.
 
@@ -58,7 +58,7 @@ Get Julia language support from VSCode after launching the VSCode binary by goin
 
 It is also useful to use Revise.jl to ensure changes to the package are immediately reflected in a running Julia REPL (this is the reason that Revise is a dependency on some example scripts as noted above). More information on a workflow to use Revise during development can be found [here](https://gist.github.com/a2ray/e593751b24e45f8160ba8041fb811680).
 
-## Installing MPI.jl and MPIClusterManagers.jl on NCI
+### Installing MPI.jl and MPIClusterManagers.jl on NCI
 We have found that the safest bet for MPI.jl to work without [UCX issues](https://docs.juliahub.com/MPI/nO0XF/0.19.2/knownissues/#UCX) on NCI is to use intel-mpi. In order to install MPI.jl and configure it to  use the intel-mpi provided by the module `intel-mpi/2021.10.0`, following the example below. 
 
 ```
@@ -157,7 +157,7 @@ The next time you start julia you have HiQGA ready for use with
 julia> using HiQGA
 ```
 navigate to the [examples](https://github.com/GeoscienceAustralia/HiQGA.jl/tree/master/examples) folder to run some example scripts. **You can end here as a regular user, however for development mode see below.**
-### For installing development mode pre-release versions
+## For installing development mode pre-release versions
 ```
 pkg> dev HiQGA
 ```
@@ -165,7 +165,7 @@ pkg> dev HiQGA
 ```
 pkg> free HiQGA
 ```
-### References for AEM and CSEM physics 
+## References for AEM and CSEM physics 
 
 - [Blatter, D., Key, K., Ray, A., Foley, N., Tulaczyk, S., & Auken, E. (2018). Trans-dimensional Bayesian inversion of airborne transient EM data from Taylor Glacier, Antarctica. Geophysical Journal International, 214(3)](https://doi.org/10.1093/gji/ggy255)
 - [Brodie, R. C. (2010). Holistic inversion of airborne electromagnetic data. PhD thesis, Australian National University](https://openresearch-repository.anu.edu.au/bitstream/1885/49403/4/02Whole.pdf).
