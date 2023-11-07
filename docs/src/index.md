@@ -58,7 +58,7 @@ Get Julia language support from VSCode after launching the VSCode binary by goin
 
 It is also useful to use Revise.jl to ensure changes to the package are immediately reflected in a running Julia REPL (this is the reason that Revise is a dependency on some example scripts as noted above). More information on a workflow to use Revise during development can be found [here](https://gist.github.com/a2ray/e593751b24e45f8160ba8041fb811680).
 
-### Installing MPI.jl and MPIClusterManagers.jl on NCI
+## Installing MPI.jl and MPIClusterManagers.jl on NCI
 We have found that the safest bet for MPI.jl to work without [UCX issues](https://docs.juliahub.com/MPI/nO0XF/0.19.2/knownissues/#UCX) on NCI is to use intel-mpi. In order to install MPI.jl and configure it to  use the intel-mpi provided by the module `intel-mpi/2021.10.0`, following the example below. 
 
 ```
