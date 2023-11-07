@@ -47,19 +47,10 @@ pkg>dev HiQGA
 [Here's a gist](https://gist.github.com/a2ray/8c2c55c25fee6647501b403886bbe64d) on adding your own module if you want to modify the source code. Alternatively, if you only want to use the sampling methods in `HiQGA.transD_GP` without contributing to the source (boo! j/k) [here's another gist](https://gist.github.com/a2ray/92a8c14483c21dda6ddf56685b95fbb8) which is more appropriate. These gists were written originally for a package called `transD_GP` so you will have to modify `using transD_GP` to `using HiQGA.transD_GP`. Documentation is important and we're working on improving it before a full-release. 
 
 ## Development setup on NCI
-You will need a Julia depot, where all packages are downloaded, and the package registry resides. While it may not be large in size, it can consume a lot of your inode (file count) quota. The easiest thing to do is set up a directory like this
-```
-mkdir/g/data/myprojectwithlotsofinodes/myusername/juliadepot
-```
-and then point a symlink to it from ***BOTH*** OOD and gadi, making sure you remove any existing `.julia` in your home directory with `rm -rf .julia` in your `$HOME`
-```
-cd
-ln -s /g/data/myprojectwithlotsofinodes/myusername/juliadepot .julia
-```
-If you don't already have access to a `julia` binary, download the appropriate version `.tar.gz` from [here](https://julialang.org/downloads/) and then untar it in a location you have write access to. Then, in your `$HOME/bin` directory on **_BOTH_** OOD and gadi make a symlink to the julia binary like so:
+If you don't already have access to a `julia` binary, download the appropriate version `.tar.gz` from [here](https://julialang.org/downloads/) and then untar it in a location you have write access to. Then, in your `$HOME/bin` directory make a symlink to the julia binary like so:
 ```
 cd ~/bin
-ln -s /g/data/somwehere/julia-x.x.x/bin/julia .
+ln -s /somwehere/home/me/julia-x.x.x/bin/julia .
 ```
 The preferred development and usage environment for HiQGA is [Visual Studio Code](https://code.visualstudio.com/), which provides interactive execution of Julia code through the [VSCode Julia extension](https://code.visualstudio.com/docs/languages/julia). To install VSCode on the National Computational Infrastructure (NCI), you need to extract the VSCode rpm package using the steps in [this gist](https://gist.github.com/a2ray/701347f703b72abb630d2521b43c5f22), to a location where your account has write access. You will NOT be using vscode on a gadi login node, but on OOD.
 
@@ -67,15 +58,11 @@ Get Julia language support from VSCode after launching the VSCode binary by goin
 
 It is also useful to use Revise.jl to ensure changes to the package are immediately reflected in a running Julia REPL (this is the reason that Revise is a dependency on some example scripts as noted above). More information on a workflow to use Revise during development can be found [here](https://gist.github.com/a2ray/e593751b24e45f8160ba8041fb811680).
 
-**In your MPI job, make sure that you include in your qsub script** the `gdata` directory in which you have your julia executable and depot, e.g.,
-```
-#PBS -l storage=gdata/z67+gdata/kb5
-```
 ### Installing MPI.jl and MPIClusterManagers.jl on NCI
-We have found that the safest bet for MPI.jl to work without [UCX issues](https://docs.juliahub.com/MPI/nO0XF/0.19.2/knownissues/#UCX) on NCI is to use intel-mpi. In order to install MPI.jl and configure it to  use the intel-mpi provided by the module `intel-mpi/2019.8.254`, following the example below. 
+We have found that the safest bet for MPI.jl to work without [UCX issues](https://docs.juliahub.com/MPI/nO0XF/0.19.2/knownissues/#UCX) on NCI is to use intel-mpi. In order to install MPI.jl and configure it to  use the intel-mpi provided by the module `intel-mpi/2021.10.0`, following the example below. 
 
 ```
-$ module load intel-mpi/2019.8.254
+$ module load intel-mpi/2021.10.0
 $ julia
 
 julia > ] 
@@ -91,40 +78,41 @@ Precompiling project...
 
 julia > using MPIPreferences
 
-julia> MPIPreferences.use_system_binary(;library_names=["/apps/intel-mpi/2019.8.254/intel64/lib/release/libmpi.so"],mpiexec="mpiexec",abi="MPICH",export_prefs=true,force=true)
+julia> MPIPreferences.use_system_binary(;library_names=["/apps/intel-mpi/2021.10.0/lib/release/libmpi.so"],mpiexec="mpiexec",abi="MPICH",export_prefs=true,force=true)
+[Info: MPIPreferences changed
+|   binary = "system"
+|   libmpi = "/apps/intel-mpi/2021.10.0/lib/release/libmpi.so"
+|   abi = "MPICH"
+|   mpiexec = "mpiexec"
+|   preloads = Any[]
+[   preloads_env_switch = nothing
 
-┌ Info: MPI implementation identified
-│   libmpi = "/apps/intel-mpi/2019.8.254/intel64/lib/release/libmpi.so"
-│   version_string = "Intel(R) MPI Library 2019 Update 8 for Linux* OS\n"
-│   impl = "IntelMPI"
-│   version = v"2019.8.0"
-└   abi = "MPICH"
-┌ Info: MPIPreferences changed
-│   binary = "system"
-│   libmpi = "/apps/intel-mpi/2019.8.254/intel64/lib/release/libmpi.so"
-│   abi = "MPICH"
-└   mpiexec = "mpiexec"
+julia> exit()
 ```
-
-Once the configuration is completed, install MPI.jl and MPIClusterManagers.jl. 
-We had errors with some other versions of MPI on NCI maybe not an issue any more ...
+Once the configuration is completed, install MPI.jl and MPIClusterManagers.jl in a restarted Julia session. We had errors with other versions of MPI.jl besides v0.19.2 on NCI, maybe not an issue elsewhere.
 ```
 pkg>add MPI@0.19.2, MPIClusterManagers, Distributed
+Resolving package versions...
+  No Changes to `~/.julia/environments/v1.9/Project.toml`
+  No Changes to `~/.julia/environments/v1.9/Manifest.toml`
+Precompiling project...
+  4 dependencies successfully precompiled in 5 seconds. 225 already precompiled.
 ```
 Just to be safe, ensure that MPI has indeed built wth the version you have specified above:
 ```
 julia> using MPI
+
 julia> MPI.MPI_VERSION
 v"3.1.0"
 
 julia> MPI.MPI_LIBRARY
-"IntelMPI"
+IntelMPI::MPIImpl = 4
 
 julia> MPI.MPI_LIBRARY_VERSION
-v"2019.8.0"
+v"2021.0.0"
 
 julia> MPI.identify_implementation()
-("IntelMPI", v"2019.8.0")
+(MPI.IntelMPI, v"2021.0.0")
 
 ```
 To test, use an interactive NCI job with the following submission:
@@ -154,7 +142,7 @@ exit()
 ```
 Run the code after loading the intel-mpi module you have linked MPI.jl against with 
 ```
-module load intel-mpi/2019.8.254
+module load intel-mpi/2021.10.0
 mpirun -np 3 julia mpitest.jl
 ```
 and you should see output like:
@@ -163,43 +151,7 @@ and you should see output like:
 [ Info: there are 2 workers
 ```
 This is the basic recipe for all the cluster HiQGA jobs on NCI. After the call to `manager = MPIClusterManagers.start_main_loop(MPI_TRANSPORT_ALL)`, standard MPI execution stops, and we return to an explicit manager-worker mode with code execution only continuing on the manager which is Julia process 1.
-### Installing PyPlot on NCI
-**_Do NOT Add HiQGA in the usual way by doing `pkg>add HiQGA` as this installs PyPlot through Conda by default._** 
-Due to indode restrictions on NCI, we've resorted to using a communal matplotlib install as follows:
-- Remove Conda, PyPlot, PyCall and HiQGA from your julia environment if already installed
-```
-pkg> rm Conda
-pkg> rm PyCall
-pkg> rm PyPlot
-pkg> rm HiQGA 
-```
-- Delete the `conda` directory from your .julia directory (or wherever your julia depot is):
-```
-rm -rf conda/
-```
-- load python 3.8 on NCI and activate @richardt94 's virtual environment, then point julia at the python executable in this virtual env:
-```
-module load python3/3.8.5
-source /g/data/z67/matplotlib-venv/bin/activate
-PYTHON=/g/data/z67/matplotlib-venv/bin/python julia
-```
-Install PyCall and build PyPlot:
-```
-pkg> add PyCall
-pkg> add PyPlot
-```
-then exit julia with
-```
-julia> exit()
-```
-add the latest released version of HiQGA:
-```
-pkg> add HiQGA
-```
-then exit julia with
-```
-julia> exit()
-```
+
 The next time you start julia you have HiQGA ready for use with
 ```
 julia> using HiQGA
