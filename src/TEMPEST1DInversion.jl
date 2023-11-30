@@ -622,7 +622,11 @@ function makenoisydata!(tempest::Bfield, ρ::Array{Float64,1};
         σx = σx,
         σz = σz)
     
-	showplot && plotmodelfield!(tempest, ρ, figsize=figsize)
+	if showplot
+        plotwaveformgates(tempest)
+        plotmodelfield!(tempest, ρ, figsize=figsize)
+    end
+    
 	nothing
 end
 
@@ -725,6 +729,7 @@ mutable struct TempestSoundingData <: Sounding
     Hx_data :: Array{Float64, 1}
     Hz_data :: Array{Float64, 1}
     forceML :: Bool
+    peakcurrent 
 end
 
 function getnufromsounding(t::TempestSoundingData)
@@ -779,6 +784,7 @@ function read_survey_files(;
     startfrom = 1,
     skipevery = 1,
     multnoise = 0.02,
+    peakcurrent = 0.5,
     X = -99999999,
     Y = -99999999,
 	Z = -99999999,
@@ -909,7 +915,8 @@ function read_survey_files(;
             d_roll_tx[is], d_pitch_tx[is], d_yaw_tx[is],
             z_tx[is],
             times, ramp,
-            σ_Hx[is,:], σ_Hz[is,:], dHx, dHz, forceML
+            σ_Hx[is,:], σ_Hz[is,:], dHx, dHz, forceML,
+            peakcurrent
             )
         fracnew = round(Int, is/nsoundings*100)
         if (fracnew-fracdone)>10
@@ -1022,7 +1029,8 @@ function makeoperator( sounding::TempestSoundingData;
 	ramp = sounding.ramp, times = sounding.times, useML = useML,
 	z=z, ρ=ρ,
 	addprimary = addprimary, #this ensures that the geometry update actually changes everything that needs to be
-    vectorsum = vectorsum
+    vectorsum = vectorsum,
+    peakcurrent = sounding.peakcurrent
 	)
 
 	set_noisy_data!(aem,
@@ -1031,10 +1039,23 @@ function makeoperator( sounding::TempestSoundingData;
 		σx = sounding.σ_x/μ₀,
 		σz = sounding.σ_z/μ₀)
 
-	plotfield && plotmodelfield!(aem, log10.(ρ[2:end]))
-    
+	if plotfield 
+        plotwaveformgates(aem)
+        plotmodelfield!(aem, log10.(ρ[2:end]))
+    end
+
     aem, zall, znall, zboundaries
 end
+
+function plotwaveformgates(aem::Bfield; figsize=(5,5))
+    figure(;figsize)
+    (;ramp, times) = aem.F
+    plot(ramp[:,1]*1e6, ramp[:,2], "-or")
+    stem(times*1e6, ones(length(times)))
+    ylabel("Amplitude")
+    xlabel("time μs")
+    title("Ramp and gates linear time")
+end  
 
 function makeoperator(aem::Bfield, sounding::TempestSoundingData)
     ntimesperdecade = gettimesperdec(aem.F.interptimes)
@@ -1049,7 +1070,8 @@ function makeoperator(aem::Bfield, sounding::TempestSoundingData)
     useML = (aem.useML | sounding.forceML), # OR logic for useML with true, true disqualified earlier
 	z=copy(aem.z), ρ=copy(aem.ρ), calcjacobian=aem.F.calcjacobian,
 	addprimary = aem.addprimary, #this ensures that the geometry update actually changes everything that needs to be
-    vectorsum = aem.vectorsum
+    vectorsum = aem.vectorsum,
+    peakcurrent = sounding.peakcurrent
 	)
     set_noisy_data!(aemout,
 		dataHx = sounding.Hx_data/μ₀,
