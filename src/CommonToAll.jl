@@ -1635,7 +1635,7 @@ function dfn2hdr(dfnfile::String; writecorrecteddfn=false)
 
     rectype_rgx = r"RT=([^;]*);"
     name_rgx = r"NAME="
-    inc_regex = r":([0-9]+)F" #this will only work with floating point fields
+    inc_regex = r":([0-9]+)f"i #this will only work with floating point fields
 
     cumulative_columns = 0  #this will set up a cumulative variable 
     
@@ -1652,7 +1652,12 @@ function dfn2hdr(dfnfile::String; writecorrecteddfn=false)
         if isnothing(inc_match)
             inc = 1
             idx2 = split(row, name_rgx)
-            idx2_r = first.(split.(idx2[2], ":"))
+            if length(idx2) > 1 # so hacky ... but this is for improperly terminated DFN files
+                idx2_r = first.(split.(idx2[2], ":"))
+            else # for proper terminations
+                idx2_r = first.(split.(idx2[1], ":"))
+                break
+            end
         else
             inc = parse(Int64, inc_match.captures[1]) #the outcome is int64
             idx2 = split(row, rectype_rgx)
