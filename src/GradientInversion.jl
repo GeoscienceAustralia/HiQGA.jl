@@ -300,7 +300,7 @@ function gradientinv(   m::AbstractVector,
     target₀ = target
     mnew = [[similar(m) for i in 1:ntries] for j in 1:nstepsmax]
     χ²   = [Vector{Float64}(undef, 0) for j in 1:nstepsmax]
-    χ²nu   = [Vector{Float64}(undef, 0) for j in 1:nstepsmax]
+    χ²nu   = Vector{Float64}(undef, nstepsmax)
     λ² = [Vector{Vector{Float64}}(undef, 0) for j in 1:nstepsmax]
     nunew = [Vector{Float64}(undef, 0) for j in 1:nstepsmax]
     Δm = [similar(m) for i in 1:ntries]
@@ -323,6 +323,7 @@ function gradientinv(   m::AbstractVector,
         (debuglevel > 1) && @info res
         nu = res.minimizer    
         nunew[istep] = nu
+        χ²nu[istep] = res.minimum
         # normal Occam for conductivities
         idx, foundroot = occamstep(m, m0, Δm, mnew[istep], χ²[istep], λ²[istep], F, R, target, 
             lo, hi, λ²min, λ²max, β², ntries, knownvalue=knownvalue, regularizeupdate = regularizeupdate)
