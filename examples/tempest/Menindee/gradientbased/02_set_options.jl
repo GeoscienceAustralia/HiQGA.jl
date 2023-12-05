@@ -26,9 +26,9 @@ if vectorsum
     Δ = [-3.   3.
          -3    3.]
 else
-    Δ = Δ = [-3.   3.
-             -3    3.
-             -1.5  1.5]
+    Δ = [-3.   3.
+         -3    3.
+         -1.5  1.5]
 end
 nstepsmax      = 40 
 ntriesnu       = 5
