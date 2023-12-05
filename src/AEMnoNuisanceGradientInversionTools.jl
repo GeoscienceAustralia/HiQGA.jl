@@ -131,6 +131,8 @@ function plotconvandlasteachline(soundings, σ, ϕd, delr, delz;
     x0, y0 = soundings[1].X, soundings[1].Y
     if isdefined(soundings[1], :zTx)
         zTx = [s.zTx for s in soundings]
+    elseif isdefined(soundings[1], :z_tx)    
+        zTx = [s.z_tx for s in soundings] # so we can use for TEMPEST and SPECTREM
     else
         zTx = [s.zTxLM for s in soundings]
     end    
