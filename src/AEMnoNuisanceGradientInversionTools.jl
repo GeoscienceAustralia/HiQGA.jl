@@ -54,6 +54,7 @@ function plotconvandlast(soundings, delr, delz;
         yl = nothing,
         plotforward = false,
         aem_in = nothing,
+        nnu = 0,
         dpi=400)
     linestartidx = splitsoundingsbyline(soundings)                    
     nlines = length(linestartidx)
@@ -62,7 +63,7 @@ function plotconvandlast(soundings, delr, delz;
     isfile(fnamecheck) && compress(soundings, zall) # write everything in one file if not done yet
     fzipped = prefix == "" ? "zipped.dat" : prefix*"_zipped.dat"
     A = readdlm(fzipped)
-    σ = A[:,end-nlayers:end-1]
+    σ = A[:,end-nlayers-nnu:end-nnu-1] # so we can plot TEMPEST and SPECTREM similar to heli
     ϕd = A[:,end]
     for i in 1:nlines
         a, b = linestartend(linestartidx, i, nlines, soundings)
