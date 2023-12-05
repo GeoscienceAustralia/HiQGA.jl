@@ -179,7 +179,7 @@ function plotconvandlasteachline(soundings, σ, nu, nufieldnames, ϕd, delr, del
     label = fig._suptitle.get_text()
     VE = round(Int, getVE(ax[end-1]))
     fig.suptitle(label*", VE=$(VE)X"; fontsize)
-    saveplot && savefig(lname*".png", dpi=dpi)
+    saveplot && savefig(lname*"_with_nu.png", dpi=dpi)
     showplot || close(fig)
 end    
 
