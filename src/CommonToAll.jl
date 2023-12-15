@@ -1106,14 +1106,30 @@ function zcentertoboundary(zall)
     zb
 end
 
-function zboundarytocenter(zb; fudgelast=false)
-    thickness = diff(zb)
-    zall = zb[1:end-1] + thickness/2
-    if fudgelast
-        zall = [zall; zb[end]+thickness[end]/2]
+# function zboundarytocenter(zb; fudgelast=false)
+# no more fudging, this is superseded
+#     thickness = diff(zb)
+#     zall = zb[1:end-1] + thickness/2
+#     if fudgelast
+#         zall = [zall; zb[end]+thickness[end]/2]
+#     end
+#     zall    
+# end    
+
+function zboundarytocenter(zb)
+    # first get extendfrac r
+    numerator = diff(zb[2:end])
+    denom = diff(zb[1:end-1])
+    r = (denom'*denom)\(denom'*numerator) # overkill but I love least squares
+    # now for dz
+    numerator = diff(zb)
+    denom = map(2:length(zb)) do n
+        r^(n-2)
     end
-    zall    
-end    
+    dz = (denom'*denom)\(denom'*numerator) # also overkill
+    zall,  = setupz(0.0, r; dz, n=length(zb))
+    zall
+end  
 
 function writeijkfromsounding(s::Vector{Array{S, 1}}, zall) where S<:Sounding
     pmap(s) do x
@@ -1243,6 +1259,7 @@ function makegrid(vals::AbstractArray, soundings::Array{S, 1}; donn=false,
         zz = [z for z in gridz, r in gridr] 
     end    
     img[zz .>topofine'] .= NaN
+    img[zz .< topofine' .- maximum(zall)] .= NaN
     img, gridr, gridz, topofine, R
 end
 
@@ -1581,12 +1598,12 @@ function block1Dvalues(M::AbstractVector, z, zbounds, cond = :median)
     @assert(any(cond .== [:median, :mean]))
     @assert length(z) == length(M[1])
     @assert all(zbounds[:,1] .< zbounds[:,2])
-    nconditions = size(zbounds, 1)
+    @show nconditions = size(zbounds, 1)
     Mblock = zeros(length(M), nconditions)
     for (i, m) in enumerate(M)
         for j in 1:nconditions
             idxdepth = zbounds[j,1] .< z .<= zbounds[j,2]
-            Mblock[i,j] = eval(cond)(m[idxdepth])
+            Mblock[i,j] = sum(idxdepth) == 0 ? NaN : eval(cond)(m[idxdepth])
         end
      end
     Mblock
@@ -1834,4 +1851,55 @@ infstd(x, dims) = mapslices(infstd, x, dims=dims)
 getrowwise(i,j,nvars) = (i-1)*nvars+j
 getcolwise(i,j,nvars) = (j-1)*nvars+i
 firstval(n) = n == 1 ? 1 : firstval(n-1) + n-1 # index number when filling rowwise upto diagonals
+
+# these are a little hacky for reading from gradient inversion and probabilistic files with minimal info
+function readfzipped(fzipped::String, nlayers::Int; nnu=0)
+    A = readdlm(fzipped)
+    X, Y, Z, fid, line = map(i->A[:,i],(1:5))
+    nu = A[:,end-nnu:end-1]
+    zall = A[:,end-2nlayers-nnu:end-nlayers-nnu-1][1,:]
+    σ = A[:,end-nlayers-nnu:end-nnu-1] # so we can plot TEMPEST and SPECTREM similar to heli
+    ϕd = A[:,end]
+    X, Y, Z, fid, line, zall, σ', ϕd, nu
+end  
+
+function readxyzrhoϕ(linenum::Int, nlayers::Int)
+    # get the rhos
+    fnameρ = "rho_avg_line_$(linenum)_summary_xyzrho.txt"
+    A = readlargetextmatrix(fnameρ)
+    ρavg = reshape(A[:,4], :, nlayers)
+    ρlow, ρmid, ρhigh =  map(["low", "mid", "hi",]) do lstring
+        fnameρ = "rho_"*lstring*"_line_$(linenum)_summary_xyzrho.txt"
+        B = readlargetextmatrix(fnameρ)
+        ρ = reshape(B[:,4], nlayers,:)
+    end
+    # get the X, Y, Z
+    X, Y = map(i->A[1:nlayers:end,i], (1:2))
+    Zfirstsounding = A[1:nlayers,3] # this is height, does not include surface topo
+    zall = getzall(Zfirstsounding)
+    Z = A[1:nlayers:end,3] .+ zall[1] # this is topo height
+    # get the phid
+    ϕmean, ϕsdev =  map(["mean", "sdev"]) do lstring
+        fnameϕ = "phid_"*lstring*"_line_$(linenum)_summary.txt"
+        ϕ = readlargetextmatrix(fnameϕ)
+    end
+    X, Y, Z, zall, ρlow, ρmid, ρhigh, ρavg, ϕmean, ϕsdev
+end
+
+function getzall(zheights)
+    # first get extendfrac r
+    numerator = diff(zheights[2:end])
+    denom = diff(zheights[1:end-1])
+    r = (denom'*denom)\(denom'*numerator) # overkill but I love least squares
+    # now for dz
+    numerator = -2diff(zheights)
+    denom = map(1:length(zheights)-1) do n
+        r^(n-1) + r^n
+    end
+    dz = (denom'*denom)\(denom'*numerator) # also overkill
+    zall,  = setupz(0.0, r; dz, n=length(zheights))
+    zall
+end
+
+
 end # module CommonToAll
