@@ -43,7 +43,7 @@ end
 function getA(v::AbstractVector)
     m = length(v)
     n = sum(.!isnan.(v))
-    @assert n<m
+    # @assert n<m
     sparse(1:n,findall(.!isnan.(v)),ones(n),n,m)
 end  
 

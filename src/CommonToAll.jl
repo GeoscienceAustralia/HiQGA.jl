@@ -16,7 +16,7 @@ export trimxft, assembleTat1, gettargtemps, checkns, getchi2forall, nicenup, plo
         compatidxwarn, dfn2hdr, getgdfprefix, readlargetextmatrix, pairinteractionplot, flipline, 
         summaryconductivity, plotsummarygrids1, getVE, writevtkfromsounding, 
         readcols, colstovtk, findclosestidxincolfile, zcentertoboundary, zboundarytocenter, 
-        writeijkfromsounding, nanmean, infmean, nanstd, infstd, kde_sj
+        writeijkfromsounding, nanmean, infmean, nanstd, infstd, kde_sj, plotmanygrids
 
 # Kernel Density stuff
 abstract type KDEtype end
@@ -1860,8 +1860,27 @@ function readfzipped(fzipped::String, nlayers::Int; nnu=0)
     zall = A[:,end-2nlayers-nnu:end-nlayers-nnu-1][1,:]
     σ = A[:,end-nlayers-nnu:end-nnu-1] # so we can plot TEMPEST and SPECTREM similar to heli
     ϕd = A[:,end]
-    X, Y, Z, fid, line, zall, σ', ϕd, nu
+    X, Y, Z, fid, line, zall, σ, ϕd, nu
 end  
+
+function readfzipped(fzipped::String, line::Int, nlayers::Int; nnu=0)
+    X, Y, Z, fid, linesall, zall, σ, ϕd, nu = readfzipped(fzipped, nlayers; nnu)
+    idx = linesall .== line
+    @assert !isempty(idx)
+    X, Y, Z, fid, linesall, σ, ϕd, nu = map(x->x[idx,:],(X, Y, Z, fid, linesall, σ, ϕd, nu))
+    X, Y, Z, fid, linesall, zall, σ', ϕd, nu
+end
+
+function getdeterministicoutputs(outputs::AbstractArray) 
+    # useful for plotting an aray of outputs read programmatically from readfzipped
+    # same as 
+    # X, Y, Z, fid, line, zall, σ, ϕd, nu = map(1:9) do i
+    #     map(outputs) do x
+    #         x[i]
+    #     end    
+    # end
+    X, Y, Z, fid, line, zall, σ, ϕd, nu = [[out[i] for out in outputs] for i in 1:9]
+end    
 
 function readxyzrhoϕ(linenum::Int, nlayers::Int)
     # get the rhos
@@ -1901,5 +1920,64 @@ function getzall(zheights)
     zall
 end
 
+function plotmanygrids(σ, X, Y, Z, zall, delr, delz; 
+        figsize=(10,10), smallratio=0.1, preferEright=true, binY=true, delbin=15.)
+    nsub = length(σ) + 1
+    # fig, ax = plt.subplots(nsub, 1, gridspec_kw=Dict("height_ratios" => [ones(nsub-1)...,smallratio]),
+        # figsize=figsize)
+    if preferEright
+        flipbycoord!(X, σ, X, Y, Z)
+    else
+        flipbycoord!(Y, σ, X, Y, Z)
+    end
+    
+    if binY
+        rmin = maximum([x[1] for x in X])
+        rmax   = minimum([x[end] for x in X])
+        binby = X
+        binvals = Y
+    else
+        rmin = maximum([y[1] for y in Y])
+        rmax   = minimum([y[end] for y in Y])    
+        binby = Y
+        binvals = X
+    end    
+
+    binbycoord(rmin, rmax, delbin, binby, binvals)
+
+end
+
+function flipbycoord!(coordsarray, stufftoflip...) # slurp
+    for (i, coords) in enumerate(coordsarray)
+        if coords[end]<coords[1]
+            _ = map(stufftoflip) do x 
+                if size(x[i]) == 2
+                    reverse!(x[i], dims=2)
+                else
+                    reverse!(x[i])    
+                end
+            end    
+        end
+    end
+end
+
+function binbycoord(rmin, rmax, delbin, binby, binvals,)
+    r = range(rmin, rmax, step=delbin)
+    m, sd  = map(x->zeros(length(r)-1), 1:2)
+    for i in 2:length(r)
+        s, s2, n = 0., 0., 0
+        for (bin, val) in zip(binby, binvals)
+            idx = r[i-1] .< bin .<= r[i]
+            if !isempty(idx)
+                s  += sum(val[idx])
+                s2 += sum(val[idx].^2)
+                n  += sum(idx)
+            end    
+        end
+        m[i-1]  = s/n
+        sd[i-1] = sqrt(s2/n - m[i-1]^2)
+    end
+    (r[1:end-1]+r[2:end])/2, m, sd        
+end
 
 end # module CommonToAll
