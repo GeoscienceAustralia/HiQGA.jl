@@ -1925,24 +1925,19 @@ function plotmanygrids(σ, X, Y, Z, zall, delr, delz;
     nsub = length(σ) + 1
     # fig, ax = plt.subplots(nsub, 1, gridspec_kw=Dict("height_ratios" => [ones(nsub-1)...,smallratio]),
         # figsize=figsize)
+    
     if preferEright
         flipbycoord!(X, σ, X, Y, Z)
     else
         flipbycoord!(Y, σ, X, Y, Z)
     end
     
-    if binY
-        rmin = maximum([x[1] for x in X])
-        rmax   = minimum([x[end] for x in X])
-        binby = X
-        binvals = Y
-    else
-        rmin = maximum([y[1] for y in Y])
-        rmax   = minimum([y[end] for y in Y])    
-        binby = Y
-        binvals = X
+    binby = X
+    binvals = Y
+    if !binY
+        binby, binvals = binvals, binby
     end    
-
+    rmin, rmax = getrangebinextents(binby)
     binbycoord(rmin, rmax, delbin, binby, binvals)
 
 end
@@ -1959,6 +1954,12 @@ function flipbycoord!(coordsarray, stufftoflip...) # slurp
             end    
         end
     end
+end
+
+function getrangebinextents(XX)
+    rmin = maximum([x[1] for x in XX])
+    rmax = minimum([x[end] for x in XX])
+    rmin, rmax
 end
 
 function binbycoord(rmin, rmax, delbin, binby, binvals,)
