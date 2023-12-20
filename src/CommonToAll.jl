@@ -1928,37 +1928,56 @@ function plotmanygrids(σ, X, Y, Z, zall, delr, delz;
     # fig, ax = plt.subplots(nsub, 1, gridspec_kw=Dict("height_ratios" => [ones(nsub-1)...,smallratio]),
         # figsize=figsize)
     
+    binby, binvals = getbinby(X, Y, preferEright)
+    flipbycoord!(binby, σ, X, Y, Z)
+    rmin, rmax = getrangebinextents(binby)
+    r, m, sd = binbycoord(rmin, rmax, delbin, binby, binvals)
+    coord_mle = getsmoothline(m, sd; δ², regtype)
+    # either of x, y are means, either of xr, yr are the fit
+    x, y, xr, yr = get_x_y(r, m, coord_mle, preferEright)
+    plotbinning && plotbinningresults(X, Y, x, y, xr, yr)
+    idx = getclosestxyidx(X, Y, xr, yr)
+    
+end
+ 
+function getclosestxyidx(X, Y, xr, yr)
+    tree = KDTree([xr'; yr'])
+    idx = map(zip(X, Y)) do (x, y)
+        id, _ = nn(tree, [x'; y'])
+        id
+    end    
+end    
+
+function getbinby(X, Y, preferEright)
     if preferEright
         binby, binvals = X, Y
     else
         binby, binvals = Y, X
         binvals = X
     end
-    flipbycoord!(binby, σ, X, Y, Z)
-    
-    rmin, rmax = getrangebinextents(binby)
-    r, m, sd = binbycoord(rmin, rmax, delbin, binby, binvals)
-    coord_mle = getsmoothline(m, sd; δ², regtype)
-    plotbinning && plotbinningresults(X, Y, r, m, coord_mle, preferEright)
-
+    binby, binvals
 end
-  
-function plotbinningresults(X, Y, r, m, coord_mle, preferEright)
+
+function plotbinningresults(X, Y, x, y, xr, yr)
     fig, ax = plt.subplots(1, 1)
     for i in eachindex(X)
         ax.plot(X[i],Y[i]) #label=split(fnames[i],"/")[2])
     end
+    ax.plot(x, y,"-k", label="mean path")
+    ax.plot(xr, yr, label="mle path")
+    ax.legend()
+    ax.set_aspect(1)
+end    
+
+function get_x_y(r, m, coord_mle, preferEright)
     if preferEright
         x, y = r, m
         xr, yr = x, coord_mle 
     else
         x, y = m, r
         xr, yr = coord_mle, y
-    end    
-    ax.plot(x, y,"-k", label="mean path")
-    ax.plot(xr, yr, label="mle path")
-    ax.legend()
-    ax.set_aspect(1)
+    end  
+    x, y, xr, yr
 end    
 
 function flipbycoord!(coordsarray, stufftoflip...) # slurp
