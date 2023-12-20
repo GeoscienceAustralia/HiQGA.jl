@@ -5,6 +5,7 @@ using PyPlot, StatsBase, Statistics, Distances, LinearAlgebra,
 
 import ..Options, ..OptionsStat, ..OptionsNonstat, ..OptionsNuisance,
        ..history, ..GP.κ, ..calcfstar!, ..AbstractOperator.Sounding, 
+       ..AbstractOperator.getsmoothline,
        ..DEBUGLEVEL_TDGP
 
 export trimxft, assembleTat1, gettargtemps, checkns, getchi2forall, nicenup, plotconv,
@@ -1921,26 +1922,44 @@ function getzall(zheights)
 end
 
 function plotmanygrids(σ, X, Y, Z, zall, delr, delz; 
-        figsize=(10,10), smallratio=0.1, preferEright=true, binY=true, delbin=15.)
+        plotbinning=true, δ²=1e-3, regtype=:R1,
+        figsize=(10,10), smallratio=0.1, preferEright=true, delbin=15.)
     nsub = length(σ) + 1
     # fig, ax = plt.subplots(nsub, 1, gridspec_kw=Dict("height_ratios" => [ones(nsub-1)...,smallratio]),
         # figsize=figsize)
     
     if preferEright
-        flipbycoord!(X, σ, X, Y, Z)
+        binby, binvals = X, Y
     else
-        flipbycoord!(Y, σ, X, Y, Z)
+        binby, binvals = Y, X
+        binvals = X
     end
+    flipbycoord!(binby, σ, X, Y, Z)
     
-    binby = X
-    binvals = Y
-    if !binY
-        binby, binvals = binvals, binby
-    end    
     rmin, rmax = getrangebinextents(binby)
-    binbycoord(rmin, rmax, delbin, binby, binvals)
+    r, m, sd = binbycoord(rmin, rmax, delbin, binby, binvals)
+    coord_mle = getsmoothline(m, sd; δ², regtype)
+    plotbinning && plotbinningresults(X, Y, r, m, coord_mle, preferEright)
 
 end
+  
+function plotbinningresults(X, Y, r, m, coord_mle, preferEright)
+    fig, ax = plt.subplots(1, 1)
+    for i in eachindex(X)
+        ax.plot(X[i],Y[i]) #label=split(fnames[i],"/")[2])
+    end
+    if preferEright
+        x, y = r, m
+        xr, yr = x, coord_mle 
+    else
+        x, y = m, r
+        xr, yr = coord_mle, y
+    end    
+    ax.plot(x, y,"-k", label="mean path")
+    ax.plot(xr, yr, label="mle path")
+    ax.legend()
+    ax.set_aspect(1)
+end    
 
 function flipbycoord!(coordsarray, stufftoflip...) # slurp
     for (i, coords) in enumerate(coordsarray)

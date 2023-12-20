@@ -3,8 +3,8 @@ import ..AbstractOperator.get_misfit
 using ..AbstractOperator, ..CommonToAll
 using PyPlot, LinearAlgebra, StatsBase, SparseArrays
 
-import ..Model, ..Options
-import ..AbstractOperator.getresidual
+import ..Model, ..Options, ..makereg
+import ..AbstractOperator.getresidual, ..AbstractOperator.getsmoothline
 
 export Line, makehist
 
@@ -73,6 +73,14 @@ end
 function getresidual(line::Line, m::Vector{Float64}; computeJ=false)
     getr!(line, m[line.select])
 end
+
+function getsmoothline(m, sd; δ²=1e-3, regtype=:R1)
+    line = Line(m, σ=sd, calcjacobian=true)
+    A, W = line.J, line.W
+    d = line.d[line.select]
+    R = makereg(regtype, line)
+    coord_mle = ((W*A)'*(W*A) + δ²*R'R)\((W*A)'*W*d)
+end  
 
 function makehist(line::Line, opt::Options;
     nbins=100, burninfrac=0.5, temperaturenum=1)

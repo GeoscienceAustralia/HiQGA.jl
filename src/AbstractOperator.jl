@@ -38,5 +38,7 @@ function setnuboundsandstartforgradinv end
 function plotconvandlast end
 # set the nuisance inversion full vector from the few being inverted
 function setnuforinvtype end
+# for the Line type from LineRegression which is useful
+function getsmoothline end
 export Operator, Operator1D, Operator2D, Sounding
 end
