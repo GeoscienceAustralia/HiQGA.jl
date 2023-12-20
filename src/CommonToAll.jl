@@ -1925,12 +1925,13 @@ function getzall(zheights)
     zall
 end
 
-function plotmanygrids(σ, X, Y, Z, zall; 
+function plotmanygrids(σ, X, Y, Z, zall;
+        cmapσ="turbo", vmin=-Inf, vmax=Inf, topowidth=1, fontsize=12,
         dr=15., dz=2*zall[1], plotbinning=true, δ²=1e-3, regtype=:R1,
         figsize=(10,10), smallratio=0.1, preferEright=true, delbin=15.)
     nsub = length(σ) + 1
-    # fig, ax = plt.subplots(nsub, 1, gridspec_kw=Dict("height_ratios" => [ones(nsub-1)...,smallratio]),
-        # figsize=figsize)
+    fig, ax = plt.subplots(nsub, 1, gridspec_kw=Dict("height_ratios" => [ones(nsub-1)...,smallratio]),
+        figsize=figsize)
     
     binby, binvals = getbinby(X, Y, preferEright)
     flipbycoord!(binby, σ, X, Y, Z)
@@ -1940,10 +1941,25 @@ function plotmanygrids(σ, X, Y, Z, zall;
     # either of x, y are means, either of xr, yr are the fit
     x, y, xr, yr = get_x_y(r, m, coord_mle, preferEright)
     plotbinning && plotbinningresults(X, Y, x, y, xr, yr)
-    Σ = map(zip(σ, X, Y, Z)) do (s, xx, yy, topo)
+    outmap = map(zip(σ, X, Y, Z)) do (s, xx, yy, topo)
          id = getclosestidx([xx';yy'], xr', yr', showinfo=false)
          makegrid(s[:,id], xr, yr, topo[id]; donn=false, dr, zall, dz)
     end
+    img, gridr, gridz, topofine, R = [[out[i] for out in outmap] for i in 1:5]
+    if (isinf(vmin) || isinf(vmax))
+        vmin, vmax = extrema(reduce(vcat, [[extrema(s)...] for s in σ]))
+    end
+    imhandle = map(zip(ax, img, gridr, gridz, topofine, R)) do (
+        ax_, img_, gridr_, gridz_, topofine_, R_) 
+        imhandle_ = ax_.imshow(img_, extent=[gridr_[1], gridr_[end], gridz_[end], gridz_[1]]; 
+            cmap=cmapσ, aspect="auto", vmin, vmax)
+        ax_.plot(gridr_, topofine_, linewidth=topowidth, "-k")
+        imhandle_
+    end
+    [a.tick_params(labelbottom=false) for a in ax[1:end-2]]
+    cb = fig.colorbar(imhandle[end], cax=ax[end], orientation="horizontal")
+    cb.set_label("Log₁₀ S/m", labelpad=0)
+    nicenup(fig, fsize=fontsize, h_pad=0)
 end
 
 function getbinby(X, Y, preferEright)
@@ -1957,7 +1973,7 @@ function getbinby(X, Y, preferEright)
 end
 
 function plotbinningresults(X, Y, x, y, xr, yr)
-    fig, ax = plt.subplots(1, 1)
+    _, ax = plt.subplots(1, 1)
     for i in eachindex(X)
         ax.plot(X[i],Y[i]) #label=split(fnames[i],"/")[2])
     end
@@ -1982,10 +1998,10 @@ function flipbycoord!(coordsarray, stufftoflip...) # slurp
     for (i, coords) in enumerate(coordsarray)
         if coords[end]<coords[1]
             _ = map(stufftoflip) do x 
-                if size(x[i]) == 2
-                    reverse!(x[i], dims=2)
-                else
+                if size(x[i], 2) == 1
                     reverse!(x[i])    
+                else
+                    reverse!(x[i], dims=2)
                 end
             end    
         end
