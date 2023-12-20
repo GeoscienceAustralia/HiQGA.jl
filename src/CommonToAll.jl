@@ -1227,14 +1227,19 @@ end
 
 function makegrid(vals::AbstractArray, soundings::Array{S, 1}; donn=false,
     dr=10, zall=[NaN], dz=-1) where S<:Sounding
-    @assert all(.!isnan.(zall)) 
-    @assert dz>0
     X = [s.X for s in soundings]
     Y = [s.Y for s in soundings]
+    topo = [s.Z for s in soundings]
+    makegrid(vals, X, Y, topo; donn, dr, zall, dz)
+end
+
+function makegrid(vals::AbstractArray, X, Y, topo; donn=false,
+    dr=10, zall=[NaN], dz=-1)
+    @assert all(.!isnan.(zall)) 
+    @assert dz>0
     R = cumulativelinedist(X,Y)
     if donn
         rr, zz = [r for z in zall, r in R], [z for z in zall, r in R]
-        topo = [s.Z for s in soundings]
         zz = topo' .- zz # mAHD
         kdtree = KDTree([rr[:]'; zz[:]'])
         gridr = range(R[1], R[end], step=dr)
@@ -1249,7 +1254,6 @@ function makegrid(vals::AbstractArray, soundings::Array{S, 1}; donn=false,
     else
         nodes = ([z for z in zall], [r for r in R])
         itp = extrapolate(interpolate(nodes, vals, Gridded(Linear())), Line()) 
-        topo = [s.Z for s in soundings]
         gridr = range(R[1], R[end], step=dr)
         topofine = (interpolate((R,), topo, Gridded(Linear())))(gridr)
         # height = topo in mAHD - depth # mAHD
@@ -1638,10 +1642,10 @@ function getclosestidx(Xwell, Ywell, soundings::Vector{S}) where S<: Sounding
     getclosestidx(XY, Xwell, Ywell)
 end    
 
-function getclosestidx(XY, Xwanted, Ywanted)
+function getclosestidx(XY, Xwanted, Ywanted; showinfo=true)
     tree = KDTree(XY)
     idx, dist = nn(tree, [Xwanted;Ywanted])
-    @info "distance is $dist"
+    showinfo && @info "distance is $dist"
     idx
 end    
 
@@ -1921,8 +1925,8 @@ function getzall(zheights)
     zall
 end
 
-function plotmanygrids(σ, X, Y, Z, zall, delr, delz; 
-        plotbinning=true, δ²=1e-3, regtype=:R1,
+function plotmanygrids(σ, X, Y, Z, zall; 
+        dr=15., dz=2*zall[1], plotbinning=true, δ²=1e-3, regtype=:R1,
         figsize=(10,10), smallratio=0.1, preferEright=true, delbin=15.)
     nsub = length(σ) + 1
     # fig, ax = plt.subplots(nsub, 1, gridspec_kw=Dict("height_ratios" => [ones(nsub-1)...,smallratio]),
@@ -1936,17 +1940,11 @@ function plotmanygrids(σ, X, Y, Z, zall, delr, delz;
     # either of x, y are means, either of xr, yr are the fit
     x, y, xr, yr = get_x_y(r, m, coord_mle, preferEright)
     plotbinning && plotbinningresults(X, Y, x, y, xr, yr)
-    idx = getclosestxyidx(X, Y, xr, yr)
-    
+    Σ = map(zip(σ, X, Y, Z)) do (s, xx, yy, topo)
+         id = getclosestidx([xx';yy'], xr', yr', showinfo=false)
+         makegrid(s[:,id], xr, yr, topo[id]; donn=false, dr, zall, dz)
+    end
 end
- 
-function getclosestxyidx(X, Y, xr, yr)
-    tree = KDTree([xr'; yr'])
-    idx = map(zip(X, Y)) do (x, y)
-        id, _ = nn(tree, [x'; y'])
-        id
-    end    
-end    
 
 function getbinby(X, Y, preferEright)
     if preferEright
