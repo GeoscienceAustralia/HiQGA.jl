@@ -605,16 +605,33 @@ function makezρ(zboundaries::Array{Float64, 1};
     z, ρ, nfixed
 end
 
-function nicenup(g::PyPlot.Figure;fsize=16, h_pad=nothing)
-    for ax in gcf().axes
-        ax.tick_params("both",labelsize=fsize)
-        ax.xaxis.label.set_fontsize(fsize)
-        ax.yaxis.label.set_fontsize(fsize)
-        any(keys(ax) .== :zaxis) && ax.zaxis.label.set_fontsize(fsize)
-        ax.title.set_fontsize(fsize)
-
+function nicenup(g::PyPlot.Figure;fsize=12, h_pad=nothing, increasefraction=1.2, minsize=true)
+    for ax in g.axes
+        if !isempty(ax.get_yticklabels())
+            fs = ax.get_yticklabels()[1].get_fontsize()
+            ns = getnewfontsize(fs, increasefraction, fsize; minsize)
+            ax.tick_params("both", labelsize=ns)
+        elseif !isempty(ax.get_xticklabels())
+            fs = ax.get_xticklabels()[1].get_fontsize()
+            ns = getnewfontsize(fs, increasefraction, fsize; minsize)
+            ax.tick_params("both", labelsize=ns)
+        end
+        xlh, ylh, tlh = ax.xaxis.label, ax.yaxis.label, ax.title
+        for h in (xlh, ylh, tlh)
+            fs = h.get_fontsize()
+            ns = getnewfontsize(fs, increasefraction, fsize; minsize)
+            h.set_fontsize(ns)
+        end    
+        if any(keys(ax) .== :zaxis)
+            fs = ax.zaxis.label.get_fontsize()
+            ns = getnewfontsize(fs, increasefraction, fsize; minsize)
+            ax.zaxis.label.set_fontsize(ns)
+        end    
         if typeof(ax.get_legend_handles_labels()[1]) != Array{Any,1}
             ax.legend(loc="best", fontsize=fsize)
+            fs = ax.get_legend().get_texts()[1].get_fontsize()
+            ns = getnewfontsize(fs, increasefraction, fsize; minsize)
+            ax.legend(loc="best", fontsize=ns)
         end
     end
     if isnothing(h_pad)
@@ -622,6 +639,15 @@ function nicenup(g::PyPlot.Figure;fsize=16, h_pad=nothing)
     else
         g.tight_layout(;h_pad)
     end        
+end
+
+function getnewfontsize(fs, increasefraction, fsize; minsize=true)
+    if minsize
+        ns = fs*increasefraction
+        ns = ns > fsize ? ns : fsize
+    else #exactsize
+        ns = fsize
+    end
 end
 
 function plot_posterior(F::Operator1D,
@@ -1926,11 +1952,11 @@ function getzall(zheights)
 end
 
 function plotmanygrids(σ, X, Y, Z, zall;
-        cmapσ="turbo", vmin=-Inf, vmax=Inf, topowidth=1, fontsize=12,
+        cmapσ="turbo", vmin=-Inf, vmax=Inf, topowidth=1, fontsize=12, spacefactor=5,
         dr=15., dz=2*zall[1], plotbinning=true, δ²=1e-3, regtype=:R1,
         figsize=(10,10), smallratio=0.1, preferEright=true, delbin=15.)
-    nsub = length(σ) + 1
-    fig, ax = plt.subplots(nsub, 1, gridspec_kw=Dict("height_ratios" => [ones(nsub-1)...,smallratio]),
+    nsub = length(σ) + 2 #one invisible subplot
+    fig, ax = plt.subplots(nsub, 1, gridspec_kw=Dict("height_ratios" => [ones(nsub-2)..., spacefactor*smallratio, smallratio]),
         figsize=figsize)
     
     binby, binvals = getbinby(X, Y, preferEright)
@@ -1956,10 +1982,18 @@ function plotmanygrids(σ, X, Y, Z, zall;
         ax_.plot(gridr_, topofine_, linewidth=topowidth, "-k")
         imhandle_
     end
-    [a.tick_params(labelbottom=false) for a in ax[1:end-2]]
+    map(1:nsub-3) do i
+        ax[i].sharex(ax[i+1])
+        ax[i].sharey(ax[i+1])
+    end
+    [a.tick_params(labelbottom=false) for a in ax[1:end-3]]
+    [a.set_ylabel("Height m") for a in ax[1:end-2]]
+    ax[end-2].set_xlabel("Distance m")
+    ax[end-1].axis("off")
     cb = fig.colorbar(imhandle[end], cax=ax[end], orientation="horizontal")
     cb.set_label("Log₁₀ S/m", labelpad=0)
     nicenup(fig, fsize=fontsize, h_pad=0)
+    fig.subplots_adjust(hspace=0)
 end
 
 function getbinby(X, Y, preferEright)
@@ -2031,6 +2065,11 @@ function binbycoord(rmin, rmax, delbin, binby, binvals,)
         sd[i-1] = sqrt(s2/n - m[i-1]^2)
     end
     (r[1:end-1]+r[2:end])/2, m, sd        
+end
+
+function plotwell(fighandle, zρ_well)
+
+
 end
 
 end # module CommonToAll
