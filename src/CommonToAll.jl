@@ -17,7 +17,8 @@ export trimxft, assembleTat1, gettargtemps, checkns, getchi2forall, nicenup, plo
         compatidxwarn, dfn2hdr, getgdfprefix, readlargetextmatrix, pairinteractionplot, flipline, 
         summaryconductivity, plotsummarygrids1, getVE, writevtkfromsounding, 
         readcols, colstovtk, findclosestidxincolfile, zcentertoboundary, zboundarytocenter, 
-        writeijkfromsounding, nanmean, infmean, nanstd, infstd, kde_sj, plotmanygrids
+        writeijkfromsounding, nanmean, infmean, nanstd, infstd, kde_sj, plotmanygrids, readwell,
+        getlidarheight, plotblockedwellonimages
 
 # Kernel Density stuff
 abstract type KDEtype end
@@ -1629,7 +1630,7 @@ function block1Dvalues(M::AbstractVector, z, zbounds, cond = :median)
     @assert(any(cond .== [:median, :mean]))
     @assert length(z) == length(M[1])
     @assert all(zbounds[:,1] .< zbounds[:,2])
-    @show nconditions = size(zbounds, 1)
+    nconditions = size(zbounds, 1)
     Mblock = zeros(length(M), nconditions)
     for (i, m) in enumerate(M)
         for j in 1:nconditions
@@ -1669,11 +1670,15 @@ function getclosestidx(Xwell, Ywell, soundings::Vector{S}) where S<: Sounding
 end    
 
 function getclosestidx(XY, Xwanted, Ywanted; showinfo=true)
-    tree = KDTree(XY)
-    idx, dist = nn(tree, [Xwanted;Ywanted])
+    idx, dist = getclosestidxanddist(XY, Xwanted, Ywanted)
     showinfo && @info "distance is $dist"
     idx
 end    
+
+function getclosestidxanddist(XY, Xwanted, Ywanted)
+    tree = KDTree(XY)
+    idx, dist = nn(tree, [Xwanted;Ywanted])
+end
 
 #function to read the *dfn file and extract the column number and column names as a *.txt file 
 function dfn2hdr(dfnfile::String; writecorrecteddfn=false)
@@ -1953,9 +1958,10 @@ end
 
 function plotmanygrids(σ, X, Y, Z, zall;
         cmapσ="turbo", vmin=-Inf, vmax=Inf, topowidth=1, fontsize=12, spacefactor=5,
-        dr=15., dz=2*zall[1], plotbinning=true, δ²=1e-3, regtype=:R1,
+        dr=nothing, dz=2*zall[1], plotbinning=true, δ²=1e-3, regtype=:R1,
         figsize=(10,10), smallratio=0.1, preferEright=true, delbin=15.)
-    nsub = length(σ) + 2 #one invisible subplot
+    @assert !isnothing(dr) # pass as variable as it is used by other functions too       
+    nsub = length(σ) + 2 # one invisible subplot
     fig, ax = plt.subplots(nsub, 1, gridspec_kw=Dict("height_ratios" => [ones(nsub-2)..., spacefactor*smallratio, smallratio]),
         figsize=figsize)
     
@@ -1994,6 +2000,7 @@ function plotmanygrids(σ, X, Y, Z, zall;
     cb.set_label("Log₁₀ S/m", labelpad=0)
     nicenup(fig, fsize=fontsize, h_pad=0)
     fig.subplots_adjust(hspace=0)
+    xr, yr, ax # return easting northing of grid and figure axes
 end
 
 function getbinby(X, Y, preferEright)
@@ -2067,9 +2074,120 @@ function binbycoord(rmin, rmax, delbin, binby, binvals,)
     (r[1:end-1]+r[2:end])/2, m, sd        
 end
 
-function plotwell(fighandle, zρ_well)
+function readwell(fname, skipstart; lidarfile=nothing)
+    # in Ross' .con format
+    # skip some lines and then must have format in the skipped lines
+    # bore: thisborename
+    # and then
+    # depth mS/m
+    # returns converted to log10 S/m
+    io = open(fname)
+    name = ""
+    X, Y, Z = 0., 0., 0.
+    for (i, str) in enumerate(eachline(io))
+        s = split(str, ":")
+        lowercase(s[1]) == "bore" && (name = s[end])
+        lowercase(s[1]) == "easting"   && (X = parse(Float64, s[end]))
+        lowercase(s[1]) == "northing"  && (Y = parse(Float64, s[end]))
+        if lowercase(s[1]) == "elevation" 
+            if isnothing(lidarfile)
+                Z = parse(Float64, s[end])
+            else # get it from a lidar point cloud
+                Z = getlidarheight(lidarfile,[X;Y])
+            end    
+        end            
+        i==skipstart && break
+    end    
+    @info name
+    zc_rho = readdlm(fname; skipstart)
+    zc_rho[:,2] = 3 .-log10.(zc_rho[:,2]) # log10 ohm m
+    name, X, Y, Z, zc_rho
+end
 
+function makeblockedwellimage(readwellarray, zall, xr, yr; distblank=50, dr=nothing)
+    # xr, yr are the line path along which to find closest well index
+    @assert !isnothing(dr)
+    wellname, Xwell, Ywell, Zwell, z_rho_well = [[well[i] for well in readwellarray] for i in 1:5]
+    zboundaries = zcentertoboundary(zall)
+    Mwell = reduce(hcat, map(z_rho_well) do zρ
+                block1Dvalues([zρ[:,2]], zρ[:,1], [zboundaries[1:end-1] zboundaries[2:end]], :mean)'
+    end)
+    Mwell = [Mwell;Mwell[end,:]'] # dummy last cell in depth
+    idx, _ = getclosestidxanddist([Xwell';Ywell'], xr', yr')
+    Mclosest = Mwell[:,idx] # this needs to be plotted on image of line with coordinates xr, yr
+    idxclosest, _ = getclosestidxanddist([xr'; yr'], Xwell', Ywell')
+    _, dist = getclosestidxanddist([xr[idxclosest]';yr[idxclosest]'], xr', yr')
+    Mclosest[:,dist .> distblank] .= NaN # but first NaN out further than distblank m away from well
+    # interpolate linearly as usual onto line with xr, yr coordinates with depth and line distance
+    img, gridr, gridz, _ = makegrid(Mclosest, xr, yr, Zwell[idx]; donn=false, dr, zall, dz=zall[1]*2)
+    hsegs, vsegs = outlinewells(img, gridr, gridz)
+    img, gridr, gridz, hsegs, vsegs
+end    
 
+function outlinewells(img, gridr, gridz)
+    # for all wells, works for only one vertical well at any X,Y along line
+    mapimg = isnan.(img)
+    idxvert = findall(mapimg[:,2:end] .!= mapimg[:,1:end-1])
+    vertcoords = reduce(vcat, ([[id[2] id[1]] for id in idxvert]))
+    cols = unique(vertcoords[:,1])
+    vsegs = map(cols) do c
+        x1 = vertcoords[findfirst(vertcoords[:,1] .== c),2]
+        x2 = vertcoords[findlast(vertcoords[:,1] .== c),2]
+        [c-0.5 x1-1.5; c-0.5 x2-0.5] # the +- offsets are voodoo
+    end
+    vall = reduce(vcat, vsegs)
+
+    hsegs =  map(1:length(vsegs)) do i
+        r = iseven(i) ? 2(i-1) : 2i-1
+        [vall[r,:]';vall[r+2,:]']
+    end
+
+    _ = map((hsegs, vsegs)) do x # scales to image dimensions, the .+ offsets are voodoo
+        _ = map(x) do xy
+            xy[:,1] .= xy[:,1]/size(img, 2)*(gridr[end]-gridr[1]) .+ gridr[2]/2
+            xy[:,2] .= xy[:,2]/size(img, 1)*(gridz[end]-gridz[1]) .+ (gridz[1]+gridz[2])/2
+        end
+    end
+    hsegs, vsegs # these need to be plotted with gridr, gridz as usual
+end    
+
+function plotwelloutline(ax, img, hsegs, vsegs, gridr, gridz, vmin, vmax; cmap="turbo", color="k", linewidth=0.5)
+    # plot the well outline on axis
+    ax.imshow(-img; extent=[gridr[1], gridr[end], gridz[end], gridz[1]], cmap, vmin, vmax)
+    for v in vsegs
+        ax.plot(v[:,1], v[:,2]; color, linewidth)
+    end
+    for h in hsegs
+        ax.plot(h[:,1], h[:,2]; color, linewidth)
+    end
+    ax.set_aspect("auto")
+end
+
+function plotwelloutline(ax::Array, img, hsegs, vsegs, gridr, gridz, vmin, vmax; cmap="turbo", color="k", linewidth=0.5)
+    # plot into each axis, the outline
+    for a in ax
+        plotwelloutline(a, img, hsegs, vsegs, gridr, gridz, vmin, vmax; cmap, color, linewidth)
+    end
+end
+
+function getlidarheight(lidarheightfile::String, xy)
+    A = readlargetextmatrix(lidarheightfile)
+    # read X, Y, mAHDevery 10 m
+    kdtree = KDTree(A[:,1:2]')
+    if size(xy, 2) == 2     
+        idxs, = nn(kdtree,xy')
+    else
+        idxs, = nn(kdtree,xy)
+    end
+    A[idxs,3]
+end    
+
+function plotblockedwellonimages(ax, wellarray, zall, xr, yr; 
+        vmin=nothing, vmax=nothing, dr=15, distblank=4dr, cmap="turbo", color="k", linewidth=0.5)
+        @assert !isnothing(vmin)
+        @assert !isnothing(vmax)
+    img, gridr, gridz, hsegs, vsegs = makeblockedwellimage(wellarray, zall, xr, yr; distblank, dr)
+    plotwelloutline(ax, img, hsegs, vsegs, gridr, gridz, vmin, vmax; cmap, color, linewidth)
 end
 
 end # module CommonToAll
