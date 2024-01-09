@@ -18,7 +18,8 @@ export trimxft, assembleTat1, gettargtemps, checkns, getchi2forall, nicenup, plo
         summaryconductivity, plotsummarygrids1, getVE, writevtkfromsounding, 
         readcols, colstovtk, findclosestidxincolfile, zcentertoboundary, zboundarytocenter, 
         writeijkfromsounding, nanmean, infmean, nanstd, infstd, kde_sj, plotmanygrids, readwell,
-        getlidarheight, plotblockedwellonimages
+        getlidarheight, plotblockedwellonimages, getdeterministicoutputs, getprobabilisticoutputs, 
+        readfzipped, readxyzrhoϕ
 
 # Kernel Density stuff
 abstract type KDEtype end
@@ -1918,13 +1919,13 @@ function getdeterministicoutputs(outputs::AbstractArray)
     X, Y, Z, fid, line, zall, σ, ϕd, nu = [[out[i] for out in outputs] for i in 1:9]
 end    
 
-function readxyzrhoϕ(linenum::Int, nlayers::Int)
+function readxyzrhoϕ(linenum::Int, nlayers::Int; pathname="")
     # get the rhos
-    fnameρ = "rho_avg_line_$(linenum)_summary_xyzrho.txt"
+    fnameρ = joinpath(pathname, "rho_avg_line_$(linenum)_summary_xyzrho.txt")
     A = readlargetextmatrix(fnameρ)
     ρavg = reshape(A[:,4], :, nlayers)
     ρlow, ρmid, ρhigh =  map(["low", "mid", "hi",]) do lstring
-        fnameρ = "rho_"*lstring*"_line_$(linenum)_summary_xyzrho.txt"
+        fnameρ = joinpath(pathname, "rho_"*lstring*"_line_$(linenum)_summary_xyzrho.txt")
         B = readlargetextmatrix(fnameρ)
         ρ = reshape(B[:,4], nlayers,:)
     end
@@ -1935,11 +1936,15 @@ function readxyzrhoϕ(linenum::Int, nlayers::Int)
     Z = A[1:nlayers:end,3] .+ zall[1] # this is topo height
     # get the phid
     ϕmean, ϕsdev =  map(["mean", "sdev"]) do lstring
-        fnameϕ = "phid_"*lstring*"_line_$(linenum)_summary.txt"
+        fnameϕ = joinpath(pathname, "phid_"*lstring*"_line_$(linenum)_summary.txt")
         ϕ = readlargetextmatrix(fnameϕ)
     end
     X, Y, Z, zall, ρlow, ρmid, ρhigh, ρavg, ϕmean, ϕsdev
 end
+
+function getprobabilisticoutputs(outputs::AbstractArray)
+    X, Y, Z, zall, ρlow, ρmid, ρhigh, ρavg, ϕmean, ϕsdev = [[out[i] for out in outputs] for i in 1:10]
+end    
 
 function getzall(zheights)
     # first get extendfrac r
@@ -1958,7 +1963,7 @@ end
 
 function plotmanygrids(σ, X, Y, Z, zall;
         cmapσ="turbo", vmin=-Inf, vmax=Inf, topowidth=1, fontsize=12, spacefactor=5,
-        dr=nothing, dz=2*zall[1], plotbinning=true, δ²=1e-3, regtype=:R1,
+        dr=nothing, dz=2*zall[1], plotbinning=true, δ²=1e-3, regtype=:R1, donn=false,
         figsize=(10,10), smallratio=0.1, preferEright=true, delbin=15.)
     @assert !isnothing(dr) # pass as variable as it is used by other functions too       
     nsub = length(σ) + 2 # one invisible subplot
@@ -1975,7 +1980,7 @@ function plotmanygrids(σ, X, Y, Z, zall;
     plotbinning && plotbinningresults(X, Y, x, y, xr, yr)
     outmap = map(zip(σ, X, Y, Z)) do (s, xx, yy, topo)
          id = getclosestidx([xx';yy'], xr', yr', showinfo=false)
-         makegrid(s[:,id], xr, yr, topo[id]; donn=false, dr, zall, dz)
+         makegrid(s[:,id], xr, yr, topo[id]; donn, dr, zall, dz)
     end
     img, gridr, gridz, topofine, R = [[out[i] for out in outmap] for i in 1:5]
     if (isinf(vmin) || isinf(vmax))
@@ -2104,7 +2109,7 @@ function readwell(fname, skipstart; lidarfile=nothing)
     name, X, Y, Z, zc_rho
 end
 
-function makeblockedwellimage(readwellarray, zall, xr, yr; distblank=50, dr=nothing)
+function makeblockedwellimage(readwellarray, zall, xr, yr; distblank=50, dr=nothing, donn=false)
     # xr, yr are the line path along which to find closest well index
     @assert !isnothing(dr)
     wellname, Xwell, Ywell, Zwell, z_rho_well = [[well[i] for well in readwellarray] for i in 1:5]
@@ -2119,7 +2124,7 @@ function makeblockedwellimage(readwellarray, zall, xr, yr; distblank=50, dr=noth
     _, dist = getclosestidxanddist([xr[idxclosest]';yr[idxclosest]'], xr', yr')
     Mclosest[:,dist .> distblank] .= NaN # but first NaN out further than distblank m away from well
     # interpolate linearly as usual onto line with xr, yr coordinates with depth and line distance
-    img, gridr, gridz, _ = makegrid(Mclosest, xr, yr, Zwell[idx]; donn=false, dr, zall, dz=zall[1]*2)
+    img, gridr, gridz, _ = makegrid(Mclosest, xr, yr, Zwell[idx]; donn, dr, zall, dz=zall[1]*2)
     hsegs, vsegs = outlinewells(img, gridr, gridz)
     img, gridr, gridz, hsegs, vsegs
 end    
@@ -2182,11 +2187,11 @@ function getlidarheight(lidarheightfile::String, xy)
     A[idxs,3]
 end    
 
-function plotblockedwellonimages(ax, wellarray, zall, xr, yr; 
+function plotblockedwellonimages(ax, wellarray, zall, xr, yr; donn=false,
         vmin=nothing, vmax=nothing, dr=15, distblank=4dr, cmap="turbo", color="k", linewidth=0.5)
         @assert !isnothing(vmin)
         @assert !isnothing(vmax)
-    img, gridr, gridz, hsegs, vsegs = makeblockedwellimage(wellarray, zall, xr, yr; distblank, dr)
+    img, gridr, gridz, hsegs, vsegs = makeblockedwellimage(wellarray, zall, xr, yr; distblank, dr, donn)
     plotwelloutline(ax, img, hsegs, vsegs, gridr, gridz, vmin, vmax; cmap, color, linewidth)
 end
 
