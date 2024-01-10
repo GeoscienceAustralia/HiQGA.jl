@@ -1923,7 +1923,7 @@ function readxyzrhoϕ(linenum::Int, nlayers::Int; pathname="")
     # get the rhos
     fnameρ = joinpath(pathname, "rho_avg_line_$(linenum)_summary_xyzrho.txt")
     A = readlargetextmatrix(fnameρ)
-    ρavg = reshape(A[:,4], :, nlayers)
+    ρavg = reshape(A[:,4], nlayers, :)
     ρlow, ρmid, ρhigh =  map(["low", "mid", "hi",]) do lstring
         fnameρ = joinpath(pathname, "rho_"*lstring*"_line_$(linenum)_summary_xyzrho.txt")
         B = readlargetextmatrix(fnameρ)
@@ -1961,7 +1961,7 @@ function getzall(zheights)
     zall
 end
 
-function plotmanygrids(σ, X, Y, Z, zall;
+function plotmanygrids(σ, X, Y, Z, zall; yl=[], xl=[],
         cmapσ="turbo", vmin=-Inf, vmax=Inf, topowidth=1, fontsize=12, spacefactor=5,
         dr=nothing, dz=2*zall[1], plotbinning=true, δ²=1e-3, regtype=:R1, donn=false,
         figsize=(10,10), smallratio=0.1, preferEright=true, delbin=15.)
@@ -2001,6 +2001,8 @@ function plotmanygrids(σ, X, Y, Z, zall;
     [a.set_ylabel("Height m") for a in ax[1:end-2]]
     ax[end-2].set_xlabel("Distance m")
     ax[end-1].axis("off")
+    !isempty(xl) && ax[1].set_xlim(xl)
+    !isempty(yl) && ax[1].set_ylim(yl)
     cb = fig.colorbar(imhandle[end], cax=ax[end], orientation="horizontal")
     cb.set_label("Log₁₀ S/m", labelpad=0)
     nicenup(fig, fsize=fontsize, h_pad=0)
