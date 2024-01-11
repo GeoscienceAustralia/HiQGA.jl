@@ -11,9 +11,9 @@ This package implements both the nested (2-layer) and vanilla trans-dimensional 
 - There is also a flavour of within-bounds Gauss-Newton/Occam's inversion implemented. For SkyTEM, TEMPEST and VTEM (all AEM), this is fully functional, but for other forward propagators you will have to provide a Jacobian (the linearization of the forward operator).
 
 ## Installation
-[NCI](https://nci.org.au/) users look [here](#Development-setup-on-NCI) first!
+[HPC](https://nci.org.au/) users look [here](#HPC-setup-on-NCI) to set up MPI for large jobs, or if you do not have Julia installed at all.
 
-To install, in a perfect world we'd use Julia's `Pkg` REPL by hitting `]` to enter `pkg>` mode. Then enter the following, at the `pkg>` prompt:
+To install HiQGA, in a perfect world we'd use Julia's `Pkg` REPL by hitting `]` to enter `pkg>` mode. Then enter the following, at the `pkg>` prompt:
 ```
 pkg> add HiQGA 
 ```
@@ -46,12 +46,18 @@ pkg>dev HiQGA
 ```
 [Here's a gist](https://gist.github.com/a2ray/8c2c55c25fee6647501b403886bbe64d) on adding your own module if you want to modify the source code. Alternatively, if you only want to use the sampling methods in `HiQGA.transD_GP` without contributing to the source (boo! j/k) [here's another gist](https://gist.github.com/a2ray/92a8c14483c21dda6ddf56685b95fbb8) which is more appropriate. These gists were written originally for a package called `transD_GP` so you will have to modify `using transD_GP` to `using HiQGA.transD_GP`. Documentation is important and we're working on improving it before a full-release. 
 
-## Development setup on NCI
-If you don't already have access to a `julia` binary, download the appropriate version `.tar.gz` from [here](https://julialang.org/downloads/) and then untar it in a location you have write access to. Then, in your `$HOME/bin` directory make a symlink to the julia binary like so:
+## HPC setup on NCI
+If you don't already have access to a `julia` binary, download the appropriate version `.tar.gz` from [here](https://julialang.org/downloads/) and then untar it in a location you have write access to, like so: 
+```
+cd /somwehere/home/me
+tar -xvzf /somwehere/home/me/julia-x.x.x.ta.gz
+```
+Then, in your `$HOME/bin` directory make a symlink to the julia binary like so:
 ```
 cd ~/bin
 ln -s /somwehere/home/me/julia-x.x.x/bin/julia .
 ```
+Make sure your `$HOME/bin` is in your `$PATH` else which you can check with `echo $PATH | grep"$HOME/bin"`. If you do not see your `bin` directory highlighted, do `export PATH=~/opt/bin:$PATH`
 The preferred development and usage environment for HiQGA is [Visual Studio Code](https://code.visualstudio.com/), which provides interactive execution of Julia code through the [VSCode Julia extension](https://code.visualstudio.com/docs/languages/julia). To install VSCode on the National Computational Infrastructure (NCI), you need to extract the VSCode rpm package using the steps in [this gist](https://gist.github.com/a2ray/701347f703b72abb630d2521b43c5f22), to a location where your account has write access. You will NOT be using vscode on a gadi login node, but on OOD.
 
 Get Julia language support from VSCode after launching the VSCode binary by going to File->Extensions by searching for Julia. If after installation it doesn't find the Julia binary, go to File->Extensions->Julia->Manage(the little gear icon) and manually type in `/home/yourusername/bin/julia` in the "Executable Path" field.
