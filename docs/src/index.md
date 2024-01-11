@@ -62,7 +62,7 @@ Then, in your `$HOME/bin` directory make a symlink to the julia binary like so:
 cd ~/bin
 ln -s /somwehere/home/me/julia-x.x.x/bin/julia .
 ```
-Make sure your `$HOME/bin` is in your `$PATH` else which you can check with `echo $PATH | grep"$HOME/bin"`. If you do not see your `bin` directory highlighted, do `export PATH=~/bin:$PATH`
+Make sure your `$HOME/bin` is in your `$PATH` else which you can check with `echo $PATH | grep "$HOME/bin"`. If you do not see your `bin` directory highlighted, do `export PATH=~/bin:$PATH`
 The preferred development and usage environment for HiQGA is [Visual Studio Code](https://code.visualstudio.com/), which provides interactive execution of Julia code through the [VSCode Julia extension](https://code.visualstudio.com/docs/languages/julia). To install VSCode on the National Computational Infrastructure (NCI), you need to extract the VSCode rpm package using the steps in [this gist](https://gist.github.com/a2ray/701347f703b72abb630d2521b43c5f22), to a location where your account has write access. You will NOT be using vscode on a gadi login node, but on OOD.
 
 Get Julia language support from VSCode after launching the VSCode binary by going to File->Extensions by searching for Julia. If after installation it doesn't find the Julia binary, go to File->Extensions->Julia->Manage (the little gear icon) and manually type in `/home/yourusername/bin/julia` in the "Executable Path" field.
