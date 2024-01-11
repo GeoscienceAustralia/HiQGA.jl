@@ -5,6 +5,7 @@ using PyPlot, StatsBase, Statistics, Distances, LinearAlgebra,
 
 import ..Options, ..OptionsStat, ..OptionsNonstat, ..OptionsNuisance,
        ..history, ..GP.κ, ..calcfstar!, ..AbstractOperator.Sounding, 
+       ..AbstractOperator.getsmoothline,
        ..DEBUGLEVEL_TDGP
 
 export trimxft, assembleTat1, gettargtemps, checkns, getchi2forall, nicenup, plotconv,
@@ -16,7 +17,9 @@ export trimxft, assembleTat1, gettargtemps, checkns, getchi2forall, nicenup, plo
         compatidxwarn, dfn2hdr, getgdfprefix, readlargetextmatrix, pairinteractionplot, flipline, 
         summaryconductivity, plotsummarygrids1, getVE, writevtkfromsounding, 
         readcols, colstovtk, findclosestidxincolfile, zcentertoboundary, zboundarytocenter, 
-        writeijkfromsounding, nanmean, infmean, nanstd, infstd, kde_sj
+        writeijkfromsounding, nanmean, infmean, nanstd, infstd, kde_sj, plotmanygrids, readwell,
+        getlidarheight, plotblockedwellonimages, getdeterministicoutputs, getprobabilisticoutputs, 
+        readfzipped, readxyzrhoϕ
 
 # Kernel Density stuff
 abstract type KDEtype end
@@ -604,16 +607,33 @@ function makezρ(zboundaries::Array{Float64, 1};
     z, ρ, nfixed
 end
 
-function nicenup(g::PyPlot.Figure;fsize=16, h_pad=nothing)
-    for ax in gcf().axes
-        ax.tick_params("both",labelsize=fsize)
-        ax.xaxis.label.set_fontsize(fsize)
-        ax.yaxis.label.set_fontsize(fsize)
-        any(keys(ax) .== :zaxis) && ax.zaxis.label.set_fontsize(fsize)
-        ax.title.set_fontsize(fsize)
-
+function nicenup(g::PyPlot.Figure;fsize=12, h_pad=nothing, increasefraction=1.2, minsize=true)
+    for ax in g.axes
+        if !isempty(ax.get_yticklabels())
+            fs = ax.get_yticklabels()[1].get_fontsize()
+            ns = getnewfontsize(fs, increasefraction, fsize; minsize)
+            ax.tick_params("both", labelsize=ns)
+        elseif !isempty(ax.get_xticklabels())
+            fs = ax.get_xticklabels()[1].get_fontsize()
+            ns = getnewfontsize(fs, increasefraction, fsize; minsize)
+            ax.tick_params("both", labelsize=ns)
+        end
+        xlh, ylh, tlh = ax.xaxis.label, ax.yaxis.label, ax.title
+        for h in (xlh, ylh, tlh)
+            fs = h.get_fontsize()
+            ns = getnewfontsize(fs, increasefraction, fsize; minsize)
+            h.set_fontsize(ns)
+        end    
+        if any(keys(ax) .== :zaxis)
+            fs = ax.zaxis.label.get_fontsize()
+            ns = getnewfontsize(fs, increasefraction, fsize; minsize)
+            ax.zaxis.label.set_fontsize(ns)
+        end    
         if typeof(ax.get_legend_handles_labels()[1]) != Array{Any,1}
             ax.legend(loc="best", fontsize=fsize)
+            fs = ax.get_legend().get_texts()[1].get_fontsize()
+            ns = getnewfontsize(fs, increasefraction, fsize; minsize)
+            ax.legend(loc="best", fontsize=ns)
         end
     end
     if isnothing(h_pad)
@@ -621,6 +641,15 @@ function nicenup(g::PyPlot.Figure;fsize=16, h_pad=nothing)
     else
         g.tight_layout(;h_pad)
     end        
+end
+
+function getnewfontsize(fs, increasefraction, fsize; minsize=true)
+    if minsize
+        ns = fs*increasefraction
+        ns = ns > fsize ? ns : fsize
+    else #exactsize
+        ns = fsize
+    end
 end
 
 function plot_posterior(F::Operator1D,
@@ -1106,14 +1135,30 @@ function zcentertoboundary(zall)
     zb
 end
 
-function zboundarytocenter(zb; fudgelast=false)
-    thickness = diff(zb)
-    zall = zb[1:end-1] + thickness/2
-    if fudgelast
-        zall = [zall; zb[end]+thickness[end]/2]
+# function zboundarytocenter(zb; fudgelast=false)
+# no more fudging, this is superseded
+#     thickness = diff(zb)
+#     zall = zb[1:end-1] + thickness/2
+#     if fudgelast
+#         zall = [zall; zb[end]+thickness[end]/2]
+#     end
+#     zall    
+# end    
+
+function zboundarytocenter(zb)
+    # first get extendfrac r
+    numerator = diff(zb[2:end])
+    denom = diff(zb[1:end-1])
+    r = (denom'*denom)\(denom'*numerator) # overkill but I love least squares
+    # now for dz
+    numerator = diff(zb)
+    denom = map(2:length(zb)) do n
+        r^(n-2)
     end
-    zall    
-end    
+    dz = (denom'*denom)\(denom'*numerator) # also overkill
+    zall,  = setupz(0.0, r; dz, n=length(zb))
+    zall
+end  
 
 function writeijkfromsounding(s::Vector{Array{S, 1}}, zall) where S<:Sounding
     pmap(s) do x
@@ -1210,14 +1255,19 @@ end
 
 function makegrid(vals::AbstractArray, soundings::Array{S, 1}; donn=false,
     dr=10, zall=[NaN], dz=-1) where S<:Sounding
-    @assert all(.!isnan.(zall)) 
-    @assert dz>0
     X = [s.X for s in soundings]
     Y = [s.Y for s in soundings]
+    topo = [s.Z for s in soundings]
+    makegrid(vals, X, Y, topo; donn, dr, zall, dz)
+end
+
+function makegrid(vals::AbstractArray, X, Y, topo; donn=false,
+    dr=10, zall=[NaN], dz=-1)
+    @assert all(.!isnan.(zall)) 
+    @assert dz>0
     R = cumulativelinedist(X,Y)
     if donn
         rr, zz = [r for z in zall, r in R], [z for z in zall, r in R]
-        topo = [s.Z for s in soundings]
         zz = topo' .- zz # mAHD
         kdtree = KDTree([rr[:]'; zz[:]'])
         gridr = range(R[1], R[end], step=dr)
@@ -1232,7 +1282,6 @@ function makegrid(vals::AbstractArray, soundings::Array{S, 1}; donn=false,
     else
         nodes = ([z for z in zall], [r for r in R])
         itp = extrapolate(interpolate(nodes, vals, Gridded(Linear())), Line()) 
-        topo = [s.Z for s in soundings]
         gridr = range(R[1], R[end], step=dr)
         topofine = (interpolate((R,), topo, Gridded(Linear())))(gridr)
         # height = topo in mAHD - depth # mAHD
@@ -1243,6 +1292,7 @@ function makegrid(vals::AbstractArray, soundings::Array{S, 1}; donn=false,
         zz = [z for z in gridz, r in gridr] 
     end    
     img[zz .>topofine'] .= NaN
+    img[zz .< topofine' .- maximum(zall)] .= NaN
     img, gridr, gridz, topofine, R
 end
 
@@ -1586,7 +1636,7 @@ function block1Dvalues(M::AbstractVector, z, zbounds, cond = :median)
     for (i, m) in enumerate(M)
         for j in 1:nconditions
             idxdepth = zbounds[j,1] .< z .<= zbounds[j,2]
-            Mblock[i,j] = eval(cond)(m[idxdepth])
+            Mblock[i,j] = sum(idxdepth) == 0 ? NaN : eval(cond)(m[idxdepth])
         end
      end
     Mblock
@@ -1620,12 +1670,16 @@ function getclosestidx(Xwell, Ywell, soundings::Vector{S}) where S<: Sounding
     getclosestidx(XY, Xwell, Ywell)
 end    
 
-function getclosestidx(XY, Xwanted, Ywanted)
-    tree = KDTree(XY)
-    idx, dist = nn(tree, [Xwanted;Ywanted])
-    @info "distance is $dist"
+function getclosestidx(XY, Xwanted, Ywanted; showinfo=true)
+    idx, dist = getclosestidxanddist(XY, Xwanted, Ywanted)
+    showinfo && @info "distance is $dist"
     idx
 end    
+
+function getclosestidxanddist(XY, Xwanted, Ywanted)
+    tree = KDTree(XY)
+    idx, dist = nn(tree, [Xwanted;Ywanted])
+end
 
 #function to read the *dfn file and extract the column number and column names as a *.txt file 
 function dfn2hdr(dfnfile::String; writecorrecteddfn=false)
@@ -1834,4 +1888,313 @@ infstd(x, dims) = mapslices(infstd, x, dims=dims)
 getrowwise(i,j,nvars) = (i-1)*nvars+j
 getcolwise(i,j,nvars) = (j-1)*nvars+i
 firstval(n) = n == 1 ? 1 : firstval(n-1) + n-1 # index number when filling rowwise upto diagonals
+
+# these are a little hacky for reading from gradient inversion and probabilistic files with minimal info
+function readfzipped(fzipped::String, nlayers::Int; nnu=0)
+    A = readdlm(fzipped)
+    X, Y, Z, fid, line = map(i->A[:,i],(1:5))
+    nu = A[:,end-nnu:end-1]
+    zall = A[:,end-2nlayers-nnu:end-nlayers-nnu-1][1,:]
+    σ = A[:,end-nlayers-nnu:end-nnu-1] # so we can plot TEMPEST and SPECTREM similar to heli
+    ϕd = A[:,end]
+    X, Y, Z, fid, line, zall, σ, ϕd, nu
+end  
+
+function readfzipped(fzipped::String, line::Int, nlayers::Int; nnu=0)
+    X, Y, Z, fid, linesall, zall, σ, ϕd, nu = readfzipped(fzipped, nlayers; nnu)
+    idx = linesall .== line
+    @assert !isempty(idx)
+    X, Y, Z, fid, linesall, σ, ϕd, nu = map(x->x[idx,:],(X, Y, Z, fid, linesall, σ, ϕd, nu))
+    X, Y, Z, fid, linesall, zall, σ', ϕd, nu
+end
+
+function getdeterministicoutputs(outputs::AbstractArray) 
+    # useful for plotting an aray of outputs read programmatically from readfzipped
+    # same as 
+    # X, Y, Z, fid, line, zall, σ, ϕd, nu = map(1:9) do i
+    #     map(outputs) do x
+    #         x[i]
+    #     end    
+    # end
+    X, Y, Z, fid, line, zall, σ, ϕd, nu = [[out[i] for out in outputs] for i in 1:9]
+end    
+
+function readxyzrhoϕ(linenum::Int, nlayers::Int; pathname="")
+    # get the rhos
+    fnameρ = joinpath(pathname, "rho_avg_line_$(linenum)_summary_xyzrho.txt")
+    A = readlargetextmatrix(fnameρ)
+    ρavg = reshape(A[:,4], nlayers, :)
+    ρlow, ρmid, ρhigh =  map(["low", "mid", "hi",]) do lstring
+        fnameρ = joinpath(pathname, "rho_"*lstring*"_line_$(linenum)_summary_xyzrho.txt")
+        B = readlargetextmatrix(fnameρ)
+        ρ = reshape(B[:,4], nlayers,:)
+    end
+    # get the X, Y, Z
+    X, Y = map(i->A[1:nlayers:end,i], (1:2))
+    Zfirstsounding = A[1:nlayers,3] # this is height, does not include surface topo
+    zall = getzall(Zfirstsounding)
+    Z = A[1:nlayers:end,3] .+ zall[1] # this is topo height
+    # get the phid
+    ϕmean, ϕsdev =  map(["mean", "sdev"]) do lstring
+        fnameϕ = joinpath(pathname, "phid_"*lstring*"_line_$(linenum)_summary.txt")
+        ϕ = readlargetextmatrix(fnameϕ)
+    end
+    X, Y, Z, zall, ρlow, ρmid, ρhigh, ρavg, ϕmean, ϕsdev
+end
+
+function getprobabilisticoutputs(outputs::AbstractArray)
+    X, Y, Z, zall, ρlow, ρmid, ρhigh, ρavg, ϕmean, ϕsdev = [[out[i] for out in outputs] for i in 1:10]
+end    
+
+function getzall(zheights)
+    # first get extendfrac r
+    numerator = diff(zheights[2:end])
+    denom = diff(zheights[1:end-1])
+    r = (denom'*denom)\(denom'*numerator) # overkill but I love least squares
+    # now for dz
+    numerator = -2diff(zheights)
+    denom = map(1:length(zheights)-1) do n
+        r^(n-1) + r^n
+    end
+    dz = (denom'*denom)\(denom'*numerator) # also overkill
+    zall,  = setupz(0.0, r; dz, n=length(zheights))
+    zall
+end
+
+function plotmanygrids(σ, X, Y, Z, zall; yl=[], xl=[],
+        cmapσ="turbo", vmin=-Inf, vmax=Inf, topowidth=1, fontsize=12, spacefactor=5,
+        dr=nothing, dz=2*zall[1], plotbinning=true, δ²=1e-3, regtype=:R1, donn=false,
+        figsize=(10,10), smallratio=0.1, preferEright=true, delbin=15.)
+    @assert !isnothing(dr) # pass as variable as it is used by other functions too       
+    nsub = length(σ) + 2 # one invisible subplot
+    fig, ax = plt.subplots(nsub, 1, gridspec_kw=Dict("height_ratios" => [ones(nsub-2)..., spacefactor*smallratio, smallratio]),
+        figsize=figsize)
+    
+    binby, binvals = getbinby(X, Y, preferEright)
+    flipbycoord!(binby, σ, X, Y, Z)
+    rmin, rmax = getrangebinextents(binby)
+    r, m, sd = binbycoord(rmin, rmax, delbin, binby, binvals)
+    coord_mle = getsmoothline(m, sd; δ², regtype)
+    # either of x, y are means, either of xr, yr are the fit
+    x, y, xr, yr = get_x_y(r, m, coord_mle, preferEright)
+    plotbinning && plotbinningresults(X, Y, x, y, xr, yr)
+    outmap = map(zip(σ, X, Y, Z)) do (s, xx, yy, topo)
+         id = getclosestidx([xx';yy'], xr', yr', showinfo=false)
+         makegrid(s[:,id], xr, yr, topo[id]; donn, dr, zall, dz)
+    end
+    img, gridr, gridz, topofine, R = [[out[i] for out in outmap] for i in 1:5]
+    if (isinf(vmin) || isinf(vmax))
+        vmin, vmax = extrema(reduce(vcat, [[extrema(s)...] for s in σ]))
+    end
+    imhandle = map(zip(ax, img, gridr, gridz, topofine, R)) do (
+        ax_, img_, gridr_, gridz_, topofine_, R_) 
+        imhandle_ = ax_.imshow(img_, extent=[gridr_[1], gridr_[end], gridz_[end], gridz_[1]]; 
+            cmap=cmapσ, aspect="auto", vmin, vmax)
+        ax_.plot(gridr_, topofine_, linewidth=topowidth, "-k")
+        imhandle_
+    end
+    map(1:nsub-3) do i
+        ax[i].sharex(ax[i+1])
+        ax[i].sharey(ax[i+1])
+    end
+    [a.tick_params(labelbottom=false) for a in ax[1:end-3]]
+    [a.set_ylabel("Height m") for a in ax[1:end-2]]
+    ax[end-2].set_xlabel("Distance m")
+    ax[end-1].axis("off")
+    !isempty(xl) && ax[1].set_xlim(xl)
+    !isempty(yl) && ax[1].set_ylim(yl)
+    cb = fig.colorbar(imhandle[end], cax=ax[end], orientation="horizontal")
+    cb.set_label("Log₁₀ S/m", labelpad=0)
+    nicenup(fig, fsize=fontsize, h_pad=0)
+    fig.subplots_adjust(hspace=0)
+    xr, yr, ax # return easting northing of grid and figure axes
+end
+
+function getbinby(X, Y, preferEright)
+    if preferEright
+        binby, binvals = X, Y
+    else
+        binby, binvals = Y, X
+        binvals = X
+    end
+    binby, binvals
+end
+
+function plotbinningresults(X, Y, x, y, xr, yr)
+    _, ax = plt.subplots(1, 1)
+    for i in eachindex(X)
+        ax.plot(X[i],Y[i]) #label=split(fnames[i],"/")[2])
+    end
+    ax.plot(x, y,"-k", label="mean path")
+    ax.plot(xr, yr, label="mle path")
+    ax.legend()
+    ax.set_aspect(1)
+end    
+
+function get_x_y(r, m, coord_mle, preferEright)
+    if preferEright
+        x, y = r, m
+        xr, yr = x, coord_mle 
+    else
+        x, y = m, r
+        xr, yr = coord_mle, y
+    end  
+    x, y, xr, yr
+end    
+
+function flipbycoord!(coordsarray, stufftoflip...) # slurp
+    for (i, coords) in enumerate(coordsarray)
+        if coords[end]<coords[1]
+            _ = map(stufftoflip) do x 
+                if size(x[i], 2) == 1
+                    reverse!(x[i])    
+                else
+                    reverse!(x[i], dims=2)
+                end
+            end    
+        end
+    end
+end
+
+function getrangebinextents(XX)
+    rmin = maximum([x[1] for x in XX])
+    rmax = minimum([x[end] for x in XX])
+    rmin, rmax
+end
+
+function binbycoord(rmin, rmax, delbin, binby, binvals,)
+    r = range(rmin, rmax, step=delbin)
+    m, sd  = map(x->zeros(length(r)-1), 1:2)
+    for i in 2:length(r)
+        s, s2, n = 0., 0., 0
+        for (bin, val) in zip(binby, binvals)
+            idx = r[i-1] .< bin .<= r[i]
+            if !isempty(idx)
+                s  += sum(val[idx])
+                s2 += sum(val[idx].^2)
+                n  += sum(idx)
+            end    
+        end
+        m[i-1]  = s/n
+        sd[i-1] = sqrt(s2/n - m[i-1]^2)
+    end
+    (r[1:end-1]+r[2:end])/2, m, sd        
+end
+
+function readwell(fname, skipstart; lidarfile=nothing)
+    # in Ross' .con format
+    # skip some lines and then must have format in the skipped lines
+    # bore: thisborename
+    # and then
+    # depth mS/m
+    # returns converted to log10 S/m
+    io = open(fname)
+    name = ""
+    X, Y, Z = 0., 0., 0.
+    for (i, str) in enumerate(eachline(io))
+        s = split(str, ":")
+        lowercase(s[1]) == "bore" && (name = s[end])
+        lowercase(s[1]) == "easting"   && (X = parse(Float64, s[end]))
+        lowercase(s[1]) == "northing"  && (Y = parse(Float64, s[end]))
+        if lowercase(s[1]) == "elevation" 
+            if isnothing(lidarfile)
+                Z = parse(Float64, s[end])
+            else # get it from a lidar point cloud
+                Z = getlidarheight(lidarfile,[X;Y])
+            end    
+        end            
+        i==skipstart && break
+    end    
+    @info name
+    zc_rho = readdlm(fname; skipstart)
+    zc_rho[:,2] = 3 .-log10.(zc_rho[:,2]) # log10 ohm m
+    name, X, Y, Z, zc_rho
+end
+
+function makeblockedwellimage(readwellarray, zall, xr, yr; distblank=50, dr=nothing, donn=false)
+    # xr, yr are the line path along which to find closest well index
+    @assert !isnothing(dr)
+    wellname, Xwell, Ywell, Zwell, z_rho_well = [[well[i] for well in readwellarray] for i in 1:5]
+    zboundaries = zcentertoboundary(zall)
+    Mwell = reduce(hcat, map(z_rho_well) do zρ
+                block1Dvalues([zρ[:,2]], zρ[:,1], [zboundaries[1:end-1] zboundaries[2:end]], :mean)'
+    end)
+    Mwell = [Mwell;Mwell[end,:]'] # dummy last cell in depth
+    idx, _ = getclosestidxanddist([Xwell';Ywell'], xr', yr')
+    Mclosest = Mwell[:,idx] # this needs to be plotted on image of line with coordinates xr, yr
+    idxclosest, _ = getclosestidxanddist([xr'; yr'], Xwell', Ywell')
+    _, dist = getclosestidxanddist([xr[idxclosest]';yr[idxclosest]'], xr', yr')
+    Mclosest[:,dist .> distblank] .= NaN # but first NaN out further than distblank m away from well
+    # interpolate linearly as usual onto line with xr, yr coordinates with depth and line distance
+    img, gridr, gridz, _ = makegrid(Mclosest, xr, yr, Zwell[idx]; donn, dr, zall, dz=zall[1]*2)
+    hsegs, vsegs = outlinewells(img, gridr, gridz)
+    img, gridr, gridz, hsegs, vsegs
+end    
+
+function outlinewells(img, gridr, gridz)
+    # for all wells, works for only one vertical well at any X,Y along line
+    mapimg = isnan.(img)
+    idxvert = findall(mapimg[:,2:end] .!= mapimg[:,1:end-1])
+    vertcoords = reduce(vcat, ([[id[2] id[1]] for id in idxvert]))
+    cols = unique(vertcoords[:,1])
+    vsegs = map(cols) do c
+        x1 = vertcoords[findfirst(vertcoords[:,1] .== c),2]
+        x2 = vertcoords[findlast(vertcoords[:,1] .== c),2]
+        [c-0.5 x1-1.5; c-0.5 x2-0.5] # the +- offsets are voodoo
+    end
+    vall = reduce(vcat, vsegs)
+
+    hsegs =  map(1:length(vsegs)) do i
+        r = iseven(i) ? 2(i-1) : 2i-1
+        [vall[r,:]';vall[r+2,:]']
+    end
+
+    _ = map((hsegs, vsegs)) do x # scales to image dimensions, the .+ offsets are voodoo
+        _ = map(x) do xy
+            xy[:,1] .= xy[:,1]/size(img, 2)*(gridr[end]-gridr[1]) .+ gridr[2]/2
+            xy[:,2] .= xy[:,2]/size(img, 1)*(gridz[end]-gridz[1]) .+ (gridz[1]+gridz[2])/2
+        end
+    end
+    hsegs, vsegs # these need to be plotted with gridr, gridz as usual
+end    
+
+function plotwelloutline(ax, img, hsegs, vsegs, gridr, gridz, vmin, vmax; cmap="turbo", color="k", linewidth=0.5)
+    # plot the well outline on axis
+    ax.imshow(-img; extent=[gridr[1], gridr[end], gridz[end], gridz[1]], cmap, vmin, vmax)
+    for v in vsegs
+        ax.plot(v[:,1], v[:,2]; color, linewidth)
+    end
+    for h in hsegs
+        ax.plot(h[:,1], h[:,2]; color, linewidth)
+    end
+    ax.set_aspect("auto")
+end
+
+function plotwelloutline(ax::Array, img, hsegs, vsegs, gridr, gridz, vmin, vmax; cmap="turbo", color="k", linewidth=0.5)
+    # plot into each axis, the outline
+    for a in ax
+        plotwelloutline(a, img, hsegs, vsegs, gridr, gridz, vmin, vmax; cmap, color, linewidth)
+    end
+end
+
+function getlidarheight(lidarheightfile::String, xy)
+    A = readlargetextmatrix(lidarheightfile)
+    # read X, Y, mAHDevery 10 m
+    kdtree = KDTree(A[:,1:2]')
+    if size(xy, 2) == 2     
+        idxs, = nn(kdtree,xy')
+    else
+        idxs, = nn(kdtree,xy)
+    end
+    A[idxs,3]
+end    
+
+function plotblockedwellonimages(ax, wellarray, zall, xr, yr; donn=false,
+        vmin=nothing, vmax=nothing, dr=15, distblank=4dr, cmap="turbo", color="k", linewidth=0.5)
+        @assert !isnothing(vmin)
+        @assert !isnothing(vmax)
+    img, gridr, gridz, hsegs, vsegs = makeblockedwellimage(wellarray, zall, xr, yr; distblank, dr, donn)
+    plotwelloutline(ax, img, hsegs, vsegs, gridr, gridz, vmin, vmax; cmap, color, linewidth)
+end
+
 end # module CommonToAll
