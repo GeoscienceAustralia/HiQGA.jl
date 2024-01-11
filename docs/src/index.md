@@ -11,16 +11,21 @@ This package implements both the nested (2-layer) and vanilla trans-dimensional 
 - There is also a flavour of within-bounds Gauss-Newton/Occam's inversion implemented. For SkyTEM, TEMPEST and VTEM (all AEM), this is fully functional, but for other forward propagators you will have to provide a Jacobian (the linearization of the forward operator).
 
 ## Installation
-[HPC](https://nci.org.au/) users look [here](#HPC-setup-on-NCI) to set up MPI for large jobs, or if you do not have Julia installed at all.
+Download Julia from [here](https://julialang.org/downloads/) and install the binary. HPC users e.g., on the [NCI](https://nci.org.au/) look [here, below in the document](#hpc-setup-on-nci) to set up MPI on a cluster for large jobs, or if you do not have Julia installed on your cluster.
 
-To install HiQGA, in a perfect world we'd use Julia's `Pkg` REPL by hitting `]` to enter `pkg>` mode. Then enter the following, at the `pkg>` prompt:
+Once you have started julia, to install HiQGA, use Julia's `Pkg` REPL by hitting `]` to enter `pkg>` mode within Julia like so: 
+```
+julia>]
+(@v1.10) pkg>
+```
+Then enter the following, at the `pkg>` prompt:
 ```
 pkg> add HiQGA 
 ```
 If installing to [follow along](https://www.youtube.com/watch?v=edgzr8vpCKY&list=PL0jP_ahe-BFmRWx6IT9G2zbFHA6qmJ52f&index=6) for the 2022 AEM [workshop branch](https://github.com/GeoscienceAustralia/HiQGA.jl/tree/workshop) use instead of the above `pkg> add HiQGA@0.2.2`
 
 ## Usage
-Examples of how to use the package can be found in the `examples` directory. Simply `cd` to the relevant example directory and `include` the .`jl` files in the order they are named. If using VSCode make sure to do *Julia: Change to this Directory* from the three dots menu on the top right. The Markov Chain Monte Carlo sampler is configured to support parallel tempering on multiple CPUs - some of the examples accomplish this with Julia's built-in multiprocessing, and others use MPI in order to support inversions on HPC clusters that don't work with Julia's default SSH-based multiprocessing. The MPI examples require [MPI.jl](https://github.com/JuliaParallel/MPI.jl) and [MPIClusterManagers.jl](https://github.com/JuliaParallel/MPIClusterManagers.jl/), which are not installed as dependencies for this package, so you will need to ensure they are installed and configured correctly to run these examples. See [here](#installing-mpijl-and-mpiclustermanagersjl-on-nci) for MPI on the NCI.
+Examples of how to use the package can be found in the `examples` directory. Simply `cd` to the relevant example directory and `include` the .`jl` files in the order they are named. If using VSCode make sure to do *Julia: Change to this Directory* from the three dots menu on the top right. The Markov Chain Monte Carlo sampler is configured to support parallel tempering on multiple CPUs - some of the examples accomplish this with Julia's built-in multiprocessing, and others use MPI in order to support inversions on HPC clusters that don't work with Julia's default SSH-based multiprocessing. The MPI examples require [MPI.jl](https://github.com/JuliaParallel/MPI.jl) and [MPIClusterManagers.jl](https://github.com/JuliaParallel/MPIClusterManagers.jl/), which are not installed as dependencies for this package, so you will need to ensure they are installed and configured correctly to run these examples. See [here, below in the document](#installing-mpijl-and-mpiclustermanagersjl-on-nci) for MPI on the NCI.
 
 Some example scripts have as a dependency [Revise.jl](https://github.com/timholy/Revise.jl) as we're still actively [developing this package](https://pkgdocs.julialang.org/v1/getting-started/), so you may need to install [Revise](https://github.com/timholy/Revise.jl) if not already installed. All Julia users should be developing with [Revise](https://github.com/timholy/Revise.jl)! After installation, to run the examples, simply clone the package separately (or download as a ZIP), navigate to the `examples` folder and run the scripts in their numerical order.
 
@@ -50,17 +55,17 @@ pkg>dev HiQGA
 If you don't already have access to a `julia` binary, download the appropriate version `.tar.gz` from [here](https://julialang.org/downloads/) and then untar it in a location you have write access to, like so: 
 ```
 cd /somwehere/home/me
-tar -xvzf /somwehere/home/me/julia-x.x.x.ta.gz
+tar -xvzf /somwehere/home/me/julia-x.x.x.tar.gz
 ```
 Then, in your `$HOME/bin` directory make a symlink to the julia binary like so:
 ```
 cd ~/bin
 ln -s /somwehere/home/me/julia-x.x.x/bin/julia .
 ```
-Make sure your `$HOME/bin` is in your `$PATH` else which you can check with `echo $PATH | grep"$HOME/bin"`. If you do not see your `bin` directory highlighted, do `export PATH=~/opt/bin:$PATH`
+Make sure your `$HOME/bin` is in your `$PATH` else which you can check with `echo $PATH | grep"$HOME/bin"`. If you do not see your `bin` directory highlighted, do `export PATH=~/bin:$PATH`
 The preferred development and usage environment for HiQGA is [Visual Studio Code](https://code.visualstudio.com/), which provides interactive execution of Julia code through the [VSCode Julia extension](https://code.visualstudio.com/docs/languages/julia). To install VSCode on the National Computational Infrastructure (NCI), you need to extract the VSCode rpm package using the steps in [this gist](https://gist.github.com/a2ray/701347f703b72abb630d2521b43c5f22), to a location where your account has write access. You will NOT be using vscode on a gadi login node, but on OOD.
 
-Get Julia language support from VSCode after launching the VSCode binary by going to File->Extensions by searching for Julia. If after installation it doesn't find the Julia binary, go to File->Extensions->Julia->Manage(the little gear icon) and manually type in `/home/yourusername/bin/julia` in the "Executable Path" field.
+Get Julia language support from VSCode after launching the VSCode binary by going to File->Extensions by searching for Julia. If after installation it doesn't find the Julia binary, go to File->Extensions->Julia->Manage (the little gear icon) and manually type in `/home/yourusername/bin/julia` in the "Executable Path" field.
 
 It is also useful to use Revise.jl to ensure changes to the package are immediately reflected in a running Julia REPL (this is the reason that Revise is a dependency on some example scripts as noted above). More information on a workflow to use Revise during development can be found [here](https://gist.github.com/a2ray/e593751b24e45f8160ba8041fb811680).
 
