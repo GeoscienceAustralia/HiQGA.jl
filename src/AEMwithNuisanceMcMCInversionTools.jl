@@ -417,7 +417,7 @@ function plotnuquant(nqlow, nqmid, nqhigh, nunominal, s, gridx, icol, nrows, ms=
     nnu = min(size(nqlow, 1), size(nunominal, 1)) # in case we've inverted a zero bounds nuisance by mistech...
     labelnu[1] == "" || @assert length(labelnu) == nnu
     for inu = 1:nnu
-        s[icol] = subplot(nrows, 1, icol, sharex=s[icol-1])
+        s[icol].sharex(s[icol-1])
         s[icol].fill_between(gridx, nqlow[inu,:], nqhigh[inu,:], alpha=0.5)
         s[icol].plot(gridx, nqmid[inu,:])
         s[icol].plot(gridx, nunominal[inu,:], "o", markersize=ms)
