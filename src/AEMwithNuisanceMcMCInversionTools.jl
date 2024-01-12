@@ -7,9 +7,12 @@ import ..AbstractOperator.getndata
 import ..AbstractOperator.makebounds
 import ..AbstractOperator.getoptnfromexisting
 import ..AbstractOperator.getnufromsounding
+import ..AbstractOperator.summaryAEMimages
+import ..AbstractOperator.plotindividualAEMsoundings
 
 import ..Options, ..OptionsStat, ..OptionsNuisance
-export makeAEMoperatorandnuisanceoptions, loopacrossAEMsoundings, summaryAEMwithnuisanceimages, plotindividualAEMsoundingswithnuisance
+export makeAEMoperatorandnuisanceoptions
+
 import ..main # McMC function
 using ..SoundingDistributor
 import ..DEBUGLEVEL_TDGP
@@ -194,7 +197,7 @@ end
 
 # plotting stuff
 
-function summaryAEMwithnuisanceimages(soundings::Array{S, 1}, opt_in::Options, optn_in::OptionsNuisance;
+function summaryAEMimages(soundings::Array{S, 1}, opt_in::Options, optn_in::OptionsNuisance;
                         zall=[-1.],
                         qp1=0.05,
                         qp2=0.95,
@@ -425,7 +428,7 @@ function plotnuquant(nqlow, nqmid, nqhigh, nunominal, s, gridx, icol, nrows, ms=
     icol    
 end   
 
-function plotindividualsoundings(soundings::Vector{S}, 
+function plotindividualAEMsoundings(soundings::Vector{S}, 
     aem_in::Operator1D, opt_in::Options, optn_in::OptionsNuisance, 
     idxplot;
     zall = [-1.],
@@ -492,7 +495,9 @@ function plotindividualsoundings(soundings::Vector{S},
     end    
 end
 
-plotindividualAEMsoundingswithnuisance = plotindividualsoundings
-
+# legacy backwards compat
+plotindividualAEMsoundingswithnuisance = plotindividualAEMsoundings
+plotindividualsoundings = plotindividualAEMsoundings
+summaryAEMwithnuisanceimages = summaryAEMimages
 end # module
 

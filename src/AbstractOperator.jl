@@ -40,5 +40,9 @@ function plotconvandlast end
 function setnuforinvtype end
 # for the Line type from LineRegression which is useful
 function getsmoothline end
+# summary stats from McMC AEM inversions
+function summaryAEMimages end
+# plot predictions from posterior for McMC AEM inversions
+function plotindividualAEMsoundings end
 export Operator, Operator1D, Operator2D, Sounding
 end

@@ -4,7 +4,7 @@ import ..AbstractOperator.get_misfit
 import ..CSEM1DEr.getfield!
 using ..AbstractOperator, ..CSEM1DEr
 using PyPlot, LinearAlgebra, ..CommonToAll
-
+import ..AbstractOperator.plotmodelfield!
 import ..Model, ..Options
 
 export CSEMRadialEr, plotmodelfield!, addnoise

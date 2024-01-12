@@ -36,4 +36,4 @@ else
     @info transD_GP.TEMPEST1DInversion.get_misfit(-mtest, [zRx, x_rx, rx_pitch], tempest, nubounds)
 end        
 @info transD_GP.TEMPEST1DInversion.get_misfit(-mtest, nu[end], tempest, nubounds)
-transD_GP.TEMPEST1DInversion.plotmodelfield!(tempest, mtest, nutest)
+transD_GP.plotmodelfield!(tempest, mtest, nutest)
