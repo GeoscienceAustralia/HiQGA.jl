@@ -1097,22 +1097,44 @@ function readcols(cols::Vector, fname::String; decfactor=1, startfrom=1, dotill=
 end    
 
 function colstovtk(cols::Vector, fname::String; decfactor=1, hasthick=true)
+    # for one file in a direcoty
     X, Y, Z, σ, thick = readcols(cols, fname; decfactor)
     thick = thick[1,:]
-    zall = thicktodepth(thick; hasthick)   
+    zall = thicktodepth(thick; hasthick)
+    fstring = basename(fname)
+    dstring = dirname(fname)
+    fpath = joinpath(dstring, "LEI_Line_"*fstring)
+    colstovtk(X, Y, Z, σ, zall, fpath)
+end
+
+function colstovtk(X, Y, Z, σ, zall, fpath::String)
     Ni = length(X)
     Nk = length(zall)
     x = [X[i] for i = 1:Ni, j = 1:1, k = 1:Nk]
     y = [Y[i] for i = 1:Ni, j = 1:1, k = 1:Nk]
     z = [Z[i] - zall[k] for i = 1:Ni, j = 1:1, k = 1:Nk]
     σvtk = [σ[i, k] for i = 1:Ni, j = 1:1, k = 1:Nk]
-    fstring = basename(fname)
-    dstring = dirname(fname)
-    vtk_grid(joinpath(dstring, "LEI_Line_"*fstring), x, y, z) do vtk
+    vtk_grid(fpath, x, y, z) do vtk
         vtk["cond_LEI"]  = log10.(σvtk)
     end
     nothing
 end
+
+function colstovtk(cols::Dict, fname::String; decfactor=1, hasthick=true)
+    Xc, Yc, Zc, σc, thickc, linec = map(x->get(cols, x, 0), ["X", "Y", "Z", "cond", "thick", "line"])
+    X, Y, Z, σ, thick, lines = readcols([Xc, Yc, Zc, σc, thickc, linec], fname; decfactor)
+    linenos  = unique(Int.(lines))
+    thick = thick[1,:] # assumes all thicknesses are same
+    zall = thicktodepth(thick; hasthick)
+    dstring = dirname(fname)
+    for l in linenos
+        idx = lines .== l
+        fstring = "$l"
+        @info "doing Line "*fstring
+        fpath = joinpath(dstring, "LEI_Line_"*fstring)
+        colstovtk(X[idx], Y[idx], Z[idx], σ[idx,:], zall, fpath)
+    end
+end    
 
 function thicktodepth(thick; hasthick=true)
     if hasthick
