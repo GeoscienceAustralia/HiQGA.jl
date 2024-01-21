@@ -5,6 +5,9 @@ import ..AbstractOperator.loopacrossAEMsoundings
 import ..AbstractOperator.plotmodelfield!
 import ..AbstractOperator.getndata
 import ..Options, ..OptionsStat
+import ..AbstractOperator.summaryAEMimages
+import ..AbstractOperator.plotindividualAEMsoundings
+
 export makeAEMoperatorandoptions, loopacrossAEMsoundings, summaryAEMimages, plotindividualAEMsoundings
 import ..main # McMC function
 import ..DEBUGLEVEL_TDGP
