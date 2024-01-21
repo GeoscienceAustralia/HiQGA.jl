@@ -1,7 +1,7 @@
 name = "HiQGA"
 uuid = "01574e87-63b6-4466-925a-334cf7e21b6b"
 authors = ["richardt94 <29562583+richardt94@users.noreply.github.com>"]
-version = "0.4.0"
+version = "0.4.2"
 
 [deps]
 Conda = "8f4d0f93-b110-5947-807f-2305c1781a2d"
