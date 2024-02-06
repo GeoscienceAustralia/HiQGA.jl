@@ -607,7 +607,7 @@ function makezρ(zboundaries::Array{Float64, 1};
     z, ρ, nfixed
 end
 
-function nicenup(g::PyPlot.Figure;fsize=12, h_pad=nothing, increasefraction=1.2, minsize=true)
+function nicenup(g::PyPlot.Figure;fsize=12, h_pad=nothing, increasefraction=1.1, minsize=true)
     for ax in g.axes
         if !isempty(ax.get_yticklabels())
             fs = ax.get_yticklabels()[1].get_fontsize()
@@ -1745,8 +1745,10 @@ function dfn2hdr(dfnfile::String; writecorrecteddfn=false)
               .& .!contains.(dfn, "RT=COMM"))]
 
     rectype_rgx = r"RT=([^;]*);"
-    name_rgx = r"NAME="
-    inc_regex = r":([0-9]+)f"i #this will only work with floating point fields
+    # name_rgx = r"NAME=" # we don't need the name field
+    name_rgx = deepcopy(rectype_rgx)
+    # inc_regex = r":([0-9]+)f"i #this will only work with floating point fields
+    inc_regex = r":\s*([0-9]+)(f|e)"i # this works with spaces before colon and with exponential fields
 
     cumulative_columns = 0  #this will set up a cumulative variable 
     
@@ -1760,16 +1762,12 @@ function dfn2hdr(dfnfile::String; writecorrecteddfn=false)
         data_first |= (m[1] == "DATA")
 
         inc_match = match(inc_regex, row)  #matching the keyword with the string 
-        if isnothing(inc_match)
+        if isnothing(inc_match) # single column field
             inc = 1
             idx2 = split(row, name_rgx)
-            if length(idx2) > 1 # so hacky ... but this is for improperly terminated DFN files
-                idx2_r = first.(split.(idx2[2], ":"))
-            else # for proper terminations
-                idx2_r = first.(split.(idx2[1], ":"))
-                break
-            end
-        else
+            idx2_r = first.(split.(idx2[2], ":"))
+            # @info idx2_r
+        else # multiple column field
             inc = parse(Int64, inc_match.captures[1]) #the outcome is int64
             idx2 = split(row, rectype_rgx)
             idx2_r = first.(split.(idx2[2], ":"))
@@ -1782,10 +1780,9 @@ function dfn2hdr(dfnfile::String; writecorrecteddfn=false)
         lastcol = firstcol + inc - 1
         cumulative_columns += inc
         
-        if occursin(";END DEFN", idx2_r)  #type is string 
+        if occursin("END DEFN", idx2_r)  #type is string 
             idx2_r = first.(split.(idx2_r,";"))
-        else
-            idx2_r = first.(split.(idx2_r,"END"))
+            break # proper termination
         end
 
         #start writing to a file here
@@ -2068,11 +2065,9 @@ function plotmanygrids(σ, X, Y, Z, zall; yl=[], xl=[],
 end
 
 function getbinby(X, Y, preferEright)
-    if preferEright
-        binby, binvals = X, Y
-    else
+    binby, binvals = X, Y
+    if !preferEright
         binby, binvals = Y, X
-        binvals = X
     end
     binby, binvals
 end
@@ -2168,7 +2163,7 @@ function readwell(fname, skipstart; lidarfile=nothing)
     name, X, Y, Z, zc_rho
 end
 
-function makeblockedwellimage(readwellarray, zall, xr, yr; distblank=50, dr=nothing, donn=false)
+function makeblockedwellimage(readwellarray, zall, xr, yr; distblank=50, dr=nothing, donn=false, displaydistanceaway=true )
     # xr, yr are the line path along which to find closest well index
     @assert !isnothing(dr)
     wellname, Xwell, Ywell, Zwell, z_rho_well = [[well[i] for well in readwellarray] for i in 1:5]
@@ -2179,7 +2174,8 @@ function makeblockedwellimage(readwellarray, zall, xr, yr; distblank=50, dr=noth
     Mwell = [Mwell;Mwell[end,:]'] # dummy last cell in depth
     idx, _ = getclosestidxanddist([Xwell';Ywell'], xr', yr')
     Mclosest = Mwell[:,idx] # this needs to be plotted on image of line with coordinates xr, yr
-    idxclosest, _ = getclosestidxanddist([xr'; yr'], Xwell', Ywell')
+    idxclosest, distanceaway = getclosestidxanddist([xr'; yr'], Xwell', Ywell')
+    displaydistanceaway && [@printf("WELL: %s DISTANCE: %.2f m\n", w, d) for (w,d) in zip(wellname, distanceaway)]
     _, dist = getclosestidxanddist([xr[idxclosest]';yr[idxclosest]'], xr', yr')
     Mclosest[:,dist .> distblank] .= NaN # but first NaN out further than distblank m away from well
     # interpolate linearly as usual onto line with xr, yr coordinates with depth and line distance
