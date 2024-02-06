@@ -1,6 +1,6 @@
 module CommonToAll
 using PyPlot, StatsBase, Statistics, Distances, LinearAlgebra,
-      DelimitedFiles, ..AbstractOperator, NearestNeighbors, Printf, 
+      DelimitedFiles, ..AbstractOperator, NearestNeighbors, Printf, ReadVTK,
       KernelDensitySJ, KernelDensity, Interpolations, CSV, WriteVTK, Distributed
 
 import ..Options, ..OptionsStat, ..OptionsNonstat, ..OptionsNuisance,
@@ -19,7 +19,7 @@ export trimxft, assembleTat1, gettargtemps, checkns, getchi2forall, nicenup, plo
         readcols, colstovtk, findclosestidxincolfile, zcentertoboundary, zboundarytocenter, 
         writeijkfromsounding, nanmean, infmean, nanstd, infstd, kde_sj, plotmanygrids, readwell,
         getlidarheight, plotblockedwellonimages, getdeterministicoutputs, getprobabilisticoutputs, 
-        readfzipped, readxyzrhoϕ
+        readfzipped, readxyzrhoϕ, writevtkxmlforcurtain
 
 # Kernel Density stuff
 abstract type KDEtype end
@@ -1095,6 +1095,40 @@ function readcols(cols::Vector, fname::String; decfactor=1, startfrom=1, dotill=
         end    
     end    
 end    
+
+function getvtkwholeextent(fname)
+    # assuming structured grid
+    vtk = VTKFile(fname)
+    dataset_element = ReadVTK.LightXML.root(vtk.xml_file)[vtk.file_type][1]
+    whole_extent = parse.(Int, split(ReadVTK.LightXML.attribute(dataset_element, "WholeExtent", required = true), ' '))
+    whole_extent
+end    
+
+function writevtkxmlforcurtain(vtkfname::String; src_epsg=0, dst_epsg=0, suffix="")
+    whole_extent = getvtkwholeextent(vtkfname)
+    nrows = whole_extent[2]
+    ncols = whole_extent[6]
+    writevtkxmlforcurtain(;vtkfname, nrows, ncols, src_epsg, dst_epsg, suffix)
+end
+
+function writevtkxmlforcurtain(;vtkfname="", nrows=0, ncols=0, src_epsg=0, dst_epsg=0, suffix="")
+    # nrows are usually ndepths
+    # ncols are usually nsoundings
+    # 0 based indexing so -1 than actual
+    out =
+    """
+    <?xml version="1.0" encoding="UTF-8"?>
+    <Layer version="1" layerType="VtkLayer">
+	<DisplayName></DisplayName>
+	<dimensions>0 $(nrows) 0 0 0 $(ncols)</dimensions>
+	<URL>$(vtkfname*suffix)</URL>
+    <sourceProjection>EPSG:$src_epsg</sourceProjection><targetProjection>EPSG:$dst_epsg</targetProjection><dataReader>vtkXmlReader</dataReader></Layer>
+    """
+    outname = split(vtkfname,".vts")[1]*".xml"
+    f = open(outname, "w")
+    write(f, out)
+    close(f)
+end
 
 function colstovtk(cols::Vector, fname::String; decfactor=1, hasthick=true, islog10=false, prefix="")
     # for one file in a direcoty
