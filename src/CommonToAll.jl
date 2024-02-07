@@ -1054,6 +1054,10 @@ function writevtkfromsounding(lineofsoundings::Array{S, 1}, zall) where S<:Sound
     @info("opening summary: Line $(lnum)")
     rholow, rhomid, rhohigh = map(x->readdlm(x*"_line_$(lnum)_"*"summary.txt"), 
                                     ["rho_low", "rho_mid", "rho_hi"])
+    writevtkfromxyzrho(rholow, rhomid, rhohigh, X, Y, Z, zall)
+end
+
+function writevtkfromxyzrho(rholow, rhomid, rhohigh, X, Y, Z, zall)
     Ni, Nj = map(x->length(x), (X, Y))
     Nk = length(zall)
     x = [X[i] for i = 1:Ni, j = 1:1, k = 1:Nk]
@@ -1069,7 +1073,7 @@ function writevtkfromsounding(lineofsoundings::Array{S, 1}, zall) where S<:Sound
         vtk["cond_high"] = σhigh
     end
     nothing
-end
+end    
 
 function writevtkfromsounding(s::Vector{Array{S, 1}}, zall) where S<:Sounding
     pmap(s) do x
