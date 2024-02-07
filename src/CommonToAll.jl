@@ -1973,6 +1973,72 @@ function getdeterministicoutputs(outputs::AbstractArray)
     X, Y, Z, fid, line, zall, σ, ϕd, nu = [[out[i] for out in outputs] for i in 1:9]
 end    
 
+function writeaseggdf(v, sfmt, channel_names, nlayers)
+
+    sfmt_mod = Vector{String}(undef, length(v[1]))
+    counter = 1
+
+    for i=1:length(channel_names[1])
+        if (channel_names[1][i] == "zcentre")
+            for j=1:nlayers
+                sfmt_mod[counter] = sfmt[i]
+                counter = counter + 1
+            end
+        elseif (channel_names[1][i] == "sigma")
+            for j=1:nlayers
+                sfmt_mod[counter] = sfmt[i]
+                counter = counter + 1
+            end
+        else 
+            sfmt_mod[counter] = sfmt[i]
+            counter = counter +1
+        end
+
+    end
+
+    open("inversion_output.dat", "w") do io
+        for i=1:length(v)
+            for j =1:length(v[1])
+                record = Printf.format(Printf.Format(sfmt_mod[j]), v[i][j])
+                print(io, record)
+            end
+            println(io,"\n")
+        end
+
+    end     
+
+    sfmt_fortran = Vector{String}(undef, length(sfmt))
+
+    for i =1:length(sfmt)
+        temp1 = last(sfmt[i], 1)
+        temp1 = uppercase(temp1)
+        temp2 = strip(sfmt[i], '%')
+
+        fortran_format = string(temp1, temp2)
+        fortran_format = chop(fortran_format)
+
+        sfmt_fortran[i] = fortran_format
+
+    end
+
+    open("inversion_output.dfn", "w") do io
+        #println(io, "DEFN   ST=RECD,RT=COMM;RT:A4;COMMENTS:A76") Geosoft 
+
+        for i=1:length(channel_names[1])
+            if (channel_names[1][i] == "zcentre")
+                println(io, """DEFN $(i) ST=RECD,RT=; $(channel_names[1][i]): $(nlayers)$(sfmt_fortran[i]) : NULL=-99999.99, UNITS=$(channel_names[2][i]), LONGNAME=$(channel_names[3][i])""")
+            elseif (channel_names[1][i] == "sigma")
+                println(io, """DEFN $(i) ST=RECD,RT=; $(channel_names[1][i]): $(nlayers)$(sfmt_fortran[i]) : NULL=-99999.99, UNITS=$(channel_names[2][i]), LONGNAME=$(channel_names[3][i])""")
+            else
+                println(io, """DEFN $(i) ST=RECD,RT=; $(channel_names[1][i]): $(sfmt_fortran[i]) : NULL=-99999.99, UNITS=$(channel_names[2][i]), LONGNAME=$(channel_names[3][i])""")
+            end
+        end
+
+        println(io, "DEFN $(length(channel_names[1])+1) ST=RECD,RT=; END DEFN")
+    end
+
+end
+ 
 function readxyzrhoϕ(linenum::Int, nlayers::Int; pathname="")
     # get the rhos
     fnameρ = joinpath(pathname, "rho_avg_line_$(linenum)_summary_xyzrho.txt")
