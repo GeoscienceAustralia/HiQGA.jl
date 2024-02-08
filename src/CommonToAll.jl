@@ -1,7 +1,7 @@
 module CommonToAll
 using PyPlot, StatsBase, Statistics, Distances, LinearAlgebra,
       DelimitedFiles, ..AbstractOperator, NearestNeighbors, Printf, ReadVTK,
-      KernelDensitySJ, KernelDensity, Interpolations, CSV, WriteVTK, Distributed
+      KernelDensitySJ, KernelDensity, Interpolations, CSV, WriteVTK, Distributed, Glob
 
 import ..Options, ..OptionsStat, ..OptionsNonstat, ..OptionsNuisance,
        ..history, ..GP.κ, ..calcfstar!, ..AbstractOperator.Sounding, 
@@ -19,7 +19,7 @@ export trimxft, assembleTat1, gettargtemps, checkns, getchi2forall, nicenup, plo
         readcols, colstovtk, findclosestidxincolfile, zcentertoboundary, zboundarytocenter, 
         writeijkfromsounding, nanmean, infmean, nanstd, infstd, kde_sj, plotmanygrids, readwell,
         getlidarheight, plotblockedwellonimages, getdeterministicoutputs, getprobabilisticoutputs, 
-        readfzipped, readxyzrhoϕ, writevtkxmlforcurtain
+        readfzipped, readxyzrhoϕ, writevtkxmlforcurtain, getprobabilisticlinesfromdirectory, writevtkfromxyzrho
 
 # Kernel Density stuff
 abstract type KDEtype end
@@ -1054,10 +1054,15 @@ function writevtkfromsounding(lineofsoundings::Array{S, 1}, zall) where S<:Sound
     @info("opening summary: Line $(lnum)")
     rholow, rhomid, rhohigh = map(x->readdlm(x*"_line_$(lnum)_"*"summary.txt"), 
                                     ["rho_low", "rho_mid", "rho_hi"])
-    writevtkfromxyzrho(rholow, rhomid, rhohigh, X, Y, Z, zall)
+    writevtkfromxyzrho(rholow, rhomid, rhohigh, X, Y, Z, zall, lnum)
 end
 
-function writevtkfromxyzrho(rholow, rhomid, rhohigh, X, Y, Z, zall)
+function getprobabilisticlinesfromdirectory(src_dir)
+    fn = readdir(glob"rho_low*_summary_xyzrho.txt", src_dir)
+    [parse(Int, split(split(f, "_summary")[1], "line_")[2]) for f in fn]
+end
+
+function writevtkfromxyzrho(rholow, rhomid, rhohigh, X, Y, Z, zall, lnum; dst_dir="")
     Ni, Nj = map(x->length(x), (X, Y))
     Nk = length(zall)
     x = [X[i] for i = 1:Ni, j = 1:1, k = 1:Nk]
@@ -1067,7 +1072,7 @@ function writevtkfromxyzrho(rholow, rhomid, rhohigh, X, Y, Z, zall)
         # switch from rho to sigma so low, hi interchanged 
         [-rho[k, i] for i = 1:Ni, j = 1:1, k = 1:Nk]
     end
-    vtk_grid("Line_$(lnum)", x, y, z) do vtk
+    vtk_grid(joinpath(dst_dir, "Line_$(lnum)"), x, y, z) do vtk
         vtk["cond_low"]  = σlow
         vtk["cond_mid"]  = σmid
         vtk["cond_high"] = σhigh
