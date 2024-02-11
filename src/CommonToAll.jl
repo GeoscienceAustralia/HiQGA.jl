@@ -19,7 +19,8 @@ export trimxft, assembleTat1, gettargtemps, checkns, getchi2forall, nicenup, plo
         readcols, colstovtk, findclosestidxincolfile, zcentertoboundary, zboundarytocenter, 
         writeijkfromsounding, nanmean, infmean, nanstd, infstd, kde_sj, plotmanygrids, readwell,
         getlidarheight, plotblockedwellonimages, getdeterministicoutputs, getprobabilisticoutputs, 
-        readfzipped, readxyzrhoϕ, writevtkxmlforcurtain, getprobabilisticlinesfromdirectory, writevtkfromxyzrho
+        readfzipped, readxyzrhoϕ, writevtkxmlforcurtain, getprobabilisticlinesfromdirectory, 
+        writevtkfromxyzrho, writevtkphifromsummary
 
 # Kernel Density stuff
 abstract type KDEtype end
@@ -1076,6 +1077,21 @@ function writevtkfromxyzrho(rholow, rhomid, rhohigh, X, Y, Z, zall, lnum; dst_di
         vtk["cond_low"]  = σlow
         vtk["cond_mid"]  = σmid
         vtk["cond_high"] = σhigh
+    end
+    nothing
+end    
+
+function writevtkphifromsummary(phid, sdev_phid, X, Y, Z, lnum; dst_dir="")
+    Ni, Nj = map(x->length(x), (X, Y))
+    x = [X[i] for i = 1:Ni, j = 1:1, k = 1:1]
+    y = [Y[i] for i = 1:Ni, j = 1:1, k = 1:1]
+    z = [Z[i] for i = 1:Ni, j = 1:1, k = 1:1]
+    ϕmean, ϕsdev = map((phid, sdev_phid)) do p
+        [p[i] for i = 1:Ni, j = 1:1, k = 1:1]
+    end
+    vtk_grid(joinpath(dst_dir, "phid_Line_$(lnum)"), x, y, z) do vtk
+        vtk["phid_mean"]  = ϕmean
+        vtk["phid_sdev"]  = ϕsdev
     end
     nothing
 end    
