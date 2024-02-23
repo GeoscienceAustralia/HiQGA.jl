@@ -1999,7 +1999,7 @@ function writeaseggdf(vall::Vector, sfmt::Vector, outfile::String, channel_names
              mode = "a"
         else mode = "w"
         end
-        writeaseggdf(v[i], sfmt, outfile, mode)
+        writeaseggdf(vall[i], sfmt, outfile, mode)
     end 
     
     #Get the lengths of each element in the data vector
@@ -2028,9 +2028,9 @@ function writeaseggdf(vall::Vector, sfmt::Vector, outfile::String, channel_names
        
         for i=1:length(channel_names[1])
             if (length(vall[1][i]) == 1)
-                println(io, """DEFN $(i) ST=RECD,RT=; $(channel_names[1][i]): $(sfmt_fortran[i]) : NULL=-99999.99, UNITS=$(channel_names[2][i]), LONGNAME=$(channel_names[3][i])""")
+                println(io, "DEFN $(i) ST=RECD,RT=; $(channel_names[1][i]): $(sfmt_fortran[i]) : NULL=-99999.99, UNITS=$(channel_names[2][i]), LONGNAME=$(channel_names[3][i])")
             else
-                println(io, """DEFN $(i) ST=RECD,RT=; $(channel_names[1][i]): $(record[i])$(sfmt_fortran[i]) : NULL=-99999.99, UNITS=$(channel_names[2][i]), LONGNAME=$(channel_names[3][i])""")
+                println(io, "DEFN $(i) ST=RECD,RT=; $(channel_names[1][i]): $(record[i])$(sfmt_fortran[i]) : NULL=-99999.99, UNITS=$(channel_names[2][i]), LONGNAME=$(channel_names[3][i])")
             end
         end
     
