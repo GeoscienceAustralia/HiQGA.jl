@@ -1,7 +1,7 @@
 module CommonToAll
 using PyPlot, StatsBase, Statistics, Distances, LinearAlgebra,
       DelimitedFiles, ..AbstractOperator, NearestNeighbors, Printf, ReadVTK,
-      KernelDensitySJ, KernelDensity, Interpolations, CSV, WriteVTK, Distributed
+      KernelDensitySJ, KernelDensity, Interpolations, CSV, WriteVTK, Distributed, Glob
 
 import ..Options, ..OptionsStat, ..OptionsNonstat, ..OptionsNuisance,
        ..history, ..GP.κ, ..calcfstar!, ..AbstractOperator.Sounding, 
@@ -19,7 +19,8 @@ export trimxft, assembleTat1, gettargtemps, checkns, getchi2forall, nicenup, plo
         readcols, colstovtk, findclosestidxincolfile, zcentertoboundary, zboundarytocenter, 
         writeijkfromsounding, nanmean, infmean, nanstd, infstd, kde_sj, plotmanygrids, readwell,
         getlidarheight, plotblockedwellonimages, getdeterministicoutputs, getprobabilisticoutputs, 
-        readfzipped, readxyzrhoϕ, writevtkxmlforcurtain
+        readfzipped, readxyzrhoϕ, writevtkxmlforcurtain, getprobabilisticlinesfromdirectory, 
+        writevtkfromxyzrho, writevtkphifromsummary
 
 # Kernel Density stuff
 abstract type KDEtype end
@@ -1054,6 +1055,15 @@ function writevtkfromsounding(lineofsoundings::Array{S, 1}, zall) where S<:Sound
     @info("opening summary: Line $(lnum)")
     rholow, rhomid, rhohigh = map(x->readdlm(x*"_line_$(lnum)_"*"summary.txt"), 
                                     ["rho_low", "rho_mid", "rho_hi"])
+    writevtkfromxyzrho(rholow, rhomid, rhohigh, X, Y, Z, zall, lnum)
+end
+
+function getprobabilisticlinesfromdirectory(src_dir)
+    fn = readdir(glob"rho_low*_summary_xyzrho.txt", src_dir)
+    [parse(Int, split(split(f, "_summary")[1], "line_")[2]) for f in fn]
+end
+
+function writevtkfromxyzrho(rholow, rhomid, rhohigh, X, Y, Z, zall, lnum; dst_dir="")
     Ni, Nj = map(x->length(x), (X, Y))
     Nk = length(zall)
     x = [X[i] for i = 1:Ni, j = 1:1, k = 1:Nk]
@@ -1063,13 +1073,28 @@ function writevtkfromsounding(lineofsoundings::Array{S, 1}, zall) where S<:Sound
         # switch from rho to sigma so low, hi interchanged 
         [-rho[k, i] for i = 1:Ni, j = 1:1, k = 1:Nk]
     end
-    vtk_grid("Line_$(lnum)", x, y, z) do vtk
+    vtk_grid(joinpath(dst_dir, "Line_$(lnum)"), x, y, z) do vtk
         vtk["cond_low"]  = σlow
         vtk["cond_mid"]  = σmid
         vtk["cond_high"] = σhigh
     end
     nothing
-end
+end    
+
+function writevtkphifromsummary(phid, sdev_phid, X, Y, Z, lnum; dst_dir="")
+    Ni, Nj = map(x->length(x), (X, Y))
+    x = [X[i] for i = 1:Ni, j = 1:1, k = 1:1]
+    y = [Y[i] for i = 1:Ni, j = 1:1, k = 1:1]
+    z = [Z[i] for i = 1:Ni, j = 1:1, k = 1:1]
+    ϕmean, ϕsdev = map((phid, sdev_phid)) do p
+        [p[i] for i = 1:Ni, j = 1:1, k = 1:1]
+    end
+    vtk_grid(joinpath(dst_dir, "phid_Line_$(lnum)"), x, y, z) do vtk
+        vtk["phid_mean"]  = ϕmean
+        vtk["phid_sdev"]  = ϕsdev
+    end
+    nothing
+end    
 
 function writevtkfromsounding(s::Vector{Array{S, 1}}, zall) where S<:Sounding
     pmap(s) do x
@@ -1104,25 +1129,34 @@ function getvtkwholeextent(fname)
     whole_extent
 end    
 
-function writevtkxmlforcurtain(vtkfname::String; src_epsg=0, dst_epsg=0, suffix="")
+function writevtkxmlforcurtain(vtkfname::String; src_epsg=0, dst_epsg=0, suffix="", vmin=0, vmax=0)
     whole_extent = getvtkwholeextent(vtkfname)
     nrows = whole_extent[2]
     ncols = whole_extent[6]
-    writevtkxmlforcurtain(;vtkfname, nrows, ncols, src_epsg, dst_epsg, suffix)
+    writevtkxmlforcurtain(;vtkfname, nrows, ncols, src_epsg, dst_epsg, suffix, vmin, vmax)
 end
 
-function writevtkxmlforcurtain(;vtkfname="", nrows=0, ncols=0, src_epsg=0, dst_epsg=0, suffix="")
+function writevtkxmlforcurtain(;vtkfname="", 
+    nrows=0, ncols=0, src_epsg=0, dst_epsg=0, suffix="", vmin=0, vmax=0)
     # nrows are usually ndepths
     # ncols are usually nsoundings
     # 0 based indexing so -1 than actual
     out =
     """
-    <?xml version="1.0" encoding="UTF-8"?>
     <Layer version="1" layerType="VtkLayer">
-	<DisplayName></DisplayName>
-	<dimensions>0 $(nrows) 0 0 0 $(ncols)</dimensions>
-	<URL>$(vtkfname*suffix)</URL>
-    <sourceProjection>EPSG:$src_epsg</sourceProjection><targetProjection>EPSG:$dst_epsg</targetProjection><dataReader>vtkXmlReader</dataReader></Layer>
+        <DisplayName />
+        <dimensions>0 $(nrows) 0 0 0 $(ncols)</dimensions>
+        <URL>$(basename(vtkfname)*suffix)</URL>
+        <sourceProjection>EPSG:$src_epsg</sourceProjection>
+        <targetProjection>EPSG:$dst_epsg</targetProjection>
+        <dataReader>vtkXmlReader</dataReader>
+        <DefaultColourMap>Turbo</DefaultColourMap>
+        <groupEvents>true</groupEvents>
+        <minMaxOverride>true</minMaxOverride>
+        <minOverride>$vmin</minOverride>
+        <maxOverride>$vmax</maxOverride>
+        <unitsOfMeasure>Log10 S/m</unitsOfMeasure>
+    </Layer>
     """
     outname = split(vtkfname,".vts")[1]*".xml"
     f = open(outname, "w")
