@@ -1129,25 +1129,33 @@ function getvtkwholeextent(fname)
     whole_extent
 end    
 
-function writevtkxmlforcurtain(vtkfname::String; src_epsg=0, dst_epsg=0, suffix="")
+function writevtkxmlforcurtain(vtkfname::String; src_epsg=0, dst_epsg=0, suffix="", vmin=0, vmax=0)
     whole_extent = getvtkwholeextent(vtkfname)
     nrows = whole_extent[2]
     ncols = whole_extent[6]
-    writevtkxmlforcurtain(;vtkfname, nrows, ncols, src_epsg, dst_epsg, suffix)
+    writevtkxmlforcurtain(;vtkfname, nrows, ncols, src_epsg, dst_epsg, suffix, vmin, vmax)
 end
 
-function writevtkxmlforcurtain(;vtkfname="", nrows=0, ncols=0, src_epsg=0, dst_epsg=0, suffix="")
+function writevtkxmlforcurtain(;vtkfname="", 
+    nrows=0, ncols=0, src_epsg=0, dst_epsg=0, suffix="", vmin=0, vmax=0)
     # nrows are usually ndepths
     # ncols are usually nsoundings
     # 0 based indexing so -1 than actual
     out =
     """
-    <?xml version="1.0" encoding="UTF-8"?>
     <Layer version="1" layerType="VtkLayer">
-	<DisplayName></DisplayName>
+    <DisplayName />
 	<dimensions>0 $(nrows) 0 0 0 $(ncols)</dimensions>
-	<URL>$(vtkfname*suffix)</URL>
-    <sourceProjection>EPSG:$src_epsg</sourceProjection><targetProjection>EPSG:$dst_epsg</targetProjection><dataReader>vtkXmlReader</dataReader></Layer>
+	<URL>$(basename(vtkfname)*suffix)</URL>
+    <sourceProjection>EPSG:$src_epsg</sourceProjection>
+    <targetProjection>EPSG:$dst_epsg</targetProjection>
+    <dataReader>vtkXmlReader</dataReader>
+    <DefaultColourMap>Turbo</DefaultColourMap>
+    <groupEvents>true</groupEvents>
+    <minMaxOverride>true</minMaxOverride>
+    <minOverride>$vmin</minOverride>
+    <maxOverride>$vmax</maxOverride>
+    </Layer>
     """
     outname = split(vtkfname,".vts")[1]*".xml"
     f = open(outname, "w")
