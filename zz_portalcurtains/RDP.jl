@@ -4,6 +4,9 @@ using LinearAlgebra, Dates, ArchGDAL, Printf,
 import GeoFormatTypes as GFT
 const mpl = PyPlot.matplotlib
 const tilesize = 512
+const epsg_GDA94 = 4283
+const epsg_WGS84 = 4326
+
 function perpdist(a, b, p)
     # a and b are two points on the line in space
     # p is the point to compute distance of from line
@@ -41,7 +44,7 @@ end
 
 makeplist(X,Y) = [[x,y] for (x,y) in zip(X,Y)]
 
-reprojecttoGDA94(plist, fromepsg) = ArchGDAL.reproject(plist, GFT.EPSG(fromepsg), GFT.EPSG(4283) )
+reprojecttoGDA94(plist, fromepsg) = ArchGDAL.reproject(plist, GFT.EPSG(fromepsg), GFT.EPSG(epsg_GDA94) )
 
 makexyfromlatlonglist(latlonglist) = [[l[i] for l in latlonglist] for i in 2:-1:1]
 
@@ -259,7 +262,7 @@ function doallcurtaintriads(;src_dir="", dst_dir="curtains", prefix="",
     nothing
 end
 
-function writevtkfromxyzrhodir(nlayers::Int; src_dir="", dst_dir="", src_epsg=0)
+function writevtkfromxyzrhodir(nlayers::Int; src_dir="", dst_dir="", src_epsg=0, vmin=0, vmax=0)
     lines = transD_GP.getprobabilisticlinesfromdirectory(src_dir)
     isdir(dst_dir) || mkpath(dst_dir)
     map(lines) do ln
@@ -269,6 +272,8 @@ function writevtkfromxyzrhodir(nlayers::Int; src_dir="", dst_dir="", src_epsg=0)
         X, Y = makexyfromlatlonglist(latlonglist)
         transD_GP.writevtkfromxyzrho(ρlow, ρmid, ρhigh, X, Y, Z, zall, ln; dst_dir)
         transD_GP.writevtkphifromsummary(ϕmean, ϕsdev, X, Y, Z, ln; dst_dir)
+        fn = joinpath(dst_dir, "Line_$(ln).vts")
+        transD_GP.writevtkxmlforcurtain(fn; src_epsg=epsg_GDA94, dst_epsg=epsg_WGS84, suffix="", vmin, vmax)
     end
 end
 

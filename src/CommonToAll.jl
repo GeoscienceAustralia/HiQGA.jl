@@ -1144,17 +1144,18 @@ function writevtkxmlforcurtain(;vtkfname="",
     out =
     """
     <Layer version="1" layerType="VtkLayer">
-    <DisplayName />
-	<dimensions>0 $(nrows) 0 0 0 $(ncols)</dimensions>
-	<URL>$(basename(vtkfname)*suffix)</URL>
-    <sourceProjection>EPSG:$src_epsg</sourceProjection>
-    <targetProjection>EPSG:$dst_epsg</targetProjection>
-    <dataReader>vtkXmlReader</dataReader>
-    <DefaultColourMap>Turbo</DefaultColourMap>
-    <groupEvents>true</groupEvents>
-    <minMaxOverride>true</minMaxOverride>
-    <minOverride>$vmin</minOverride>
-    <maxOverride>$vmax</maxOverride>
+        <DisplayName />
+        <dimensions>0 $(nrows) 0 0 0 $(ncols)</dimensions>
+        <URL>$(basename(vtkfname)*suffix)</URL>
+        <sourceProjection>EPSG:$src_epsg</sourceProjection>
+        <targetProjection>EPSG:$dst_epsg</targetProjection>
+        <dataReader>vtkXmlReader</dataReader>
+        <DefaultColourMap>Turbo</DefaultColourMap>
+        <groupEvents>true</groupEvents>
+        <minMaxOverride>true</minMaxOverride>
+        <minOverride>$vmin</minOverride>
+        <maxOverride>$vmax</maxOverride>
+        <unitsOfMeasure>Log10 S/m</unitsOfMeasure>
     </Layer>
     """
     outname = split(vtkfname,".vts")[1]*".xml"
