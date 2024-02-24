@@ -1373,17 +1373,19 @@ function makegrid(vals::AbstractArray, X, Y, topo; donn=false,
         for i = 1:length(img)
             img[i] = vals[idxs[i]]
         end
-        topofine = gridpoints(R, gridr, topo)
+        topofine = gridpoints(R, gridr_, topo)
+        topoout = gridpoints(R, gridr, topo)
     else
         nodes = ([z for z in zall], [r for r in R])
         itp = extrapolate(interpolate(nodes, vals, Gridded(Linear())), Line()) 
-        topofine = (interpolate((R,), topo, Gridded(Linear())))(gridr)
+        topofine = (interpolate((R,), topo, Gridded(Linear())))(gridr_)
+        topoout = (interpolate((R,), topo, Gridded(Linear())))(gridr)
         img = [itp(topofine[iy] - x,y) for x in gridz_, (iy, y) in enumerate(gridr_)]
         zz = [z for z in gridz_, r in gridr_] 
     end    
     img[zz .>topofine'] .= NaN
     img[zz .< topofine' .- maximum(zall)] .= NaN # should be zboundary[end] but both in halfspace
-    img, gridr, gridz, topofine, R
+    img, gridr, gridz, topoout, R
 end
 
 function getRandgridr(X, Y, dr)
