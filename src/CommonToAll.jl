@@ -1356,12 +1356,18 @@ function makegrid(vals::AbstractArray, X, Y, topo; donn=false,
     @assert all(.!isnan.(zall)) 
     @assert dz>0
     R, gridr = getRandgridr(X, Y, dr)
+    # height = topo in mAHD - depth # mAHD
+    minahd = minimum(topo) - maximum(zall) # should really be zboundary[end] but are both in halfspace
+    maxahd = maximum(topo) # top is the one to get right
+    gridz = range(maxahd, minahd, step=-dz) 
+    gridr_, gridz_ = map((gridr, gridz)) do a 
+        0.5(a[1:end-1]+a[2:end])
+    end
     if donn
         rr, zz = [r for z in zall, r in R], [z for z in zall, r in R]
         zz = topo' .- zz # mAHD
         kdtree = KDTree([rr[:]'; zz[:]'])
-        gridz = reverse(range(extrema(zz)..., step=dz))
-        rr, zz = [r for z in gridz, r in gridr], [z for z in gridz, r in gridr]
+        rr, zz = [r for z in gridz_, r in gridr_], [z for z in gridz_, r in gridr_]
         idxs, = nn(kdtree, [rr[:]'; zz[:]'])
         img = zeros(size(rr))
         for i = 1:length(img)
@@ -1372,15 +1378,11 @@ function makegrid(vals::AbstractArray, X, Y, topo; donn=false,
         nodes = ([z for z in zall], [r for r in R])
         itp = extrapolate(interpolate(nodes, vals, Gridded(Linear())), Line()) 
         topofine = (interpolate((R,), topo, Gridded(Linear())))(gridr)
-        # height = topo in mAHD - depth # mAHD
-        minahd = minimum(topo) - maximum(zall)
-        maxahd = maximum(topo)
-        gridz = reverse(range(minahd, maxahd, step=dz))
-        img = [itp(topofine[iy] - x,y) for x in gridz, (iy, y) in enumerate(gridr)]
-        zz = [z for z in gridz, r in gridr] 
+        img = [itp(topofine[iy] - x,y) for x in gridz_, (iy, y) in enumerate(gridr_)]
+        zz = [z for z in gridz_, r in gridr_] 
     end    
     img[zz .>topofine'] .= NaN
-    img[zz .< topofine' .- maximum(zall)] .= NaN
+    img[zz .< topofine' .- maximum(zall)] .= NaN # should be zboundary[end] but both in halfspace
     img, gridr, gridz, topofine, R
 end
 
@@ -1397,10 +1399,12 @@ function getnextxyinr(XY1, XY2, Δr)
 end
 
 function getallxyinr(X, Y, Δr)
+    # reutrns middle of points in gridr
     R, gridr = getRandgridr(X, Y, Δr)
+    gridr = 0.5(gridr[1:end-1]+gridr[2:end])
     xyfine = zeros(2, length(gridr))
-    xyfine[:,1] = [X[1], Y[1]]
     c = 1
+    xyfine[:,1] = getnextxyinr([X[1], Y[1]], [X[c+1], Y[c+1]], Δr/2)
     for i = 1:length(gridr)-1
         if gridr[i+1]<R[c+1]
             xyfine[:,i+1] = getnextxyinr(xyfine[:,i], [X[c+1], Y[c+1]], Δr)
