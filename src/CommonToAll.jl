@@ -19,8 +19,7 @@ export trimxft, assembleTat1, gettargtemps, checkns, getchi2forall, nicenup, plo
         readcols, colstovtk, findclosestidxincolfile, zcentertoboundary, zboundarytocenter, 
         writeijkfromsounding, nanmean, infmean, nanstd, infstd, kde_sj, plotmanygrids, readwell,
         getlidarheight, plotblockedwellonimages, getdeterministicoutputs, getprobabilisticoutputs, 
-        readfzipped, readxyzrhoϕ, writevtkxmlforcurtain, getprobabilisticlinesfromdirectory, 
-        writevtkfromxyzrho, writevtkphifromsummary
+        readfzipped, readxyzrhoϕ, writevtkxmlforcurtain, getRandgridr, getallxyinr
 
 # Kernel Density stuff
 abstract type KDEtype end
@@ -1356,12 +1355,11 @@ function makegrid(vals::AbstractArray, X, Y, topo; donn=false,
     dr=10, zall=[NaN], dz=-1)
     @assert all(.!isnan.(zall)) 
     @assert dz>0
-    R = cumulativelinedist(X,Y)
+    R, gridr = getRandgridr(X, Y, dr)
     if donn
         rr, zz = [r for z in zall, r in R], [z for z in zall, r in R]
         zz = topo' .- zz # mAHD
         kdtree = KDTree([rr[:]'; zz[:]'])
-        gridr = range(R[1], R[end], step=dr)
         gridz = reverse(range(extrema(zz)..., step=dz))
         rr, zz = [r for z in gridz, r in gridr], [z for z in gridz, r in gridr]
         idxs, = nn(kdtree, [rr[:]'; zz[:]'])
@@ -1373,7 +1371,6 @@ function makegrid(vals::AbstractArray, X, Y, topo; donn=false,
     else
         nodes = ([z for z in zall], [r for r in R])
         itp = extrapolate(interpolate(nodes, vals, Gridded(Linear())), Line()) 
-        gridr = range(R[1], R[end], step=dr)
         topofine = (interpolate((R,), topo, Gridded(Linear())))(gridr)
         # height = topo in mAHD - depth # mAHD
         minahd = minimum(topo) - maximum(zall)
@@ -1387,6 +1384,35 @@ function makegrid(vals::AbstractArray, X, Y, topo; donn=false,
     img, gridr, gridz, topofine, R
 end
 
+function getRandgridr(X, Y, dr)
+    R = cumulativelinedist(X, Y)
+    gridr = range(R[1], R[end], step=dr)
+    R, gridr
+end
+
+function getnextxyinr(XY1, XY2, Δr)
+    Δx, Δy = XY2 - XY1
+    θ = atan(Δy/Δx)
+    XY1 + [Δr*cos(θ), Δr*sin(θ)]
+end
+
+function getallxyinr(X, Y, Δr)
+    R, gridr = getRandgridr(X, Y, Δr)
+    xyfine = zeros(2, length(gridr))
+    xyfine[:,1] = [X[1], Y[1]]
+    c = 1
+    for i = 1:length(gridr)-1
+        if gridr[i+1]<R[c+1]
+            xyfine[:,i+1] = getnextxyinr(xyfine[:,i], [X[c+1], Y[c+1]], Δr)
+        else
+            Δrsmall = gridr[i+1]-R[c+1]
+            xyfine[:,i+1] = getnextxyinr([X[c+1], Y[c+1]], [X[c+2], Y[c+2]], Δrsmall)
+            c += 1
+        end
+    end
+    xyfine        
+end
+    
 function cumulativelinedist(X,Y)
     dx = diff(X)
     dy = diff(Y)
