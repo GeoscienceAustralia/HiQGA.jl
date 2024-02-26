@@ -1973,71 +1973,75 @@ function getdeterministicoutputs(outputs::AbstractArray)
     X, Y, Z, fid, line, zall, σ, ϕd, nu = [[out[i] for out in outputs] for i in 1:9]
 end    
 
-function writeaseggdf(v, sfmt, channel_names, nlayers)
-
-    sfmt_mod = Vector{String}(undef, length(v[1]))
-    counter = 1
-
-    for i=1:length(channel_names[1])
-        if (channel_names[1][i] == "zcentre")
-            for j=1:nlayers
-                sfmt_mod[counter] = sfmt[i]
-                counter = counter + 1
+function writeaseggdf(vonerow::Vector, sfmt::Vector, outfile::String, mode::String)
+    #Write single element to file
+    open(outfile*".dat", mode) do io
+        for (el, fmt) in zip(vonerow, sfmt)
+            if isa(el, Array) 
+                for iel in el
+                print(io, Printf.format(Printf.Format(fmt), iel))    
             end
-        elseif (channel_names[1][i] == "sigma")
-            for j=1:nlayers
-                sfmt_mod[counter] = sfmt[i]
-                counter = counter + 1
+        else
+            print(io, Printf.format(Printf.Format(fmt), el))
             end
-        else 
-            sfmt_mod[counter] = sfmt[i]
-            counter = counter +1
         end
+    print(io, "\n")
+    flush(io)
+    close(io)
+    end 
+end
 
+function writeaseggdf(vall::Vector, sfmt::Vector, outfile::String, channel_names::Vector)
+    #Write to the file one element at a time across one row
+        
+    for i=1:length(vall)
+        if i > 1
+             mode = "a"
+        else mode = "w"
+        end
+        writeaseggdf(v[i], sfmt, outfile, mode)
+    end 
+    
+    #Get the lengths of each element in the data vector
+    record = Array{Int}(undef, length(sfmt))
+    for i = 1:length(sfmt)
+        record[i] = length(vall[1][i]) 
     end
-
-    open("inversion_output.dat", "w") do io
-        for i=1:length(v)
-            for j =1:length(v[1])
-                record = Printf.format(Printf.Format(sfmt_mod[j]), v[i][j])
-                print(io, record)
-            end
-            println(io,"\n")
-        end
-
-    end     
-
+    
+    #Create an array with fortran transformned format
     sfmt_fortran = Vector{String}(undef, length(sfmt))
-
+    
     for i =1:length(sfmt)
         temp1 = last(sfmt[i], 1)
         temp1 = uppercase(temp1)
         temp2 = strip(sfmt[i], '%')
-
+    
         fortran_format = string(temp1, temp2)
         fortran_format = chop(fortran_format)
-
+    
         sfmt_fortran[i] = fortran_format
-
     end
-
-    open("inversion_output.dfn", "w") do io
-        #println(io, "DEFN   ST=RECD,RT=COMM;RT:A4;COMMENTS:A76") Geosoft 
-
+    
+    ##Write the definition file 
+    open(outfile*".dfn", "w") do io
+        #println(io, "DEFN   ST=RECD,RT=COMM;RT:A4;COMMENTS:A76") #Geosoft
+       
         for i=1:length(channel_names[1])
-            if (channel_names[1][i] == "zcentre")
-                println(io, """DEFN $(i) ST=RECD,RT=; $(channel_names[1][i]): $(nlayers)$(sfmt_fortran[i]) : NULL=-99999.99, UNITS=$(channel_names[2][i]), LONGNAME=$(channel_names[3][i])""")
-            elseif (channel_names[1][i] == "sigma")
-                println(io, """DEFN $(i) ST=RECD,RT=; $(channel_names[1][i]): $(nlayers)$(sfmt_fortran[i]) : NULL=-99999.99, UNITS=$(channel_names[2][i]), LONGNAME=$(channel_names[3][i])""")
-            else
+            if (length(vall[1][i]) == 1)
                 println(io, """DEFN $(i) ST=RECD,RT=; $(channel_names[1][i]): $(sfmt_fortran[i]) : NULL=-99999.99, UNITS=$(channel_names[2][i]), LONGNAME=$(channel_names[3][i])""")
+            else
+                println(io, """DEFN $(i) ST=RECD,RT=; $(channel_names[1][i]): $(record[i])$(sfmt_fortran[i]) : NULL=-99999.99, UNITS=$(channel_names[2][i]), LONGNAME=$(channel_names[3][i])""")
             end
         end
-
+    
         println(io, "DEFN $(length(channel_names[1])+1) ST=RECD,RT=; END DEFN")
+        flush(io)
+    close(io)
     end
+end 
 
-end
+
+
  
 function readxyzrhoϕ(linenum::Int, nlayers::Int; pathname="")
     # get the rhos
