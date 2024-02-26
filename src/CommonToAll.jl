@@ -1973,7 +1973,7 @@ function getdeterministicoutputs(outputs::AbstractArray)
     X, Y, Z, fid, line, zall, σ, ϕd, nu = [[out[i] for out in outputs] for i in 1:9]
 end    
 
-function writeaseggdf(vonerow::Vector, sfmt::Vector, outfile::String, mode::String)
+function writeasegdat(vonerow::Vector, sfmt::Vector, outfile::String, mode::String)
     #Write single element to file
     open(outfile*".dat", mode) do io
         for (el, fmt) in zip(vonerow, sfmt)
@@ -1991,23 +1991,18 @@ function writeaseggdf(vonerow::Vector, sfmt::Vector, outfile::String, mode::Stri
     end 
 end
 
-function writeaseggdf(vall::Vector, sfmt::Vector, outfile::String, channel_names::Vector)
+function writeasegdat(vall::Vector, sfmt::Vector, outfile::String, channel_names::Vector)
     #Write to the file one element at a time across one row
-        
     for i=1:length(vall)
         if i > 1
              mode = "a"
         else mode = "w"
         end
-        writeaseggdf(v[i], sfmt, outfile, mode)
+        writeasegdat(vall[i], sfmt, outfile, mode)
     end 
-    
-    #Get the lengths of each element in the data vector
-    record = Array{Int}(undef, length(sfmt))
-    for i = 1:length(sfmt)
-        record[i] = length(vall[1][i]) 
-    end
-    
+end
+
+function formatasegfield(sfmt::Vector)
     #Create an array with fortran transformned format
     sfmt_fortran = Vector{String}(undef, length(sfmt))
     
@@ -2021,27 +2016,36 @@ function writeaseggdf(vall::Vector, sfmt::Vector, outfile::String, channel_names
     
         sfmt_fortran[i] = fortran_format
     end
-    
-    ##Write the definition file 
+    return sfmt_fortran
+end
+
+function writeasegdfn(vall::Vector, channel_names::Vector, sfmt::Vector, outfile::String)
+    #Write the definition file 
+
+    sfmt_fortran = formatasegfield(sfmt)
+
+    #Get the lengths of each element in the data vector
+    record = Array{Int}(undef, length(sfmt))
+    for i = 1:length(sfmt)
+        record[i] = length(vall[1][i]) 
+    end
+
     open(outfile*".dfn", "w") do io
         #println(io, "DEFN   ST=RECD,RT=COMM;RT:A4;COMMENTS:A76") #Geosoft
        
         for i=1:length(channel_names[1])
             if (length(vall[1][i]) == 1)
-                println(io, """DEFN $(i) ST=RECD,RT=; $(channel_names[1][i]): $(sfmt_fortran[i]) : NULL=-99999.99, UNITS=$(channel_names[2][i]), LONGNAME=$(channel_names[3][i])""")
+                println(io, "DEFN $(i) ST=RECD,RT=; $(channel_names[1][i]): $(sfmt_fortran[i]): NULL=-99999.99, UNITS=$(channel_names[2][i]), LONGNAME=$(channel_names[3][i])")
             else
-                println(io, """DEFN $(i) ST=RECD,RT=; $(channel_names[1][i]): $(record[i])$(sfmt_fortran[i]) : NULL=-99999.99, UNITS=$(channel_names[2][i]), LONGNAME=$(channel_names[3][i])""")
+                println(io, "DEFN $(i) ST=RECD,RT=; $(channel_names[1][i]): $(record[i])$(sfmt_fortran[i]): NULL=-99999.99, UNITS=$(channel_names[2][i]), LONGNAME=$(channel_names[3][i])")
             end
         end
     
         println(io, "DEFN $(length(channel_names[1])+1) ST=RECD,RT=; END DEFN")
         flush(io)
-    close(io)
+        close(io)
     end
 end 
-
-
-
  
 function readxyzrhoϕ(linenum::Int, nlayers::Int; pathname="")
     # get the rhos
