@@ -19,7 +19,8 @@ export trimxft, assembleTat1, gettargtemps, checkns, getchi2forall, nicenup, plo
         readcols, colstovtk, findclosestidxincolfile, zcentertoboundary, zboundarytocenter, 
         writeijkfromsounding, nanmean, infmean, nanstd, infstd, kde_sj, plotmanygrids, readwell,
         getlidarheight, plotblockedwellonimages, getdeterministicoutputs, getprobabilisticoutputs, 
-        readfzipped, readxyzrhoϕ, writevtkxmlforcurtain, getRandgridr, getallxyinr
+        readfzipped, readxyzrhoϕ, writevtkxmlforcurtain, getRandgridr, getallxyinr, getXYlast,
+        getprobabilisticlinesfromdirectory
 
 # Kernel Density stuff
 abstract type KDEtype end
@@ -1400,10 +1401,26 @@ function getnextxyinr(XY1, XY2, Δr)
     XY1 + [Δr*cos(θ), Δr*sin(θ)]
 end
 
-function getallxyinr(X, Y, Δr)
-    # reutrns middle of points in gridr
-    R, gridr = getRandgridr(X, Y, Δr)
-    gridr = 0.5(gridr[1:end-1]+gridr[2:end])
+function getXYlast(X, Y, Δr)
+    R, gridredges = getRandgridr(X, Y, Δr)
+    enddist = R[end] - gridredges[end]
+    @info "diff between R and gridr at end is $enddist Δr is $Δr"
+    Xend, Yend = X[end], Y[end]
+    if enddist > 0 
+        remdist = gridredges[end]-R[end-1]
+        Xend, Yend = getnextxyinr([X[end-1], Y[end-1]], [X[end], Y[end]], remdist)
+    end    
+    R[end] = gridredges[end]
+    Xexact = vcat(X[1:end-1], Xend)
+    Yexact = vcat(Y[1:end-1], Yend)
+    Xexact, Yexact, R, gridredges
+end
+
+function getallxyinr(Xin, Yin, Δr)
+    # the above function returns middle of points in gridr
+    X, Y, R, gridredges = getXYlast(Xin, Yin, Δr)
+    # these are cell centres
+    gridr = 0.5(gridredges[1:end-1]+gridredges[2:end])
     xyfine = zeros(2, length(gridr))
     c = 1
     xyfine[:,1] = getnextxyinr([X[1], Y[1]], [X[c+1], Y[c+1]], Δr/2)
@@ -1416,7 +1433,7 @@ function getallxyinr(X, Y, Δr)
             c += 1
         end
     end
-    xyfine        
+    xyfine, gridr
 end
     
 function cumulativelinedist(X,Y)

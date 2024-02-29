@@ -1,6 +1,6 @@
 module RDP
 using LinearAlgebra, Dates, ArchGDAL, Printf, 
-    PyPlot, Images, FileIO, HiQGA
+    PyPlot, Images, FileIO, HiQGA, Interpolations
 import GeoFormatTypes as GFT
 const mpl = PyPlot.matplotlib
 const tilesize = 512
@@ -42,15 +42,47 @@ function worldcoordinates(;gridr=nothing, gridz=nothing)
     [A, D, B, E, C, F]
 end
 
+function makeextent(lnum, ncols, nrows, gridr, gridz; suffix="")
+    ["$lnum*$suffix" 0 0 ncols -nrows gridr[1] maximum(gridz) gridr[end] minimum(gridz)]
+end    
+
+function writepathextentfiles(line, nrows, ncols, gridr, topo, gridz, X, Y; suffix="", dst_dir="", src_epsg=0)
+    geompath = joinpath(dst_dir,"geometry")
+    isdir(geompath) || mkpath(geompath)
+    f = open(joinpath(geompath, "$line"*suffix*".path.txt"), "w")
+    Δr = (gridr[end]-gridr[1])/ncols
+    xyfine, gridrfine = transD_GP.getallxyinr(X, Y, Δr)
+    x, y = map(i->xyfine[i,:], 1:2)
+    @info "gridr $(gridr[end]) gridrfine $(gridrfine[end])"
+    @info "ncols: $ncols length(gridrfine) $(length(gridrfine))"
+    println()
+    topofine = (interpolate((gridr,), topo, Gridded(Linear())))(gridrfine)
+    # topofine = transD_GP.gridpoints(gridr, rfine, topo)
+    plist = makeplist(x, y)
+    latlonglist = reprojecttoGDA94(plist, src_epsg)
+    long, lat = makexyfromlatlonglist(latlonglist)
+    for i = 1:ncols
+        println(f, "$(string(line)*suffix) $i $(gridrfine[i]) $i $(x[i]) $(y[i]) $(long[i]) $(lat[i]) $(topofine[i])")
+        # println(f, "$(string(line)*suffix) $i $(rfine[i]) $i $(x[i]) $(y[i]) $(long[i]) $(lat[i])")
+    end  
+    close(f)
+    f = open(joinpath(geompath, "$line"*suffix*".extent.txt"), "w")
+    println(f, makeextent(line, ncols, nrows, gridr, gridz; suffix))
+    close(f)
+end    
+
 makeplist(X,Y) = [[x,y] for (x,y) in zip(X,Y)]
 
 reprojecttoGDA94(plist, fromepsg) = ArchGDAL.reproject(plist, GFT.EPSG(fromepsg), GFT.EPSG(epsg_GDA94) )
 
 makexyfromlatlonglist(latlonglist) = [[l[i] for l in latlonglist] for i in 2:-1:1]
 
-function writeworldXML(latlonglist; dst_dir= "", line="", suffix="", fnamebar="colorbar.jpg", gridz=nothing)
+function getimgsize(line, dst_dir, suffix)
     img = load(joinpath(dst_dir, "jpeg", "$line"*suffix*".jpg"))
     h, w = size(img)
+end
+
+function writeworldXML(latlonglist; h=0, w=0, dst_dir= "", line="", suffix="", fnamebar="colorbar.jpg", gridz=nothing)
     ntilelevels = gettilelevels(w,h,tilesize)
     firstpart = 
     """
@@ -188,16 +220,16 @@ function gettilelevels(w,h,tilesize)
     levels
 end    
 
-function doonecurtaintriad(line::Int; nlayers=0, pathname="", dr=0, dz=0, dst_dir="",
+function doonecurtaintriad(line::Int; nlayers=0, pathname="", dr=0, dz=0, dst_dir="", writegeom=false,
         donn=false, ϵfrac=0, src_epsg=0, barfigsize=(0.2, 1.2), isfirst=false, islast=false,
         dpi=400, cmap="turbo", fnamebar="colorbar.jpg", vmin=-Inf, vmax=Inf,
         writecolorbar=true, VE=20, shrink = 25_000)
     X, Y, Z, zall, ρlow, ρmid, ρhigh, ρavg, ϕmean, ϕsdev = 
-    transD_GP.readxyzrhoϕ(line, nlayers; pathname)
-    plist = makeplist(X,Y)
-    R = transD_GP.CommonToAll.cumulativelinedist(X,Y)
-    pgood = rdpreduce(plist, ϵfrac*R[end])
-    latlonglist = RDP.reprojecttoGDA94(pgood, src_epsg)
+        transD_GP.readxyzrhoϕ(line, nlayers; pathname)
+    X_, Y_, R_, = transD_GP.getXYlast(X, Y, dr)
+    plist = makeplist(X_, Y_)
+    pgood = rdpreduce(plist, ϵfrac*R_[end])
+    latlonglist = RDP.reprojecttoGDA94(pgood, src_epsg)    
     map(zip([-ρhigh, -ρmid, -ρlow], ["_low", "_mid", "_high"],(1:3))) do (σ, suffix, i)    
         img, gridr, gridz, topofine, R = transD_GP.makegrid(σ, X, Y, Z; donn,
             dr, zall, dz)
@@ -210,9 +242,12 @@ function doonecurtaintriad(line::Int; nlayers=0, pathname="", dr=0, dz=0, dst_di
             i == 3 && (isl = true)
         end
         writeimageandcolorbar(img, gridr, gridz, line; cmap, fnamebar, suffix, dst_dir, isfirst=writecb, islast=isl,
-            vmin, vmax, dpi, writecolorbar=writecb,
-            barfigsize, VE, shrink)
-        writeworldXML(latlonglist;line, gridz, suffix, dst_dir)
+        vmin, vmax, dpi, writecolorbar=writecb,
+        barfigsize, VE, shrink)
+        @info "Rlasts: computed from XY: $(transD_GP.CommonToAll.cumulativelinedist(X_,Y_)[end]) R_ $(R_[end]) gridr $(gridr[end])"
+        h, w = getimgsize(line, dst_dir, suffix)
+        writeworldXML(latlonglist; h, w, line, gridz, suffix, dst_dir)
+        writepathextentfiles(line, h, w, gridr, topofine, gridz, X_, Y_; suffix, dst_dir, src_epsg)
     end
 end
 
@@ -240,7 +275,7 @@ function writebunchxmlfile(lines::Vector{Int}, dst_dir::String; prefix="", suffi
 end    
 
 function doallcurtaintriads(;src_dir="", dst_dir="curtains", prefix="",
-    nlayers=0, dr=0, dz=0, 
+    nlayers=0, dr=0, dz=0, writegeom=false,
     donn=false, ϵfrac=0, src_epsg=0, barfigsize=(0.2, 1.2), 
     dpi=400, cmap="turbo", fnamebar="colorbar.jpg", vmin=-Inf, vmax=Inf,
     VE=20, shrink = 25_000)
@@ -253,7 +288,7 @@ function doallcurtaintriads(;src_dir="", dst_dir="curtains", prefix="",
         isfirst = writecb
         islast = line == last(lines) ? true : false
         doonecurtaintriad(line; nlayers, pathname=src_dir, dr, dz, ϵfrac, src_epsg, isfirst, islast,
-            barfigsize, dpi, cmap, fnamebar, writecolorbar=writecb, dst_dir, shrink, VE,
+            barfigsize, dpi, cmap, fnamebar, writecolorbar=writecb, dst_dir, shrink, VE, writegeom,
             vmin, vmax)
     end
     for suffix in ("low", "mid", "high")

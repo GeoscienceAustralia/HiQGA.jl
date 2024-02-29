@@ -2,11 +2,12 @@ using HiQGA, PyPlot
 includet("RDP.jl")
 ##
 nlayers = 52
-dr = 480
+dr = 200
 dz = 2
 dpi = 400
 fnamebar = "colorbar.jpg"
-cmap="turbo"
+cmap = "turbo"
+writegeom = true 
 vmin, vmax = -0.5, 2.5
 src_epsg = 28354
 ϵfrac = 0.001
@@ -16,8 +17,8 @@ VE = 30
 prefix = "ERC_01"
 ## multiple lines
 # destdir for multiple lines
-dst_dir = "/Users/anray/Documents/work/projects/curtainstuff/ERC_01_curtains_for_mgn"
+dst_dir = "/Users/anray/Documents/work/projects/curtainstuff/ERC_01_curtains_for_mgn_2"
 src_dir = "/Users/anray/Documents/work/projects/curtainstuff/summaries"
 RDP.doallcurtaintriads.(;src_dir, dst_dir, nlayers, dr, dz, ϵfrac, src_epsg,
     barfigsize, dpi, cmap, fnamebar, shrink, VE, prefix,
-    vmin, vmax)
+    vmin, vmax, writegeom)
