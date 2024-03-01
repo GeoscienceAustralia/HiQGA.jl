@@ -39,11 +39,12 @@ function worldcoordinates(;gridr=nothing, gridz=nothing)
     E = step(gridz)
     C = A/2
     F = gridz[1] + E/2
-    [A, D, B, E, C, F]
+    @sprintf("%.3f\n%.3f\n%.3f\n%.3f\n%.3f\n%.3f", A, D, B, E, C, F)
 end
 
 function makeextent(lnum, ncols, nrows, gridr, gridz; suffix="")
-    ["$lnum*$suffix" 0 0 ncols -nrows gridr[1] maximum(gridz) gridr[end] minimum(gridz)]
+    @sprintf("%i%s\t%i\t%i\t%i\t%i\t%.3f\t%.3f\t%.3f\t%.3f", 
+        lnum, suffix, 0, 0, ncols, -nrows, gridr[1], maximum(gridz), gridr[end], minimum(gridz))
 end    
 
 function writepathextentfiles(line, nrows, ncols, gridr, topo, gridz, X, Y; suffix="", dst_dir="", src_epsg=0)
@@ -51,23 +52,22 @@ function writepathextentfiles(line, nrows, ncols, gridr, topo, gridz, X, Y; suff
     isdir(geompath) || mkpath(geompath)
     f = open(joinpath(geompath, "$line"*suffix*".path.txt"), "w")
     Δr = (gridr[end]-gridr[1])/ncols
-    xyfine, gridrfine = transD_GP.getallxyinr(X, Y, Δr)
+    xyfine, gridrfine = transD_GP.getallxyinr(X, Y, Δr; rangelenth=ncols+1)
     x, y = map(i->xyfine[i,:], 1:2)
-    @info "gridr $(gridr[end]) gridrfine $(gridrfine[end])"
-    @info "ncols: $ncols length(gridrfine) $(length(gridrfine))"
-    println()
     topofine = (interpolate((gridr,), topo, Gridded(Linear())))(gridrfine)
-    # topofine = transD_GP.gridpoints(gridr, rfine, topo)
     plist = makeplist(x, y)
     latlonglist = reprojecttoGDA94(plist, src_epsg)
     long, lat = makexyfromlatlonglist(latlonglist)
     for i = 1:ncols
-        println(f, "$(string(line)*suffix) $i $(gridrfine[i]) $i $(x[i]) $(y[i]) $(long[i]) $(lat[i]) $(topofine[i])")
-        # println(f, "$(string(line)*suffix) $i $(rfine[i]) $i $(x[i]) $(y[i]) $(long[i]) $(lat[i])")
+        write(f, @sprintf("%i%s\t%i\t%.3f\t%i\t%.3f\t%.3f\t%.3f\t%.3f\t%.3f\n",line, suffix, i, gridrfine[i], i, x[i], y[i], long[i], lat[i], topofine[i]))
     end  
     close(f)
     f = open(joinpath(geompath, "$line"*suffix*".extent.txt"), "w")
-    println(f, makeextent(line, ncols, nrows, gridr, gridz; suffix))
+    write(f, makeextent(line, ncols, nrows, gridr, gridz; suffix))
+    close(f)
+    jpegpath = joinpath(dst_dir,"jpeg")
+    f = open(joinpath(jpegpath, "$line"*suffix*".jgw"), "w")
+    write(f, worldcoordinates(;gridr=gridrfine, gridz))
     close(f)
 end    
 
@@ -244,7 +244,6 @@ function doonecurtaintriad(line::Int; nlayers=0, pathname="", dr=0, dz=0, dst_di
         writeimageandcolorbar(img, gridr, gridz, line; cmap, fnamebar, suffix, dst_dir, isfirst=writecb, islast=isl,
         vmin, vmax, dpi, writecolorbar=writecb,
         barfigsize, VE, shrink)
-        @info "Rlasts: computed from XY: $(transD_GP.CommonToAll.cumulativelinedist(X_,Y_)[end]) R_ $(R_[end]) gridr $(gridr[end])"
         h, w = getimgsize(line, dst_dir, suffix)
         writeworldXML(latlonglist; h, w, line, gridz, suffix, dst_dir)
         writepathextentfiles(line, h, w, gridr, topofine, gridz, X_, Y_; suffix, dst_dir, src_epsg)

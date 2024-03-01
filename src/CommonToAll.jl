@@ -1389,9 +1389,9 @@ function makegrid(vals::AbstractArray, X, Y, topo; donn=false,
     img, gridr, gridz, topoout, R
 end
 
-function getRandgridr(X, Y, dr)
+function getRandgridr(X, Y, dr; rangelenth=0)
     R = cumulativelinedist(X, Y)
-    gridr = range(R[1], R[end], step=dr)
+    gridr = rangelenth == 0 ? range(R[1], R[end], step=dr) : range(R[1], R[end], length=rangelenth)
     R, gridr
 end
 
@@ -1401,10 +1401,9 @@ function getnextxyinr(XY1, XY2, Δr)
     XY1 + [Δr*cos(θ), Δr*sin(θ)]
 end
 
-function getXYlast(X, Y, Δr)
-    R, gridredges = getRandgridr(X, Y, Δr)
+function getXYlast(X, Y, Δr; rangelenth=0)
+    R, gridredges = getRandgridr(X, Y, Δr; rangelenth)
     enddist = R[end] - gridredges[end]
-    @info "diff between R and gridr at end is $enddist Δr is $Δr"
     Xend, Yend = X[end], Y[end]
     if enddist > 0 
         remdist = gridredges[end]-R[end-1]
@@ -1416,9 +1415,9 @@ function getXYlast(X, Y, Δr)
     Xexact, Yexact, R, gridredges
 end
 
-function getallxyinr(Xin, Yin, Δr)
+function getallxyinr(Xin, Yin, Δr; rangelenth=0)
     # the above function returns middle of points in gridr
-    X, Y, R, gridredges = getXYlast(Xin, Yin, Δr)
+    X, Y, R, gridredges = getXYlast(Xin, Yin, Δr; rangelenth)
     # these are cell centres
     gridr = 0.5(gridredges[1:end-1]+gridredges[2:end])
     xyfine = zeros(2, length(gridr))
