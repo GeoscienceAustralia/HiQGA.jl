@@ -17,7 +17,7 @@ VE = 30
 prefix = "ERC_01"
 ## multiple lines
 # destdir for multiple lines
-dst_dir = "/Users/anray/Documents/work/projects/curtainstuff/ERC_01_curtains_for_mgn_2"
+dst_dir = "/Users/anray/Documents/work/projects/curtainstuff/ERC_01_curtains_for_mgn_3"
 src_dir = "/Users/anray/Documents/work/projects/curtainstuff/summaries"
 RDP.doallcurtaintriads.(;src_dir, dst_dir, nlayers, dr, dz, ϵfrac, src_epsg,
     barfigsize, dpi, cmap, fnamebar, shrink, VE, prefix,

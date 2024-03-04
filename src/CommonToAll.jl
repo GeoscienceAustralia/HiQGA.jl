@@ -1397,8 +1397,8 @@ end
 
 function getnextxyinr(XY1, XY2, Δr)
     Δx, Δy = XY2 - XY1
-    θ = atan(Δy/Δx)
-    XY1 + [Δr*cos(θ), Δr*sin(θ)]
+    r̂  = normalize([Δx, Δy])
+    XY1 + Δr*r̂
 end
 
 function getXYlast(X, Y, Δr; rangelenth=0)
