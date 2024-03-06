@@ -1618,6 +1618,7 @@ function plotsummarygrids1(soundings, meangrid, phgrid, plgrid, pmgrid, gridx, g
     for i in i_idx
         a = i == firstindex(i_idx) ? 1 : idx_split[i-1]+1
         b = i != lastindex(i_idx)  ? idx_split[i] : lastindex(gridx)
+        b = b-1 # as we are now providing 1 less than the number of edges since 26c19a0d2e4a
         a_uninterp = i == firstindex(i_idx) ? 1 : findlast(R.<=gridx[a])
         b_uninterp = i != lastindex(i_idx)  ? findlast(R.<=gridx[b]) : lastindex(soundings)
         
@@ -1674,7 +1675,7 @@ function summaryconductivity(s, icol, f, soundings, meangrid, phgrid, plgrid, pm
     s[icol].imshow(plgrid, cmap=cmap, aspect="auto", vmax=vmax, vmin = vmin,
                 extent=[gridx[1], gridx[end], gridz[end], gridz[1]])
     s[icol].plot(gridx, topofine, linewidth=topowidth, "-k")
-    idx == nothing || plotprofile(s[icol], idx, Z, R)
+    # idx == nothing || plotprofile(s[icol], idx, Z, R)
     s[icol].set_title("Percentile $(round(Int, 100*qp1)) conductivity")
     s[icol].set_ylabel("Height m")
     omitconvergence || s[icol].sharex(s[icol-1])
