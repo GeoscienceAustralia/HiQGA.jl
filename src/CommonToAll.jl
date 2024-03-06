@@ -2074,12 +2074,13 @@ function writeasegdat(vonerow::Vector, sfmt::Vector, outfile::String, mode::Stri
     end 
 end
 
-function writeasegdat(vall::Vector, sfmt::Vector, outfile::String, channel_names::Vector)
+function writeasegdat(vall::Vector, sfmt::Vector, outfile::String)
     #Write to the file one element at a time across one row
     for i=1:length(vall)
         if i > 1
              mode = "a"
-        else mode = "w"
+        else 
+            mode = "w"
         end
         writeasegdat(vall[i], sfmt, outfile, mode)
     end 
