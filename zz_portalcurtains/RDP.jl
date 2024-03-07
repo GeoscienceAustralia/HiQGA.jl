@@ -312,9 +312,9 @@ function writevtkfromxyzrhodir(nlayers::Int; src_dir="", dst_dir="", src_epsg=0,
 end
 
 function writeaseggdffromxyzrho(nlayers::Int; src_dir="", dst_dir="", 
-         prefix="", epsg=0)
+         fname="", src_epsg=0)
     isdir(dst_dir) || mkpath(dst_dir)
-    sfmt = ["%15.3f", "%15.3f", "%15.3f", "%15.3f", "%10.5f", "%10.5f", "%10.5f", "%10.5f", "%10.5f", "%10.5f"], 
+    sfmt = ["%15i", "%15.3f", "%15.3f", "%15.3f", "%15.3f", "%10.5f", "%10.5f", "%10.5f", "%10.5f", "%10.5f", "%10.5f"] 
     channel_names = [["Line", "X", "Y", "Z", "zcenter", "log10_cond_low", "log10_cond_mid", "log10_cond_high", "log10_cond_avg", 
                       "phid_mean", "phid_sdev"], 
                      ["", "m", "m", "m", "m", "Log10_Siemens_per_m", "Log10_Siemens_per_m", "Log10_Siemens_per_m", "Log10_Siemens_per_m",
@@ -322,12 +322,18 @@ function writeaseggdffromxyzrho(nlayers::Int; src_dir="", dst_dir="",
                      ["Line", "X", "Y", "Z", "zcenter", "log10_cond_low", "log10_cond_mid", "log10_cond_high", "log10_cond_avg", 
                       "phid_mean", "phid_sdev"]
                     ]
-    outfile =                 
+    outfile = joinpath(dst_dir, fname*"_EPSG_$src_epsg")
+    lines = transD_GP.getprobabilisticlinesfromdirectory(src_dir)
     map(lines) do ln
+        @info "Doing Line $ln"
         X, Y, Z, zall, ρlow, ρmid, ρhigh, ρavg, ϕmean, ϕsdev = transD_GP.readxyzrhoϕ(ln, nlayers; pathname=src_dir)
         for i in 1:length(X)
-            vonerow = [ln, X[i], Y[i], Z[i], zall, -ρhigh[:,i], -ρmid[:,i], -ρlow[:,i], ρavg[:,i], ϕmean[i], ϕsdev[i]]
-            transD_GP.CommonToAll.writeasegdat(vonerow, sfmt, outfile, mode::String)
+            vonerow = [ln, X[i], Y[i], Z[i], zall, -ρhigh[:,i], -ρmid[:,i], -ρlow[:,i], -ρavg[:,i], ϕmean[i], ϕsdev[i]]
+            mode = i == 1 ? "w" : "a"
+            transD_GP.CommonToAll.writeasegdat(vonerow, sfmt, outfile, mode)
+            transD_GP.CommonToAll.writeasegdfn(vonerow, channel_names, sfmt, outfile)
         end    
     end
+end
+
 end # module
