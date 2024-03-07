@@ -324,14 +324,14 @@ function writeaseggdffromxyzrho(nlayers::Int; src_dir="", dst_dir="",
                     ]
     outfile = joinpath(dst_dir, fname*"_EPSG_$src_epsg")
     lines = transD_GP.getprobabilisticlinesfromdirectory(src_dir)
-    map(lines) do ln
+    map(enumerate(lines)) do (iline, ln)
         @info "Doing Line $ln"
         X, Y, Z, zall, ρlow, ρmid, ρhigh, ρavg, ϕmean, ϕsdev = transD_GP.readxyzrhoϕ(ln, nlayers; pathname=src_dir)
         for i in 1:length(X)
+            mode = (iline == 1) & (i ==1) ? "w" : "a"
             vonerow = [ln, X[i], Y[i], Z[i], zall, -ρhigh[:,i], -ρmid[:,i], -ρlow[:,i], -ρavg[:,i], ϕmean[i], ϕsdev[i]]
-            mode = i == 1 ? "w" : "a"
             transD_GP.CommonToAll.writeasegdat(vonerow, sfmt, outfile, mode)
-            transD_GP.CommonToAll.writeasegdfn(vonerow, channel_names, sfmt, outfile)
+            transD_GP.CommonToAll.writeasegdfnfromonerow(vonerow, channel_names, sfmt, outfile)
         end    
     end
 end

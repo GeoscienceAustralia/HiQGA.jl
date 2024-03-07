@@ -2103,34 +2103,24 @@ function formatasegfield(sfmt::Vector)
     return sfmt_fortran
 end
 
-function writeasegdfn(vall::Vector, channel_names::Vector, sfmt::Vector, outfile::String)
-    #Write the definition file 
-
+function writeasegdfnfromonerow(vonerow::Vector, channel_names::Vector, sfmt::Vector, outfile::String)
     sfmt_fortran = formatasegfield(sfmt)
-
-    #Get the lengths of each element in the data vector
-    record = Array{Int}(undef, length(sfmt))
-    for i = 1:length(sfmt)
-        record[i] = length(vall[1][i]) 
-    end
-
     open(outfile*".dfn", "w") do io
         #println(io, "DEFN   ST=RECD,RT=COMM;RT:A4;COMMENTS:A76") #Geosoft
-       
-        for i=1:length(channel_names[1])
-            if (length(vall[1][i]) == 1)
-                println(io, "DEFN $(i) ST=RECD,RT=; $(channel_names[1][i]): $(sfmt_fortran[i]): NULL=-99999.99, UNITS=$(channel_names[2][i]), LONGNAME=$(channel_names[3][i])")
-            else
-                println(io, "DEFN $(i) ST=RECD,RT=; $(channel_names[1][i]): $(record[i])$(sfmt_fortran[i]): NULL=-99999.99, UNITS=$(channel_names[2][i]), LONGNAME=$(channel_names[3][i])")
-            end
+        for (i, el) in enumerate(vonerow)
+            pre = isa(el, Array) ? string(length(el)) : ""
+            println(io, "DEFN $i ST=RECD,RT=; $(channel_names[1][i]): "*pre*"$(sfmt_fortran[i]): NULL=-9999999.99, UNITS=$(channel_names[2][i]), LONGNAME=$(channel_names[3][i])")
         end
-    
         println(io, "DEFN $(length(channel_names[1])+1) ST=RECD,RT=; END DEFN")
         flush(io)
         close(io)
     end
 end 
  
+function writeasegdfn(vall::Vector, channel_names::Vector, sfmt::Vector, outfile::String)
+    writeasegdfnfromonerow(vall[1], channel_names::Vector, sfmt::Vector, outfile::String)
+end
+
 function readxyzrhoϕ(linenum::Int, nlayers::Int; pathname="")
     # get the rhos
     fnameρ = joinpath(pathname, "rho_avg_line_$(linenum)_summary_xyzrho.txt")
