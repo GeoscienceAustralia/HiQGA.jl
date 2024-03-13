@@ -19,8 +19,8 @@ export trimxft, assembleTat1, gettargtemps, checkns, getchi2forall, nicenup, plo
         readcols, colstovtk, findclosestidxincolfile, zcentertoboundary, zboundarytocenter, 
         writeijkfromsounding, nanmean, infmean, nanstd, infstd, kde_sj, plotmanygrids, readwell,
         getlidarheight, plotblockedwellonimages, getdeterministicoutputs, getprobabilisticoutputs, 
-        readfzipped, readxyzrhoϕ, writevtkxmlforcurtain, getprobabilisticlinesfromdirectory, 
-        writevtkfromxyzrho, writevtkphifromsummary
+        readfzipped, readxyzrhoϕ, writevtkxmlforcurtain, getRandgridr, getallxyinr, getXYlast,
+        getprobabilisticlinesfromdirectory
 
 # Kernel Density stuff
 abstract type KDEtype end
@@ -1356,37 +1356,85 @@ function makegrid(vals::AbstractArray, X, Y, topo; donn=false,
     dr=10, zall=[NaN], dz=-1)
     @assert all(.!isnan.(zall)) 
     @assert dz>0
-    R = cumulativelinedist(X,Y)
+    R, gridr = getRandgridr(X, Y, dr)
+    # height = topo in mAHD - depth # mAHD
+    minahd = minimum(topo) - maximum(zall) # should really be zboundary[end] but are both in halfspace
+    maxahd = maximum(topo) # top is the one to get right
+    gridz = range(maxahd, minahd, step=-dz) 
+    gridr_, gridz_ = map((gridr, gridz)) do a 
+        0.5(a[1:end-1]+a[2:end])
+    end
     if donn
         rr, zz = [r for z in zall, r in R], [z for z in zall, r in R]
         zz = topo' .- zz # mAHD
         kdtree = KDTree([rr[:]'; zz[:]'])
-        gridr = range(R[1], R[end], step=dr)
-        gridz = reverse(range(extrema(zz)..., step=dz))
-        rr, zz = [r for z in gridz, r in gridr], [z for z in gridz, r in gridr]
+        rr, zz = [r for z in gridz_, r in gridr_], [z for z in gridz_, r in gridr_]
         idxs, = nn(kdtree, [rr[:]'; zz[:]'])
         img = zeros(size(rr))
         for i = 1:length(img)
             img[i] = vals[idxs[i]]
         end
-        topofine = gridpoints(R, gridr, topo)
+        topofine = gridpoints(R, gridr_, topo)
+        topoout = gridpoints(R, gridr, topo)
     else
         nodes = ([z for z in zall], [r for r in R])
         itp = extrapolate(interpolate(nodes, vals, Gridded(Linear())), Line()) 
-        gridr = range(R[1], R[end], step=dr)
-        topofine = (interpolate((R,), topo, Gridded(Linear())))(gridr)
-        # height = topo in mAHD - depth # mAHD
-        minahd = minimum(topo) - maximum(zall)
-        maxahd = maximum(topo)
-        gridz = reverse(range(minahd, maxahd, step=dz))
-        img = [itp(topofine[iy] - x,y) for x in gridz, (iy, y) in enumerate(gridr)]
-        zz = [z for z in gridz, r in gridr] 
+        topofine = (interpolate((R,), topo, Gridded(Linear())))(gridr_)
+        topoout = (interpolate((R,), topo, Gridded(Linear())))(gridr)
+        img = [itp(topofine[iy] - x,y) for x in gridz_, (iy, y) in enumerate(gridr_)]
+        zz = [z for z in gridz_, r in gridr_] 
     end    
     img[zz .>topofine'] .= NaN
-    img[zz .< topofine' .- maximum(zall)] .= NaN
-    img, gridr, gridz, topofine, R
+    img[zz .< topofine' .- maximum(zall)] .= NaN # should be zboundary[end] but both in halfspace
+    img, gridr, gridz, topoout, R
 end
 
+function getRandgridr(X, Y, dr; rangelenth=0)
+    R = cumulativelinedist(X, Y)
+    gridr = rangelenth == 0 ? range(R[1], R[end], step=dr) : range(R[1], R[end], length=rangelenth)
+    R, gridr
+end
+
+function getnextxyinr(XY1, XY2, Δr)
+    Δx, Δy = XY2 - XY1
+    r̂  = normalize([Δx, Δy])
+    XY1 + Δr*r̂
+end
+
+function getXYlast(X, Y, Δr; rangelenth=0)
+    R, gridredges = getRandgridr(X, Y, Δr; rangelenth)
+    enddist = R[end] - gridredges[end]
+    Xend, Yend = X[end], Y[end]
+    if enddist > 0 
+        remdist = gridredges[end]-R[end-1]
+        Xend, Yend = getnextxyinr([X[end-1], Y[end-1]], [X[end], Y[end]], remdist)
+    end    
+    R[end] = gridredges[end]
+    Xexact = vcat(X[1:end-1], Xend)
+    Yexact = vcat(Y[1:end-1], Yend)
+    Xexact, Yexact, R, gridredges
+end
+
+function getallxyinr(Xin, Yin, Δr; rangelenth=0)
+    # the above function returns middle of points in gridr
+    X, Y, R, gridredges = getXYlast(Xin, Yin, Δr; rangelenth)
+    # these are cell centres
+    gridr = 0.5(gridredges[1:end-1]+gridredges[2:end])
+    xyfine = zeros(2, length(gridr))
+    c = 1
+    xyfine[:,1] = getnextxyinr([X[1], Y[1]], [X[c+1], Y[c+1]], Δr/2)
+    for i = 1:length(gridr)-1
+        if gridr[i+1]<R[c+1]
+            xyfine[:,i+1] = getnextxyinr(xyfine[:,i], [X[c+1], Y[c+1]], Δr)
+        else
+            Δrsmall = gridr[i+1]-R[c+1]
+            xyfine[:,i+1] = getnextxyinr([X[c+1], Y[c+1]], [X[c+2], Y[c+2]], Δrsmall)
+            c += 1
+        end
+    end
+    xyfine, gridr
+end
+    
 function cumulativelinedist(X,Y)
     dx = diff(X)
     dy = diff(Y)
@@ -1570,6 +1618,7 @@ function plotsummarygrids1(soundings, meangrid, phgrid, plgrid, pmgrid, gridx, g
     for i in i_idx
         a = i == firstindex(i_idx) ? 1 : idx_split[i-1]+1
         b = i != lastindex(i_idx)  ? idx_split[i] : lastindex(gridx)
+        b = b-1 # as we are now providing 1 less than the number of edges since 26c19a0d2e4a
         a_uninterp = i == firstindex(i_idx) ? 1 : findlast(R.<=gridx[a])
         b_uninterp = i != lastindex(i_idx)  ? findlast(R.<=gridx[b]) : lastindex(soundings)
         
@@ -1626,7 +1675,7 @@ function summaryconductivity(s, icol, f, soundings, meangrid, phgrid, plgrid, pm
     s[icol].imshow(plgrid, cmap=cmap, aspect="auto", vmax=vmax, vmin = vmin,
                 extent=[gridx[1], gridx[end], gridz[end], gridz[1]])
     s[icol].plot(gridx, topofine, linewidth=topowidth, "-k")
-    idx == nothing || plotprofile(s[icol], idx, Z, R)
+    # idx == nothing || plotprofile(s[icol], idx, Z, R)
     s[icol].set_title("Percentile $(round(Int, 100*qp1)) conductivity")
     s[icol].set_ylabel("Height m")
     omitconvergence || s[icol].sharex(s[icol-1])
@@ -2025,12 +2074,13 @@ function writeasegdat(vonerow::Vector, sfmt::Vector, outfile::String, mode::Stri
     end 
 end
 
-function writeasegdat(vall::Vector, sfmt::Vector, outfile::String, channel_names::Vector)
+function writeasegdat(vall::Vector, sfmt::Vector, outfile::String)
     #Write to the file one element at a time across one row
     for i=1:length(vall)
         if i > 1
              mode = "a"
-        else mode = "w"
+        else 
+            mode = "w"
         end
         writeasegdat(vall[i], sfmt, outfile, mode)
     end 
@@ -2053,34 +2103,24 @@ function formatasegfield(sfmt::Vector)
     return sfmt_fortran
 end
 
-function writeasegdfn(vall::Vector, channel_names::Vector, sfmt::Vector, outfile::String)
-    #Write the definition file 
-
+function writeasegdfnfromonerow(vonerow::Vector, channel_names::Vector, sfmt::Vector, outfile::String)
     sfmt_fortran = formatasegfield(sfmt)
-
-    #Get the lengths of each element in the data vector
-    record = Array{Int}(undef, length(sfmt))
-    for i = 1:length(sfmt)
-        record[i] = length(vall[1][i]) 
-    end
-
     open(outfile*".dfn", "w") do io
         #println(io, "DEFN   ST=RECD,RT=COMM;RT:A4;COMMENTS:A76") #Geosoft
-       
-        for i=1:length(channel_names[1])
-            if (length(vall[1][i]) == 1)
-                println(io, "DEFN $(i) ST=RECD,RT=; $(channel_names[1][i]): $(sfmt_fortran[i]): NULL=-99999.99, UNITS=$(channel_names[2][i]), LONGNAME=$(channel_names[3][i])")
-            else
-                println(io, "DEFN $(i) ST=RECD,RT=; $(channel_names[1][i]): $(record[i])$(sfmt_fortran[i]): NULL=-99999.99, UNITS=$(channel_names[2][i]), LONGNAME=$(channel_names[3][i])")
-            end
+        for (i, el) in enumerate(vonerow)
+            pre = isa(el, Array) ? string(length(el)) : ""
+            println(io, "DEFN $i ST=RECD,RT=; $(channel_names[1][i]): "*pre*"$(sfmt_fortran[i]): NULL=-9999999.99, UNITS=$(channel_names[2][i]), LONGNAME=$(channel_names[3][i])")
         end
-    
         println(io, "DEFN $(length(channel_names[1])+1) ST=RECD,RT=; END DEFN")
         flush(io)
         close(io)
     end
 end 
  
+function writeasegdfn(vall::Vector, channel_names::Vector, sfmt::Vector, outfile::String)
+    writeasegdfnfromonerow(vall[1], channel_names::Vector, sfmt::Vector, outfile::String)
+end
+
 function readxyzrhoϕ(linenum::Int, nlayers::Int; pathname="")
     # get the rhos
     fnameρ = joinpath(pathname, "rho_avg_line_$(linenum)_summary_xyzrho.txt")
