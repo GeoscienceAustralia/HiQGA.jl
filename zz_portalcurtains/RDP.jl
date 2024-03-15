@@ -2,6 +2,7 @@ module RDP
 using LinearAlgebra, Dates, ArchGDAL, Printf, 
     PyPlot, Images, FileIO, HiQGA, Interpolations
 import GeoFormatTypes as GFT
+import GeoDataFrames as GDF
 const mpl = PyPlot.matplotlib
 const tilesize = 512
 const epsg_GDA94 = 4283
@@ -309,6 +310,25 @@ function writevtkfromxyzrhodir(nlayers::Int; src_dir="", dst_dir="", src_epsg=0,
         fn = joinpath(dst_dir, "Line_$(ln).vts")
         transD_GP.writevtkxmlforcurtain(fn; src_epsg=epsg_GDA94, dst_epsg=epsg_WGS84, suffix="", vmin, vmax)
     end
+end
+
+function writeshpfromxyzrhodir(nlayers::Int; prefix="", src_dir="", dst_dir="", src_epsg=0, writeesri=false)
+    lines = transD_GP.getprobabilisticlinesfromdirectory(src_dir)
+    isdir(dst_dir) || mkpath(dst_dir)
+    table = map(lines) do ln
+        X, Y, _ = transD_GP.readxyzrhoϕ(ln, nlayers; pathname=src_dir)
+        plist = makeplist(X, Y)
+        longlat = reverse.(reprojecttoGDA94(plist, src_epsg))
+        R = transD_GP.CommonToAll.cumulativelinedist(X,Y)
+        (;geom=ArchGDAL.createlinestring(longlat), Line=ln, Length=R[end], soundings_inverted=length(R))
+    end
+    if writeesri
+        fn = joinpath(dst_dir, prefix*".shp")
+        GDF.write(fn, table; geom_columns=(:geom,), crs=GFT.EPSG(epsg_GDA94))
+    else    
+        fn = joinpath(dst_dir, prefix*".gpkg")
+        GDF.write(fn, table; geom_columns=(:geom,), crs=GFT.EPSG(epsg_GDA94))
+    end    
 end
 
 function writeaseggdffromxyzrho(nlayers::Int; src_dir="", dst_dir="", 
