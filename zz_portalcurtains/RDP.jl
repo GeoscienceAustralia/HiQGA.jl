@@ -312,7 +312,7 @@ function writevtkfromxyzrhodir(nlayers::Int; src_dir="", dst_dir="", src_epsg=0,
     end
 end
 
-function writeshpfromxyzrhodir(nlayers::Int; prefix="", src_dir="", dst_dir="", src_epsg=0, writeesri=false)
+function writeshpfromxyzrhodir(nlayers::Int; prefix="", src_dir="", dst_dir="", src_epsg=0)
     lines = transD_GP.getprobabilisticlinesfromdirectory(src_dir)
     isdir(dst_dir) || mkpath(dst_dir)
     table = map(lines) do ln
@@ -322,13 +322,16 @@ function writeshpfromxyzrhodir(nlayers::Int; prefix="", src_dir="", dst_dir="", 
         R = transD_GP.CommonToAll.cumulativelinedist(X,Y)
         (;geom=ArchGDAL.createlinestring(longlat), Line=ln, Length=R[end], soundings_inverted=length(R))
     end
-    if writeesri
-        fn = joinpath(dst_dir, prefix*".shp")
-        GDF.write(fn, table; geom_columns=(:geom,), crs=GFT.EPSG(epsg_GDA94))
-    else    
-        fn = joinpath(dst_dir, prefix*".gpkg")
-        GDF.write(fn, table; geom_columns=(:geom,), crs=GFT.EPSG(epsg_GDA94))
-    end    
+    # writeesri
+    path = joinpath(dst_dir, "shp")
+    mkpath(path)
+    fn = joinpath(path, prefix*".shp")
+    GDF.write(fn, table; geom_columns=(:geom,), crs=GFT.EPSG(epsg_GDA94))
+    # gpkg
+    path = joinpath(dst_dir, "gpkg")
+    mkpath(path)
+    fn = joinpath(path, prefix*".gpkg")
+    GDF.write(fn, table; geom_columns=(:geom,), crs=GFT.EPSG(epsg_GDA94))
 end
 
 function writeaseggdffromxyzrho(nlayers::Int; src_dir="", dst_dir="", 
