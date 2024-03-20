@@ -20,7 +20,7 @@ export trimxft, assembleTat1, gettargtemps, checkns, getchi2forall, nicenup, plo
         writeijkfromsounding, nanmean, infmean, nanstd, infstd, kde_sj, plotmanygrids, readwell,
         getlidarheight, plotblockedwellonimages, getdeterministicoutputs, getprobabilisticoutputs, 
         readfzipped, readxyzrhoϕ, writevtkxmlforcurtain, getRandgridr, getallxyinr, getXYlast,
-        getprobabilisticlinesfromdirectory
+        getprobabilisticlinesfromdirectory, readxyzrhoϕnu
 
 # Kernel Density stuff
 abstract type KDEtype end
@@ -2143,6 +2143,15 @@ function readxyzrhoϕ(linenum::Int, nlayers::Int; pathname="")
     end
     X, Y, Z, zall, ρlow, ρmid, ρhigh, ρavg, ϕmean, ϕsdev
 end
+
+function readxyzrhoϕnu(linenum::Int, nlayers::Int; pathname="")
+    out = readxyzrhoϕ(linenum, nlayers; pathname)
+    nulow, numid, nuhigh =  map(["low", "mid", "high",]) do lstring
+        fnameρ = joinpath(pathname, "nu_"*lstring*"_line_$(linenum)_summary.txt")
+        B = readlargetextmatrix(fnameρ)'
+    end
+    out..., nulow, numid, nuhigh
+end    
 
 function getprobabilisticoutputs(outputs::AbstractArray)
     X, Y, Z, zall, ρlow, ρmid, ρhigh, ρavg, ϕmean, ϕsdev = [[out[i] for out in outputs] for i in 1:10]
