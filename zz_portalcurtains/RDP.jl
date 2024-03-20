@@ -337,7 +337,7 @@ end
 function writeaseggdffromxyzrho(nlayers::Int; src_dir="", dst_dir="", 
          fname="", src_epsg=0, nunames=nothing, nuunits=nothing)
     isdir(dst_dir) || mkpath(dst_dir)
-    sfmt = ["%15i", "%15.3f", "%15.3f", "%15.3f", "%15.3f", "%10.5f", "%10.5f", "%10.5f", "%10.5f", "%10.5f", "%10.5f"] 
+    sfmt = ["%15i", "%15.3f", "%15.3f", "%15.3f", "%15.3f", "%15.5f", "%15.5f", "%15.5f", "%15.5f", "%12.3f", "%12.3f"] 
     channel_names = [["Line", "X", "Y", "Z", "zcenter", "log10_cond_low", "log10_cond_mid", "log10_cond_high", "log10_cond_avg", 
                       "phid_mean", "phid_sdev"], 
                      ["", "m", "m", "m", "m", "Log10_Siemens_per_m", "Log10_Siemens_per_m", "Log10_Siemens_per_m", "Log10_Siemens_per_m",
@@ -348,7 +348,7 @@ function writeaseggdffromxyzrho(nlayers::Int; src_dir="", dst_dir="",
     if !isnothing(nunames)
         nnu = length(nunames)
         sfmt = vcat(sfmt, fill("%15.4f", nnu*3)) # 3 times for lo, mid, hi as these are not vectors of same type
-        channel_names[1] = vcat(channel_names[1], nunames, nunames, nunames)
+        channel_names[1] = vcat(channel_names[1], nunames.*"_low", nunames.*"_mid", nunames.*"_high")
         channel_names[3] = channel_names[1]
         channel_names[2] = vcat(channel_names[2], nuunits, nuunits, nuunits)
     end    
@@ -364,9 +364,13 @@ function writeaseggdffromxyzrho(nlayers::Int; src_dir="", dst_dir="",
         end                                            
         for i in 1:length(X)
             mode = (iline == 1) & (i ==1) ? "w" : "a"
-            vonerow = [ln, X[i], Y[i], Z[i], zall, -ρhigh[:,i], -ρmid[:,i], -ρlow[:,i], -ρavg[:,i], ϕmean[i], ϕsdev[i]]
+            ϕmeanwrite, ϕsdwrite = ϕmean[i], ϕsdev[i]
+            if ϕmeanwrite > 1e4 # stop hogging the space in the column
+                ϕmeanwrite, ϕsdwrite = 1e4, 1e4
+            end
+            vonerow = [ln, X[i], Y[i], Z[i], zall, -ρhigh[:,i], -ρmid[:,i], -ρlow[:,i], -ρavg[:,i], ϕmeanwrite, ϕsdwrite]
             if !isnothing(nunames)
-                vonerow = vcat(vonerow, nulow, numid, nuhigh)
+                vonerow = vcat(vonerow, nulow[i,:], numid[i,:], nuhigh[i,:])
             end
             transD_GP.CommonToAll.writeasegdat(vonerow, sfmt, outfile, mode)
             transD_GP.CommonToAll.writeasegdfnfromonerow(vonerow, channel_names, sfmt, outfile)
