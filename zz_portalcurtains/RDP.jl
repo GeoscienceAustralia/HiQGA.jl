@@ -373,7 +373,10 @@ function writeaseggdffromxyzrho(nlayers::Int; src_dir="", dst_dir="",
                 vonerow = vcat(vonerow, nulow[i,:], numid[i,:], nuhigh[i,:])
             end
             transD_GP.CommonToAll.writeasegdat(vonerow, sfmt, outfile, mode)
-            transD_GP.CommonToAll.writeasegdfnfromonerow(vonerow, channel_names, sfmt, outfile)
+            if i == 1
+                transD_GP.CommonToAll.writeasegdfnfromonerow(vonerow, channel_names, sfmt, outfile)
+                transD_GP.dfn2hdr(outfile*".dfn")
+            end    
         end    
     end
 end
