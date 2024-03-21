@@ -1675,7 +1675,7 @@ function summaryconductivity(s, icol, f, soundings, meangrid, phgrid, plgrid, pm
     s[icol].imshow(plgrid, cmap=cmap, aspect="auto", vmax=vmax, vmin = vmin,
                 extent=[gridx[1], gridx[end], gridz[end], gridz[1]])
     s[icol].plot(gridx, topofine, linewidth=topowidth, "-k")
-    # idx == nothing || plotprofile(s[icol], idx, Z, R)
+    idx == nothing || plotprofile(s[icol], idx, Z, R)
     s[icol].set_title("Percentile $(round(Int, 100*qp1)) conductivity")
     s[icol].set_ylabel("Height m")
     omitconvergence || s[icol].sharex(s[icol-1])

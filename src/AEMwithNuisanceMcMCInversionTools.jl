@@ -447,7 +447,7 @@ function plotindividualAEMsoundings(soundings::Vector{S},
     alpha = 1.,
     rseed = 123,
     lnames = [],
-    usekde = false,
+    usekde = true,
     computeforwards = false,
     nforwards = 20) where S<:Sounding
 

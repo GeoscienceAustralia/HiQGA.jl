@@ -13,7 +13,6 @@ map(zip(src_dir, src_epsg)) do (sdir, epsg)
         sd_use  = joinpath(containingdir, srcname)
         dst_dir = joinpath(rootdir, dstname, prefix[1:end-1])
         isdir(dst_dir) || mkpath(dst_dir)
-        close(ioproj)
         if srcname == "summary"
             fn = readdir(glob"*_summary_xyzrho.txt", sd_use)
             cp.(fn, joinpath.(dst_dir, basename.(fn)))
