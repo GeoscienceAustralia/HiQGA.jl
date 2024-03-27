@@ -2172,11 +2172,15 @@ function getzall(zheights)
     zall
 end
 
-function plotmanygrids(σ, X, Y, Z, zall; yl=[], xl=[],
+function plotmanygrids(σ, X, Y, Z, zcentre; yl=[], xl=[],
         cmapσ="turbo", vmin=-Inf, vmax=Inf, topowidth=1, fontsize=12, spacefactor=5,
-        dr=nothing, dz=2*zall[1], plotbinning=true, δ²=1e-3, regtype=:R1, donn=false,
+        dr=nothing, dz=nothing, plotbinning=true, δ²=1e-3, regtype=:R1, donn=false,
         figsize=(10,10), smallratio=0.1, preferEright=true, delbin=15.)
     @assert !isnothing(dr) # pass as variable as it is used by other functions too       
+    if isnothing(dz)
+        mins = [zc[1] for zc in zcentre] # depth to first centre
+        dz=2*minimum(mins)
+    end    
     nsub = length(σ) + 2 # one invisible subplot
     fig, ax = plt.subplots(nsub, 1, gridspec_kw=Dict("height_ratios" => [ones(nsub-2)..., spacefactor*smallratio, smallratio]),
         figsize=figsize)
@@ -2189,9 +2193,9 @@ function plotmanygrids(σ, X, Y, Z, zall; yl=[], xl=[],
     # either of x, y are means, either of xr, yr are the fit
     x, y, xr, yr = get_x_y(r, m, coord_mle, preferEright)
     plotbinning && plotbinningresults(X, Y, x, y, xr, yr)
-    outmap = map(zip(σ, X, Y, Z)) do (s, xx, yy, topo)
+    outmap = map(zip(σ, X, Y, Z, zcentre)) do (s, xx, yy, topo, zc)
          id = getclosestidx([xx';yy'], xr', yr', showinfo=false)
-         makegrid(s[:,id], xr, yr, topo[id]; donn, dr, zall, dz)
+         makegrid(s[:,id], xr, yr, topo[id]; donn, dr, zall=zc, dz)
     end
     img, gridr, gridz, topofine, R = [[out[i] for out in outmap] for i in 1:5]
     if (isinf(vmin) || isinf(vmax))
@@ -2274,18 +2278,28 @@ end
 function binbycoord(rmin, rmax, delbin, binby, binvals,)
     r = range(rmin, rmax, step=delbin)
     m, sd  = map(x->zeros(length(r)-1), 1:2)
+    @info length(r)
     for i in 2:length(r)
         s, s2, n = 0., 0., 0
         for (bin, val) in zip(binby, binvals)
-            idx = r[i-1] .< bin .<= r[i]
+            # below ensures closed on both ends
+            if i==2
+                idx = r[i-1] .<= bin .<= r[i]
+            else
+                idx = r[i-1] .< bin .<= r[i]
+            end
             if !isempty(idx)
                 s  += sum(val[idx])
                 s2 += sum(val[idx].^2)
                 n  += sum(idx)
             end    
         end
+        @assert n>2 "nothing to bin, make delbin larger than $delbin"
         m[i-1]  = s/n
-        sd[i-1] = sqrt(s2/n - m[i-1]^2)
+        varest = s2/n - m[i-1]^2
+        varest < 0.25 && (varest = 1) # variance estimates can be wonky if coincident points, few points etc.
+        sd[i-1] = sqrt(varest)
+        @info i, m[i-1], sd[i-1], n
     end
     (r[1:end-1]+r[2:end])/2, m, sd        
 end
