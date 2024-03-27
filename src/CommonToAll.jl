@@ -2174,7 +2174,7 @@ end
 
 function plotmanygrids(σ, X, Y, Z, zcentre; yl=[], xl=[],
         cmapσ="turbo", vmin=-Inf, vmax=Inf, topowidth=1, fontsize=12, spacefactor=5,
-        dr=nothing, dz=nothing, plotbinning=true, δ²=1e-3, regtype=:R1, donn=false,
+        dr=nothing, dz=nothing, plotbinning=true, δ²=1e-3, regtype=:R1, donn=false, hspace=1,
         figsize=(10,10), smallratio=0.1, preferEright=true, delbin=15., titles=fill("", length(σ)))
     @assert !isnothing(dr) # pass as variable as it is used by other functions too       
     if isnothing(dz)
@@ -2206,7 +2206,7 @@ function plotmanygrids(σ, X, Y, Z, zcentre; yl=[], xl=[],
         imhandle_ = ax_.imshow(img_, extent=[gridr_[1], gridr_[end], gridz_[end], gridz_[1]]; 
             cmap=cmapσ, aspect="auto", vmin, vmax)
         ax_.plot(gridr_, topofine_, linewidth=topowidth, "-k")
-        isnothing(ti) || ax_.set_title(ti)
+        isempty(ti) || ax_.set_title(ti)
         imhandle_
     end
     map(1:nsub-3) do i
@@ -2218,11 +2218,12 @@ function plotmanygrids(σ, X, Y, Z, zcentre; yl=[], xl=[],
     ax[end-2].set_xlabel("Distance m")
     ax[end-1].axis("off")
     !isempty(xl) && ax[1].set_xlim(xl)
-    !isempty(yl) && ax[1].set_ylim(yl)
+    isempty(yl) && (yl = extrema(reduce(vcat, gridz)))
+    ax[1].set_ylim(yl)
     cb = fig.colorbar(imhandle[end], cax=ax[end], orientation="horizontal")
     cb.set_label("Log₁₀ S/m", labelpad=0)
     nicenup(fig, fsize=fontsize, h_pad=0)
-    fig.subplots_adjust(hspace=0)
+    fig.subplots_adjust(hspace = all(isempty.(titles)) ? 0 : hspace)
     xr, yr, ax # return easting northing of grid and figure axes
 end
 

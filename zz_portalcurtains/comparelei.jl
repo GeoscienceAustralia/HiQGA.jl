@@ -1,9 +1,9 @@
 using HiQGA
 linewanted = 2008001
 dr = 100
-xl, yl = [], []
+xl, yl = [], [-395,210]
 vmin, vmax = -2.5, 0.5
-linesmoothδ² = 1e-2
+linesmoothδ² = 1e-3
 donn = false
 delbin = 600
 ## Get LEI
@@ -23,6 +23,8 @@ Z = [Zd, Matrix(Matrix(Zp')'), Matrix(Matrix(Zp')'), Matrix(Matrix(Zp')') ]
 zall = [zalld, zallp, zallp, zallp]
 σ = ([Matrix(log10.(σd')), -ρhigh, -ρmid, -ρlow])
 ## plot
+titles = ["Deterministic conductivity", "10th Percentile conductivity", "50th Percentile conductivity", "90th Percentile conductivity"]
 xrd, yrd, axd = transD_GP.plotmanygrids(deepcopy(σ), deepcopy(X), deepcopy(Y), deepcopy(Z), deepcopy(zall); 
-    dr, vmin, vmax, donn, xl, yl, δ²=linesmoothδ², figsize=(20,7),
-    preferEright=true, plotbinning=true, fontsize=10, delbin)
+    dr, vmin, vmax, donn, xl, yl, δ²=linesmoothδ², figsize=(20,10), titles, 
+    preferEright=true, plotbinning=true, fontsize=10, delbin, hspace=0.22, spacefactor=0.1)
+savefig("Line_$linewanted.png", dpi=500)
