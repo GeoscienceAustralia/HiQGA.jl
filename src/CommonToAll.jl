@@ -1304,7 +1304,7 @@ function writeijkfromgrid(str, lnum, σ, x, y, z, i, j, k, Ni, Nk)
     HEADER {
     name:$(lnum)
     painted:true
-    *painted*variable:Conductivity
+    *painted*variable:log10Cond
     ascii:on
     double_precision_binary:off
     cage:false
@@ -2175,7 +2175,7 @@ end
 function plotmanygrids(σ, X, Y, Z, zcentre; yl=[], xl=[],
         cmapσ="turbo", vmin=-Inf, vmax=Inf, topowidth=1, fontsize=12, spacefactor=5,
         dr=nothing, dz=nothing, plotbinning=true, δ²=1e-3, regtype=:R1, donn=false,
-        figsize=(10,10), smallratio=0.1, preferEright=true, delbin=15.)
+        figsize=(10,10), smallratio=0.1, preferEright=true, delbin=15., titles=fill("", length(σ)))
     @assert !isnothing(dr) # pass as variable as it is used by other functions too       
     if isnothing(dz)
         mins = [zc[1] for zc in zcentre] # depth to first centre
@@ -2201,11 +2201,12 @@ function plotmanygrids(σ, X, Y, Z, zcentre; yl=[], xl=[],
     if (isinf(vmin) || isinf(vmax))
         vmin, vmax = extrema(reduce(vcat, [[extrema(s)...] for s in σ]))
     end
-    imhandle = map(zip(ax, img, gridr, gridz, topofine, R)) do (
-        ax_, img_, gridr_, gridz_, topofine_, R_) 
+    imhandle = map(zip(ax, img, gridr, gridz, topofine, titles)) do (
+        ax_, img_, gridr_, gridz_, topofine_, ti) 
         imhandle_ = ax_.imshow(img_, extent=[gridr_[1], gridr_[end], gridz_[end], gridz_[1]]; 
             cmap=cmapσ, aspect="auto", vmin, vmax)
         ax_.plot(gridr_, topofine_, linewidth=topowidth, "-k")
+        isnothing(ti) || ax_.set_title(ti)
         imhandle_
     end
     map(1:nsub-3) do i
@@ -2278,7 +2279,6 @@ end
 function binbycoord(rmin, rmax, delbin, binby, binvals,)
     r = range(rmin, rmax, step=delbin)
     m, sd  = map(x->zeros(length(r)-1), 1:2)
-    @info length(r)
     for i in 2:length(r)
         s, s2, n = 0., 0., 0
         for (bin, val) in zip(binby, binvals)
@@ -2299,7 +2299,6 @@ function binbycoord(rmin, rmax, delbin, binby, binvals,)
         varest = s2/n - m[i-1]^2
         varest < 0.25 && (varest = 1) # variance estimates can be wonky if coincident points, few points etc.
         sd[i-1] = sqrt(varest)
-        @info i, m[i-1], sd[i-1], n
     end
     (r[1:end-1]+r[2:end])/2, m, sd        
 end
