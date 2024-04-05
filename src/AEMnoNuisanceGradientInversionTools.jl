@@ -71,6 +71,7 @@ function plotconvandlast(soundings, delr, delz;
         continueflag && continue
         if plotforward && !isempty(idspec) && !isnothing(aem_in)
             for id in idspec
+                @info "ϕd is $(ϕd[a:b][id])"
                 aem = makeoperator(aem_in, soundings[a:b][id])
                 m = -vec(σ[a:b,:][id,:]) #log 10 ρ
                 plotmodelfield!(aem, m)

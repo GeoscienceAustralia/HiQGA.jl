@@ -17,8 +17,8 @@ export trimxft, assembleTat1, gettargtemps, checkns, getchi2forall, nicenup, plo
         compatidxwarn, dfn2hdr, getgdfprefix, readlargetextmatrix, pairinteractionplot, flipline, 
         summaryconductivity, plotsummarygrids1, getVE, writevtkfromsounding, 
         readcols, colstovtk, findclosestidxincolfile, zcentertoboundary, zboundarytocenter, 
-        writeijkfromsounding, nanmean, infmean, nanstd, infstd, kde_sj, plotmanygrids, readwell,
-        getlidarheight, plotblockedwellonimages, getdeterministicoutputs, getprobabilisticoutputs, 
+        writeijkfromsounding, nanmean, infmean, nanstd, infstd, infnanmean, infnanstd, 
+        kde_sj, plotmanygrids, readwell, getlidarheight, plotblockedwellonimages, getdeterministicoutputs, getprobabilisticoutputs, 
         readfzipped, readxyzrhoϕ, writevtkxmlforcurtain, getRandgridr, getallxyinr, getXYlast,
         getprobabilisticlinesfromdirectory, readxyzrhoϕnu
 
@@ -1878,7 +1878,7 @@ function dfn2hdr(dfnfile::String; writecorrecteddfn=false)
     close(io)
 end
 
-function correctOMaseggdf(fname::String; writecorrecteddfn="false")
+function correctOMaseggdf(fname::String; writecorrecteddfn=false)
     f = open(fname)
     fcorr = open(fname[1:end-4]*"_corrected.dat", "w")
     for (i, str) in enumerate(eachline(f))
@@ -2021,6 +2021,20 @@ infmean(x) = mean(filter(!isinf,x))
 infmean(x, dims) = mapslices(infmean,x,dims=dims)
 infstd(x) = std(filter(!isinf,x))
 infstd(x, dims) = mapslices(infstd, x, dims=dims)
+
+function infnanmean(x)
+    idx = isnan.(x) .| isinf.(x)
+    mean(x[.!idx])
+end
+
+infnanmean(x, dims) = mapslices(infnanmean,x,dims=dims)
+
+function infnanstd(x)
+    idx = .!isnan.(x) .| .!isinf.(x)
+    std(x[idx])
+end
+
+infnanstd(x, dims) = mapslices(infnanstd,x,dims=dims)
 
 getrowwise(i,j,nvars) = (i-1)*nvars+j
 getcolwise(i,j,nvars) = (j-1)*nvars+i
