@@ -20,7 +20,7 @@ export trimxft, assembleTat1, gettargtemps, checkns, getchi2forall, nicenup, plo
         writeijkfromsounding, nanmean, infmean, nanstd, infstd, infnanmean, infnanstd, 
         kde_sj, plotmanygrids, readwell, getlidarheight, plotblockedwellonimages, getdeterministicoutputs, getprobabilisticoutputs, 
         readfzipped, readxyzrhoϕ, writevtkxmlforcurtain, getRandgridr, getallxyinr, getXYlast,
-        getprobabilisticlinesfromdirectory, readxyzrhoϕnu
+        getprobabilisticlinesfromdirectory, readxyzrhoϕnu, plotgausshist
 
 # Kernel Density stuff
 abstract type KDEtype end
@@ -2010,6 +2010,17 @@ function pairinteractionplot(d; varnames=nothing, figsize=(8.5,6), nbins=25, fon
     # with y axis of previous
     ax[end].set_xlim(ax[end-1].get_ylim())
     nicenup(f, fsize=fontsize)
+end
+
+function plotgausshist(x;nbins=20, figsize=(4,4), title="")
+    f, ax = plt.subplots(figsize=figsize)
+    h = normalize(fit(Histogram, x; nbins), mode=:pdf)
+    edges = h.edges[1]
+    width=diff(edges)
+    ax.bar(edges[1:end-1], h.weights, align="edge", width=width)
+    ax.plot(edges, 1/sqrt(2pi)*exp.(-edges.^2), "--k")
+    ax.set_title(title)
+    nicenup(f)
 end
 
 nanmean(x) = mean(filter(!isnan,x))

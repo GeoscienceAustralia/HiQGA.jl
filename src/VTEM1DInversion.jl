@@ -160,6 +160,7 @@ function read_survey_files(;
     fid = -1,
     linenum = -1,
     datacutoff = nothing,
+    noise_scalevec = zeros(0),
     tx_rx_dz_pass_through = 0.01, # Z up GA-AEM reading convention +ve is rx above tx
     nanchar = "*")
 
@@ -191,6 +192,10 @@ function read_survey_files(;
     σ_halt[:] .*= units
     d[:]      .*= units
     σ           = sqrt.((multnoise*d).^2 .+ (σ_halt').^2)
+    if !isempty(noise_scalevec) 
+        @assert length(noise_scalevec) == length(times)
+        σ = σ.*noise_scalevec'
+    end    
     if !isnothing(datacutoff)
         # since my dBzdt is +ve
         idxbad = d .< datacutoff
