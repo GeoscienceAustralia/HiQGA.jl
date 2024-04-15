@@ -187,7 +187,7 @@ function plotconvandlasteachline(soundings, σ, ϕd, delr, delz, resid;
     end
     imlast = ax[irow].imshow(img, extent=[gridr[1], gridr[end], gridz[end], gridz[1]], cmap=cmapσ, aspect="auto", vmin=vmin, vmax=vmax)
     ax[irow].plot(gridr, topofine, linewidth=topowidth, "-k")
-    [a.tick_params(labelbottom=false) for a in ax[1:end-2]]
+    [a.tick_params(labelbottom=false) for a in ax[1:irow-1]]
     isnothing(idx) || plotprofile(ax[irow], idx, Z, R)
     # eg = extrema(gridr)
     isa(yl, Nothing) || ax[3].set_ylim(yl...)

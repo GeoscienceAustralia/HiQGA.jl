@@ -1317,6 +1317,8 @@ function writeijkfromgrid(str, lnum, σ, x, y, z, i, j, k, Ni, Nk)
     *psections*grid:false
     *psections*solid:true
     dead_cells_faces:false
+    *metadata*Line: $lnum
+    *metadata*Type: $str
     }
 
     AXIS_N $(Ni) $(Nk) 1
