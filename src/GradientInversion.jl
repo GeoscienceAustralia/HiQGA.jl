@@ -325,8 +325,8 @@ function gradientinv(   m::AbstractVector,
         f_abstol = breaknuonknown ? reducenuto*f(nu) : 0.
         show_trace = debuglevel > 0 ? true : false
         if usebox
-            res = optimize(f, nubounds[:,1], nubounds[:,2], nu, Fminbox(BFGS()), 
-                Optim.Options(;show_trace, outer_f_abstol=f_abstol, f_abstol, successive_f_tol=0, outer_iterations = boxiters, iterations=ntriesnu)) 
+            res = optimize(f, nubounds[:,1], nubounds[:,2], nu, Fminbox(BFGS(linesearch=Optim.LineSearches.BackTracking(order=3))), 
+                Optim.Options(;show_trace, outer_f_tol=f_abstol, f_tol=f_abstol, outer_iterations = boxiters, iterations=ntriesnu)) 
         else
             @warn "will not be stable if nuisance outside bounds! set usebox=true"   
             res = optimize(f, nu, BFGS(), 
@@ -376,6 +376,7 @@ function write_history(io, v::Vector)
         write(io, msg)
     end
     write(io, "\n")
+    flush(io)
 end
 
 # L1 experimental stuff
