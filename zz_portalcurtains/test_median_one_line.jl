@@ -25,10 +25,10 @@ transD_GP.summaryAEMimages(soundings, opt, optn; zall, qp1, qp2, lnames, idx,
 ## now plot individual soundings in in idxplot
 transD_GP.AEMwithNuisanceMcMCInversionTools.plotindividualsoundings(soundings, aem, opt, optn, idx;
                         burninfrac,nbins, figsize  = (6,6), zall, linecolor="k",qp1, qp2,
-                        computeforwards, nforwards,
+                        computeforwards, nforwards, alpha=0.5,
                         )
 ## now get something from the ASEG-GDF and plot it
-transD_GP.dfn2hdr("/scratch/ns59/ar0754/aseggdfwithnu/AusAEM_03_ERC/AusAEM_03_ERC_2021_ERC_01_EPSG_28354.dfn")
+transD_GP.dfn2hdr("/scratch/ns59/ar0754/AusAEM_03_ERC/AusAEM_03_ERC_2021_ERC_01_EPSG_28354.dfn")
 # from DFN file
 # 1    Line
 # 2    X   
@@ -47,7 +47,7 @@ transD_GP.dfn2hdr("/scratch/ns59/ar0754/aseggdfwithnu/AusAEM_03_ERC/AusAEM_03_ER
 # 270  x_rx_mid
 # 271  z_rx_high
 # 272  x_rx_high
-A = transD_GP.readlargetextmatrix("/scratch/ns59/ar0754/aseggdfwithnu/AusAEM_03_ERC/AusAEM_03_ERC_2021_ERC_01_EPSG_28354.dat")
+A = transD_GP.readlargetextmatrix("/scratch/ns59/ar0754/AusAEM_03_ERC/AusAEM_03_ERC_2021_ERC_01_EPSG_28354.dat")
 idxgood = A[:,1] .== linetoget
 A = A[idxgood,:]
 mhigh = -A[idx, 57:108][:] # res not cond
@@ -57,7 +57,7 @@ aemuse = makeoperator(aem, soundings[idx][1])
 nuinv = [A[idx,267:268][:], A[idx,269:270][:], A[idx,271:272][:]]
 # nugiven = transD_GP.TEMPEST1DInversion.getnufromsounding(soundings[idx[1]])
 mn = reduce(hcat, [transD_GP.TEMPEST1DInversion.setnuforinvtype(aemuse, n) for n in nuinv])'
-transD_GP.plotmodelfield!(aemuse, [mlow,mmid,mhigh], collect(mn); model_lw=1, forward_lw=1, alpha=1)
+transD_GP.plotmodelfield!(aemuse, [mlow,mmid,mhigh], collect(mn); model_lw=1.5, forward_lw=1.5, alpha=1)
 # misfit for median model
 transD_GP.TEMPEST1DInversion.getfield!(mmid, mn[2,:], aemuse)
 phid = transD_GP.TEMPEST1DInversion.getchi2by2(aemuse)/(aem.ndatax/2)

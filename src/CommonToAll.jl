@@ -17,10 +17,10 @@ export trimxft, assembleTat1, gettargtemps, checkns, getchi2forall, nicenup, plo
         compatidxwarn, dfn2hdr, getgdfprefix, readlargetextmatrix, pairinteractionplot, flipline, 
         summaryconductivity, plotsummarygrids1, getVE, writevtkfromsounding, 
         readcols, colstovtk, findclosestidxincolfile, zcentertoboundary, zboundarytocenter, 
-        writeijkfromsounding, nanmean, infmean, nanstd, infstd, kde_sj, plotmanygrids, readwell,
-        getlidarheight, plotblockedwellonimages, getdeterministicoutputs, getprobabilisticoutputs, 
+        writeijkfromsounding, nanmean, infmean, nanstd, infstd, infnanmean, infnanstd, 
+        kde_sj, plotmanygrids, readwell, getlidarheight, plotblockedwellonimages, getdeterministicoutputs, getprobabilisticoutputs, 
         readfzipped, readxyzrhoϕ, writevtkxmlforcurtain, getRandgridr, getallxyinr, getXYlast,
-        getprobabilisticlinesfromdirectory, readxyzrhoϕnu
+        getprobabilisticlinesfromdirectory, readxyzrhoϕnu, plotgausshist
 
 # Kernel Density stuff
 abstract type KDEtype end
@@ -1317,6 +1317,8 @@ function writeijkfromgrid(str, lnum, σ, x, y, z, i, j, k, Ni, Nk)
     *psections*grid:false
     *psections*solid:true
     dead_cells_faces:false
+    *metadata*Line: $lnum
+    *metadata*Type: $str
     }
 
     AXIS_N $(Ni) $(Nk) 1
@@ -1878,7 +1880,7 @@ function dfn2hdr(dfnfile::String; writecorrecteddfn=false)
     close(io)
 end
 
-function correctOMaseggdf(fname::String; writecorrecteddfn="false")
+function correctOMaseggdf(fname::String; writecorrecteddfn=false)
     f = open(fname)
     fcorr = open(fname[1:end-4]*"_corrected.dat", "w")
     for (i, str) in enumerate(eachline(f))
@@ -2012,6 +2014,17 @@ function pairinteractionplot(d; varnames=nothing, figsize=(8.5,6), nbins=25, fon
     nicenup(f, fsize=fontsize)
 end
 
+function plotgausshist(x;nbins=20, figsize=(4,4), title="")
+    f, ax = plt.subplots(figsize=figsize)
+    h = normalize(fit(Histogram, x; nbins), mode=:pdf)
+    edges = h.edges[1]
+    width=diff(edges)
+    ax.bar(edges[1:end-1], h.weights, align="edge", width=width)
+    ax.plot(edges, 1/sqrt(2pi)*exp.(-edges.^2), "--k")
+    ax.set_title(title)
+    nicenup(f)
+end
+
 nanmean(x) = mean(filter(!isnan,x))
 nanmean(x, dims) = mapslices(nanmean,x,dims=dims)
 nanstd(x) = std(filter(!isnan,x))
@@ -2021,6 +2034,20 @@ infmean(x) = mean(filter(!isinf,x))
 infmean(x, dims) = mapslices(infmean,x,dims=dims)
 infstd(x) = std(filter(!isinf,x))
 infstd(x, dims) = mapslices(infstd, x, dims=dims)
+
+function infnanmean(x)
+    idx = isnan.(x) .| isinf.(x)
+    mean(x[.!idx])
+end
+
+infnanmean(x, dims) = mapslices(infnanmean,x,dims=dims)
+
+function infnanstd(x)
+    idx = .!isnan.(x) .| .!isinf.(x)
+    std(x[idx])
+end
+
+infnanstd(x, dims) = mapslices(infnanstd,x,dims=dims)
 
 getrowwise(i,j,nvars) = (i-1)*nvars+j
 getcolwise(i,j,nvars) = (j-1)*nvars+i

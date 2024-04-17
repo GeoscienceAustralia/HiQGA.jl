@@ -150,21 +150,36 @@ function allocateJ(tempest::Bfield)
     nothing
 end
 
+function getresidual(tempest::Bfield, log10σ::Vector{Float64}, mn::Array{Float64}; computeJ=false) 
+    # nuisance updates are separate to conductivity updates
+    (; F, W, res) = tempest
+    F.calcjacobian = computeJ
+    getfield!(-log10σ, mn, tempest)
+    # f = F.dBzdt[aem.select]
+    # d = aem.d[aem.select]
+    resforinvtype(tempest, W, res)
+    nothing
+end
+
 function getresidual(tempest::Bfield, log10σ::Vector{Float64}; computeJ=false)
     (; F, W, res) = tempest
     F.calcjacobian = computeJ
     getfield!(-log10σ, tempest)
     # f = F.dBzdt[aem.select]
     # d = aem.d[aem.select]
+    resforinvtype(tempest, W, res)
+    nothing    
+end    
+
+function resforinvtype(tempest, W, res)
     if tempest.vectorsum
         f = get_fm(tempest)
         d, σ = get_dSigma(tempest)
         W[diagind(W)] = 1 ./σ
-        tempest.res[:] = f - d
+        res[:] = f - d
     else
-        tempest.res[:] = [tempest.Hx; tempest.Hz] - [tempest.dataHx; tempest.dataHz]
-    end    
-    nothing    
+        res[:] = [tempest.Hx; tempest.Hz] - [tempest.dataHx; tempest.dataHz]
+    end 
 end    
 
 #TODO for nuisance moves in an MCMC chain

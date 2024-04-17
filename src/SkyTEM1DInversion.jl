@@ -182,10 +182,15 @@ function read_survey_files(;
     frame_dz = -2,
     frame_dx = -2,
     frame_dy = -2,
+    # pass through geometry takes precedence
+    tx_rx_dx_pass_through = nothing, # read in Z up GA_AEM system x is fltdirn same
+    tx_rx_dy_pass_through = nothing, # read in Z up GA_AEM system y has to be negated for me later down, if squared is ok
+    tx_rx_dz_pass_through = nothing, # read in Z up GA_AEM system z has to be negated for me later down
     LM_Z = [-2, -2],
     HM_Z = [-2, -2],
     LM_σ = [-2, 2],
     HM_σ = [-2, 2],
+    noise_scalevec = zeros(0),
     relerror = false,
     units=1/pVinv,
     figsize = (9,7),
@@ -201,9 +206,9 @@ function read_survey_files(;
     linenum = -1,
     nanchar = "*")
     @assert frame_height > 0
-    @assert frame_dz > 0
-    @assert frame_dx > 0
-    @assert frame_dy > 0
+    @assert (frame_dz > 0) | !isnothing(tx_rx_dz_pass_through)
+    @assert (frame_dx > 0) | !isnothing(tx_rx_dx_pass_through)
+    @assert (frame_dy > 0) | !isnothing(tx_rx_dy_pass_through)
     @assert all(LM_Z .> 0)
     @assert all(HM_Z .> 0)
     if relerror
@@ -229,10 +234,18 @@ function read_survey_files(;
         σ_LM = soundings[:,LM_σ[1]:LM_σ[2]]
         σ_HM = soundings[:,HM_σ[1]:HM_σ[2]]
     end
-    zTx = soundings[:,frame_height]
-    zRx = -(zTx + soundings[:,frame_dz])
-    zTx = -zTx
-    rRx = sqrt.(soundings[:,frame_dx].^2 + soundings[:,frame_dy].^2)
+    zTx = soundings[:,frame_height] # read in Z up GA_AEM system
+    if isnothing(tx_rx_dz_pass_through) # pass through takes precedence
+        zRx = -(zTx + soundings[:,frame_dz]) # my coordinate system Z down
+    else
+        zRx = -(zTx .+ tx_rx_dz_pass_through)  # my coordinate system Z down
+    end
+    zTx = -zTx # my coordinate system Z down
+    if isnothing(tx_rx_dx_pass_through) # pass through takes precedence
+        rRx = sqrt.(soundings[:,frame_dx].^2 + soundings[:,frame_dy].^2)
+    else
+        rRx = sqrt(tx_rx_dx_pass_through^2 + tx_rx_dy_pass_through^2)*ones(size(soundings, 1))
+    end
 
     @info "reading $fname_specs_halt"
     include(fname_specs_halt)
@@ -247,6 +260,11 @@ function read_survey_files(;
         HM_noise[:] .*= units
         σ_LM = sqrt.((multnoise*d_LM).^2 .+ (LM_noise').^2)
         σ_HM = sqrt.((multnoise*d_HM).^2 .+ (HM_noise').^2)
+        if !isempty(noise_scalevec) 
+            @assert length(noise_scalevec) == length(LM_times)+length(HM_times)
+            σ_LM = σ_LM.*(noise_scalevec[1:length(LM_times)])'
+            σ_HM = σ_HM.*(noise_scalevec[1:length(HM_times)])'
+        end  
     else
         σ_LM[:] .*= units
         σ_HM[:] .*= units

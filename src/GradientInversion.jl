@@ -1,6 +1,7 @@
 using LinearMaps, SparseArrays, PositiveFactorizations, LazyGrids
 using Roots:find_zero
 using .AbstractOperator, .GP, Optim
+import .AbstractOperator.setnuforinvtype
 
 function makeregR0(F::Operator1D)
     n = length(F.ρ) - F.nfixed
@@ -118,6 +119,15 @@ function getχ²(F, m; computeJ=false)
     r, W = F.res, F.W
     r₀ = copy(r)
     getresidual(F, m, computeJ=computeJ)
+    χ² = norm(W*r)^2
+    computeJ || (r .= r₀)
+    return χ²
+end
+
+function getχ²(F, m, mn; computeJ=false)
+    r, W = F.res, F.W
+    r₀ = copy(r)    
+    getresidual(F, m, mn)
     χ² = norm(W*r)^2
     computeJ || (r .= r₀)
     return χ²
@@ -310,13 +320,15 @@ function gradientinv(   m::AbstractVector,
     io = open_history(fname)
     while true
         # Optim stuff for nuisances
-        f(x) = 2*get_misfit(m, x, F, nubounds)
+        # f(x) = 2*get_misfit(m, x, F, nubounds) # why? always set usebox=true
+        f(x) = getχ²(F, m, setnuforinvtype(F, x)) 
         f_abstol = breaknuonknown ? reducenuto*f(nu) : 0.
         show_trace = debuglevel > 0 ? true : false
         if usebox
-            res = optimize(f, nubounds[:,1], nubounds[:,2], nu, Fminbox(BFGS()), 
-                Optim.Options(;show_trace, outer_f_abstol=f_abstol, f_abstol, successive_f_tol=0, outer_iterations = boxiters, iterations=ntriesnu)) 
-        else         
+            res = optimize(f, nubounds[:,1], nubounds[:,2], nu, Fminbox(BFGS(linesearch=Optim.LineSearches.BackTracking(order=3))), 
+                Optim.Options(;show_trace, outer_f_tol=f_abstol, f_tol=f_abstol, outer_iterations = boxiters, iterations=ntriesnu)) 
+        else
+            @warn "will not be stable if nuisance outside bounds! set usebox=true"   
             res = optimize(f, nu, BFGS(), 
                 Optim.Options(;show_trace, f_abstol, iterations=ntriesnu, successive_f_tol=0))
         end        
@@ -364,6 +376,7 @@ function write_history(io, v::Vector)
         write(io, msg)
     end
     write(io, "\n")
+    flush(io)
 end
 
 # L1 experimental stuff

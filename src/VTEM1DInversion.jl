@@ -159,6 +159,8 @@ function read_survey_files(;
     Z = -1,
     fid = -1,
     linenum = -1,
+    datacutoff = nothing,
+    noise_scalevec = zeros(0),
     tx_rx_dz_pass_through = 0.01, # Z up GA-AEM reading convention +ve is rx above tx
     nanchar = "*")
 
@@ -190,6 +192,15 @@ function read_survey_files(;
     σ_halt[:] .*= units
     d[:]      .*= units
     σ           = sqrt.((multnoise*d).^2 .+ (σ_halt').^2)
+    if !isempty(noise_scalevec) 
+        @assert length(noise_scalevec) == length(times)
+        σ = σ.*noise_scalevec'
+    end    
+    if !isnothing(datacutoff)
+        # since my dBzdt is +ve
+        idxbad = d .< datacutoff
+        d[idxbad] .= NaN
+    end
     makeqcplots && plotsoundingdata(d, σ, times, zTx, zRx; figsize, fontsize)
     nsoundings = size(d, 1)
     s_array = Array{VTEMsoundingData, 1}(undef, nsoundings)

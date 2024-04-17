@@ -9,6 +9,7 @@ import ..AbstractOperator.loopacrossAEMsoundings
 import ..AbstractOperator.plotconvandlast
 import ..AbstractOperator.plotmodelfield!
 import ..AbstractOperator.setnuforinvtype
+import ..AbstractOperator.getresidual
 import ..gradientinv
 export plotconvandlast, loopacrossAEMsoundings
 # for deterministic inversions, read in
@@ -57,6 +58,9 @@ function plotconvandlast(soundings, delr, delz, nufieldnames::Vector{Symbol};
         yl = nothing,
         plotforward = false,
         aem_in = nothing,
+        dophiplot = false,
+        doreshist = false,
+        calcresiduals = false,
         dpi=400)
     linestartidx = splitsoundingsbyline(soundings)                    
     nlines = length(linestartidx)
@@ -69,10 +73,22 @@ function plotconvandlast(soundings, delr, delz, nufieldnames::Vector{Symbol};
     σ = A[:,end-nlayers-nnu:end-nnu-1]
     nu = A[:,end-nnu:end-1]
     ϕd = A[:,end]
+    res = calcresiduals ? Vector{Array{Float64, 2}}(undef, nlines) : fill(zeros(0), nlines)
     for i in 1:nlines
         a, b = linestartend(linestartidx, i, nlines, soundings)
         continueflag, idspec = docontinue(lnames, idx, soundings, a, b)
         continueflag && continue
+        if calcresiduals
+            nsoundings = b-a+1
+            res[i] = zeros(length(aem_in.res), nsoundings) # won't work if different number of data per sounding
+            for (id, s) in enumerate(soundings[a:b])
+                aem = makeoperator(aem_in, s)
+                m = vec(σ[a:b,:][id,:]) # log 10 σ
+                mn = setnuforinvtype(aem, vec(nu[a:b,:][id,:]))
+                getresidual(aem, m, mn) # used for grad inversions so log10 cond
+                res[i][:,id] .= aem.W*aem.res
+            end
+        end
         if plotforward && !isempty(idspec) && !isnothing(aem_in)
             for id in idspec
                 aem = makeoperator(aem_in, soundings[a:b][id])
@@ -83,14 +99,22 @@ function plotconvandlast(soundings, delr, delz, nufieldnames::Vector{Symbol};
                 nicenup(gcf())
             end    
         end    
-        plotconvandlasteachline(soundings[a:b], view(σ, a:b, :)', view(nu, a:b, :), nufieldnames, view(ϕd, a:b), delr, delz; 
+        plotconvandlasteachline(soundings[a:b], view(σ, a:b, :)', view(nu, a:b, :), nufieldnames, view(ϕd, a:b), delr, delz, res[i]; 
             zall = zall, idx=idspec, yl=yl,
             cmapσ=cmapσ, vmin=vmin, vmax=vmax, fontsize=fontsize, postfix=postfix, markersize=markersize,
             figsize=figsize, topowidth=topowidth, preferEright=preferEright, logscale=logscale,
             preferNright=preferNright, saveplot=saveplot, showplot=showplot, dpi=dpi)
+            (calcresiduals && doreshist) && plotgausshist(res[i][:], title="Line $(soundings[a].linenum) residuals")
     end
-    getphidhist(ϕd, doplot=true, saveplot=saveplot, prefix=prefix)
-    nothing
+    getphidhist(ϕd, doplot=dophiplot, saveplot=dophiplot, prefix=prefix)
+    if calcresiduals 
+        rall = reduce(hcat, res)
+        doreshist && plotgausshist(vec(rall), title="All Lines residuals")
+        map(eachrow(rall)) do r
+            n = length(r)
+            sqrt(r'r/n) # should return timechannel scaling factors in noise
+        end
+    end
 end
 
 function getphidhist(ϕd; doplot=false, saveplot=false, prefix="", figsize=(8,4), fontsize=11)
@@ -114,7 +138,7 @@ function getphidhist(ϕd; doplot=false, saveplot=false, prefix="", figsize=(8,4)
     good, bad, ugly
 end    
 
-function plotconvandlasteachline(soundings, σ, nu, nufieldnames, ϕd, delr, delz; 
+function plotconvandlasteachline(soundings, σ, nu, nufieldnames, ϕd, delr, delz, resid; 
         idx = nothing, #array of sounding indexes at a line to draw profile
         zall=nothing, cmapσ="turbo", vmin=-2.5, vmax=0.5, fontsize=12,
         figsize=(20,5),
@@ -131,7 +155,9 @@ function plotconvandlasteachline(soundings, σ, nu, nufieldnames, ϕd, delr, del
     @assert !isnothing(zall)
     nnu = length(nufieldnames)
     img, gridr, gridz, topofine, R = makegrid(σ, soundings, zall=zall, dz=delz, dr=delr)
-    fig, ax = plt.subplots(4+nnu, 1, gridspec_kw=Dict("height_ratios" => [1,ones(1+nnu)...,4, 0.25]),
+    nextra = length(resid) == 0 ? 0 : 1
+    height_ratios = nextra == 1 ? [1,ones(1+nnu)...,2,4, 0.25] : [1,ones(1+nnu)...,4, 0.25]
+    fig, ax = plt.subplots(4+nextra+nnu, 1, gridspec_kw=Dict("height_ratios" => height_ratios),
         figsize=figsize)
     lname = "Line_$(soundings[1].linenum)"*postfix
     x0, y0 = soundings[1].X, soundings[1].Y
@@ -142,9 +168,10 @@ function plotconvandlasteachline(soundings, σ, nu, nufieldnames, ϕd, delr, del
     xend, yend = soundings[end].X, soundings[end].Y
     Z = [s.Z for s in soundings]
     good, bad, ugly = getphidhist(ϕd)
+    resminmax = nextra == 0 ? "" : @sprintf(" resid_range: (%.1f,%.1f)", extrema(resid)...)
     fig.suptitle(lname*" Δx=$delr m, Fids: $(length(R)) "*L"\phi_{d_{0-1.1}}:"*" $good "*
-    L"\phi_{d_{1.1-2}}:"*" $bad "*L"\phi_{d_{2-\infty}}:"*" $ugly", fontsize=fontsize)
-    ax = fig.axes
+    L"\phi_{d_{1.1-2}}:"*" $bad "*L"\phi_{d_{2-\infty}}:"*" $ugly"*resminmax, fontsize=fontsize)
+    ax = fig.axes # why do we need this?
     ax[1].plot(R, ones(length(R)), "--k")
     ax[1].plot(R, ϕd, ".", markersize=markersize)
     ax[1].set_ylim(0.316, maximum(ax[1].get_ylim()))
@@ -158,7 +185,14 @@ function plotconvandlasteachline(soundings, σ, nu, nufieldnames, ϕd, delr, del
         ax[irow].plot(R, nu[:,inu])
         ax[irow].set_ylabel("$(nfname)")
         irow += 1
-    end    
+    end
+    if nextra == 1 # show resids
+        ax[irow].pcolormesh(R, 1:size(resid, 1), resid, vmax=5, vmin=-5, cmap="RdBu_r")
+        ax[irow].set_ylabel("window #")
+        ax[irow].invert_yaxis()
+        ax[irow].sharex(ax[irow-1])
+        irow += 1
+    end 
     [a.tick_params(labelbottom=false) for a in ax[1:irow-1]]
     imlast = ax[irow].imshow(img, extent=[gridr[1], gridr[end], gridz[end], gridz[1]], cmap=cmapσ, aspect="auto", vmin=vmin, vmax=vmax)
     ax[irow].plot(gridr, topofine, linewidth=topowidth, "-k")
