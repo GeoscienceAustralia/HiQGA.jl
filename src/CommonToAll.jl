@@ -18,9 +18,10 @@ export trimxft, assembleTat1, gettargtemps, checkns, getchi2forall, nicenup, plo
         summaryconductivity, plotsummarygrids1, getVE, writevtkfromsounding, 
         readcols, colstovtk, findclosestidxincolfile, zcentertoboundary, zboundarytocenter, 
         writeijkfromsounding, nanmean, infmean, nanstd, infstd, infnanmean, infnanstd, 
-        kde_sj, plotmanygrids, readwell, getlidarheight, plotblockedwellonimages, getdeterministicoutputs, getprobabilisticoutputs, 
-        readfzipped, readxyzrhoϕ, writevtkxmlforcurtain, getRandgridr, getallxyinr, getXYlast,
-        getprobabilisticlinesfromdirectory, readxyzrhoϕnu, plotgausshist, findMAE
+        kde_sj, plotmanygrids, readwell, getlidarheight, plotblockedwellonimages, getdeterministicoutputs, 
+        getprobabilisticoutputs,readfzipped, readxyzrhoϕ, writevtkxmlforcurtain, getRandgridr, getallxyinr, getXYlast,
+        getprobabilisticlinesfromdirectory, readxyzrhoϕnu, plotgausshist, findMAE, getclosestidx, getpostatwell
+
 # Kernel Density stuff
 abstract type KDEtype end
 struct SJ <: KDEtype end
@@ -787,6 +788,26 @@ function plot_posterior(F::Operator1D,
         nicenup(f, fsize=fsize)
     end
     CI[:,1], CI[:,2], CI[:,3], meanimage, meandiffimage, sdslope
+end
+
+function getpostatwell(F::Operator, soundings::Vector{T}, opt_in::OptionsStat, Xwell, Ywell, zc_rho; 
+        burninfrac = 0.5,
+        nbins = 50, 
+        qp1 = nothing, 
+        qp2 = nothing,
+        usekde = true,
+        pdfnormalize = false,
+        ) where T<:Sounding
+    @assert !isnothing(qp1) | !isnothing(qp2)
+    opt = deepcopy(opt_in)
+    zcentre = opt.xall
+    Mwell = blocktomodel(zcentre, zc_rho)
+    M = getclosestensemble(soundings, opt, Xwell, Ywell; burninfrac)
+    rhomin, rhomax = extrema(opt.fbounds)
+    himage, edges, CI, _ = gethimage(F, M, opt; temperaturenum=1,
+                nbins, qp1, qp2, rhomin, rhomax, usekde,
+                islscale=false, pdfnormalize)
+    himage, edges, CI, Mwell
 end
 
 function getbounds(CI, bounds)
@@ -2362,13 +2383,22 @@ end
 
 function findMAE(soundings::Vector{T}, opt_in::OptionsStat, Xwell, Ywell, zc_rho; burninfrac=0.5) where T<:Sounding
     opt = deepcopy(opt_in)
-    zboundaries = zcentertoboundary(opt.xall)
+    zcentre = opt.xall
+    Mwell = blocktomodel(zcentre, zc_rho)
+    m = getclosestensemble(soundings, opt, Xwell, Ywell; burninfrac)
+    findMAE(m, vec(Mwell))
+end
+
+function blocktomodel(zcentre, zc_rho)
+    zboundaries = zcentertoboundary(zcentre)
     Mwell = block1Dvalues([zc_rho[:,2]], zc_rho[:,1], [zboundaries[1:end-1] zboundaries[2:end]], :median)[:]
     Mwell = vec([Mwell;Mwell[end,:]']) # dummy last cell in depth
+end
+
+function getclosestensemble(soundings::Vector{T}, opt::OptionsStat, Xwell, Ywell; burninfrac=0.5) where T<:Sounding
     idx = getclosestidx(Xwell, Ywell, soundings)
     opt.fdataname = soundings[idx].sounding_string*"_"
     m = assembleTat1(opt, :fstar; burninfrac, temperaturenum=1)
-    findMAE(m, vec(Mwell))
 end
 
 function findMAE(mm::Vector{T}, Mwell::Vector{S}) where T<:Array where S<:Real
