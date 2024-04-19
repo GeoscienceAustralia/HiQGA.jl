@@ -2462,7 +2462,7 @@ function plotblockedwellonimages(ax, wellarray, zall, xr, yr; donn=false,
     img, gridr, gridz, hsegs, vsegs = makeblockedwellimage(wellarray, zall, xr, yr; distblank, dr, donn)
     plotwelloutline(ax, img, hsegs, vsegs, gridr, gridz, vmin, vmax; cmap, color, linewidth)
     wnames = [String(w[1]) for w in wellarray]
-    annotatewells(ax[end], wnames, hsegs, vsegs)
+    annotatewells(ax[end], wnames, hsegs)
     
 end
 
