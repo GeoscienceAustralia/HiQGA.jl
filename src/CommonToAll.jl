@@ -20,8 +20,7 @@ export trimxft, assembleTat1, gettargtemps, checkns, getchi2forall, nicenup, plo
         writeijkfromsounding, nanmean, infmean, nanstd, infstd, infnanmean, infnanstd, 
         kde_sj, plotmanygrids, readwell, getlidarheight, plotblockedwellonimages, getdeterministicoutputs, getprobabilisticoutputs, 
         readfzipped, readxyzrhoϕ, writevtkxmlforcurtain, getRandgridr, getallxyinr, getXYlast,
-        getprobabilisticlinesfromdirectory, readxyzrhoϕnu, plotgausshist
-
+        getprobabilisticlinesfromdirectory, readxyzrhoϕnu, plotgausshist, findMAE
 # Kernel Density stuff
 abstract type KDEtype end
 struct SJ <: KDEtype end
@@ -2361,6 +2360,22 @@ function readwell(fname, skipstart; lidarfile=nothing)
     name, X, Y, Z, zc_rho
 end
 
+function findMAE(soundings::Vector{T}, opt_in::OptionsStat, Xwell, Ywell, zc_rho; burninfrac=0.5) where T<:Sounding
+    opt = deepcopy(opt_in)
+    zboundaries = zcentertoboundary(opt.xall)
+    Mwell = block1Dvalues([zc_rho[:,2]], zc_rho[:,1], [zboundaries[1:end-1] zboundaries[2:end]], :median)[:]
+    Mwell = vec([Mwell;Mwell[end,:]']) # dummy last cell in depth
+    idx = getclosestidx(Xwell, Ywell, soundings)
+    opt.fdataname = soundings[idx].sounding_string*"_"
+    m = assembleTat1(opt, :fstar; burninfrac, temperaturenum=1)
+    findMAE(m, vec(Mwell))
+end
+
+function findMAE(mm::Vector{T}, Mwell::Vector{S}) where T<:Array where S<:Real
+    absdevs = [abs.(vec(m) - Mwell) for m in mm]
+    nanmean(reduce(hcat, absdevs), 2) # mean of ndepths × namples in nsamples dirn
+end
+
 function makeblockedwellimage(readwellarray, zall, xr, yr; distblank=50, dr=nothing, donn=false, displaydistanceaway=true )
     # xr, yr are the line path along which to find closest well index
     @assert !isnothing(dr)
@@ -2446,6 +2461,15 @@ function plotblockedwellonimages(ax, wellarray, zall, xr, yr; donn=false,
         @assert !isnothing(vmax)
     img, gridr, gridz, hsegs, vsegs = makeblockedwellimage(wellarray, zall, xr, yr; distblank, dr, donn)
     plotwelloutline(ax, img, hsegs, vsegs, gridr, gridz, vmin, vmax; cmap, color, linewidth)
+    wnames = [String(w[1]) for w in wellarray]
+    annotatewells(ax[end], wnames, hsegs, vsegs)
+    
+end
+
+function annotatewells(ax, wnames, hsegs)
+    for (h, wn) in zip(hsegs[2:2:end], wnames)
+        ax.text(h[end,1], h[end,2], wn, fontsize=8)
+    end
 end
 
 end # module CommonToAll
