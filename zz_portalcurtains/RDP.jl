@@ -1,8 +1,10 @@
 module RDP
 using LinearAlgebra, Dates, ArchGDAL, Printf, 
-    PyPlot, Images, FileIO, HiQGA, Interpolations
+    PyPlot, Images, FileIO, HiQGA, Interpolations, NearestNeighbors, DelimitedFiles
 import GeoFormatTypes as GFT
 import GeoDataFrames as GDF
+import HiQGA.transD_GP.LineRegression.getsmoothline
+
 const mpl = PyPlot.matplotlib
 const tilesize = 512
 const epsg_GDA94 = 4283
@@ -390,6 +392,43 @@ function writeaseggdffromxyzrho(nlayers::Int; src_dir="", dst_dir="",
             end    
         end    
     end
+end
+
+mutable struct XY
+    x
+    y
+end 
+
+function collectpoints(;npoints=1000)
+    xy = ginput(npoints, timeout=0)
+    x, y = [[pts[i] for pts in xy] for i =  1:2]
+    XY(x, y)
+end
+
+function smoothline(xy::XY; λ²=0.01, finefactor=100, regtype=:R1, fname=nothing)
+    xmin, xmax = extrema(xy.x)
+    Δx = (xmax - xmin)/finefactor
+    gridx = range(start=xmin, stop=xmax, step=Δx)
+    gridy = snaptogrid(gridx, xy.x, xy.y)
+    sd = 1 # identity weighting matrix for points
+    ysmooth = getsmoothline(gridy, sd; δ²=λ², regtype)
+    if !isnothing(fname)
+        @assert !isfile(fname)
+        io = open(fname,"w")
+        write(io, "$(λ²)\n")
+        write(io, "$finefactor\n")
+        write(io, "$regtype\n")
+        writedlm(io, [xy.x xy.y])
+        close(io)
+    end
+    gridx, ysmooth
+end    
+
+function snaptogrid(gridx, x, y)
+    idx, _ = nn(KDTree(gridx'), x')
+    gridy = NaN .+ zeros(size(gridx))
+    gridy[idx] = y
+    gridy
 end
 
 end # module
