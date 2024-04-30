@@ -424,6 +424,22 @@ function smoothline(xy::XY; λ²=0.01, finefactor=100, regtype=:R1, fname=nothin
     gridx, ysmooth
 end    
 
+function readpoints(fname::String)
+    io = open(fname, "r")
+    λ² = parse(Float64, readline(io))
+    finefactor = parse(Float64, readline(io))
+    regtype = Symbol(readline(io))
+    xy = readdlm(io)
+    xy = XY(xy[:,1], xy[:,2])
+    smoothline(xy; λ², finefactor, regtype)
+end
+
+function readpoints(fnames::Vector{String})
+    xy = map(fnames) do fn
+        readpoints(fn)
+    end
+end
+
 function snaptogrid(gridx, x, y)
     idx, _ = nn(KDTree(gridx'), x')
     gridy = NaN .+ zeros(size(gridx))
