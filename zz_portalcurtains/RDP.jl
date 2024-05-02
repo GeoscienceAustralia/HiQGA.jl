@@ -1,8 +1,10 @@
 module RDP
 using LinearAlgebra, Dates, ArchGDAL, Printf, 
-    PyPlot, Images, FileIO, HiQGA, Interpolations
+    PyPlot, Images, FileIO, HiQGA, Interpolations, NearestNeighbors, DelimitedFiles
 import GeoFormatTypes as GFT
 import GeoDataFrames as GDF
+import HiQGA.transD_GP.LineRegression.getsmoothline
+
 const mpl = PyPlot.matplotlib
 const tilesize = 512
 const epsg_GDA94 = 4283
@@ -312,6 +314,17 @@ function writevtkfromxyzrhodir(nlayers::Int; src_dir="", dst_dir="", src_epsg=0,
     end
 end
 
+function writegiantfilefromxyzrhodir(nlayers::Int; src_dir="", dst_dir="", src_epsg=0)
+    lines = transD_GP.getprobabilisticlinesfromdirectory(src_dir)
+    isdir(dst_dir) || mkpath(dst_dir)
+    map(lines) do ln
+        X, Y, Z, zall, ρlow, ρmid, ρhigh, ρavg, ϕmean, ϕsdev = transD_GP.readxyzrhoϕ(ln, nlayers; pathname=src_dir)
+        plist = makeplist(X, Y)
+        latlonglist = reduce(hcat, reprojecttoGDA94(plist, src_epsg))'
+        [latlonglist src_epsg*ones(size(X)) X Y Z transD_GP.zcentertoboundary(zall)'.*ones(size(X)) ρlow' ρmid' ρhigh' ϕmean ϕsdev]
+    end
+end
+
 function writeshpfromxyzrhodir(nlayers::Int; prefix="", src_dir="", dst_dir="", src_epsg=0)
     lines = transD_GP.getprobabilisticlinesfromdirectory(src_dir)
     isdir(dst_dir) || mkpath(dst_dir)
@@ -379,6 +392,59 @@ function writeaseggdffromxyzrho(nlayers::Int; src_dir="", dst_dir="",
             end    
         end    
     end
+end
+
+mutable struct XY
+    x
+    y
+end 
+
+function collectpoints(;npoints=1000)
+    xy = ginput(npoints, timeout=0)
+    x, y = [[pts[i] for pts in xy] for i =  1:2]
+    XY(x, y)
+end
+
+function smoothline(xy::XY; λ²=0.01, finefactor=100, regtype=:R1, fname=nothing)
+    xmin, xmax = extrema(xy.x)
+    Δx = (xmax - xmin)/finefactor
+    gridx = range(start=xmin, stop=xmax, step=Δx)
+    gridy = snaptogrid(gridx, xy.x, xy.y)
+    sd = 1 # identity weighting matrix for points
+    ysmooth = getsmoothline(gridy, sd; δ²=λ², regtype)
+    if !isnothing(fname)
+        @assert !isfile(fname)
+        io = open(fname,"w")
+        write(io, "$(λ²)\n")
+        write(io, "$finefactor\n")
+        write(io, "$regtype\n")
+        writedlm(io, [xy.x xy.y])
+        close(io)
+    end
+    gridx, ysmooth
+end    
+
+function readpoints(fname::String)
+    io = open(fname, "r")
+    λ² = parse(Float64, readline(io))
+    finefactor = parse(Float64, readline(io))
+    regtype = Symbol(readline(io))
+    xy = readdlm(io)
+    xy = XY(xy[:,1], xy[:,2])
+    smoothline(xy; λ², finefactor, regtype)
+end
+
+function readpoints(fnames::Vector{String})
+    xy = map(fnames) do fn
+        readpoints(fn)
+    end
+end
+
+function snaptogrid(gridx, x, y)
+    idx, _ = nn(KDTree(gridx'), x')
+    gridy = NaN .+ zeros(size(gridx))
+    gridy[idx] = y
+    gridy
 end
 
 end # module

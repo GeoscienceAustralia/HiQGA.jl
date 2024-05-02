@@ -26,5 +26,5 @@ zall = [zalld, zallp, zallp, zallp]
 titles = ["Deterministic conductivity", "10th Percentile conductivity", "50th Percentile conductivity", "90th Percentile conductivity"]
 xrd, yrd, axd = transD_GP.plotmanygrids(deepcopy(σ), deepcopy(X), deepcopy(Y), deepcopy(Z), deepcopy(zall); 
     dr, vmin, vmax, donn, xl, yl, δ²=linesmoothδ², figsize=(20,10), titles, 
-    preferEright=true, plotbinning=true, fontsize=10, delbin, hspace=0.22, spacefactor=0.1)
+    preferEright=true, plotbinning=false, fontsize=10, delbin, hspace=0.22, spacefactor=0.1)
 savefig("Line_$linewanted.png", dpi=500)

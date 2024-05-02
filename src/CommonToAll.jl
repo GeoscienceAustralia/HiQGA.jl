@@ -18,9 +18,9 @@ export trimxft, assembleTat1, gettargtemps, checkns, getchi2forall, nicenup, plo
         summaryconductivity, plotsummarygrids1, getVE, writevtkfromsounding, 
         readcols, colstovtk, findclosestidxincolfile, zcentertoboundary, zboundarytocenter, 
         writeijkfromsounding, nanmean, infmean, nanstd, infstd, infnanmean, infnanstd, 
-        kde_sj, plotmanygrids, readwell, getlidarheight, plotblockedwellonimages, getdeterministicoutputs, getprobabilisticoutputs, 
-        readfzipped, readxyzrhoϕ, writevtkxmlforcurtain, getRandgridr, getallxyinr, getXYlast,
-        getprobabilisticlinesfromdirectory, readxyzrhoϕnu, plotgausshist
+        kde_sj, plotmanygrids, readwell, getlidarheight, plotblockedwellonimages, getdeterministicoutputs, 
+        getprobabilisticoutputs,readfzipped, readxyzrhoϕ, writevtkxmlforcurtain, getRandgridr, getallxyinr, getXYlast,
+        getprobabilisticlinesfromdirectory, readxyzrhoϕnu, plotgausshist, findMAE, getclosestidx, getpostatXY, getpostatwell
 
 # Kernel Density stuff
 abstract type KDEtype end
@@ -788,6 +788,39 @@ function plot_posterior(F::Operator1D,
         nicenup(f, fsize=fsize)
     end
     CI[:,1], CI[:,2], CI[:,3], meanimage, meandiffimage, sdslope
+end
+
+function getpostatXY(F::Operator, soundings::Vector{T}, opt_in::OptionsStat, Xwanted, Ywanted; 
+        burninfrac = 0.5,
+        nbins = 50, 
+        qp1 = nothing, 
+        qp2 = nothing,
+        usekde = true,
+        pdfnormalize = false,
+        ) where T<:Sounding
+    @assert !isnothing(qp1) | !isnothing(qp2)
+    opt = deepcopy(opt_in)
+    M = getclosestensemble(soundings, opt, Xwanted, Ywanted; burninfrac)
+    rhomin, rhomax = extrema(opt.fbounds)
+    himage, edges, CI, _ = gethimage(F, M, opt; temperaturenum=1,
+                nbins, qp1, qp2, rhomin, rhomax, usekde,
+                islscale=false, pdfnormalize)
+    himage, edges, CI
+end
+
+function getpostatwell(F::Operator, soundings::Vector{T}, opt_in::OptionsStat, Xwell, Ywell, zc_rho; 
+    burninfrac = 0.5,
+    nbins = 50, 
+    qp1 = nothing, 
+    qp2 = nothing,
+    usekde = true,
+    pdfnormalize = false,
+    ) where T<:Sounding
+    zcentre = opt_in.xall
+    Mwell = blocktomodel(zcentre, zc_rho)
+    himage, edges, CI = getpostatXY(F, soundings, opt_in, Xwell, Ywell; burninfrac,
+                                nbins, qp1, qp2, usekde, pdfnormalize)
+    himage, edges, CI, Mwell
 end
 
 function getbounds(CI, bounds)
@@ -2202,7 +2235,8 @@ end
 function plotmanygrids(σ, X, Y, Z, zcentre; yl=[], xl=[],
         cmapσ="turbo", vmin=-Inf, vmax=Inf, topowidth=1, fontsize=12, spacefactor=5,
         dr=nothing, dz=nothing, plotbinning=true, δ²=1e-3, regtype=:R1, donn=false, hspace=1,
-        figsize=(10,10), smallratio=0.1, preferEright=true, delbin=15., titles=fill("", length(σ)))
+        figsize=(10,10), smallratio=0.1, preferEright=true, delbin=15., 
+        titles=fill("", length(σ)), XYprofiles = nothing, drawprofiles=true)
     @assert !isnothing(dr) # pass as variable as it is used by other functions too       
     if isnothing(dz)
         mins = [zc[1] for zc in zcentre] # depth to first centre
@@ -2221,18 +2255,37 @@ function plotmanygrids(σ, X, Y, Z, zcentre; yl=[], xl=[],
     x, y, xr, yr = get_x_y(r, m, coord_mle, preferEright)
     plotbinning && plotbinningresults(X, Y, x, y, xr, yr)
     outmap = map(zip(σ, X, Y, Z, zcentre)) do (s, xx, yy, topo, zc)
-         id = getclosestidx([xx';yy'], xr', yr', showinfo=false)
-         makegrid(s[:,id], xr, yr, topo[id]; donn, dr, zall=zc, dz)
+        id = getclosestidx([xx';yy'], xr', yr', showinfo=false)
+        if !isnothing(XYprofiles)
+            @assert size(XYprofiles, 1) == 2
+            idxatXY = getclosestidx([xx';yy'], XYprofiles[1,:]', XYprofiles[2,:]', showinfo=false)
+            zatXY =  zc
+            satXY = s[:,idxatXY]
+        else
+            zatXY = nothing 
+            satXY = nothing
+        end
+        img, gridr, gridz, topofine, R = makegrid(s[:,id], xr, yr, topo[id]; donn, dr, zall=zc, dz)
+        img, gridr, gridz, topofine, R, zatXY, satXY
     end
-    img, gridr, gridz, topofine, R = [[out[i] for out in outmap] for i in 1:5]
+    img, gridr, gridz, topofine, R, zatXY, satXY = [[out[i] for out in outmap] for i in 1:7]
     if (isinf(vmin) || isinf(vmax))
         vmin, vmax = extrema(reduce(vcat, [[extrema(s)...] for s in σ]))
+    end
+    if !isnothing(XYprofiles)
+        @assert size(XYprofiles, 1) == 2
+        idx_ = getclosestidx([xr'; yr'], XYprofiles[1,:]', XYprofiles[2,:]', showinfo=false)
+        Rtoplotat = [cumulativelinedist(xr, yr)[id_] for id_ in idx_]
     end
     imhandle = map(zip(ax, img, gridr, gridz, topofine, titles)) do (
         ax_, img_, gridr_, gridz_, topofine_, ti) 
         imhandle_ = ax_.imshow(img_, extent=[gridr_[1], gridr_[end], gridz_[end], gridz_[1]]; 
             cmap=cmapσ, aspect="auto", vmin, vmax)
         ax_.plot(gridr_, topofine_, linewidth=topowidth, "-k")
+        if (!isnothing(XYprofiles) && drawprofiles)
+            idx, = nn(KDTree(gridr_'), [Rtoplotat...]')
+            plotprofile(ax_, idx, topofine_, gridr_)
+        end    
         isempty(ti) || ax_.set_title(ti)
         imhandle_
     end
@@ -2251,7 +2304,7 @@ function plotmanygrids(σ, X, Y, Z, zcentre; yl=[], xl=[],
     cb.set_label("Log₁₀ S/m", labelpad=0)
     nicenup(fig, fsize=fontsize, h_pad=0)
     fig.subplots_adjust(hspace = all(isempty.(titles)) ? 0 : hspace)
-    xr, yr, ax # return easting northing of grid and figure axes
+    xr, yr, ax, zatXY, satXY # return easting northing of grid and figure axes
 end
 
 function getbinby(X, Y, preferEright)
@@ -2361,6 +2414,31 @@ function readwell(fname, skipstart; lidarfile=nothing)
     name, X, Y, Z, zc_rho
 end
 
+function findMAE(soundings::Vector{T}, opt_in::OptionsStat, Xwell, Ywell, zc_rho; burninfrac=0.5) where T<:Sounding
+    opt = deepcopy(opt_in)
+    zcentre = opt.xall
+    Mwell = blocktomodel(zcentre, zc_rho)
+    m = getclosestensemble(soundings, opt, Xwell, Ywell; burninfrac)
+    findMAE(m, vec(Mwell))
+end
+
+function blocktomodel(zcentre, zc_rho)
+    zboundaries = zcentertoboundary(zcentre)
+    Mwell = block1Dvalues([zc_rho[:,2]], zc_rho[:,1], [zboundaries[1:end-1] zboundaries[2:end]], :median)[:]
+    Mwell = vec([Mwell;Mwell[end,:]']) # dummy last cell in depth
+end
+
+function getclosestensemble(soundings::Vector{T}, opt::OptionsStat, Xwell, Ywell; burninfrac=0.5) where T<:Sounding
+    idx = getclosestidx(Xwell, Ywell, soundings)
+    opt.fdataname = soundings[idx].sounding_string*"_"
+    m = assembleTat1(opt, :fstar; burninfrac, temperaturenum=1)
+end
+
+function findMAE(mm::Vector{T}, Mwell::Vector{S}) where T<:Array where S<:Real
+    absdevs = [abs.(vec(m) - Mwell) for m in mm]
+    nanmean(reduce(hcat, absdevs), 2) # mean of ndepths × namples in nsamples dirn
+end
+
 function makeblockedwellimage(readwellarray, zall, xr, yr; distblank=50, dr=nothing, donn=false, displaydistanceaway=true )
     # xr, yr are the line path along which to find closest well index
     @assert !isnothing(dr)
@@ -2446,6 +2524,15 @@ function plotblockedwellonimages(ax, wellarray, zall, xr, yr; donn=false,
         @assert !isnothing(vmax)
     img, gridr, gridz, hsegs, vsegs = makeblockedwellimage(wellarray, zall, xr, yr; distblank, dr, donn)
     plotwelloutline(ax, img, hsegs, vsegs, gridr, gridz, vmin, vmax; cmap, color, linewidth)
+    wnames = [String(w[1]) for w in wellarray]
+    annotatewells(ax[end], wnames, hsegs)
+    
+end
+
+function annotatewells(ax, wnames, hsegs)
+    for (h, wn) in zip(hsegs[2:2:end], wnames)
+        ax.text(h[end,1], h[end,2], wn, fontsize=8)
+    end
 end
 
 end # module CommonToAll
