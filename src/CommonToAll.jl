@@ -1629,13 +1629,30 @@ function getRsplits(R, Rmax)
     idx, thereisrmn        
 end    
 
+function getinterpsplits(idx_split, nimages, gridx)
+    i_idx = 1:nimages
+    ab = zeros(Int, nimages,2)
+    for i in i_idx
+        a = i == firstindex(i_idx) ? 1 : idx_split[i-1]
+        b = i != lastindex(i_idx)  ? idx_split[i] : lastindex(gridx)
+        b = b-1 # as we are now providing 1 less than the number of edges since 26c19a0d2e4a
+        ab[i,1] = a
+        ab[i,2] = b
+    end
+    if ab[end,1] == ab[end,2]
+        ab = ab[1:end-1,:]
+        nimages = nimages-1
+    end
+    ab, nimages
+end
+
 function plotsummarygrids1(soundings, meangrid, phgrid, plgrid, pmgrid, gridx, gridz, topofine, R, Z, χ²mean, χ²sd, lname; qp1=0.05, qp2=0.95,
                         figsize=(10,10), fontsize=12, cmap="turbo", vmin=-2, vmax=0.5, Rmax=nothing,
                         topowidth=2, idx=nothing, omitconvergence=false, useML=false, preferEright=false, preferNright=false,
                         saveplot=false, yl=nothing, dpi=300, showplot=true, showmean=false, logscale=true)
     if isnothing(Rmax)
         Rmax = maximum(gridx)
-    end    
+    end
     idx_split, thereisrmn = getRsplits(gridx, Rmax)
     nimages = length(idx_split)
     dr = gridx[2] - gridx[1]
@@ -1648,21 +1665,17 @@ function plotsummarygrids1(soundings, meangrid, phgrid, plgrid, pmgrid, gridx, g
     else    
         nx = idx_split[2]-idx_split[1] # There are many Rmax length splits 
     end    
-
+    ab, nimages = getinterpsplits(idx_split, nimages, gridx)
     i_idx = 1:nimages
     for i in i_idx
-        a = i == firstindex(i_idx) ? 1 : idx_split[i-1]+1
-        b = i != lastindex(i_idx)  ? idx_split[i] : lastindex(gridx)
-        b = b-1 # as we are now providing 1 less than the number of edges since 26c19a0d2e4a
+        a, b = ab[i,1], ab[i,2]
         a_uninterp = i == firstindex(i_idx) ? 1 : findlast(R.<=gridx[a])
         b_uninterp = i != lastindex(i_idx)  ? findlast(R.<=gridx[b]) : lastindex(soundings)
-        
         if thereisrmn && i == lastindex(i_idx)
             xrangelast = range(gridx[a], step=dr, length=nx)
         else 
             xrangelast = nothing
         end
-
         f, s, icol = setupconductivityplot(gridx[a:b], omitconvergence, showmean, R[a_uninterp:b_uninterp], 
             figsize, fontsize, lname, χ²mean[a_uninterp:b_uninterp], χ²sd[a_uninterp:b_uninterp], useML, i, nimages, logscale)
           
