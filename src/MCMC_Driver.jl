@@ -1,5 +1,5 @@
 using Distributed, DistributedArrays,
-     PyPlot, LinearAlgebra, Formatting, Dates
+     PyPlot, LinearAlgebra, Dates
 
 import .AbstractOperator.Operator
 import .AbstractOperator.Sounding
