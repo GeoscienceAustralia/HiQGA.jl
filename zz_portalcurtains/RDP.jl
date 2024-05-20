@@ -314,9 +314,8 @@ function writevtkfromxyzrhodir(nlayers::Int; src_dir="", dst_dir="", src_epsg=0,
     end
 end
 
-function writegiantfilefromxyzrhodir(nlayers::Int; src_dir="", dst_dir="", src_epsg=0)
+function writegiantfilefromxyzrhodir(nlayers::Int; src_dir="", src_epsg=0)
     lines = transD_GP.getprobabilisticlinesfromdirectory(src_dir)
-    isdir(dst_dir) || mkpath(dst_dir)
     map(lines) do ln
         X, Y, Z, zall, ρlow, ρmid, ρhigh, ρavg, ϕmean, ϕsdev = transD_GP.readxyzrhoϕ(ln, nlayers; pathname=src_dir)
         plist = makeplist(X, Y)
