@@ -184,7 +184,10 @@ function read_survey_files(;
     zTx = soundings[:,frame_height] # read in Z up
     zRx = -(zTx .+ tx_rx_dz_pass_through)  # my coordinate system Z down
     zTx = -zTx # my coordinate system Z down
-
+    # check for bad z
+    idxbadz = zTx .>= 0
+    (sum(idxbadz) > 0 ) && @warn("kicking out $(sum(idxbadz)) bad zTx underground")
+    
     @info "reading $fname_specs_halt"
     include(fname_specs_halt)
     @assert size(d, 2) == length(times)
@@ -206,6 +209,7 @@ function read_survey_files(;
     s_array = Array{VTEMsoundingData, 1}(undef, nsoundings)
     fracdone = 0 
     for is in 1:nsoundings
+        idxbadz[is] && continue
         l, f = Int(whichline[is]), fiducial[is]
         s_array[is] = VTEMsoundingData(;zTx=zTx[is], zRx=zRx[is], rTx, 
             times, ramp, noise=σ[is,:], data=d[is,:], lowpassfcs,
@@ -218,7 +222,7 @@ function read_survey_files(;
             @info "read $is out of $nsoundings"
         end        
     end
-    return s_array
+    return s_array[.!idxbadz]
 end
 
 function plotsoundingdata(d, σ, times, zTx, zRx; figsize=(8,4), fontsize=1)

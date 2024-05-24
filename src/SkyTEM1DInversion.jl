@@ -241,6 +241,10 @@ function read_survey_files(;
         zRx = -(zTx .+ tx_rx_dz_pass_through)  # my coordinate system Z down
     end
     zTx = -zTx # my coordinate system Z down
+    # check for bad z
+    idxbadz = zTx .>= 0
+    (sum(idxbadz) > 0 ) && @warn("kicking out $(sum(idxbadz)) bad zTx underground")
+
     if isnothing(tx_rx_dx_pass_through) # pass through takes precedence
         rRx = sqrt.(soundings[:,frame_dx].^2 + soundings[:,frame_dy].^2)
     else
@@ -276,6 +280,7 @@ function read_survey_files(;
     s_array = Array{SkyTEMsoundingData, 1}(undef, nsoundings)
     fracdone = 0
     for is in 1:nsoundings
+        idxbadz[is] && continue
         l, f = Int(whichline[is]), fiducial[is]
         dlow, dhigh = vec(d_LM[is,:]), vec(d_HM[is,:])
         s_array[is] = SkyTEMsoundingData(rRx=rRx[is], zRxLM=zRx[is], zTxLM=zTx[is],
@@ -292,7 +297,7 @@ function read_survey_files(;
             @info "read $is out of $nsoundings"
         end    
     end
-    return s_array
+    return s_array[.!idxbadz]
 end
 
 function plotsoundingdata(nsoundings, LM_times, HM_times, d_LM, d_HM, 

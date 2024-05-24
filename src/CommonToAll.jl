@@ -2328,14 +2328,15 @@ function getbinby(X, Y, preferEright)
     binby, binvals
 end
 
-function plotbinningresults(X, Y, x, y, xr, yr)
+function plotbinningresults(X, Y, x, y, xr, yr, plotmean=false)
     _, ax = plt.subplots(1, 1)
     for i in eachindex(X)
-        ax.plot(X[i],Y[i]) #label=split(fnames[i],"/")[2])
+        ax.plot(X[i],Y[i],"-", color="gray") #label=split(fnames[i],"/")[2])
     end
-    ax.plot(x, y,"-k", label="mean path")
-    ax.plot(xr, yr, label="mle path")
+    plotmean && ax.plot(x, y,"-k", label="mean path")
+    ax.plot(xr, yr, linewidth=1, color="r", label="mle path")
     ax.legend()
+    ax.grid()
     ax.set_aspect(1)
 end    
 
