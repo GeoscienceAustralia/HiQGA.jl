@@ -2089,7 +2089,7 @@ end
 infnanmean(x, dims) = mapslices(infnanmean,x,dims=dims)
 
 function infnanstd(x)
-    idx = .!isnan.(x) .| .!isinf.(x)
+    idx = .!isnan.(x) .& .!isinf.(x)
     std(x[idx])
 end
 
