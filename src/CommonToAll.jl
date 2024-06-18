@@ -2062,13 +2062,21 @@ end
 
 function plotgausshist(x;nbins=20, figsize=(4,4), title="")
     f, ax = plt.subplots(figsize=figsize)
+    plotgausshist(x, ax;nbins)
+    ax.set_title(title)
+    nicenup(f)
+end
+
+function plotgausshist(x, ax;nbins=20, color=nothing)
     h = normalize(fit(Histogram, x; nbins), mode=:pdf)
     edges = h.edges[1]
     width=diff(edges)
     ax.bar(edges[1:end-1], h.weights, align="edge", width=width)
-    ax.plot(edges, 1/sqrt(2pi)*exp.(-edges.^2), "--k")
-    ax.set_title(title)
-    nicenup(f)
+    if isnothing(color)
+        ax.plot(edges, 1/sqrt(2pi)*exp.(-edges.^2), "--")
+    else
+        ax.plot(edges, 1/sqrt(2pi)*exp.(-edges.^2), "--", color=color)
+    end
 end
 
 nanmean(x) = mean(filter(!isnan,x))
