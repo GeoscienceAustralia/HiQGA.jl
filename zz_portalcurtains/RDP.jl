@@ -1,5 +1,5 @@
 module RDP
-using LinearAlgebra, Dates, ArchGDAL, Printf, 
+using LinearAlgebra, Dates, ArchGDAL, Printf, DataFrames, CSV,
     PyPlot, Images, FileIO, HiQGA, Interpolations, NearestNeighbors, DelimitedFiles
 import GeoFormatTypes as GFT
 import GeoDataFrames as GDF
@@ -444,6 +444,21 @@ function snaptogrid(gridx, x, y)
     gridy = NaN .+ zeros(size(gridx))
     gridy[idx] = y
     gridy
+end
+
+function readegspoints(fname::String, dict::Dict)
+    musthave = ("Xkey", "Ykey", "elevkey", "segkey")
+    map() do key
+        @assert haskey(dict, key)
+    end
+    headers  = map(k->get(dict, k, 0), musthave)
+    df = DataFrame(CSV.File(fname))
+    out = map(headers) do h # X, Y, elev, seg
+        df[:,h]
+    end
+    # split each segment
+    segs = unique(out[end]) # the last one is segment ID
+    X, Y, elev, seg = [[o[out[end] .== s] for s in segs] for o in out]
 end
 
 end # module
