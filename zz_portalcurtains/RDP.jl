@@ -3,7 +3,7 @@ using LinearAlgebra, Dates, ArchGDAL, Printf, DataFrames, CSV,
     PyPlot, Images, FileIO, HiQGA, Interpolations, NearestNeighbors, DelimitedFiles
 import GeoFormatTypes as GFT
 import GeoDataFrames as GDF
-import HiQGA.transD_GP.LineRegression.getsmoothline
+import HiQGA.transD_GP.LineRegression.getsmoothline, HiQGA.transD_GP.CommonToAll.colstovtk
 
 const mpl = PyPlot.matplotlib
 const tilesize = 512
@@ -79,6 +79,16 @@ makeplist(X,Y) = [[x,y] for (x,y) in zip(X,Y)]
 reprojecttoGDA94(plist, fromepsg) = ArchGDAL.reproject(plist, GFT.EPSG(fromepsg), GFT.EPSG(epsg_GDA94) )
 
 makexyfromlatlonglist(latlonglist) = [[l[i] for l in latlonglist] for i in 2:-1:1]
+
+function colstovtk(cols::Dict, fname::String, src_epsg::Int; decfactor=1, hasthick=true, islog10=false, prefix="")
+    # outputs in long, lat
+    Xc, Yc, Zc, σc, thickc, linec = map(x->get(cols, x, 0), ["X", "Y", "Z", "cond", "thick", "line"])
+    X, Y, Z, σ, thick, lines = transD_GP.readcols([Xc, Yc, Zc, σc, thickc, linec], fname; decfactor)
+    plist = makeplist(X, Y)
+    latlonglist = reprojecttoGDA94(plist, src_epsg)
+    long, lat = makexyfromlatlonglist(latlonglist)
+    colstovtk(long, lat, Z, σ, thick, lines, fname; hasthick, islog10, prefix)
+end
 
 function getimgsize(line, dst_dir, suffix)
     img = load(joinpath(dst_dir, "jpeg", "$line"*suffix*".jpg"))

@@ -1225,6 +1225,10 @@ end
 function colstovtk(cols::Dict, fname::String; decfactor=1, hasthick=true, islog10=false, prefix="")
     Xc, Yc, Zc, σc, thickc, linec = map(x->get(cols, x, 0), ["X", "Y", "Z", "cond", "thick", "line"])
     X, Y, Z, σ, thick, lines = readcols([Xc, Yc, Zc, σc, thickc, linec], fname; decfactor)
+    colstovtk(X, Y, Z, σ, thick, lines, fname; hasthick, islog10, prefix)
+end    
+
+function colstovtk(X, Y, Z, σ, thick, lines, fname::String; hasthick=true, islog10=false, prefix="")
     linenos  = unique(Int.(lines))
     thick = thick[1,:] # assumes all thicknesses are same
     zall = thicktodepth(thick; hasthick)
@@ -1236,7 +1240,7 @@ function colstovtk(cols::Dict, fname::String; decfactor=1, hasthick=true, islog1
         fpath = joinpath(dstring, "LEI_Line_"*prefix*fstring)
         colstovtk(X[idx], Y[idx], Z[idx], σ[idx,:], zall, fpath, islog10)
     end
-end    
+end
 
 function thicktodepth(thick; hasthick=true)
     if hasthick
