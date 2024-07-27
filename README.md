@@ -19,5 +19,9 @@ pkg> dev HiQGA
 ## Docs
 References, detailed instructions for installation, running examples and setting your environment on a cluster are ☞ [<img src="https://img.shields.io/badge/docs-stable-steelblue.svg">](https://geoscienceaustralia.github.io/HiQGA.jl/)
 
+## Authors
+- Anandaroop Ray
+- Richard Taylor 
+
 ## Example AEM inversion
 ![](./aem.png)
