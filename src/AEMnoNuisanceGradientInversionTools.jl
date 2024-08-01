@@ -102,8 +102,9 @@ function plotconvandlast(soundings, delr, delz;
             (calcresiduals && doreshist) && plotgausshist(res[i][:], title="Line $(soundings[a].linenum) residuals")
     end
     getphidhist(ϕd; doplot=dophiplot, saveplot=dophiplot, prefix=prefix)
-    if calcresiduals 
-        rall = reduce(hcat, res)
+    if calcresiduals
+        idxgood = isassigned.(Ref(res), 1:length(res))
+        rall = reduce(hcat, res[idxgood])
         doreshist && plotgausshist(vec(rall), title="All Lines residuals")
         map(eachrow(rall)) do r
             n = length(r)
@@ -154,7 +155,7 @@ function plotconvandlasteachline(soundings, σ, ϕd, delr, delz, resid;
     height_ratios = nextra == 1 ? [1,1,2,4,0.25] : [1,1,4,0.25]
     fig, ax = plt.subplots(4+nextra, 1, gridspec_kw=Dict("height_ratios" => height_ratios),
         figsize=figsize)
-    lname = "Line_$(soundings[1].linenum)"*postfix
+    lname = "Line_$(soundings[1].linenum)_"*postfix
     x0, y0 = soundings[1].X, soundings[1].Y
     if isdefined(soundings[1], :zTx)
         zTx = [s.zTx for s in soundings]
@@ -190,10 +191,10 @@ function plotconvandlasteachline(soundings, σ, ϕd, delr, delz, resid;
     [a.tick_params(labelbottom=false) for a in ax[1:irow-1]]
     isnothing(idx) || plotprofile(ax[irow], idx, Z, R)
     # eg = extrema(gridr)
-    isa(yl, Nothing) || ax[3].set_ylim(yl...)
+    isa(yl, Nothing) || ax[irow].set_ylim(yl...)
     ax[irow].set_ylabel("mAHD")
     ax[irow].set_xlabel("Distance m")
-    ax[irow].sharex(ax[2])
+    ax[irow].sharex(ax[irow-1])
     ax[irow].set_xlim(extrema(gridr))
     plotNEWSlabels(soundings, gridr, gridz, [ax[irow]], x0, y0, xend, yend, 
         preferEright=preferEright, preferNright=preferNright; fontsize)

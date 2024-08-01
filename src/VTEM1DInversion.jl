@@ -74,11 +74,13 @@ function allocateJ(FJt, σ, select, nfixed, nmodel, calcjacobian)
     if calcjacobian && !isempty(select)
         J = FJt'
         J = J[select,nfixed+1:nmodel]
-        Wdiag = 1 ./σ[select]
-        res = similar(Wdiag)
     else    
-        res, J, Wdiag = zeros(0), zeros(0), zeros(0)
+        J, Wdiag = zeros(0), zeros(0), zeros(0)
     end
+    # always return an allocated residuals and W - small price to pay I think
+    # since majority of Jacobian allocations are in aem.F
+    res = similar(σ[select]) 
+    Wdiag = 1 ./σ[select]
     W = sparse(diagm(Wdiag))        
     return res, J, W
 end
