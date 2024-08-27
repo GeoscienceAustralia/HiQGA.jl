@@ -1,6 +1,7 @@
 module RDP
 using LinearAlgebra, Dates, ArchGDAL, Printf, DataFrames, CSV,
-    PyPlot, Images, FileIO, HiQGA, Interpolations, NearestNeighbors, DelimitedFiles
+    PyPlot, Images, FileIO, HiQGA, Interpolations, NearestNeighbors, DelimitedFiles,
+    SegyIO
 import GeoFormatTypes as GFT
 import GeoDataFrames as GDF
 import HiQGA.transD_GP.LineRegression.getsmoothline, HiQGA.transD_GP.CommonToAll.colstovtk
@@ -49,6 +50,49 @@ function makeextent(lnum, ncols, nrows, gridr, gridz; suffix="")
     @sprintf("%i%s\t%i\t%i\t%i\t%i\t%.3f\t%.3f\t%.3f\t%.3f", 
         lnum, suffix, 0, 0, ncols, -nrows, gridr[1], maximum(gridz), gridr[end], minimum(gridz))
 end    
+
+function XYZ_zmid_gridtoSEGY(σ, X, Y, Z; dr=nothing, zall=nothing, dz=nothing, fname="line", dst_dir="", suffix="",
+            nanval=-6 #=-6 is in log10=#,)
+    img, gridr, gridz, topofine, R = transD_GP.makegrid(σ, X, Y, Z; 
+            dr, zall, dz)
+    img[isnan.(img)] .= nanval       
+    segypath = dst_dir
+    xymid, = transD_GP.getallxyinr(X, Y, dr)
+    xm, ym, = map(i->xymid[i,:], 1:2)
+    rm = transD_GP.CommonToAll.cumulativelinedist(xm, ym)
+    topom = (interpolate((gridr,), topofine, Gridded(Linear())))(rm)
+    block = SeisBlock(Float32.(img))
+    set_header!(block, :dt, dz*1000) # ms
+    set_header!(block, :dtOrig, dz*1000) # ms
+    set_header!(block, :nsOrig, size(img,1))
+    set_header!(block, :SourceX, round.(Int, xm))
+    set_header!(block, :SourceY, round.(Int, ym))
+    set_header!(block, :GroupX, round.(Int, xm))
+    set_header!(block, :GroupY, round.(Int, ym))
+    set_header!(block, :CDPTrace, Array(0:length(xm)-1))
+    set_header!(block, :Tracenumber, Array(0:length(xm)-1))
+    set_header!(block, :Inline3D, 1)
+    set_header!(block, :Crossline3D, Array(1:length(xm)))
+    set_header!(block, :ElevationScalar, round.(Int, topom))
+    set_header!(block, :DelayRecordingTime, -round(Int, maximum(gridz))) # shift to topo as start
+    fname = joinpath(segypath, fname*"_"*suffix)
+    segy_write(fname*".segy", block)
+end    
+
+function writesegyfromxyzrhodir(nlayers::Int; src_dir="", src_epsg=0, dst_dir="", dr=nothing, dz=nothing)
+    @assert !isnothing(src_epsg)
+    lines = transD_GP.getprobabilisticlinesfromdirectory(src_dir)
+    isdir(dst_dir) || mkpath(dst_dir)
+    ioproj = open(joinpath(dst_dir, "0000_projection.txt"), "w")
+    write(ioproj, "EPSG: $src_epsg")
+    close(ioproj)
+    map(lines) do ln
+        @info "doing line $ln"
+        fname = "line_$ln"
+        X, Y, Z, zall, ρlow, ρmid, ρhigh, ρavg, ϕmean, ϕsdev = transD_GP.readxyzrhoϕ(ln, nlayers; pathname=src_dir)
+        [XYZ_zmid_gridtoSEGY(-ρ, X, Y, Z; dr, zall, dz, dst_dir, fname, suffix=str) for (ρ, str) in zip([ρlow, ρmid, ρhigh],["high", "mid", "low"])]
+    end
+end
 
 function writepathextentfiles(line, nrows, ncols, gridr, topo, gridz, X, Y; suffix="", dst_dir="", src_epsg=0)
     geompath = joinpath(dst_dir,"geometry")
