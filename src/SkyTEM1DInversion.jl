@@ -432,9 +432,11 @@ function makenoisydata!(aem, ρ;
     # for Gauss-Newton
     aem.res, aem.J, aem.W = allocateJ(aem.Flow, aem.Fhigh, aem.σlow, aem.σhigh, 
                     aem.selectlow, aem.selecthigh, aem.nfixed, length(aem.ρ))
-
     
-    showplot && plotmodelfield!(aem, ρ; onesigma, color, alpha, model_lw, forward_lw, figsize, revax)
+    if showplot
+        plotwaveformgates(aem)
+        plotmodelfield!(aem, ρ; onesigma, color, alpha, model_lw, forward_lw, figsize, revax)
+    end
     nothing
 end
 

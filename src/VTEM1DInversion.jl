@@ -366,7 +366,7 @@ end
 
 # noisy synthetic model making
 function makenoisydata!(aem, ρ;
-        rseed=123, noisefrac=0.03, σ_halt=nothing, useML=false,
+        rseed=123, noisefrac=0.03, σ_halt=nothing, useML=false, showplot=true,
         onesigma=true, color=nothing, alpha=1, model_lw=1, forward_lw=1, figsize=(8,6), revax=true,
         # σ_halt default assumed in Bfield units of pV
         units=1/pVinv)
@@ -381,7 +381,11 @@ function makenoisydata!(aem, ρ;
     aem.ndata, aem.select = getndata(aem.d)
     aem.res, aem.J, aem.W = allocateJ(aem.F.dBzdt_J, aem.σ, aem.select, 
         aem.nfixed, length(aem.ρ), aem.F.calcjacobian)
-    plotmodelfield!(aem, ρ; onesigma, color, alpha, model_lw, forward_lw, figsize, revax)
+
+    if showplot
+        plotwaveformgates(aem)
+        plotmodelfield!(aem, ρ; onesigma, color, alpha, model_lw, forward_lw, figsize, revax)
+    end
     nothing
 end
 

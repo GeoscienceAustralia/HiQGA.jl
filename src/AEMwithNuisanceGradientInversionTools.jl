@@ -109,7 +109,7 @@ function plotconvandlast(soundings, delr, delz, nufieldnames::Vector{Symbol};
     getphidhist(ϕd, doplot=dophiplot, saveplot=dophiplot, prefix=prefix)
     if calcresiduals
         idxgood = isassigned.(Ref(res), 1:length(res))
-        rall = reduce(hcat, res)
+        rall = reduce(hcat, res[idxgood])
         doreshist && plotgausshist(vec(rall), title="All Lines residuals")
         map(eachrow(rall)) do r
             n = length(r)
