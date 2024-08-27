@@ -75,7 +75,7 @@ function allocateJ(FJt, σ, select, nfixed, nmodel, calcjacobian)
         J = FJt'
         J = J[select,nfixed+1:nmodel]
     else    
-        J, Wdiag = zeros(0), zeros(0), zeros(0)
+        J = zeros(0)
     end
     # always return an allocated residuals and W - small price to pay I think
     # since majority of Jacobian allocations are in aem.F
@@ -239,8 +239,8 @@ function plotsoundingdata(d, σ, times, zTx, zRx; figsize=(8,4), fontsize=1)
     ax[1].set_ylabel("time s")
     ax[1].tick_params(labelbottom=false)
     axx = ax[1].twiny()
-    axx.semilogy(mean(σ./abs.(d), dims=1)[:], times, "r")
-    axx.semilogy(mean(σ./abs.(d), dims=1)[:], times, "--w")
+    axx.semilogy(infnanmean(σ./abs.(d), 1)[:], times, "r")
+    axx.semilogy(infnanmean(σ./abs.(d), 1)[:], times, "--w")
     axx.set_xlabel("avg noise fraction")
     ax[2].plot(1:nsoundings, zRx, label="zRx")
     ax[2].plot(1:nsoundings, zTx, label="zTx")

@@ -94,11 +94,13 @@ function allocateJ(Flow, Fhigh, σlow, σhigh, selectlow, selecthigh, nfixed, nm
     if calcjacobian && (!isempty(selectlow) || !isempty(selecthigh))
         J = [Flow.dBzdt_J'; Fhigh.dBzdt_J']; 
         J = J[[selectlow;selecthigh],nfixed+1:nmodel]
-        Wdiag = [1 ./σlow[selectlow]; 1 ./σhigh[selecthigh]]
-        res = similar(Wdiag)
     else    
-        res, J, Wdiag = zeros(0), zeros(0), zeros(0)
-    end    
+        J  = zeros(0)
+    end
+    # always return an allocated residuals and W - small price to pay I think
+    # since majority of Jacobian allocations are in aem.F    
+    Wdiag = [1 ./σlow[selectlow]; 1 ./σhigh[selecthigh]]
+    res = similar(Wdiag)
     W = sparse(diagm(Wdiag))
     return res, J, W
 end    

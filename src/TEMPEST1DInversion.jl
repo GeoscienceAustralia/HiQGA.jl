@@ -132,14 +132,16 @@ function Bfield(;
 end
 
 function allocateJ(ntimes, nfixed, nmodel, calcjacobian, vectorsum, σx, σz)
+    multfac = vectorsum ? 1 : 2
     if calcjacobian
-        multfac = vectorsum ? 1 : 2
         J = zeros(multfac*ntimes, nmodel-nfixed)
-        Wdiag = vectorsum ? ones(multfac*ntimes) : 1 ./[σx; σz]
-        res = similar(Wdiag)
     else
-        J, Wdiag, res = zeros(0), zeros(0), zeros(0)
+        J = zeros(0)
     end
+    # always return an allocated residuals and W - small price to pay I think
+    # since majority of Jacobian allocations are in aem.F
+    Wdiag = vectorsum ? ones(multfac*ntimes) : 1 ./[σx; σz]
+    res = similar(Wdiag)
     W = sparse(diagm(Wdiag))
     res, J, W    
 end
