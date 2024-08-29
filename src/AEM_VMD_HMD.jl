@@ -69,7 +69,8 @@ mutable struct HFieldDHT <: HField
     dBazdt_J
     HFD_r_J
     HTD_r_J_interp     
-    dBrdt_J    
+    dBrdt_J
+    isdIdt
 end
 
 function HFieldDHT(;
@@ -94,7 +95,8 @@ function HFieldDHT(;
       freqlow = 1e-4,
       freqhigh = 1e6,
       minresptime = 1.e-6, # I think responses earlier than this are unstable
-      calcjacobian = false
+      calcjacobian = false,
+      isdIdt = false
   )
     @assert all(freqs .> 0.)
     @assert freqhigh > freqlow
@@ -178,7 +180,7 @@ function HFieldDHT(;
             quadnodes, quadweights, preallocate_ω_Hsc(interptimes, lowpassfcs)..., rxwithinloop, provideddt, doconvramp, useprimary,
             nkᵣeval, interpkᵣ, log10interpkᵣ, log10Filter_base, getradialH, getazimH, 
             calcjacobian, Jtemp, similar(Jtemp), Jac_z, Jac_az, Jac_r, HFD_z_J, HTD_z_J_interp, dBzdt_J,  HFD_az_J, HTD_az_J_interp, dBazdt_J, 
-            HFD_r_J, HTD_r_J_interp, dBrdt_J)
+            HFD_r_J, HTD_r_J_interp, dBrdt_J, isdIdt)
 end
 
 function checkrampformintime(times, ramp, minresptime, maxtime)
@@ -667,10 +669,13 @@ function convramp!(F::HFieldDHT, splz::CubicSpline, splr::CubicSpline, splaz::Cu
     for itime = 1:length(F.times)
         for iramp = 1:size(F.ramp,1)-1
             rta, rtb  = F.ramp[iramp,1], F.ramp[iramp+1,1]
-            dt   = rtb - rta
-            dI   = F.ramp[iramp+1,2] - F.ramp[iramp,2]
-            dIdt = dI/dt
-
+            if !F.isdIdt
+                dt   = rtb - rta
+                dI   = F.ramp[iramp+1,2] - F.ramp[iramp,2]
+                dIdt = dI/dt
+            else
+                dIdt = F.ramp[iramp+1,2]
+            end
             if rta >= F.times[itime] # geq instead of eq as we could have an unlcky time
                 break
             end
