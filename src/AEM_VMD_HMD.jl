@@ -200,7 +200,6 @@ function checkrampformintime(times, ramp, minresptime, maxtime)
                 break # since ta must always be greater than minresptime
             end
             tb = max(times[itime]-rtb, minresptime) # rtb > rta, so make sure this is not zero because integ is in log10...
-            @info ta, tb, itime, times[itime]
             @assert ta>tb # else we're in trouble
             if ta < minta
                 minta = ta
