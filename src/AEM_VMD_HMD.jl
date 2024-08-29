@@ -196,7 +196,11 @@ function checkrampformintime(times, ramp, minresptime, maxtime)
             end
             # just so we know, rta < rtb and rta < t so rta < rtb <= t
             ta = times[itime]-rta 
+            if ta <= minresptime
+                break # since ta must always be greater than minresptime
+            end
             tb = max(times[itime]-rtb, minresptime) # rtb > rta, so make sure this is not zero because integ is in log10...
+            @info ta, tb, itime, times[itime]
             @assert ta>tb # else we're in trouble
             if ta < minta
                 minta = ta
@@ -676,6 +680,9 @@ function convramp!(F::HFieldDHT, splz::CubicSpline, splr::CubicSpline, splaz::Cu
             end
 
             ta = F.times[itime]-rta
+            if ta <= F.minresptime
+                break # since ta must always be greater than minresptime
+            end
             tb = max(F.times[itime]-rtb, F.minresptime)# rtb > rta, so make sure this is not zero because integ is in log10...
             a, b = log10(ta), log10(tb)
             x, w = F.quadnodes, F.quadweights
