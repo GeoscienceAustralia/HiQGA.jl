@@ -670,10 +670,14 @@ function convramp!(F::HFieldDHT, splz::CubicSpline, splr::CubicSpline, splaz::Cu
         for iramp = 1:size(F.ramp,1)-1
             rta, rtb  = F.ramp[iramp,1], F.ramp[iramp+1,1]
             if !F.isdIdt
+                # choice made: ramp is inbetween rta and rtb if current is given
                 dt   = rtb - rta
                 dI   = F.ramp[iramp+1,2] - F.ramp[iramp,2]
                 dIdt = dI/dt
             else
+                # choice made: ramp[i+1] is result of current changes between t[i] and t[i+1]
+                # makes causal physical sense
+                # NRG seems to prefer this as ramp[1] at t[1]=0 is zero.
                 dIdt = F.ramp[iramp+1,2]
             end
             if rta >= F.times[itime] # geq instead of eq as we could have an unlcky time
