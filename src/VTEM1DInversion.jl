@@ -50,7 +50,8 @@ function dBzdt(;times           = [1.],
         lowpassfcs      = [],
         freqlow         = 1e-4,
         freqhigh        = 1e6,
-        isdIdt          = false
+        isdIdt          = false, 
+        rampchoice      = :next
         )
    
     @assert size(σ)  == size(d)
@@ -62,7 +63,7 @@ function dBzdt(;times           = [1.],
         lowpassfcs, freqlow, freqhigh,
         calcjacobian, nfreqsperdecade,
         ntimesperdecade, modelprimary,
-        isdIdt
+        isdIdt, rampchoice
     )
     @assert length(F.thickness) >= length(z)
     # for Gauss-Newton
@@ -406,7 +407,8 @@ function makeoperator(sounding::VTEMsoundingData;
             showgeomplot  = false,
             calcjacobian  = false,
             plotfield     = false,
-            isdIdt        = false
+            isdIdt        = false,
+            rampchoice    = :next,
             )
     
     zall, znall, zboundaries = setupz(zstart, extendfrac, dz=dz, n=nlayers, showplot=showgeomplot)
@@ -414,7 +416,8 @@ function makeoperator(sounding::VTEMsoundingData;
     ρ[z.>=zstart] .= ρbg
     aem = dBzdt(;d=sounding.data/μ, σ=sounding.noise/μ, modelprimary,
         times=sounding.times, ramp=sounding.ramp, ntimesperdecade, nfreqsperdecade, lowpassfcs=sounding.lowpassfcs,
-        rTx=sounding.rTx, zTx=sounding.zTx, zRx=sounding.zRx, z, ρ, calcjacobian, useML, showgates=plotfield, isdIdt)
+        rTx=sounding.rTx, zTx=sounding.zTx, zRx=sounding.zRx, z, ρ, calcjacobian, useML, showgates=plotfield, isdIdt,
+        rampchoice)
     plotfield && plotmodelfield!(aem, log10.(ρ[2:end]))
     aem, zall, znall, zboundaries
 end
@@ -424,8 +427,9 @@ function makeoperator(aem::dBzdt, sounding::VTEMsoundingData)
     nfreqsperdecade = gettimesperdec(aem.F.freqs)
     modelprimary = aem.F.useprimary === 1. ? true : false
     isdIdt = aem.F.isdIdt
+    rampchoice = aem.F.rampchoice
     dBzdt(;d=sounding.data/μ, σ=sounding.noise/μ, modelprimary, lowpassfcs=sounding.lowpassfcs,
-        times=sounding.times, ramp=sounding.ramp, ntimesperdecade, nfreqsperdecade, isdIdt,
+        times=sounding.times, ramp=sounding.ramp, ntimesperdecade, nfreqsperdecade, isdIdt, rampchoice,
         rTx=sounding.rTx, zTx=sounding.zTx, zRx=sounding.zRx,
         z=copy(aem.z), ρ=copy(aem.ρ), 
         aem.F.calcjacobian, aem.useML, showgates=false)

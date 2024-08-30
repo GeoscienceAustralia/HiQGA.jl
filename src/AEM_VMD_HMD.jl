@@ -71,6 +71,7 @@ mutable struct HFieldDHT <: HField
     HTD_r_J_interp     
     dBrdt_J
     isdIdt
+    rampchoice
 end
 
 function HFieldDHT(;
@@ -96,11 +97,15 @@ function HFieldDHT(;
       freqhigh = 1e6,
       minresptime = 1.e-6, # I think responses earlier than this are unstable
       calcjacobian = false,
-      isdIdt = false
+      isdIdt = false,
+      rampchoice = :next, # if using dIdt instead of I a choice has to be made
   )
     @assert all(freqs .> 0.)
     @assert freqhigh > freqlow
     @assert all(diff(times) .> 0)
+    if isdIdt
+        @assert (rampchoice == :previous) | (rampchoice == :next)
+    end
     thickness = zeros(nmax)
     zintfc    = zeros(nmax)
     pz        = zeros(Complex{Float64}, nmax)
@@ -180,7 +185,7 @@ function HFieldDHT(;
             quadnodes, quadweights, preallocate_ω_Hsc(interptimes, lowpassfcs)..., rxwithinloop, provideddt, doconvramp, useprimary,
             nkᵣeval, interpkᵣ, log10interpkᵣ, log10Filter_base, getradialH, getazimH, 
             calcjacobian, Jtemp, similar(Jtemp), Jac_z, Jac_az, Jac_r, HFD_z_J, HTD_z_J_interp, dBzdt_J,  HFD_az_J, HTD_az_J_interp, dBazdt_J, 
-            HFD_r_J, HTD_r_J_interp, dBrdt_J, isdIdt)
+            HFD_r_J, HTD_r_J_interp, dBrdt_J, isdIdt, rampchoice)
 end
 
 function checkrampformintime(times, ramp, minresptime, maxtime)
@@ -676,12 +681,16 @@ function convramp!(F::HFieldDHT, splz::CubicSpline, splr::CubicSpline, splaz::Cu
                 dI   = F.ramp[iramp+1,2] - F.ramp[iramp,2]
                 dIdt = dI/dt
             else
-                # choice made: ramp[i+1] is result of current changes between t[i] and t[i+1]
-                # makes causal physical sense, ramp[1] is not used at t[1] = 0
-                # NRG seems to prefer this as ramp[1] at t[1]=0 is zero.
-                # other convention possible is ramp[i] is due to current changes between t[i] and t[i+1]
-                # this will not use ramp[end]
-                dIdt = F.ramp[iramp+1,2]
+                if F.rampchoice == :next
+                    # choice made: ramp[i+1] is result of current changes between t[i] and t[i+1]
+                    # makes causal physical sense, ramp[1] is not used at t[1] = 0
+                    # NRG seems to prefer this as ramp[1] at t[1]=0 is zero.
+                    dIdt = F.ramp[iramp+1,2]
+                elseif F.rampchoice == :previous
+                    # other convention possible is ramp[i] is due to current changes between t[i] and t[i+1]
+                    # this will not use ramp[end]
+                    dIdt = F.ramp[iramp,2]
+                end
             end
             if rta >= F.times[itime] # geq instead of eq as we could have an unlcky time
                 break
