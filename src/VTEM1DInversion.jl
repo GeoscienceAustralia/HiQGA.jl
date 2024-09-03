@@ -51,7 +51,7 @@ function dBzdt(;times           = [1.],
         freqlow         = 1e-4,
         freqhigh        = 1e6,
         isdIdt          = false, 
-        rampchoice      = :next
+        rampchoice      = :mid
         )
    
     @assert size(σ)  == size(d)
@@ -408,7 +408,7 @@ function makeoperator(sounding::VTEMsoundingData;
             calcjacobian  = false,
             plotfield     = false,
             isdIdt        = false,
-            rampchoice    = :next,
+            rampchoice    = :mid,
             )
     
     zall, znall, zboundaries = setupz(zstart, extendfrac, dz=dz, n=nlayers, showplot=showgeomplot)

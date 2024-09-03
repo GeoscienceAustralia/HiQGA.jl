@@ -901,7 +901,9 @@ end
 function trapezoidrule(f,t)
     dt = diff(t)
     g  = 0.5*(f[1:end-1]+f[2:end])
-    cumsum(g.*dt), 0.5*(t[1:end-1]+t[2:end])
+    # integrated, tstart, tmid, tend
+    # I recommend using tend
+    cumsum(g.*dt), t[1:end-1], 0.5*(t[1:end-1]+t[2:end]), t[2:end]
 end
 
 function dodensityestimate(usekde::Bool, data, K::KDEtype, edges)

@@ -98,13 +98,13 @@ function HFieldDHT(;
       minresptime = 1.e-6, # I think responses earlier than this are unstable
       calcjacobian = false,
       isdIdt = false,
-      rampchoice = :next, # if using dIdt instead of I a choice has to be made
+      rampchoice = :mid, # if using dIdt instead of I a choice has to be made
   )
     @assert all(freqs .> 0.)
     @assert freqhigh > freqlow
     @assert all(diff(times) .> 0)
     if isdIdt
-        @assert (rampchoice == :previous) | (rampchoice == :next)
+        @assert (rampchoice == :previous) | (rampchoice == :next) | (rampchoice == :mid)
     end
     thickness = zeros(nmax)
     zintfc    = zeros(nmax)
@@ -671,9 +671,16 @@ function convramp!(F::HFieldDHT, splz::CubicSpline, splr::CubicSpline, splaz::Cu
     end    
     F.getradialH && fill!(F.dBrdt, 0.)
     F.getazimH && fill!(F.dBazdt, 0.)
+    nramps = size(F.ramp,1)
+    if F.isdIdt && F.rampchoice == :mid
+        nramps += 1
+    end
     for itime = 1:length(F.times)
-        for iramp = 1:size(F.ramp,1)-1
-            rta, rtb  = F.ramp[iramp,1], F.ramp[iramp+1,1]
+        for iramp = 1:nramps-1
+            if F.rampchoice != :mid
+                rta, rtb  = F.ramp[iramp,1], F.ramp[iramp+1,1]
+            end
+            # end
             if !F.isdIdt
                 # choice made: ramp is inbetween rta and rtb if current is given
                 # easy convention when I(t) is provided
@@ -690,8 +697,23 @@ function convramp!(F::HFieldDHT, splz::CubicSpline, splr::CubicSpline, splaz::Cu
                     # other convention possible is ramp[i] is due to current changes between t[i] and t[i+1]
                     # this will not use ramp[end]
                     dIdt = F.ramp[iramp,2]
+                else # mid
+                    if iramp == 1
+                        rta = F.ramp[1,1]
+                        rtb = (F.ramp[1,1]+F.ramp[2,1])/2
+                        dIdt = F.ramp[1,2]
+                    elseif iramp == nramps-1
+                        rta = (F.ramp[end-1,1]+F.ramp[end,1])/2
+                        rtb = F.ramp[end,1]
+                        dIdt = F.ramp[end,2]
+                    else
+                        rta = (F.ramp[iramp-1,1]+F.ramp[iramp,1])/2
+                        rtb = (F.ramp[iramp,1]+F.ramp[iramp+1,1])/2
+                        dIdt = F.ramp[iramp,2]
+                    end
                 end
             end
+            itime ==1 && @info rta, rtb, dIdt
             if rta >= F.times[itime] # geq instead of eq as we could have an unlcky time
                 break
             end
