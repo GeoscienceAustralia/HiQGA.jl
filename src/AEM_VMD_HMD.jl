@@ -99,7 +99,7 @@ function HFieldDHT(;
       calcjacobian = false,
       isdIdt = false,
       rampchoice = :mid, # if using dIdt instead of I a choice has to be made
-  )
+      )
     @assert all(freqs .> 0.)
     @assert freqhigh > freqlow
     @assert all(diff(times) .> 0)
@@ -119,7 +119,7 @@ function HFieldDHT(;
     mintime = 10^(log10(mintime) - 1) # go back a decade further than asked for
     maxtime = 10^(log10(maxtime) + 1) # go ahead a decade further
     if doconvramp
-         mintime, maxtime = checkrampformintime(times, ramp, minresptime, maxtime)
+         mintime, maxtime = checkrampformintime(times, ramp, minresptime, maxtime, rampchoice, isdIdt)
     end
     interptimes = 10 .^(log10(mintime) : 1/ntimesperdecade : log10(maxtime))
     if freqhigh < 3/mintime
@@ -188,13 +188,30 @@ function HFieldDHT(;
             HFD_r_J, HTD_r_J_interp, dBrdt_J, isdIdt, rampchoice)
 end
 
-function checkrampformintime(times, ramp, minresptime, maxtime)
-    # this checks we don't have ultra small tobs - ramp_time_a
+function checkrampformintime(times, ramp, minresptime, maxtime, rampchoice, isdIdt)
+    # this checks we don't have ultra small t_obs - ramp_time_a
     minta = Inf
     maxta = -Inf
+    nramps = size(ramp, 1)
+    if isdIdt && rampchoice == :mid
+        nramps += 1
+    end
     for itime = 1:length(times)
-        for iramp = 1:size(ramp,1)-1
-            rta, rtb  = ramp[iramp,1], ramp[iramp+1,1]
+        for iramp = 1:nramps-1
+            if (rampchoice == :mid) && isdIdt # receiver voltage waveform (dIdt) and :mid
+                if iramp == 1
+                    rta = F.ramp[1,1]
+                    rtb = (F.ramp[1,1]+F.ramp[2,1])/2
+                elseif iramp == nramps-1
+                    rta = (F.ramp[end-1,1]+F.ramp[end,1])/2
+                    rtb = F.ramp[end,1]
+                else
+                    rta = (F.ramp[iramp-1,1]+F.ramp[iramp,1])/2
+                    rtb = (F.ramp[iramp,1]+F.ramp[iramp+1,1])/2
+                end
+            else # when using current (or voltage but not :mid)
+                rta, rtb  = ramp[iramp,1], ramp[iramp+1,1]
+            end
             if rta >= times[itime] # geq instead of gt as we could have an unlcky time
                 break
             end
@@ -713,7 +730,6 @@ function convramp!(F::HFieldDHT, splz::CubicSpline, splr::CubicSpline, splaz::Cu
                     end
                 end
             end
-            itime ==1 && @info rta, rtb, dIdt
             if rta >= F.times[itime] # geq instead of eq as we could have an unlcky time
                 break
             end
