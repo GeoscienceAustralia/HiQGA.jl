@@ -35,6 +35,19 @@ function rdpreduce(pointlist, ϵ=1.0)
     keep
 end
 
+function scaledRDP(xin...;ϵ=1.0) # input x,y,z,etc. 
+    scaled = map(xin) do x
+        (x .- minimum(x))/(maximum(x) - minimum(x))
+    end
+    plistscaled = map(zip(scaled...)) do (x)
+         [x...]
+    end
+    scaledpgood = reduce(vcat, RDP.rdpreduce(plistscaled, ϵ)')
+    scaledout = map(zip(eachcol(scaledpgood), xin)) do (s, x) 
+        s*(maximum(x) - minimum(x)) .+ minimum(x)
+    end
+end
+
 function worldcoordinates(;gridr=nothing, gridz=nothing)
     # from https://support.esri.com/en-us/knowledge-base/faq-what-is-the-format-of-the-world-file-used-for-geore-000002860
     A = step(gridr)
