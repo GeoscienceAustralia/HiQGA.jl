@@ -694,7 +694,7 @@ function convramp!(F::HFieldDHT, splz::CubicSpline, splr::CubicSpline, splaz::Cu
     end
     for itime = 1:length(F.times)
         for iramp = 1:nramps-1
-            if F.rampchoice != :mid
+            if (F.rampchoice != :mid) || (!F.isdIdt)
                 rta, rtb  = F.ramp[iramp,1], F.ramp[iramp+1,1]
             end
             # end
