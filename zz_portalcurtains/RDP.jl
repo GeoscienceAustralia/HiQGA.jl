@@ -266,7 +266,7 @@ function writeimageandcolorbar(img::Array, gridr, gridz, line::Int; cmap="turbo"
     end
     figsize = gridr[end]/shrink, abs(diff([extrema(gridz)...])[1])*VE/shrink
     fig, ax = plt.subplots(;figsize)
-    ax.imshow(img; cmap, extent=[gridr[1], gridr[end], gridz[end], gridz[1]])
+    ax.imshow(img; cmap, extent=[gridr[1], gridr[end], gridz[end], gridz[1]], vmin, vmax)
     ax.set_aspect(VE)
     ax.set_aspect("auto")
     ax.axis("off")
