@@ -738,10 +738,13 @@ function convramp!(F::HFieldDHT, splz::CubicSpline, splr::CubicSpline, splaz::Cu
             end
 
             ta = F.times[itime]-rta
-            if ta <= F.minresptime
-                break # since ta must always be greater than minresptime
+            if ta < F.interptimes[1]
+                break # since ta must always be greater than min response time modeled
             end
-            tb = max(F.times[itime]-rtb, F.minresptime)# rtb > rta, so make sure this is not zero because integ is in log10...
+            tb = max(F.times[itime]-rtb, F.interptimes[1]) # rtb > rta, so make sure this is not zero because integ is in log10...
+            if tb >= ta # I don't actually expect to get here
+                break # because int is from ta to tb and ta=t-rta tb=t-rtb and we must have ta>tb  
+            end
             a, b = log10(ta), log10(tb)
             x, w = F.quadnodes, F.quadweights
             F.dBzdt[itime] += (b-a)/2*dot(getrampresponse((b-a)/2*x .+ (a+b)/2, splz), w)*dIdt
