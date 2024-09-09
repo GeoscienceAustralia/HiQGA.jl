@@ -200,14 +200,14 @@ function checkrampformintime(times, ramp, minresptime, maxtime, rampchoice, isdI
         for iramp = 1:nramps-1
             if (rampchoice == :mid) && isdIdt # receiver voltage waveform (dIdt) and :mid
                 if iramp == 1
-                    rta = F.ramp[1,1]
-                    rtb = (F.ramp[1,1]+F.ramp[2,1])/2
+                    rta = ramp[1,1]
+                    rtb = (ramp[1,1]+ramp[2,1])/2
                 elseif iramp == nramps-1
-                    rta = (F.ramp[end-1,1]+F.ramp[end,1])/2
-                    rtb = F.ramp[end,1]
+                    rta = (ramp[end-1,1]+ramp[end,1])/2
+                    rtb = ramp[end,1]
                 else
-                    rta = (F.ramp[iramp-1,1]+F.ramp[iramp,1])/2
-                    rtb = (F.ramp[iramp,1]+F.ramp[iramp+1,1])/2
+                    rta = (ramp[iramp-1,1]+ramp[iramp,1])/2
+                    rtb = (ramp[iramp,1]+ramp[iramp+1,1])/2
                 end
             else # when using current (or voltage but not :mid)
                 rta, rtb  = ramp[iramp,1], ramp[iramp+1,1]
