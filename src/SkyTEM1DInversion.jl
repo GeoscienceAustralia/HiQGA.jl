@@ -94,11 +94,13 @@ function allocateJ(Flow, Fhigh, σlow, σhigh, selectlow, selecthigh, nfixed, nm
     if calcjacobian && (!isempty(selectlow) || !isempty(selecthigh))
         J = [Flow.dBzdt_J'; Fhigh.dBzdt_J']; 
         J = J[[selectlow;selecthigh],nfixed+1:nmodel]
-        Wdiag = [1 ./σlow[selectlow]; 1 ./σhigh[selecthigh]]
-        res = similar(Wdiag)
     else    
-        res, J, Wdiag = zeros(0), zeros(0), zeros(0)
-    end    
+        J  = zeros(0)
+    end
+    # always return an allocated residuals and W - small price to pay I think
+    # since majority of Jacobian allocations are in aem.F    
+    Wdiag = [1 ./σlow[selectlow]; 1 ./σhigh[selecthigh]]
+    res = similar(Wdiag)
     W = sparse(diagm(Wdiag))
     return res, J, W
 end    
@@ -430,9 +432,11 @@ function makenoisydata!(aem, ρ;
     # for Gauss-Newton
     aem.res, aem.J, aem.W = allocateJ(aem.Flow, aem.Fhigh, aem.σlow, aem.σhigh, 
                     aem.selectlow, aem.selecthigh, aem.nfixed, length(aem.ρ))
-
     
-    showplot && plotmodelfield!(aem, ρ; onesigma, color, alpha, model_lw, forward_lw, figsize, revax)
+    if showplot
+        plotwaveformgates(aem)
+        plotmodelfield!(aem, ρ; onesigma, color, alpha, model_lw, forward_lw, figsize, revax)
+    end
     nothing
 end
 

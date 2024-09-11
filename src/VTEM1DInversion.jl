@@ -49,7 +49,9 @@ function dBzdt(;times           = [1.],
         modelprimary    = false,
         lowpassfcs      = [],
         freqlow         = 1e-4,
-        freqhigh        = 1e6, 
+        freqhigh        = 1e6,
+        isdIdt          = false, 
+        rampchoice      = :mid
         )
    
     @assert size(σ)  == size(d)
@@ -60,7 +62,8 @@ function dBzdt(;times           = [1.],
         rRx = 0., zRx, 
         lowpassfcs, freqlow, freqhigh,
         calcjacobian, nfreqsperdecade,
-        ntimesperdecade, modelprimary
+        ntimesperdecade, modelprimary,
+        isdIdt, rampchoice
     )
     @assert length(F.thickness) >= length(z)
     # for Gauss-Newton
@@ -74,11 +77,13 @@ function allocateJ(FJt, σ, select, nfixed, nmodel, calcjacobian)
     if calcjacobian && !isempty(select)
         J = FJt'
         J = J[select,nfixed+1:nmodel]
-        Wdiag = 1 ./σ[select]
-        res = similar(Wdiag)
     else    
-        res, J, Wdiag = zeros(0), zeros(0), zeros(0)
+        J = zeros(0)
     end
+    # always return an allocated residuals and W - small price to pay I think
+    # since majority of Jacobian allocations are in aem.F
+    res = similar(σ[select]) 
+    Wdiag = 1 ./σ[select]
     W = sparse(diagm(Wdiag))        
     return res, J, W
 end
@@ -237,8 +242,8 @@ function plotsoundingdata(d, σ, times, zTx, zRx; figsize=(8,4), fontsize=1)
     ax[1].set_ylabel("time s")
     ax[1].tick_params(labelbottom=false)
     axx = ax[1].twiny()
-    axx.semilogy(mean(σ./abs.(d), dims=1)[:], times, "r")
-    axx.semilogy(mean(σ./abs.(d), dims=1)[:], times, "--w")
+    axx.semilogy(infnanmean(σ./abs.(d), 1)[:], times, "r")
+    axx.semilogy(infnanmean(σ./abs.(d), 1)[:], times, "--w")
     axx.set_xlabel("avg noise fraction")
     ax[2].plot(1:nsoundings, zRx, label="zRx")
     ax[2].plot(1:nsoundings, zTx, label="zTx")
@@ -364,7 +369,7 @@ end
 
 # noisy synthetic model making
 function makenoisydata!(aem, ρ;
-        rseed=123, noisefrac=0.03, σ_halt=nothing, useML=false,
+        rseed=123, noisefrac=0.03, σ_halt=nothing, useML=false, showplot=true,
         onesigma=true, color=nothing, alpha=1, model_lw=1, forward_lw=1, figsize=(8,6), revax=true,
         # σ_halt default assumed in Bfield units of pV
         units=1/pVinv)
@@ -379,7 +384,11 @@ function makenoisydata!(aem, ρ;
     aem.ndata, aem.select = getndata(aem.d)
     aem.res, aem.J, aem.W = allocateJ(aem.F.dBzdt_J, aem.σ, aem.select, 
         aem.nfixed, length(aem.ρ), aem.F.calcjacobian)
-    plotmodelfield!(aem, ρ; onesigma, color, alpha, model_lw, forward_lw, figsize, revax)
+
+    if showplot
+        plotwaveformgates(aem)
+        plotmodelfield!(aem, ρ; onesigma, color, alpha, model_lw, forward_lw, figsize, revax)
+    end
     nothing
 end
 
@@ -397,7 +406,9 @@ function makeoperator(sounding::VTEMsoundingData;
             nfreqsperdecade = 5,
             showgeomplot  = false,
             calcjacobian  = false,
-            plotfield     = false
+            plotfield     = false,
+            isdIdt        = false,
+            rampchoice    = :mid,
             )
     
     zall, znall, zboundaries = setupz(zstart, extendfrac, dz=dz, n=nlayers, showplot=showgeomplot)
@@ -405,7 +416,8 @@ function makeoperator(sounding::VTEMsoundingData;
     ρ[z.>=zstart] .= ρbg
     aem = dBzdt(;d=sounding.data/μ, σ=sounding.noise/μ, modelprimary,
         times=sounding.times, ramp=sounding.ramp, ntimesperdecade, nfreqsperdecade, lowpassfcs=sounding.lowpassfcs,
-        rTx=sounding.rTx, zTx=sounding.zTx, zRx=sounding.zRx, z, ρ, calcjacobian, useML, showgates=plotfield)
+        rTx=sounding.rTx, zTx=sounding.zTx, zRx=sounding.zRx, z, ρ, calcjacobian, useML, showgates=plotfield, isdIdt,
+        rampchoice)
     plotfield && plotmodelfield!(aem, log10.(ρ[2:end]))
     aem, zall, znall, zboundaries
 end
@@ -414,8 +426,10 @@ function makeoperator(aem::dBzdt, sounding::VTEMsoundingData)
     ntimesperdecade = gettimesperdec(aem.F.interptimes)
     nfreqsperdecade = gettimesperdec(aem.F.freqs)
     modelprimary = aem.F.useprimary === 1. ? true : false
+    isdIdt = aem.F.isdIdt
+    rampchoice = aem.F.rampchoice
     dBzdt(;d=sounding.data/μ, σ=sounding.noise/μ, modelprimary, lowpassfcs=sounding.lowpassfcs,
-        times=sounding.times, ramp=sounding.ramp, ntimesperdecade, nfreqsperdecade,
+        times=sounding.times, ramp=sounding.ramp, ntimesperdecade, nfreqsperdecade, isdIdt, rampchoice,
         rTx=sounding.rTx, zTx=sounding.zTx, zRx=sounding.zRx,
         z=copy(aem.z), ρ=copy(aem.ρ), 
         aem.F.calcjacobian, aem.useML, showgates=false)

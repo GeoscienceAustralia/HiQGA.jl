@@ -15,7 +15,7 @@ export trimxft, assembleTat1, gettargtemps, checkns, getchi2forall, nicenup, plo
         makegrid, whichislast, makesummarygrid, makearray, plotNEWSlabels, 
         plotprofile, gridpoints, splitsoundingsbyline, getsoundingsperline, docontinue, linestartend,
         compatidxwarn, dfn2hdr, getgdfprefix, readlargetextmatrix, pairinteractionplot, flipline, 
-        summaryconductivity, plotsummarygrids1, getVE, writevtkfromsounding, 
+        summaryconductivity, plotsummarygrids1, getVE, writevtkfromsounding, trapezoidrule,
         readcols, colstovtk, findclosestidxincolfile, zcentertoboundary, zboundarytocenter, 
         writeijkfromsounding, nanmean, infmean, nanstd, infstd, infnanmean, infnanstd, 
         kde_sj, plotmanygrids, readwell, getlidarheight, plotblockedwellonimages, getdeterministicoutputs, 
@@ -896,6 +896,14 @@ function secondderiv(x)
     sd[2:end-1] .= (x[3:end] - x[2:end-1] + x[1:end-2])
     sd[end]      = 2x[end] - 5x[end-1] + 4x[end-2] - x[end-3]
     abs.(sd)
+end
+
+function trapezoidrule(f,t)
+    dt = diff(t)
+    g  = 0.5*(f[1:end-1]+f[2:end])
+    # integrated, tstart, tmid, tend
+    # I recommend using tend
+    cumsum(g.*dt), t[1:end-1], 0.5*(t[1:end-1]+t[2:end]), t[2:end]
 end
 
 function dodensityestimate(usekde::Bool, data, K::KDEtype, edges)

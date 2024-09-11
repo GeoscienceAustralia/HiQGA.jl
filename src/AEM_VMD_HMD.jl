@@ -69,7 +69,9 @@ mutable struct HFieldDHT <: HField
     dBazdt_J
     HFD_r_J
     HTD_r_J_interp     
-    dBrdt_J    
+    dBrdt_J
+    isdIdt
+    rampchoice
 end
 
 function HFieldDHT(;
@@ -94,11 +96,16 @@ function HFieldDHT(;
       freqlow = 1e-4,
       freqhigh = 1e6,
       minresptime = 1.e-6, # I think responses earlier than this are unstable
-      calcjacobian = false
-  )
+      calcjacobian = false,
+      isdIdt = false,
+      rampchoice = :mid, # if using dIdt instead of I a choice has to be made
+      )
     @assert all(freqs .> 0.)
     @assert freqhigh > freqlow
     @assert all(diff(times) .> 0)
+    if isdIdt
+        @assert (rampchoice == :previous) | (rampchoice == :next) | (rampchoice == :mid)
+    end
     thickness = zeros(nmax)
     zintfc    = zeros(nmax)
     pz        = zeros(Complex{Float64}, nmax)
@@ -112,7 +119,7 @@ function HFieldDHT(;
     mintime = 10^(log10(mintime) - 1) # go back a decade further than asked for
     maxtime = 10^(log10(maxtime) + 1) # go ahead a decade further
     if doconvramp
-         mintime, maxtime = checkrampformintime(times, ramp, minresptime, maxtime)
+         mintime, maxtime = checkrampformintime(times, ramp, minresptime, maxtime, rampchoice, isdIdt)
     end
     interptimes = 10 .^(log10(mintime) : 1/ntimesperdecade : log10(maxtime))
     if freqhigh < 3/mintime
@@ -178,16 +185,33 @@ function HFieldDHT(;
             quadnodes, quadweights, preallocate_ω_Hsc(interptimes, lowpassfcs)..., rxwithinloop, provideddt, doconvramp, useprimary,
             nkᵣeval, interpkᵣ, log10interpkᵣ, log10Filter_base, getradialH, getazimH, 
             calcjacobian, Jtemp, similar(Jtemp), Jac_z, Jac_az, Jac_r, HFD_z_J, HTD_z_J_interp, dBzdt_J,  HFD_az_J, HTD_az_J_interp, dBazdt_J, 
-            HFD_r_J, HTD_r_J_interp, dBrdt_J)
+            HFD_r_J, HTD_r_J_interp, dBrdt_J, isdIdt, rampchoice)
 end
 
-function checkrampformintime(times, ramp, minresptime, maxtime)
-    # this checks we don't have ultra small tobs - ramp_time_a
+function checkrampformintime(times, ramp, minresptime, maxtime, rampchoice, isdIdt)
+    # this checks we don't have ultra small t_obs - ramp_time_a
     minta = Inf
     maxta = -Inf
+    nramps = size(ramp, 1)
+    if isdIdt && rampchoice == :mid
+        nramps += 1
+    end
     for itime = 1:length(times)
-        for iramp = 1:size(ramp,1)-1
-            rta, rtb  = ramp[iramp,1], ramp[iramp+1,1]
+        for iramp = 1:nramps-1
+            if (rampchoice == :mid) && isdIdt # receiver voltage waveform (dIdt) and :mid
+                if iramp == 1
+                    rta = ramp[1,1]
+                    rtb = (ramp[1,1]+ramp[2,1])/2
+                elseif iramp == nramps-1
+                    rta = (ramp[end-1,1]+ramp[end,1])/2
+                    rtb = ramp[end,1]
+                else
+                    rta = (ramp[iramp-1,1]+ramp[iramp,1])/2
+                    rtb = (ramp[iramp,1]+ramp[iramp+1,1])/2
+                end
+            else # when using current (or voltage but not :mid)
+                rta, rtb  = ramp[iramp,1], ramp[iramp+1,1]
+            end
             if rta >= times[itime] # geq instead of gt as we could have an unlcky time
                 break
             end
@@ -196,6 +220,9 @@ function checkrampformintime(times, ramp, minresptime, maxtime)
             end
             # just so we know, rta < rtb and rta < t so rta < rtb <= t
             ta = times[itime]-rta 
+            if ta <= minresptime
+                break # since ta must always be greater than minresptime
+            end
             tb = max(times[itime]-rtb, minresptime) # rtb > rta, so make sure this is not zero because integ is in log10...
             @assert ta>tb # else we're in trouble
             if ta < minta
@@ -661,13 +688,48 @@ function convramp!(F::HFieldDHT, splz::CubicSpline, splr::CubicSpline, splaz::Cu
     end    
     F.getradialH && fill!(F.dBrdt, 0.)
     F.getazimH && fill!(F.dBazdt, 0.)
+    nramps = size(F.ramp,1)
+    if F.isdIdt && F.rampchoice == :mid
+        nramps += 1
+    end
     for itime = 1:length(F.times)
-        for iramp = 1:size(F.ramp,1)-1
-            rta, rtb  = F.ramp[iramp,1], F.ramp[iramp+1,1]
-            dt   = rtb - rta
-            dI   = F.ramp[iramp+1,2] - F.ramp[iramp,2]
-            dIdt = dI/dt
-
+        for iramp = 1:nramps-1
+            if (F.rampchoice != :mid) || (!F.isdIdt)
+                rta, rtb  = F.ramp[iramp,1], F.ramp[iramp+1,1]
+            end
+            # end
+            if !F.isdIdt
+                # choice made: ramp is inbetween rta and rtb if current is given
+                # easy convention when I(t) is provided
+                dt   = rtb - rta
+                dI   = F.ramp[iramp+1,2] - F.ramp[iramp,2]
+                dIdt = dI/dt
+            else
+                if F.rampchoice == :next
+                    # choice made: ramp[i+1] is result of current changes between t[i] and t[i+1]
+                    # makes causal physical sense, ramp[1] is not used at t[1] = 0
+                    # NRG seems to prefer this as ramp[1] at t[1]=0 is zero.
+                    dIdt = F.ramp[iramp+1,2]
+                elseif F.rampchoice == :previous
+                    # other convention possible is ramp[i] is due to current changes between t[i] and t[i+1]
+                    # this will not use ramp[end]
+                    dIdt = F.ramp[iramp,2]
+                else # mid
+                    if iramp == 1
+                        rta = F.ramp[1,1]
+                        rtb = (F.ramp[1,1]+F.ramp[2,1])/2
+                        dIdt = F.ramp[1,2]
+                    elseif iramp == nramps-1
+                        rta = (F.ramp[end-1,1]+F.ramp[end,1])/2
+                        rtb = F.ramp[end,1]
+                        dIdt = F.ramp[end,2]
+                    else
+                        rta = (F.ramp[iramp-1,1]+F.ramp[iramp,1])/2
+                        rtb = (F.ramp[iramp,1]+F.ramp[iramp+1,1])/2
+                        dIdt = F.ramp[iramp,2]
+                    end
+                end
+            end
             if rta >= F.times[itime] # geq instead of eq as we could have an unlcky time
                 break
             end
@@ -676,7 +738,13 @@ function convramp!(F::HFieldDHT, splz::CubicSpline, splr::CubicSpline, splaz::Cu
             end
 
             ta = F.times[itime]-rta
-            tb = max(F.times[itime]-rtb, F.minresptime)# rtb > rta, so make sure this is not zero because integ is in log10...
+            if ta < F.interptimes[1]
+                break # since ta must always be greater than min response time modeled
+            end
+            tb = max(F.times[itime]-rtb, F.interptimes[1]) # rtb > rta, so make sure this is not zero because integ is in log10...
+            if tb >= ta # I don't actually expect to get here
+                break # because int is from ta to tb and ta=t-rta tb=t-rtb and we must have ta>tb  
+            end
             a, b = log10(ta), log10(tb)
             x, w = F.quadnodes, F.quadweights
             F.dBzdt[itime] += (b-a)/2*dot(getrampresponse((b-a)/2*x .+ (a+b)/2, splz), w)*dIdt

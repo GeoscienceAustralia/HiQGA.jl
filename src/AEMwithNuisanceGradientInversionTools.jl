@@ -107,8 +107,9 @@ function plotconvandlast(soundings, delr, delz, nufieldnames::Vector{Symbol};
             (calcresiduals && doreshist) && plotgausshist(res[i][:], title="Line $(soundings[a].linenum) residuals")
     end
     getphidhist(ϕd, doplot=dophiplot, saveplot=dophiplot, prefix=prefix)
-    if calcresiduals 
-        rall = reduce(hcat, res)
+    if calcresiduals
+        idxgood = isassigned.(Ref(res), 1:length(res))
+        rall = reduce(hcat, res[idxgood])
         doreshist && plotgausshist(vec(rall), title="All Lines residuals")
         map(eachrow(rall)) do r
             n = length(r)
@@ -159,7 +160,7 @@ function plotconvandlasteachline(soundings, σ, nu, nufieldnames, ϕd, delr, del
     height_ratios = nextra == 1 ? [1,ones(1+nnu)...,2,4, 0.25] : [1,ones(1+nnu)...,4, 0.25]
     fig, ax = plt.subplots(4+nextra+nnu, 1, gridspec_kw=Dict("height_ratios" => height_ratios),
         figsize=figsize)
-    lname = "Line_$(soundings[1].linenum)"*postfix
+    lname = "Line_$(soundings[1].linenum)_"*postfix
     x0, y0 = soundings[1].X, soundings[1].Y
     if isdefined(soundings[1], :z_tx) # make this a symbol key TODO
         zTx = [s.z_tx for s in soundings]
