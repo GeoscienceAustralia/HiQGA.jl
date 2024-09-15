@@ -230,6 +230,8 @@ function gradientinv(   m::AbstractVector,
                         firstvalue=:last,
                         κ = GP.Mat52(),
                         breakonknown=false,
+                        minimprovfrac = nothing,
+                        minimprovkickinstep = round(Int, nstepsmax/2),
                         dobo = false,
                         δtry = 1e-2,
                         fname="")
@@ -248,7 +250,8 @@ function gradientinv(   m::AbstractVector,
     io = open_history(fname)
     if !dobo
         Δm = [similar(m) for i in 1:ntries]
-    end              
+    end
+    littleimprovement = false              
     while true
         if dobo
             idx, foundroot = bostep(G, m, m0, mnew[istep], χ²[istep], λ²[istep], t, β², F, R, target, lo, hi,
@@ -264,8 +267,14 @@ function gradientinv(   m::AbstractVector,
         oidx[istep] = idx
         isa(io, Nothing) || write_history(io, [istep; χ²[istep][idx]/target₀; vec(m)])
         foundroot && break
+        if !isnothing(minimprovfrac) && (istep > minimprovkickinstep)
+            prevχ²= χ²[istep-1][oidx[istep-1]]
+            if (χ²[istep][idx] - prevχ²)/prevχ² < minimprovfrac
+                littleimprovement = true
+            end
+        end
         noimprovement = iszero(λ²[istep][idx][2])  ? true : false
-        if (istep == nstepsmax - 1) || noimprovement 
+        if (istep == nstepsmax - 1) || noimprovement || littleimprovement
             target = χ²[istep][idx] # exit with smoothest
         end    
         istep += 1

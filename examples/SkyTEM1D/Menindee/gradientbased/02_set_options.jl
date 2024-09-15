@@ -10,7 +10,7 @@ ntimesperdecade    = 10
 nfreqsperdecade    = 5
 regtype            = :R1
 nstepsmax          = 40
-ntries             = 6
+ntries             = 40
 lo                 = -2.5 # log10 conductivity
 hi                 = 0.5  # log10 conductivity 
 λ²min              = -0.5
@@ -19,6 +19,7 @@ hi                 = 0.5  # log10 conductivity
 knownvalue         = 0.7
 breakonknown       = true
 calcjacobian       = true
+minimprovfrac      = 0.005
 ## plot a random sounding and a background response
 aem, zall, = transD_GP.SkyTEM1DInversion.makeoperator(
     soundings[rand(1:length(soundings))];

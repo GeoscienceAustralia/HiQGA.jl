@@ -1,5 +1,6 @@
 ## info to read data
 # datafile
+cd(@__DIR__)
 fname_dat = "../McMC/coincidewithtempest.dat"
 zipsaveprefix = splitpath(fname_dat)[end]
 # electronics file

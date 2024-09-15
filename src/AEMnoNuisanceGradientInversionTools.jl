@@ -94,6 +94,8 @@ function plotconvandlast(soundings, delr, delz;
                 nicenup(gcf())
             end    
         end   
+        # skip for debugging and highly decimated surveys
+        a == b && continue
         plotconvandlasteachline(soundings[a:b], view(σ, a:b, :)', view(ϕd, a:b), delr, delz, res[i]; 
             zall = zall, idx=idspec, yl=yl,
             cmapσ=cmapσ, vmin=vmin, vmax=vmax, fontsize=fontsize, postfix=postfix, markersize=markersize,
@@ -233,7 +235,9 @@ function loopacrossAEMsoundings(soundings::Array{S, 1}, aem_in, σstart, σ0;
                             breakonknown       = true,
                             dobo               = false,
                             compresssoundings  = true,
-                            zipsaveprefix      = "",        
+                            zipsaveprefix      = "",
+                            minimprovfrac      = nothing,
+                            minimprovkickinstep = round(Int, nstepsmax/2),        
                             ) where S<:Sounding
 
     @assert nsequentialiters  != -1
@@ -252,7 +256,7 @@ function loopacrossAEMsoundings(soundings::Array{S, 1}, aem_in, σstart, σ0;
             aem = makeoperator(aem_in, soundings[s])
             fname = soundings[s].sounding_string*"_gradientinv.dat"
             σstart_, σ0_ = map(x->x*ones(length(aem.ρ)-1), [σstart, σ0])
-            @async remotecall_wait(gradientinv, pids[i], σstart_, σ0_, aem,
+            @async remotecall_wait(gradientinv, pids[i], σstart_, σ0_, aem;
                                                 regtype            = regtype         ,              
                                                 nstepsmax          = nstepsmax       ,              
                                                 ntries             = ntries          ,              
@@ -274,7 +278,9 @@ function loopacrossAEMsoundings(soundings::Array{S, 1}, aem_in, σstart, σ0;
                                                 κ                  = κ               ,              
                                                 breakonknown       = breakonknown    ,              
                                                 dobo               = dobo            ,
-                                                fname              = fname           ) 
+                                                fname              = fname           ,
+                                                minimprovfrac,
+                                                minimprovkickinstep) 
                 
 
         end # @sync

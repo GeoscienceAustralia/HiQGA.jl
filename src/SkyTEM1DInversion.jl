@@ -201,6 +201,8 @@ function read_survey_files(;
     startfrom = 1,
     skipevery = 1,
     multnoise = 0.03,
+    datacutoff_LM = nothing,
+    datacutoff_HM = nothing,
     X = -1,
     Y = -1,
     Z = -1,
@@ -259,21 +261,31 @@ function read_survey_files(;
     @assert size(d_HM, 2) == length(HM_times)
     d_LM[:]     .*= units
     d_HM[:]     .*= units
+    LM_noise[:] .*= units
+    HM_noise[:] .*= units
     if !relerror
         @assert size(d_LM, 2) == length(LM_noise)
         @assert size(d_HM, 2) == length(HM_noise)
-        LM_noise[:] .*= units
-        HM_noise[:] .*= units
         σ_LM = sqrt.((multnoise*d_LM).^2 .+ (LM_noise').^2)
         σ_HM = sqrt.((multnoise*d_HM).^2 .+ (HM_noise').^2)
         if !isempty(noise_scalevec) 
             @assert length(noise_scalevec) == length(LM_times)+length(HM_times)
             σ_LM = σ_LM.*(noise_scalevec[1:length(LM_times)])'
             σ_HM = σ_HM.*(noise_scalevec[1:length(HM_times)])'
-        end  
+        end
+        if !isnothing(datacutoff_LM)
+            # since my dBzdt is +ve
+            idxbad = d_LM .< datacutoff_LM
+            d_LM[idxbad] .= NaN
+        end
+        if !isnothing(datacutoff_HM)
+            # since my dBzdt is +ve
+            idxbad = d_HM .< datacutoff_HM
+            d_HM[idxbad] .= NaN
+        end
     else
-        σ_LM[:] .*= units
-        σ_HM[:] .*= units
+        σ_LM = sqrt.((d_LM.*σ_LM).^2 .+ (LM_noise').^2)
+        σ_HM = sqrt.((d_HM.*σ_HM).^2 .+ (HM_noise').^2)
     end
     nsoundings = size(soundings, 1)
     makeqcplots && plotsoundingdata(nsoundings, LM_times, HM_times, d_LM, d_HM, 
