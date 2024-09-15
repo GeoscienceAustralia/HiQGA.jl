@@ -23,7 +23,7 @@ nsequentialiters = ceil(Int, nsoundings/ncores)
 ## do the parallel soundings
 @info "starting"
 transD_GP.loopacrossAEMsoundings(soundings, aem, σstart, σ0;
-                            nsequentialiters, regtype, nstepsmax, ntries,           
+                            nsequentialiters, regtype, nstepsmax, ntries, minimprovfrac,          
                             lo, hi, λ²min, λ²max, β², knownvalue, breakonknown,              
                             zipsaveprefix)                  
 

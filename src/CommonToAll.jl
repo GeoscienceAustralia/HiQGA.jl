@@ -1236,9 +1236,13 @@ function colstovtk(cols::Dict, fname::String; decfactor=1, hasthick=true, islog1
     colstovtk(X, Y, Z, σ, thick, lines, fname; hasthick, islog10, prefix)
 end    
 
-function colstovtk(X, Y, Z, σ, thick, lines, fname::String; hasthick=true, islog10=false, prefix="")
+function colstovtk(X, Y, Z, σ, thick_in, lines, fname::String; hasthick=true, islog10=false, prefix="")
     linenos  = unique(Int.(lines))
-    thick = thick[1,:] # assumes all thicknesses are same
+    if ndims(thick_in) == 2 
+        thick = thick_in[1,:] # assumes all thicknesses are same
+    else
+        thick = thick_in
+    end
     zall = thicktodepth(thick; hasthick)
     dstring = dirname(fname)
     for l in linenos
