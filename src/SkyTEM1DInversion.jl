@@ -5,6 +5,7 @@ import ..AbstractOperator.makeoperator
 import ..AbstractOperator.getresidual
 import ..AbstractOperator.returnforwrite
 import ..AbstractOperator.getndata
+import ..AbstractOperator.checkifdatalow
 import ..AbstractOperator.plotmodelfield!
 using ..AbstractOperator, ..AEM_VMD_HMD, Statistics, Distributed, Printf, Dates, StatsBase,
       PyPlot, LinearAlgebra, ..CommonToAll, Random, DelimitedFiles, LinearMaps, SparseArrays
@@ -143,6 +144,7 @@ mutable struct SkyTEMsoundingData <: Sounding
     HM_noise :: Array{Float64, 1}
     LM_data :: Array{Float64, 1}
     HM_data :: Array{Float64, 1}
+    forceML
 end
 
 returnforwrite(s::SkyTEMsoundingData) = [s.X, s.Y, s.Z, s.fid, 
@@ -159,7 +161,7 @@ function SkyTEMsoundingData(;rRx=-12., zRxLM=12., zTxLM=12.,
                             HM_times=[1., 2.], HM_ramp=[1 2; 3 4],
                             LM_noise=[1.], HM_noise=[1.], LM_data=[1.], HM_data=[1.],
                             sounding_string="sounding", X=nothing, Y=nothing, Z=nothing,
-                            linenum=nothing, fid=nothing)
+                            linenum=nothing, fid=nothing, forceML=false)
     @assert rRx > 0 && rTx > 0
     @assert zRxLM <0 && zTxLM <0
     @assert zRxHM <0 && zTxHM <0
@@ -174,7 +176,7 @@ function SkyTEMsoundingData(;rRx=-12., zRxLM=12., zTxLM=12.,
     @assert length(HM_data) == length(HM_noise)
     SkyTEMsoundingData(sounding_string, X, Y, Z, fid, linenum, rRx, zRxLM, zTxLM, zRxHM, zTxHM, rTx,
     lowpassfcs, LM_times, LM_ramp, HM_times, HM_ramp, LM_noise, HM_noise,
-    LM_data, HM_data)
+    LM_data, HM_data, forceML)
 end
 
 function read_survey_files(;
@@ -208,7 +210,10 @@ function read_survey_files(;
     Z = -1,
     fid = -1,
     linenum = -1,
-    nanchar = "*")
+    nanchar = "*",
+    lineslessthan = nothing,
+    forceML = false, # for very low amp, in conjunction with datacutoff_LM and datacutoff_HM
+    )
     @assert frame_height > 0
     @assert (frame_dz > 0) | !isnothing(tx_rx_dz_pass_through)
     @assert (frame_dx > 0) | !isnothing(tx_rx_dx_pass_through)
@@ -224,6 +229,13 @@ function read_survey_files(;
     @assert Z > 0
     @assert linenum > 0
     @assert fid > 0
+    if forceML
+        @assert !isnothing(datacutoff_LM)
+        @assert !isnothing(datacutoff_HM)
+    end
+    if !isnothing(lineslessthan)
+        lineslessthan::Int
+    end   
     @info "reading $fname_dat"
     soundings = readlargetextmatrix(fname_dat, startfrom, skipevery, dotillsounding)
     soundings[soundings .== nanchar] .= NaN
@@ -273,12 +285,12 @@ function read_survey_files(;
             σ_LM = σ_LM.*(noise_scalevec[1:length(LM_times)])'
             σ_HM = σ_HM.*(noise_scalevec[1:length(HM_times)])'
         end
-        if !isnothing(datacutoff_LM)
+        if !isnothing(datacutoff_LM) && !forceML
             # since my dBzdt is +ve
             idxbad = d_LM .< datacutoff_LM
             d_LM[idxbad] .= NaN
         end
-        if !isnothing(datacutoff_HM)
+        if !isnothing(datacutoff_HM) && !forceML
             # since my dBzdt is +ve
             idxbad = d_HM .< datacutoff_HM
             d_HM[idxbad] .= NaN
@@ -293,10 +305,16 @@ function read_survey_files(;
 
     s_array = Array{SkyTEMsoundingData, 1}(undef, nsoundings)
     fracdone = 0
+    countforceML = 0
     for is in 1:nsoundings
         idxbadz[is] && continue
         l, f = Int(whichline[is]), fiducial[is]
+        if !isnothing(lineslessthan)
+            l > lineslessthan && continue # skips high_alt and repeat lines if specified
+        end  
         dlow, dhigh = vec(d_LM[is,:]), vec(d_HM[is,:])
+        lowampflag = checkifdatalow(dlow, dhigh, datacutoff_LM, datacutoff_HM)
+        countforceML += lowampflag ? 1 : 0
         s_array[is] = SkyTEMsoundingData(rRx=rRx[is], zRxLM=zRx[is], zTxLM=zTx[is],
             zRxHM=zRx[is], zTxHM=zTx[is], rTx=rTx, lowpassfcs=lowpassfcs,
             LM_times=LM_times, LM_ramp=LM_ramp,
@@ -304,14 +322,16 @@ function read_survey_files(;
             LM_noise=σ_LM[is,:], HM_noise=σ_HM[is,:], LM_data=dlow, HM_data=dhigh,
             sounding_string="sounding_$(l)_$f",
             X=easting[is], Y=northing[is], Z=topo[is], fid=f,
-            linenum=l)
+            linenum=l, forceML=lowampflag)
             fracnew = round(Int, is/nsoundings*100)
         if (fracnew-fracdone)>10
             fracdone = fracnew
             @info "read $is out of $nsoundings"
         end    
     end
-    return s_array[.!idxbadz]
+    idx = [isassigned(s_array, i) for i in 1:length(s_array)]
+    forceML && @info("low-amplitude forceML on $countforceML out of $(sum(idx)): $(round(100*countforceML/sum(idx)))%")
+    return s_array[idx]
 end
 
 function plotsoundingdata(nsoundings, LM_times, HM_times, d_LM, d_HM, 
@@ -359,7 +379,16 @@ function plotsoundingdata(nsoundings, LM_times, HM_times, d_LM, d_HM,
     ax[4].set_xlabel("sounding #")
     ax[4].set_ylabel("rRx m")
     plt.tight_layout()
-end    
+end
+
+function checkifdatalow(d_LM, d_HM, datacutoff_LM, datacutoff_HM)
+    lowflag = false
+    if (mean(abs.(d_LM)) < datacutoff_LM) | (mean(abs.(d_HM)) < datacutoff_HM)
+        lowflag = true
+    end    
+    lowflag    
+end
+
 # all calling functions here for misfit, field, etc. assume model is in log10 resistivity
 # SANS the top. For lower level field calculation use AEM_VMD_HMD structs
 
@@ -528,8 +557,10 @@ end
 function makeoperator(aem::dBzdt, sounding::SkyTEMsoundingData)
     ntimesperdecade = gettimesperdec(aem.Flow.interptimes)
     nfreqsperdecade = gettimesperdec(aem.Flow.freqs)
+    @assert !(aem.useML & sounding.forceML) "useML and forceML cannot both be true"
+    useML = (aem.useML | sounding.forceML), # OR logic for useML with true, true disqualified earlier
     modelprimary = aem.Flow.useprimary === 1. ? true : false
-    makeoperator(sounding, ntimesperdecade, nfreqsperdecade, modelprimary, aem.Flow.calcjacobian, aem.useML, copy(aem.z), copy(aem.ρ))
+    makeoperator(sounding, ntimesperdecade, nfreqsperdecade, modelprimary, aem.Flow.calcjacobian, useML, copy(aem.z), copy(aem.ρ))
 end
 
 # all plotting codes here assume that the model is in log10 resistivity, SANS
