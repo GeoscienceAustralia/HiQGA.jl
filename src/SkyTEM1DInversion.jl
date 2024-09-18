@@ -5,7 +5,6 @@ import ..AbstractOperator.makeoperator
 import ..AbstractOperator.getresidual
 import ..AbstractOperator.returnforwrite
 import ..AbstractOperator.getndata
-import ..AbstractOperator.checkifdatalow
 import ..AbstractOperator.plotmodelfield!
 using ..AbstractOperator, ..AEM_VMD_HMD, Statistics, Distributed, Printf, Dates, StatsBase,
       PyPlot, LinearAlgebra, ..CommonToAll, Random, DelimitedFiles, LinearMaps, SparseArrays
@@ -313,7 +312,7 @@ function read_survey_files(;
             l > lineslessthan && continue # skips high_alt and repeat lines if specified
         end  
         dlow, dhigh = vec(d_LM[is,:]), vec(d_HM[is,:])
-        lowampflag = checkifdatalow(dlow, dhigh, datacutoff_LM, datacutoff_HM)
+        lowampflag = checkifdatalow(dlow, dhigh, datacutoff_LM, datacutoff_HM, forceML)
         countforceML += lowampflag ? 1 : 0
         s_array[is] = SkyTEMsoundingData(rRx=rRx[is], zRxLM=zRx[is], zTxLM=zTx[is],
             zRxHM=zRx[is], zTxHM=zTx[is], rTx=rTx, lowpassfcs=lowpassfcs,
@@ -381,9 +380,11 @@ function plotsoundingdata(nsoundings, LM_times, HM_times, d_LM, d_HM,
     plt.tight_layout()
 end
 
-function checkifdatalow(d_LM, d_HM, datacutoff_LM, datacutoff_HM)
+function checkifdatalow(d_LM, d_HM, datacutoff_LM, datacutoff_HM, forceML)
     lowflag = false
-    if (mean(abs.(d_LM)) < datacutoff_LM) | (mean(abs.(d_HM)) < datacutoff_HM)
+    !forceML && return lowflag
+    mLM, mHM = map(xx->mean(log10.(abs.(xx))), [d_LM, d_HM])
+    if (mLM < log10(datacutoff_LM)) || (mHM < log10(datacutoff_HM))
         lowflag = true
     end    
     lowflag    
@@ -558,7 +559,7 @@ function makeoperator(aem::dBzdt, sounding::SkyTEMsoundingData)
     ntimesperdecade = gettimesperdec(aem.Flow.interptimes)
     nfreqsperdecade = gettimesperdec(aem.Flow.freqs)
     @assert !(aem.useML & sounding.forceML) "useML and forceML cannot both be true"
-    useML = (aem.useML | sounding.forceML), # OR logic for useML with true, true disqualified earlier
+    useML = (aem.useML | sounding.forceML) # OR logic for useML with true, true disqualified earlier
     modelprimary = aem.Flow.useprimary === 1. ? true : false
     makeoperator(sounding, ntimesperdecade, nfreqsperdecade, modelprimary, aem.Flow.calcjacobian, useML, copy(aem.z), copy(aem.ρ))
 end

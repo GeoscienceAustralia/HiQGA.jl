@@ -145,7 +145,7 @@ function processonesounding(opt_in::Options, sounding::Sounding, zall, burninfra
     ndata = getndata(sounding)
     χ²mean = mean(χ²)/ndata
     χ²sd   = std(χ²)/ndata
-    if hasproperty(sounding, :force_ML) 
+    if hasproperty(sounding, :forceML) 
         if sounding.forceML
             χ²mean = 1.
             χ²sd   = 0.
