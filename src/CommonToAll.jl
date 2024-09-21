@@ -1669,40 +1669,44 @@ function plotsummarygrids1(soundings, meangrid, phgrid, plgrid, pmgrid, gridx, g
     if isnothing(Rmax)
         Rmax = maximum(gridx)
     end
-    idx_split, thereisrmn = getRsplits(gridx, Rmax)
-    nimages = length(idx_split)
-    dr = gridx[2] - gridx[1]
-    if iszero(idx_split[1]) && thereisrmn # Rmax is larger than section
-        nx = length(range(gridx[1], Rmax, step=dr))
-    elseif !iszero(idx_split[1]) && !thereisrmn # Rmax is exactly the section length
-        nx = length(gridx)
-    elseif iszero(idx_split[2]) # Rmax is smaller than the section
-        nx = idx_split[1]
-    else    
-        nx = idx_split[2]-idx_split[1] # There are many Rmax length splits 
-    end    
-    ab, nimages = getinterpsplits(idx_split, nimages, gridx)
-    i_idx = 1:nimages
-    for i in i_idx
-        a, b = ab[i,1], ab[i,2]
-        a_uninterp = i == firstindex(i_idx) ? 1 : findlast(R.<=gridx[a])
-        b_uninterp = i != lastindex(i_idx)  ? findlast(R.<=gridx[b]) : lastindex(soundings)
-        if thereisrmn && i == lastindex(i_idx)
-            xrangelast = range(gridx[a], step=dr, length=nx)
-        else 
-            xrangelast = nothing
+    while true
+        idx_split, thereisrmn = getRsplits(gridx, Rmax)
+        nimages = length(idx_split)
+        dr = gridx[2] - gridx[1]
+        if iszero(idx_split[1]) && thereisrmn # Rmax is larger than section
+            nx = length(range(gridx[1], Rmax, step=dr))
+        elseif !iszero(idx_split[1]) && !thereisrmn # Rmax is exactly the section length
+            nx = length(gridx)
+        elseif iszero(idx_split[2]) # Rmax is smaller than the section
+            nx = idx_split[1]
+        else    
+            nx = idx_split[2]-idx_split[1] # There are many Rmax length splits 
+        end    
+        ab, nimages = getinterpsplits(idx_split, nimages, gridx)
+        i_idx = 1:nimages
+        for i in i_idx
+            a, b = ab[i,1], ab[i,2]
+            a_uninterp = i == firstindex(i_idx) ? 1 : findlast(R.<=gridx[a])
+            b_uninterp = i != lastindex(i_idx)  ? findlast(R.<=gridx[b]) : lastindex(soundings)
+            if thereisrmn && i == lastindex(i_idx)
+                xrangelast = range(gridx[a], step=dr, length=nx)
+            else 
+                xrangelast = nothing
+            end
+            f, s, icol = setupconductivityplot(gridx[a:b], omitconvergence, showmean, R[a_uninterp:b_uninterp], 
+                figsize, fontsize, lname, χ²mean[a_uninterp:b_uninterp], χ²sd[a_uninterp:b_uninterp], useML, i, nimages, logscale)
+            
+            summaryconductivity(s, icol, f, soundings[a_uninterp:b_uninterp], 
+                meangrid[:,a:b], phgrid[:,a:b], plgrid[:,a:b], pmgrid[:,a:b], 
+                gridx[a:b], gridz, topofine[a:b], R[a_uninterp:b_uninterp], Z[a_uninterp:b_uninterp], ; qp1, qp2, fontsize, 
+                cmap, vmin, vmax, topowidth, idx, omitconvergence, preferEright, preferNright, yl, showmean, xrangelast)
+            postfix = nimages == 1 ? "_whole" : "_split_$(i)_of_$(nimages)"
+            saveplot && savefig(lname*postfix*".png", dpi=dpi)
+            showplot || close(f)
         end
-        f, s, icol = setupconductivityplot(gridx[a:b], omitconvergence, showmean, R[a_uninterp:b_uninterp], 
-            figsize, fontsize, lname, χ²mean[a_uninterp:b_uninterp], χ²sd[a_uninterp:b_uninterp], useML, i, nimages, logscale)
-          
-        summaryconductivity(s, icol, f, soundings[a_uninterp:b_uninterp], 
-            meangrid[:,a:b], phgrid[:,a:b], plgrid[:,a:b], pmgrid[:,a:b], 
-            gridx[a:b], gridz, topofine[a:b], R[a_uninterp:b_uninterp], Z[a_uninterp:b_uninterp], ; qp1, qp2, fontsize, 
-            cmap, vmin, vmax, topowidth, idx, omitconvergence, preferEright, preferNright, yl, showmean, xrangelast)
-        
-        saveplot && savefig(lname*"_split_$(i)_of_$(nimages).png", dpi=dpi)
-        showplot || close(f)
-    end    
+        nimages == 1 && break # don't need another pass if it was whole line to start with
+        Rmax = maximum(gridx) # this will ensure nimages=1 on next pass
+    end
 end
 
 function setupconductivityplot(gridx, omitconvergence, showmean, R, figsize, fontsize, lname, χ²mean, χ²sd, useML, iimage, nimages, logscale)
