@@ -117,10 +117,10 @@ mutable struct VTEMsoundingData <: Sounding
     ramp            :: Array{Float64, 2}
     noise           :: Array{Float64, 1}
     data            :: Array{Float64, 1}
+    writefields
 end
 
-returnforwrite(s::VTEMsoundingData) = [s.X, s.Y, s.Z, s.fid, 
-    s.linenum, s.zTx, s.zRx, s.rTx]
+returnforwrite(s::VTEMsoundingData) = getfield.(Ref(s), s.writefields)
 
 function getndata(S::VTEMsoundingData)
     getndata(S.data)[1]
@@ -132,7 +132,8 @@ function VTEMsoundingData(;rRx=nothing, zRx=nothing, zTx=12.,
                             times=[1., 2.], ramp=[1 2; 3 4],
                             noise=[1.], data=[1.], 
                             sounding_string="sounding", X=nothing, Y=nothing, Z=nothing,
-                            linenum=nothing, fid=nothing)
+                            linenum=nothing, fid=nothing, writefields=[:X, :Y, :Z, :fid, 
+                            :linenum, :zTx, :zRx, :rTx])
     @assert rTx > 0
     @assert zTx < 0 # my coordinate system z down 
     isnothing(rRx) && (rRx = 0.)
@@ -143,7 +144,7 @@ function VTEMsoundingData(;rRx=nothing, zRx=nothing, zTx=12.,
     @assert all((noise .>0) .| isnan.(noise))
     @assert length(data) == length(noise)
     VTEMsoundingData(sounding_string, X, Y, Z, fid, linenum, zTx, zRx, rTx,
-        lowpassfcs, times, ramp, noise, data)
+        lowpassfcs, times, ramp, noise, data, writefields)
 end
 
 function read_survey_files(;

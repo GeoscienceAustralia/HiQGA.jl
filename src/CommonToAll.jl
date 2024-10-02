@@ -18,7 +18,7 @@ export trimxft, assembleTat1, gettargtemps, checkns, getchi2forall, nicenup, plo
         summaryconductivity, plotsummarygrids1, getVE, writevtkfromsounding, trapezoidrule,
         readcols, colstovtk, findclosestidxincolfile, zcentertoboundary, zboundarytocenter, 
         writeijkfromsounding, nanmean, infmean, nanstd, infstd, infnanmean, infnanstd, 
-        kde_sj, plotmanygrids, readwell, getlidarheight, plotblockedwellonimages, getdeterministicoutputs, 
+        kde_sj, plotmanygrids, readwell, getlidarheight, plotblockedwellonimages, getdeterministicoutputs, writeasegdfnfromonerow,
         getprobabilisticoutputs,readfzipped, readxyzrhoϕ, writevtkxmlforcurtain, getRandgridr, getallxyinr, getXYlast,
         getprobabilisticlinesfromdirectory, readxyzrhoϕnu, plotgausshist, findMAE, getclosestidx, getpostatXY, getpostatwell
 

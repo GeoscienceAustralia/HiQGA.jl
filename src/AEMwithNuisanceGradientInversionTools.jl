@@ -36,6 +36,15 @@ function compress(soundings, zall, nnu; prefix="", rmfile=true, isfirstparalleli
         write(io, "\n")                
         flush(io) # slower but ensures write is complete
         rmfile && rm(fname)
+        if i == 1
+            elinonerow = [returnforwrite(s), vec(zall), σgrid, nu, ϕd]
+            nelinonerow = length(elinonerow)
+            writenames = [[f for f in fieldnames(typeof(a))], "zcenter", "log10_cond", "nuisance_param", "ϕd_err"]
+            sfmt = fill("%15.3f", nelinonerow)
+            channel_names = [writenames, fill("", nelinonerow, writenames)]
+            writeasegdfnforgradinv(elinonerow, fname[1:end-4])
+            writeasegdfnfromonerow(elinonerow, channel_names, sfmt, fname[1:end-4])
+        end
     end
     close(io)    
 end
