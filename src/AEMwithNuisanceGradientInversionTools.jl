@@ -22,31 +22,28 @@ function compress(soundings, zall, nnu; prefix="", rmfile=true, isfirstparalleli
         isfirstparalleliteration && throw(AssertionError("Zipped file "*fout*" exists, will not overwrite!"))
         iomode = "a"
     end    
-    io = open(fout, iomode)
     for (i, s) in enumerate(soundings)
         fname = s.sounding_string*"_gradientinv.dat"
         A = readdlm(fname)
         ϕd = A[end,2]
         σgrid = vec(A[end,3:end-nnu])
         nu = vec(A[end,end-nnu+1:end])
-        for el in [returnforwrite(s)...; vec(zall); σgrid; nu; ϕd]
-            msg = @sprintf("%.4f\t", el)
-            write(io, msg)
-        end
-        write(io, "\n")                
-        flush(io) # slower but ensures write is complete
+        elinonerow = [returnforwrite(s), vec(zall), σgrid, nu, ϕd]
+        nelinonerow = length(elinonerow)
+        # for el in [returnforwrite(s)...; vec(zall); σgrid; nu; ϕd]
+        #     msg = @sprintf("%.4f\t", el)
+        #     write(io, msg)
+        # end
+        writenames = [string.(soundings[1].writefields), "zcenter", "log10_cond", "nuisance_param_in_order", "ϕd_err"]
+        sfmt = fill("%15.3f", nelinonerow)
+        ϕd > 1e4 && (ϕd = 1e4 )
+        writeasegdat(elinonerow, sfmt, fout[1:end-4], iomode)
         rmfile && rm(fname)
-        if i == 1
-            elinonerow = [returnforwrite(s), vec(zall), σgrid, nu, ϕd]
-            nelinonerow = length(elinonerow)
-            writenames = [[f for f in fieldnames(typeof(a))], "zcenter", "log10_cond", "nuisance_param", "ϕd_err"]
-            sfmt = fill("%15.3f", nelinonerow)
-            channel_names = [writenames, fill("", nelinonerow, writenames)]
-            writeasegdfnforgradinv(elinonerow, fname[1:end-4])
-            writeasegdfnfromonerow(elinonerow, channel_names, sfmt, fname[1:end-4])
+        if isfirstparalleliteration && i == 1
+            channel_names = [writenames, fill("", nelinonerow), writenames]
+            writeasegdfnfromonerow(elinonerow, channel_names, sfmt, fout[1:end-4])
         end
     end
-    close(io)    
 end
 
 # plot the convergence and the result

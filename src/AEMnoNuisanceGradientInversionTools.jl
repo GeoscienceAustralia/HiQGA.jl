@@ -20,29 +20,23 @@ function compress(soundings, zall; prefix="", rmfile=true, isfirstparalleliterat
         isfirstparalleliteration && throw(AssertionError("Zipped file "*fout*" exists, will not overwrite!"))
         iomode = "a"
     end    
-    io = open(fout, iomode)
     for (i, s) in enumerate(soundings)
         fname = s.sounding_string*"_gradientinv.dat"
         A = readdlm(fname)
         ϕd = A[end,2]
         σgrid = vec(A[end,3:end])
-        for el in [returnforwrite(s)...; vec(zall); σgrid; ϕd]
-            msg = @sprintf("%.4f\t", el)
-            write(io, msg)
-        end
-        write(io, "\n")                
-        flush(io) # slower but ensures write is complete
+        elinonerow = [returnforwrite(s)..., vec(zall), σgrid, ϕd]
+        nelinonerow = length(elinonerow)
+        writenames = [string.(soundings[1].writefields)..., "zcenter", "log10_cond", "ϕd_err"]
+        sfmt = fill("%15.3f", nelinonerow)
+        ϕd > 1e4 && (ϕd = 1e4 )
+        writeasegdat(elinonerow, sfmt, fout[1:end-4], iomode)
         rmfile && rm(fname)
         if isfirstparalleliteration && i == 1
-            elinonerow = [returnforwrite(s), vec(zall), σgrid, ϕd]
-            nelinonerow = length(elinonerow)
-            writenames = [[f for f in fieldnames(typeof(s))], "zcenter", "log10_cond", "ϕd_err"]
-            sfmt = fill("%15.3f", nelinonerow)
             channel_names = [writenames, fill("", nelinonerow), writenames]
             writeasegdfnfromonerow(elinonerow, channel_names, sfmt, fout[1:end-4])
         end
     end
-    close(io)    
 end
 
 # plot the convergence and the result

@@ -144,11 +144,10 @@ mutable struct SkyTEMsoundingData <: Sounding
     LM_data :: Array{Float64, 1}
     HM_data :: Array{Float64, 1}
     forceML
+    writefields
 end
 
-returnforwrite(s::SkyTEMsoundingData) = [s.X, s.Y, s.Z, s.fid, 
-    s.linenum, s.rRx, s.zRxLM, s.zTxLM, s.zRxHM, 
-    s.zTxHM, s.rTx]
+returnforwrite(s::SkyTEMsoundingData) = getfield.(Ref(s), s.writefields)
 
 function getndata(S::SkyTEMsoundingData)
     getndata(S.LM_data)[1] + getndata(S.HM_data)[1]
@@ -160,7 +159,8 @@ function SkyTEMsoundingData(;rRx=-12., zRxLM=12., zTxLM=12.,
                             HM_times=[1., 2.], HM_ramp=[1 2; 3 4],
                             LM_noise=[1.], HM_noise=[1.], LM_data=[1.], HM_data=[1.],
                             sounding_string="sounding", X=nothing, Y=nothing, Z=nothing,
-                            linenum=nothing, fid=nothing, forceML=false)
+                            linenum=nothing, fid=nothing, forceML=false, writefields=[:X, :Y, :Z, :fid, 
+                            :linenum, :rRx, :zRxLM, :zTxLM, :zRxHM, :zTxHM, :rTx])
     @assert rRx > 0 && rTx > 0
     @assert zRxLM <0 && zTxLM <0
     @assert zRxHM <0 && zTxHM <0
@@ -175,7 +175,7 @@ function SkyTEMsoundingData(;rRx=-12., zRxLM=12., zTxLM=12.,
     @assert length(HM_data) == length(HM_noise)
     SkyTEMsoundingData(sounding_string, X, Y, Z, fid, linenum, rRx, zRxLM, zTxLM, zRxHM, zTxHM, rTx,
     lowpassfcs, LM_times, LM_ramp, HM_times, HM_ramp, LM_noise, HM_noise,
-    LM_data, HM_data, forceML)
+    LM_data, HM_data, forceML, writefields)
 end
 
 function read_survey_files(;
