@@ -35,6 +35,7 @@ function compress(soundings, zall; prefix="", rmfile=true, isfirstparalleliterat
         if isfirstparalleliteration && i == 1
             channel_names = [writenames, fill("", nelinonerow), writenames]
             writeasegdfnfromonerow(elinonerow, channel_names, sfmt, fout[1:end-4])
+            dfn2hdr(fout[1:end-4]*".dfn")
         end
     end
 end
