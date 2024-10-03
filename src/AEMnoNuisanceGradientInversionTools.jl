@@ -237,6 +237,7 @@ function loopacrossAEMsoundings(soundings::Array{S, 1}, aem_in, σstart, σ0;
                             compresssoundings  = true,
                             zipsaveprefix      = "",
                             minimprovfrac      = nothing,
+                            verbose            = false,
                             minimprovkickinstep = round(Int, nstepsmax/2),        
                             ) where S<:Sounding
 
@@ -279,7 +280,7 @@ function loopacrossAEMsoundings(soundings::Array{S, 1}, aem_in, σstart, σ0;
                                                 breakonknown       = breakonknown    ,              
                                                 dobo               = dobo            ,
                                                 fname              = fname           ,
-                                                minimprovfrac,
+                                                minimprovfrac, verbose,
                                                 minimprovkickinstep) 
                 
 

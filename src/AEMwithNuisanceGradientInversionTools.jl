@@ -234,6 +234,9 @@ function loopacrossAEMsoundings(soundings::Array{S, 1}, aem_in, σstart, σ0, nu
                             knownvalue         = 0.7,
                             compresssoundings  = true,
                             zipsaveprefix      = "",
+                            minimprovfrac      = nothing,
+                            verbose            = false,
+                            minimprovkickinstep = round(Int, nstepsmax/2),
                             # optim stuff
                             ntriesnu           = 5,
                             boxiters           = 3, 
@@ -273,7 +276,8 @@ function loopacrossAEMsoundings(soundings::Array{S, 1}, aem_in, σstart, σ0, nu
                                                 regularizeupdate   = regularizeupdate,              
                                                 knownvalue         = knownvalue      ,              
                                                 fname              = fname           ,
-                                                ntriesnu, nubounds, boxiters, usebox, reducenuto, debuglevel, breaknuonknown) 
+                                                ntriesnu, nubounds, boxiters, usebox, reducenuto, debuglevel, breaknuonknown,
+                                                minimprovfrac, verbose, minimprovkickinstep) 
                 
 
         end # @sync
