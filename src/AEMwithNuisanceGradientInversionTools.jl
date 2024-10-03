@@ -26,7 +26,7 @@ function compress(soundings, zall, nnu; prefix="", rmfile=true, isfirstparalleli
         nu = vec(A[end,end-nnu+1:end])
         elinonerow = [returnforwrite(s)..., vec(zall), σgrid, nu, ϕd]
         nelinonerow = length(elinonerow)
-        writenames = [string.(s.writefields)..., "zcenter", "log10_cond", "nuisance_param_in_order", "ϕd_err"]
+        writenames = [string.(s.writefields)..., "zcenter", "log10_cond", "nuisance_param_in_order", "phid_err"]
         sfmt = fill("%15.3f", nelinonerow)
         ϕd > 1e4 && (ϕd = 1e4 )
         iomode = (isfirstparalleliteration && i==1) ? "w" : "a"
