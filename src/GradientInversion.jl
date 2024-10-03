@@ -231,6 +231,7 @@ function gradientinv(   m::AbstractVector,
                         knownvalue=0.7,
                         firstvalue=:last,
                         κ = GP.Mat52(),
+                        verbose = false,
                         breakonknown=false,
                         minimprovfrac = nothing,
                         minimprovkickinstep = round(Int, nstepsmax/2),
@@ -264,7 +265,7 @@ function gradientinv(   m::AbstractVector,
                 lo, hi, λ²min, λ²max, β², ntries, knownvalue=knownvalue, regularizeupdate = regularizeupdate)
         end
         prefix = isempty(fname) ? fname : fname*" : "
-        @info prefix*"iteration: $istep χ²: $(χ²[istep][idx]) target: $target"
+        verbose && @info prefix*"iteration: $istep χ²: $(χ²[istep][idx]) target: $target"
         m = mnew[istep][idx]
         oidx[istep] = idx
         isa(io, Nothing) || write_history(io, [istep; χ²[istep][idx]/target₀; vec(m)])
@@ -314,6 +315,7 @@ function gradientinv(   m::AbstractVector,
                         debuglevel = 0,
                         usebox = true,
                         boxiters = 2,
+                        verbose = false,
                         minimprovfrac = nothing,
                         minimprovkickinstep = round(Int, nstepsmax/2),
                         fname="")
@@ -354,7 +356,7 @@ function gradientinv(   m::AbstractVector,
         idx, foundroot = occamstep(m, m0, Δm, mnew[istep], χ²[istep], λ²[istep], F, R, target, 
             lo, hi, λ²min, λ²max, β², ntries, knownvalue=knownvalue, regularizeupdate = regularizeupdate)
         prefix = isempty(fname) ? fname : fname*" : "
-        @info prefix*"iteration: $istep χ²: $(χ²[istep][idx]) target: $target"
+        verbose && @info prefix*"iteration: $istep χ²: $(χ²[istep][idx]) target: $target"
         m = mnew[istep][idx]
         oidx[istep] = idx
         isa(io, Nothing) || write_history(io, [istep; χ²[istep][idx]/target₀; vec(m); nu])

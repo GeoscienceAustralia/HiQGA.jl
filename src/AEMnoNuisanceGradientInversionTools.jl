@@ -15,11 +15,7 @@ function compress(soundings, zall; prefix="", rmfile=true, isfirstparalleliterat
     fname = soundings[1].sounding_string*"_gradientinv.dat"    
     !isfile(fname) && throw(AssertionError("file does not exist perhaps soundings already zipped?"))
     fout = prefix == "" ? "zipped.dat" : prefix*"_zipped.dat"
-    iomode = "w"
-    if isfile(fout)
-        isfirstparalleliteration && throw(AssertionError("Zipped file "*fout*" exists, will not overwrite!"))
-        iomode = "a"
-    end    
+    isfirstparalleliteration && isfile(fout) && throw(AssertionError("Zipped file "*fout*" exists, will not overwrite!"))
     for (i, s) in enumerate(soundings)
         fname = s.sounding_string*"_gradientinv.dat"
         A = readdlm(fname)
@@ -27,9 +23,10 @@ function compress(soundings, zall; prefix="", rmfile=true, isfirstparalleliterat
         σgrid = vec(A[end,3:end])
         elinonerow = [returnforwrite(s)..., vec(zall), σgrid, ϕd]
         nelinonerow = length(elinonerow)
-        writenames = [string.(soundings[1].writefields)..., "zcenter", "log10_cond", "ϕd_err"]
+        writenames = [string.(s.writefields)..., "zcenter", "log10_cond", "ϕd_err"]
         sfmt = fill("%15.3f", nelinonerow)
         ϕd > 1e4 && (ϕd = 1e4 )
+        iomode = (isfirstparalleliteration && i==1) ? "w" : "a"
         writeasegdat(elinonerow, sfmt, fout[1:end-4], iomode)
         rmfile && rm(fname)
         if isfirstparalleliteration && i == 1
