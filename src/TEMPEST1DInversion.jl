@@ -765,7 +765,7 @@ function getnufromsounding(t::TempestSoundingData)
             t.roll_tx, t.pitch_tx, t.yaw_tx]
 end   
 
-returnforwrite(s::TEMPESTsoundingData) = getfield.(Ref(s), s.writefields)
+returnforwrite(s::TempestSoundingData) = getfield.(Ref(s), s.writefields)
 
 function getndata(s::TempestSoundingData, vectorsum)
     n = getndata(s.Hx_data)[1] + getndata(s.Hz_data)[1]
