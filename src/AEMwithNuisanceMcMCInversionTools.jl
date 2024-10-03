@@ -173,6 +173,7 @@ function loopacrossAEMsoundings(soundings::Array{S, 1}, aem_in::Operator1D, opt_
     nsoundings = length(soundings)
     nsequentialiters, nparallelsoundings = splittasks(soundings; nchainspersounding, ppn)
     
+    @info "starting sequential parallel iterations at $(Dates.now())"
     for iter = 1:nsequentialiters
         ss = getss(iter, nsequentialiters, nparallelsoundings, nsoundings)
         @info "soundings in loop $iter of $nsequentialiters", ss
@@ -190,7 +191,6 @@ function loopacrossAEMsoundings(soundings::Array{S, 1}, aem_in::Operator1D, opt_
 
         end # @sync
         dt = time() - t2 #seconds
-        t2 = time()
         @info "done $iter out of $nsequentialiters at $(Dates.now()) in $dt sec"
     end
 end

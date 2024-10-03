@@ -250,6 +250,7 @@ function loopacrossAEMsoundings(soundings::Array{S, 1}, aem_in, σstart, σ0, nu
     nparallelsoundings = nworkers()
     nsoundings = length(soundings)
     zall = zboundarytocenter(aem_in.z[aem_in.nfixed+1:end]) # needed for sounding compression in write
+    
     @info "starting sequential parallel iterations at $(Dates.now())"
     for iter = 1:nsequentialiters
         if iter<nsequentialiters
@@ -259,6 +260,7 @@ function loopacrossAEMsoundings(soundings::Array{S, 1}, aem_in, σstart, σ0, nu
         end
         @info "soundings in loop $iter of $nsequentialiters", ss
         pids = workers()
+        t2 = time()
         @sync for (i, s) in enumerate(ss)
             aem = makeoperator(aem_in, soundings[s])
             nubounds, nustart = setnuboundsandstartforgradinv(aem, nuboundsΔ)
@@ -285,7 +287,8 @@ function loopacrossAEMsoundings(soundings::Array{S, 1}, aem_in, σstart, σ0, nu
         isfirstparalleliteration = iter == 1 ? true : false
         compresssoundings && compress(soundings[ss[1]:ss[end]], zall, size(nuboundsΔ, 1),
             isfirstparalleliteration = isfirstparalleliteration, prefix=zipsaveprefix)
-        @info "done $iter out of $nsequentialiters at $(Dates.now())"
+        dt = time() - t2 #seconds
+        @info "done $iter out of $nsequentialiters at $(Dates.now()) in $dt sec"
     end
 end
 
