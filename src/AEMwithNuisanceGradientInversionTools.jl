@@ -28,13 +28,9 @@ function compress(soundings, zall, nnu; prefix="", rmfile=true, isfirstparalleli
         ϕd = A[end,2]
         σgrid = vec(A[end,3:end-nnu])
         nu = vec(A[end,end-nnu+1:end])
-        elinonerow = [returnforwrite(s), vec(zall), σgrid, nu, ϕd]
+        elinonerow = [returnforwrite(s)..., vec(zall), σgrid, nu, ϕd]
         nelinonerow = length(elinonerow)
-        # for el in [returnforwrite(s)...; vec(zall); σgrid; nu; ϕd]
-        #     msg = @sprintf("%.4f\t", el)
-        #     write(io, msg)
-        # end
-        writenames = [string.(soundings[1].writefields), "zcenter", "log10_cond", "nuisance_param_in_order", "ϕd_err"]
+        writenames = [string.(soundings[1].writefields)..., "zcenter", "log10_cond", "nuisance_param_in_order", "ϕd_err"]
         sfmt = fill("%15.3f", nelinonerow)
         ϕd > 1e4 && (ϕd = 1e4 )
         writeasegdat(elinonerow, sfmt, fout[1:end-4], iomode)
