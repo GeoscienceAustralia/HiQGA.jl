@@ -284,7 +284,7 @@ function gradientinv(   m::AbstractVector,
         istep > nstepsmax && break
     end
     if !isnothing(io) 
-        @info "Finished "*fname
+        verbose && @info "Finished "*fname
         close(io) 
         nothing
         return
@@ -375,7 +375,7 @@ function gradientinv(   m::AbstractVector,
         istep > nstepsmax && break
     end
     if !isnothing(io) 
-        @info "Finished "*fname
+        verbose && @info "Finished "*fname
         close(io) 
         nothing
         return
