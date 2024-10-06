@@ -1,6 +1,6 @@
 module AEMnoNuisanceGradientInversionTools
 using Distributed, Dates, Printf, PyPlot, DelimitedFiles, StatsBase
-using ..AbstractOperator, ..CommonToAll, ..GP
+using ..AbstractOperator, ..CommonToAll, ..GP, ..SoundingDistributor
 import ..AbstractOperator.makeoperator
 import ..AbstractOperator.Sounding
 import ..AbstractOperator.returnforwrite
@@ -246,14 +246,11 @@ function loopacrossAEMsoundings(soundings::Array{S, 1}, aem_in, σstart, σ0;
     nsoundings = length(soundings)
     zall = zboundarytocenter(aem_in.z[aem_in.nfixed+1:end]) # needed for sounding compression in write
     
-    @info "starting sequential parallel iterations at $(Dates.now())"
+    writetogloballog("will require $nsequentialiters iterations of $nparallelsoundings soundings", iomode="w")
+    writetogloballog("starting sequential parallel iterations at $(Dates.now())")
     for iter = 1:nsequentialiters
-        if iter<nsequentialiters
-            ss = (iter-1)*nparallelsoundings+1:iter*nparallelsoundings
-        else
-            ss = (iter-1)*nparallelsoundings+1:nsoundings
-        end
-        @info "soundings in loop $iter of $nsequentialiters", ss
+        ss = getss_deterministic(iter, nsequentialiters, nparallelsoundings, nsoundings)
+        writetogloballog("soundings in loop $iter of $nsequentialiters $ss")
         pids = workers()
         t2 = time()
         @sync for (i, s) in enumerate(ss)
@@ -291,8 +288,8 @@ function loopacrossAEMsoundings(soundings::Array{S, 1}, aem_in, σstart, σ0;
         isfirstparalleliteration = iter == 1 ? true : false
         compresssoundings && compress(soundings[ss[1]:ss[end]], zall, 
             isfirstparalleliteration = isfirstparalleliteration, prefix=zipsaveprefix)
-        dt = time() - t2 #seconds
-        @info "done $iter out of $nsequentialiters at $(Dates.now()) in $dt sec"
+        dt = time() - t2 # seconds
+        writetogloballog("done $iter out of $nsequentialiters at $(Dates.now()) in $dt sec")
     end
 end
 

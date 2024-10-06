@@ -1,6 +1,6 @@
 module SoundingDistributor
 using Distributed
-export splittasks, getss, getpids, writetogloballog, catlocallogs
+export splittasks, getss, getpids, writetogloballog, catlocallogs, getss_deterministic
 
 function splittasks(soundings::AbstractVector; nchainspersounding=nothing, ppn=nothing)
     nsoundings = length(soundings)
@@ -27,6 +27,14 @@ function getss(iter, nsequentialiters, nparallelsoundings, nsoundings)
         ss = (iter-1)*nparallelsoundings+1:nsoundings
     end
     ss
+end
+
+function getss_deterministic(iter, nsequentialiters, nparallelsoundings, nsoundings)
+    if iter<nsequentialiters
+        ss = (iter-1)*nparallelsoundings+1:iter*nparallelsoundings
+    else
+        ss = (iter-1)*nparallelsoundings+1:nsoundings
+    end
 end
 
 function getpids(i, nchainspersounding)
