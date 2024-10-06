@@ -54,8 +54,10 @@ function catlocallogs(nparallelsoundings, nchainspersounding)
     managerpids = [p[1] for p in getpids.(1:nparallelsoundings, nchainspersounding)]
     map(managerpids) do p
         locallogfile = "$p.log"
-        writetogloballog(read(locallogfile, String), newline=false)
-        rm(locallogfile)
+        if isfile(locallogfile)
+            writetogloballog(read(locallogfile, String), newline=false)
+            rm(locallogfile)
+        end
     end
 end
 
