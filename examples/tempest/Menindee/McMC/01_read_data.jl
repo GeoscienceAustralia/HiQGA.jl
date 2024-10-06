@@ -25,5 +25,5 @@ soundings = transD_GP.TEMPEST1DInversion.read_survey_files(
 	startfrom = 1,
 	skipevery = 1,
 	linenum = 1,
-	dotillsounding = 2,
+	dotillsounding = 4,
 	makeqcplots = true)
