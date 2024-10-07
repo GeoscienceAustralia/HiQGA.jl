@@ -1,5 +1,5 @@
 using Distributed, DistributedArrays,
-     PyPlot, LinearAlgebra, Dates
+     PyPlot, LinearAlgebra, Dates, Logging
 
 import .AbstractOperator.Operator
 import .AbstractOperator.Sounding
@@ -411,7 +411,7 @@ function domcmciters(iterlast, nsamples, chains, mns::DArray{ModelNonstat}, m::D
                                             current_misfit, F,
                                             chain.T, isample, wp, chain_idx, chain.master_pid)
         end
-        t, tlong, doquit = disptime(isample, t, tlong, iterlast, nsamples, nominaltime)
+        t, tlong, doquit = disptime(isample, t, tlong, nsamples, nominaltime)
         doquit && break
     end
 end
@@ -437,6 +437,7 @@ function main(opt_in     ::OptionsStat,
         optn, statns, stat, statn, current_misfit, F, wpns, wp, wpn, nominaltime)
 
     close_history.([wp, wpns, wpn])
+    d_closeall()
     nothing
 end
 
@@ -525,7 +526,7 @@ function domcmciters(iterlast, nsamples, chains, mns::DArray{ModelNonstat}, m::D
                                             current_misfit, F,
                                             chain.T, isample, wp, chain_idx, chain.master_pid)
         end
-        t, tlong, doquit = disptime(isample, t, tlong, iterlast, nsamples, nominaltime)
+        t, tlong, doquit = disptime(isample, t, tlong, nsamples, nominaltime)
         doquit && break
     end
 end
@@ -550,6 +551,7 @@ function main(opt_in     ::OptionsStat,
         statns, stat, current_misfit, F, wpns, wp, nominaltime)
 
     close_history.([wp, wpns])
+    d_closeall()
     nothing
 end
 
@@ -637,7 +639,7 @@ function domcmciters(iterlast, nsamples, chains, m::DArray{ModelStat}, mn::DArra
                                             current_misfit, F,
                                             chain.T, isample, wp, chain_idx, chain.master_pid)
         end
-        t, tlong, doquit = disptime(isample, t, tlong, iterlast, nsamples, nominaltime)
+        t, tlong, doquit = disptime(isample, t, tlong, nsamples, nominaltime)
         doquit && break
     end
 end
@@ -662,6 +664,7 @@ function main(opt_in       ::OptionsStat,
         optn, stat, statn, current_misfit, F, wp, wpn, nominaltime)
 
     close_history.([wp, wpn])
+    d_closeall()
     nothing
 end
 
@@ -729,7 +732,7 @@ function domcmciters(iterlast, nsamples, chains, m::DArray{ModelStat},
                                             current_misfit, F,
                                             chain.T, isample, wp, chain_idx, chain.master_pid)
         end
-        t, tlong, doquit = disptime(isample, t, tlong, iterlast, nsamples, nominaltime)
+        t, tlong, doquit = disptime(isample, t, tlong, nsamples, nominaltime)
         doquit && break
     end
 end
@@ -753,6 +756,7 @@ function main(opt_in ::OptionsStat,
         stat, current_misfit, F, wp, nominaltime)
 
     close_history(wp)
+    d_closeall()
     nothing
 end
 
@@ -783,25 +787,32 @@ function swap_temps(chains::Array{Chain, 1})
     end
 end
 
-function disptime(isample, t, tlong, iterlast, nsamples, nominaltime)
+function disptime(isample, t, tlong, nsamples, nominaltime)
+    iomode = isample == 1 ? "w" : "a"
+    io = open("$(myid()).log", iomode)
+    logger = ConsoleLogger(io)
     doquit = false
-    windowtime = 1000
-    nw = 5
-    if mod(isample-1, windowtime) == 0
-        dt = time() - t #seconds
-        t = time()
-        @info("on pid $(myid()) **$(@sprintf("%.2f", dt))**sec** $isample out of $(nsamples)")
-    end
-    if !isnothing(nominaltime)
-        if mod(isample-1, nw*windowtime) == 0
-            dt = time() - tlong #seconds
-            tlong = time()
-            if (dt/nw) > nominaltime
-                doquit = true
-                @info("QUIT: PID: $(myid()) TIME:**$(@sprintf("%.2f", dt/nw))**SEC AVG** SAMPLE: $isample")
+    with_logger(logger) do
+        windowtime = 1000
+        nw = 5
+        if mod(isample-1, windowtime) == 0
+            dt = time() - t #seconds
+            t = time()
+            @info("on pid $(myid()) **$(@sprintf("%.2f", dt))**sec** $isample out of $(nsamples)")
+        end
+        if !isnothing(nominaltime)
+            if mod(isample-1, nw*windowtime) == 0
+                dt = time() - tlong #seconds
+                tlong = time()
+                if (dt/nw) > nominaltime
+                    doquit = true
+                    @info("QUIT: PID: $(myid()) TIME:**$(@sprintf("%.2f", dt/nw))**SEC AVG** SAMPLE: $isample")
+                end
             end
         end
-    end    
+    end # logger
+    flush(io)
+    close(io) 
     t, tlong, doquit
 end
 

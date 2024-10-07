@@ -1,6 +1,6 @@
 module AEMnoNuisanceGradientInversionTools
 using Distributed, Dates, Printf, PyPlot, DelimitedFiles, StatsBase
-using ..AbstractOperator, ..CommonToAll, ..GP
+using ..AbstractOperator, ..CommonToAll, ..GP, ..SoundingDistributor
 import ..AbstractOperator.makeoperator
 import ..AbstractOperator.Sounding
 import ..AbstractOperator.returnforwrite
@@ -15,26 +15,26 @@ function compress(soundings, zall; prefix="", rmfile=true, isfirstparalleliterat
     fname = soundings[1].sounding_string*"_gradientinv.dat"    
     !isfile(fname) && throw(AssertionError("file does not exist perhaps soundings already zipped?"))
     fout = prefix == "" ? "zipped.dat" : prefix*"_zipped.dat"
-    iomode = "w"
-    if isfile(fout)
-        isfirstparalleliteration && throw(AssertionError("Zipped file "*fout*" exists, will not overwrite!"))
-        iomode = "a"
-    end    
-    io = open(fout, iomode)
+    isfirstparalleliteration && isfile(fout) && throw(AssertionError("Zipped file "*fout*" exists, will not overwrite!"))
     for (i, s) in enumerate(soundings)
         fname = s.sounding_string*"_gradientinv.dat"
         A = readdlm(fname)
         ϕd = A[end,2]
         σgrid = vec(A[end,3:end])
-        for el in [returnforwrite(s)...; vec(zall); σgrid; ϕd]
-            msg = @sprintf("%.4f\t", el)
-            write(io, msg)
-        end
-        write(io, "\n")                
-        flush(io) # slower but ensures write is complete
+        elinonerow = [returnforwrite(s)..., vec(zall), σgrid, ϕd]
+        nelinonerow = length(elinonerow)
+        writenames = [string.(s.writefields)..., "zcenter", "log10_cond", "phid_err"]
+        sfmt = fill("%15.3f", nelinonerow)
+        ϕd > 1e4 && (ϕd = 1e4 )
+        iomode = (isfirstparalleliteration && i==1) ? "w" : "a"
+        writeasegdat(elinonerow, sfmt, fout[1:end-4], iomode)
         rmfile && rm(fname)
+        if isfirstparalleliteration && i == 1
+            channel_names = [writenames, fill("", nelinonerow), writenames]
+            writeasegdfnfromonerow(elinonerow, channel_names, sfmt, fout[1:end-4])
+            dfn2hdr(fout[1:end-4]*".dfn")
+        end
     end
-    close(io)    
 end
 
 # plot the convergence and the result
@@ -237,6 +237,7 @@ function loopacrossAEMsoundings(soundings::Array{S, 1}, aem_in, σstart, σ0;
                             compresssoundings  = true,
                             zipsaveprefix      = "",
                             minimprovfrac      = nothing,
+                            verbose            = false,
                             minimprovkickinstep = round(Int, nstepsmax/2),        
                             ) where S<:Sounding
 
@@ -244,14 +245,14 @@ function loopacrossAEMsoundings(soundings::Array{S, 1}, aem_in, σstart, σ0;
     nparallelsoundings = nworkers()
     nsoundings = length(soundings)
     zall = zboundarytocenter(aem_in.z[aem_in.nfixed+1:end]) # needed for sounding compression in write
+    
+    writetogloballog("will require $nsequentialiters iterations of $nparallelsoundings soundings", iomode="w")
+    writetogloballog("starting sequential parallel iterations at $(Dates.now())")
     for iter = 1:nsequentialiters
-        if iter<nsequentialiters
-            ss = (iter-1)*nparallelsoundings+1:iter*nparallelsoundings
-        else
-            ss = (iter-1)*nparallelsoundings+1:nsoundings
-        end
-        @info "soundings in loop $iter of $nsequentialiters", ss
+        ss = getss_deterministic(iter, nsequentialiters, nparallelsoundings, nsoundings)
+        writetogloballog("soundings in loop $iter of $nsequentialiters $ss")
         pids = workers()
+        t2 = time()
         @sync for (i, s) in enumerate(ss)
             aem = makeoperator(aem_in, soundings[s])
             fname = soundings[s].sounding_string*"_gradientinv.dat"
@@ -279,7 +280,7 @@ function loopacrossAEMsoundings(soundings::Array{S, 1}, aem_in, σstart, σ0;
                                                 breakonknown       = breakonknown    ,              
                                                 dobo               = dobo            ,
                                                 fname              = fname           ,
-                                                minimprovfrac,
+                                                minimprovfrac, verbose,
                                                 minimprovkickinstep) 
                 
 
@@ -287,7 +288,8 @@ function loopacrossAEMsoundings(soundings::Array{S, 1}, aem_in, σstart, σ0;
         isfirstparalleliteration = iter == 1 ? true : false
         compresssoundings && compress(soundings[ss[1]:ss[end]], zall, 
             isfirstparalleliteration = isfirstparalleliteration, prefix=zipsaveprefix)
-        @info "done $iter out of $nsequentialiters at $(Dates.now())"
+        dt = time() - t2 # seconds
+        writetogloballog("done $iter out of $nsequentialiters at $(Dates.now()) in $dt sec")
     end
 end
 

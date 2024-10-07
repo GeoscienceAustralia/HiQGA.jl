@@ -173,9 +173,10 @@ function loopacrossAEMsoundings(soundings::Array{S, 1}, aem_in::Operator1D, opt_
     nsoundings = length(soundings)
     nsequentialiters, nparallelsoundings = splittasks(soundings; nchainspersounding, ppn)
     
+    writetogloballog("starting sequential parallel iterations at $(Dates.now())")
     for iter = 1:nsequentialiters
         ss = getss(iter, nsequentialiters, nparallelsoundings, nsoundings)
-        @info "soundings in loop $iter of $nsequentialiters", ss
+        writetogloballog("soundings in loop $iter of $nsequentialiters $ss")
         t2 = time()
         @sync for (i, s) in Iterators.reverse(enumerate(ss))
             pids = getpids(i, nchainspersounding)
@@ -190,8 +191,8 @@ function loopacrossAEMsoundings(soundings::Array{S, 1}, aem_in::Operator1D, opt_
 
         end # @sync
         dt = time() - t2 #seconds
-        t2 = time()
-        @info "done $iter out of $nsequentialiters at $(Dates.now()) in $dt sec"
+        catlocallogs(nparallelsoundings, nchainspersounding)
+        writetogloballog("done $iter out of $nsequentialiters at $(Dates.now()) in $dt sec")
     end
 end
 

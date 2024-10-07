@@ -37,6 +37,7 @@ function summaryAEMimages(soundings::Array{S, 1}, opt::Options;
                         yl = nothing,
                         showplot = true,
                         showmean = false,
+                        Rmax = nothing,
                         logscale = true,
                         dpi = 300) where S<:Sounding
     compatidxwarn(idx, lnames)
@@ -48,7 +49,7 @@ function summaryAEMimages(soundings::Array{S, 1}, opt::Options;
         continueflag && continue
         summaryimages(soundings[a:b], opt; qp1, qp2, burninfrac, zall,dz, dr, 
             fontsize, vmin, vmax, cmap, figsize, topowidth, idx=idspec, omitconvergence, useML, 
-            preferEright, showplot, preferNright, saveplot, yl, dpi, showmean, logscale)
+            preferEright, showplot, preferNright, saveplot, yl, dpi, showmean, logscale, Rmax)
     end
     nothing    
 end
@@ -76,7 +77,8 @@ function summaryimages(soundings::Array{S, 1}, opt::Options;
                         logscale = true,
                         showplot = true,
                         showmean = false,
-                        dpi = 300) where S<:Sounding
+                        dpi = 300,
+                        Rmax=nothing) where S<:Sounding
     @assert !(preferNright && preferEright) # can't prefer both labels to the right
     pl, pm, ph, ρmean, χ²mean, χ²sd  = summarypost(soundings, opt; zall, qp1, qp2, burninfrac, useML)
 
@@ -85,9 +87,10 @@ function summaryimages(soundings::Array{S, 1}, opt::Options;
                                                         zall, dz; dr)
 
     lname = "Line_$(soundings[1].linenum)"
+    
     plotsummarygrids1(soundings, σmeangrid, phgrid, plgrid, pmgrid, gridx, gridz, topofine, R, Z, χ²mean, χ²sd, lname; qp1, qp2,
                         figsize, fontsize, cmap, vmin, vmax, 
-                        topowidth, idx, omitconvergence, useML,
+                        topowidth, idx, omitconvergence, useML, Rmax,
                         preferEright, preferNright, saveplot, showplot, dpi,
                         yl, showmean, logscale)                  
 end
@@ -145,7 +148,7 @@ function processonesounding(opt_in::Options, sounding::Sounding, zall, burninfra
     ndata = getndata(sounding)
     χ²mean = mean(χ²)/ndata
     χ²sd   = std(χ²)/ndata
-    if hasproperty(sounding, :force_ML) 
+    if hasproperty(sounding, :forceML) 
         if sounding.forceML
             χ²mean = 1.
             χ²sd   = 0.
@@ -334,9 +337,10 @@ function loopacrossAEMsoundings(soundings::Array{S, 1}, aem_in::Operator1D, opt_
     nsoundings = length(soundings)
     nsequentialiters, nparallelsoundings = splittasks(soundings; nchainspersounding, ppn)
     
+    writetogloballog("starting sequential parallel iterations at $(Dates.now())")
     for iter = 1:nsequentialiters
         ss = getss(iter, nsequentialiters, nparallelsoundings, nsoundings)
-        @info "soundings in loop $iter of $nsequentialiters", ss
+        writetogloballog("soundings in loop $iter of $nsequentialiters $ss")
         t2 = time()
         @sync for (i, s) in Iterators.reverse(enumerate(ss))
             pids = getpids(i, nchainspersounding)
@@ -350,8 +354,8 @@ function loopacrossAEMsoundings(soundings::Array{S, 1}, aem_in::Operator1D, opt_
 
         end # @sync
         dt = time() - t2 #seconds
-        t2 = time()
-        @info "done $iter out of $nsequentialiters at $(Dates.now()) in $dt sec"
+        catlocallogs(nparallelsoundings, nchainspersounding)
+        writetogloballog("done $iter out of $nsequentialiters at $(Dates.now()) in $dt sec")
     end
 end
 

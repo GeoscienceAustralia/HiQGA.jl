@@ -3,7 +3,7 @@ idxplot = [1,2]
 burninfrac = 0.5
 nbins = 50
 computeforwards, nforwards = true, 2
-interpolatedr = 10
+interpolatedr = 1
 vmax, vmin = .- extrema(fbounds)
 ## get the summary images of resistivity and nuisances over the profile
 transD_GP.AEMwithNuisanceMcMCInversionTools.summaryAEMwithnuisanceimages(soundings, opt, optn; zall,

@@ -233,8 +233,10 @@ function checkrampformintime(times, ramp, minresptime, maxtime, rampchoice, isdI
             end    
         end
     end
-        mintime = max(0.5minta, minresptime) 
-        # though I believe mintime = minta always is safe.
+        mintime = max(0.25minta, minresptime) 
+        # I believe mintime = 0.25minta is safe.
+        # later times can cause errors in tb, unless extrapolating earlier
+        # than F.interptimes[1]. Extrapolation I'm hesitant to do.
     # if maxta > maxtime
         maxtime = min(1.5maxta, maxtime)
         # 1.5 to make sure we clear maxta in the interptimes

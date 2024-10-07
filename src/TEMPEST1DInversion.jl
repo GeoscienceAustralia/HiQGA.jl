@@ -746,7 +746,8 @@ mutable struct TempestSoundingData <: Sounding
     Hx_data :: Array{Float64, 1}
     Hz_data :: Array{Float64, 1}
     forceML :: Bool
-    peakcurrent 
+    peakcurrent
+    writefields 
 end
 
 function getnufromsounding(t::TempestSoundingData)
@@ -764,10 +765,7 @@ function getnufromsounding(t::TempestSoundingData)
             t.roll_tx, t.pitch_tx, t.yaw_tx]
 end   
 
-
-returnforwrite(s::TempestSoundingData) = [s.X, s.Y, s.Z, s.fid, 
-    s.linenum, getnufromsounding(s)...]
-
+returnforwrite(s::TempestSoundingData) = getfield.(Ref(s), s.writefields)
 
 function getndata(s::TempestSoundingData, vectorsum)
     n = getndata(s.Hx_data)[1] + getndata(s.Hz_data)[1]
@@ -933,7 +931,8 @@ function read_survey_files(;
             z_tx[is],
             times, ramp,
             σ_Hx[is,:], σ_Hz[is,:], dHx, dHz, forceML,
-            peakcurrent
+            peakcurrent, [:X, :Y, :Z, :fid, :linenum, :z_tx, :z_rx, :x_rx, :y_rx, :roll_rx, :pitch_rx, :yaw_rx, 
+                :roll_tx, :pitch_tx, :yaw_tx]
             )
         fracnew = round(Int, is/nsoundings*100)
         if (fracnew-fracdone)>10

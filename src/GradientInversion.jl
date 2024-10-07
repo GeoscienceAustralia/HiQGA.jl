@@ -78,6 +78,8 @@ function occamstep(m::AbstractVector, m0::AbstractVector, Δm::AbstractVector, m
         end
         if all(χ² .>= χ²₀)
            α = count < countmax - 1 ? α/2 : 0. # make sure we don't start going uphill again
+        else  # if any χ² < what we started with
+            count = countmax
         end    
         count += 1        
         count > countmax && break                    
@@ -86,7 +88,7 @@ function occamstep(m::AbstractVector, m0::AbstractVector, Δm::AbstractVector, m
     if all(χ² .> target)
         idx = argmin(χ²)
     else    
-        idx = findlast(χ² .<= target)
+        idx = findfirst(χ² .<= target)
         a = log10(λ²[idx][1])
         b = λ²max # isa(bidx, Nothing) ? λ²max : log10(λ²[bidx][1]) # maybe just set default λ²max
         dophase2(m, m0, F, R, regularizeupdate, lo, hi, target, a, b, mnew,  χ², λ², β², idx)
@@ -229,6 +231,7 @@ function gradientinv(   m::AbstractVector,
                         knownvalue=0.7,
                         firstvalue=:last,
                         κ = GP.Mat52(),
+                        verbose = true,
                         breakonknown=false,
                         minimprovfrac = nothing,
                         minimprovkickinstep = round(Int, nstepsmax/2),
@@ -262,7 +265,7 @@ function gradientinv(   m::AbstractVector,
                 lo, hi, λ²min, λ²max, β², ntries, knownvalue=knownvalue, regularizeupdate = regularizeupdate)
         end
         prefix = isempty(fname) ? fname : fname*" : "
-        @info prefix*"iteration: $istep χ²: $(χ²[istep][idx]) target: $target"
+        verbose && @info prefix*"iteration: $istep χ²: $(χ²[istep][idx]) target: $target"
         m = mnew[istep][idx]
         oidx[istep] = idx
         isa(io, Nothing) || write_history(io, [istep; χ²[istep][idx]/target₀; vec(m)])
@@ -275,13 +278,13 @@ function gradientinv(   m::AbstractVector,
         end
         noimprovement = iszero(λ²[istep][idx][2])  ? true : false
         if (istep == nstepsmax - 1) || noimprovement || littleimprovement
-            target = χ²[istep][idx] # exit with smoothest
+            target = χ²[istep][idx] # exit with smoothest if possible
         end    
         istep += 1
         istep > nstepsmax && break
     end
     if !isnothing(io) 
-        @info "Finished "*fname
+        verbose && @info "Finished "*fname
         close(io) 
         nothing
         return
@@ -312,6 +315,9 @@ function gradientinv(   m::AbstractVector,
                         debuglevel = 0,
                         usebox = true,
                         boxiters = 2,
+                        verbose = true,
+                        minimprovfrac = nothing,
+                        minimprovkickinstep = round(Int, nstepsmax/2),
                         fname="")
     R = makereg(regtype, F)                
     ndata = length(F.res)
@@ -327,6 +333,7 @@ function gradientinv(   m::AbstractVector,
     ndata = length(F.res)
     istep = 1 
     io = open_history(fname)
+    littleimprovement = false  
     while true
         # Optim stuff for nuisances
         # f(x) = 2*get_misfit(m, x, F, nubounds) # why? always set usebox=true
@@ -349,20 +356,26 @@ function gradientinv(   m::AbstractVector,
         idx, foundroot = occamstep(m, m0, Δm, mnew[istep], χ²[istep], λ²[istep], F, R, target, 
             lo, hi, λ²min, λ²max, β², ntries, knownvalue=knownvalue, regularizeupdate = regularizeupdate)
         prefix = isempty(fname) ? fname : fname*" : "
-        @info prefix*"iteration: $istep χ²: $(χ²[istep][idx]) target: $target"
+        verbose && @info prefix*"iteration: $istep χ²: $(χ²[istep][idx]) target: $target"
         m = mnew[istep][idx]
         oidx[istep] = idx
         isa(io, Nothing) || write_history(io, [istep; χ²[istep][idx]/target₀; vec(m); nu])
         foundroot && break
+        if !isnothing(minimprovfrac) && (istep > minimprovkickinstep)
+            prevχ²= χ²[istep-1][oidx[istep-1]]
+            if (χ²[istep][idx] - prevχ²)/prevχ² < minimprovfrac
+                littleimprovement = true
+            end
+        end
         noimprovement = iszero(λ²[istep][idx][2])  ? true : false
-        if (istep == nstepsmax - 1) || noimprovement 
-            target = χ²[istep][idx] # exit with smoothest
+        if (istep == nstepsmax - 1) || noimprovement || littleimprovement
+            target = χ²[istep][idx] # exit with smoothest if possible
         end    
         istep += 1
         istep > nstepsmax && break
     end
     if !isnothing(io) 
-        @info "Finished "*fname
+        verbose && @info "Finished "*fname
         close(io) 
         nothing
         return
