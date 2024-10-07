@@ -437,6 +437,7 @@ function main(opt_in     ::OptionsStat,
         optn, statns, stat, statn, current_misfit, F, wpns, wp, wpn, nominaltime)
 
     close_history.([wp, wpns, wpn])
+    d_closeall()
     nothing
 end
 
@@ -550,6 +551,7 @@ function main(opt_in     ::OptionsStat,
         statns, stat, current_misfit, F, wpns, wp, nominaltime)
 
     close_history.([wp, wpns])
+    d_closeall()
     nothing
 end
 
@@ -662,6 +664,7 @@ function main(opt_in       ::OptionsStat,
         optn, stat, statn, current_misfit, F, wp, wpn, nominaltime)
 
     close_history.([wp, wpn])
+    d_closeall()
     nothing
 end
 
@@ -753,6 +756,7 @@ function main(opt_in ::OptionsStat,
         stat, current_misfit, F, wp, nominaltime)
 
     close_history(wp)
+    d_closeall()
     nothing
 end
 

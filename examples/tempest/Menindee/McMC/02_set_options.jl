@@ -1,5 +1,5 @@
 ## same for all soundingss
-nsamples = 2001
+nsamples = 3001
 nchainspersounding = 3
 ppn = 4
 @assert mod(ppn, nchainspersounding+1) == 0
