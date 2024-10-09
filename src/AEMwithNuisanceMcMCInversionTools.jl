@@ -186,13 +186,14 @@ function loopacrossAEMsoundings(soundings::Array{S, 1}, aem_in::Operator1D, opt_
             opt.fdataname = soundings[s].sounding_string*"_"
             optn = getoptnfromexisting(optn_in, opt, soundings[s])
 
-            @async remotecall_wait(main, pids[1], opt, optn, aem, collect(pids[2:end]);
+            @async remotecall_fetch(main, pids[1], opt, optn, aem, collect(pids[2:end]);
                                     Tmax, nsamples, nchainsatone, nominaltime)
 
         end # @sync
         dt = time() - t2 #seconds
         catlocallogs(nparallelsoundings, nchainspersounding)
         writetogloballog("done $iter out of $nsequentialiters at $(Dates.now()) in $dt sec")
+        GC.gc()
     end
 end
 

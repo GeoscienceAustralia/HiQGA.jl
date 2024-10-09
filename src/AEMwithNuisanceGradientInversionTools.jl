@@ -263,7 +263,7 @@ function loopacrossAEMsoundings(soundings::Array{S, 1}, aem_in, σstart, σ0, nu
             nubounds, nustart = setnuboundsandstartforgradinv(aem, nuboundsΔ)
             fname = soundings[s].sounding_string*"_gradientinv.dat"
             σstart_, σ0_ = map(x->x*ones(length(aem.ρ)-1), [σstart, σ0])
-            @async remotecall_wait(gradientinv, pids[i], σstart_, σ0_, nustart, aem;
+            @async remotecall_fetch(gradientinv, pids[i], σstart_, σ0_, nustart, aem;
                                                 regtype            = regtype         ,              
                                                 nstepsmax          = nstepsmax       ,              
                                                 ntries             = ntries          ,              

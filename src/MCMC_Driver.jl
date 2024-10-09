@@ -426,8 +426,8 @@ function main(opt_in     ::OptionsStat,
             Tmax         = 2.5,
             nominaltime  = nothing)
     # for nonstat, stat, and nuisances all together 
-
-    chains = Chain(myid(), chainprocs, nchainsatone=nchainsatone, Tmax=Tmax)
+    master_pid = myid()
+    chains = Chain(master_pid, chainprocs, nchainsatone=nchainsatone, Tmax=Tmax)
 
     m, mns, mn, opt, optns, optn, stat, 
     statns, statn, F, current_misfit, wp, wpns, wpn, 
@@ -438,6 +438,7 @@ function main(opt_in     ::OptionsStat,
 
     close_history.([wp, wpns, wpn])
     d_closeall()
+    explicit_gc(master_pid, chainprocs)
     nothing
 end
 
@@ -541,7 +542,8 @@ function main(opt_in     ::OptionsStat,
             nominaltime  = nothing)
     # for nonstat and stat together 
 
-    chains = Chain(myid(), chainprocs, nchainsatone=nchainsatone, Tmax=Tmax)
+    master_pid = myid()
+    chains = Chain(master_pid, chainprocs, nchainsatone=nchainsatone, Tmax=Tmax)
 
     m, mns, opt, optns, stat, 
     statns, F, current_misfit, wp, wpns,  
@@ -552,6 +554,7 @@ function main(opt_in     ::OptionsStat,
 
     close_history.([wp, wpns])
     d_closeall()
+    explicit_gc(master_pid, chainprocs)
     nothing
 end
 
@@ -653,8 +656,8 @@ function main(opt_in       ::OptionsStat,
         Tmax         = 2.5,
         nominaltime  = nothing)
     # purely stationary GP moves + nuisance   
-
-    chains = Chain(myid(), chainprocs, nchainsatone=nchainsatone, Tmax=Tmax)
+    master_pid = myid()
+    chains = Chain(master_pid, chainprocs, nchainsatone=nchainsatone, Tmax=Tmax)
 
     m, mn, opt, optn, stat, 
     statn, F, current_misfit, wp, wpn, 
@@ -665,6 +668,7 @@ function main(opt_in       ::OptionsStat,
 
     close_history.([wp, wpn])
     d_closeall()
+    explicit_gc(master_pid, chainprocs)
     nothing
 end
 
@@ -745,8 +749,8 @@ function main(opt_in ::OptionsStat,
         Tmax         = 2.5,
         nominaltime  = nothing)
     # purely stationary GP moves    
-
-    chains = Chain(myid(), chainprocs, nchainsatone=nchainsatone, Tmax=Tmax)
+    master_pid = myid()
+    chains = Chain(master_pid, chainprocs, nchainsatone=nchainsatone, Tmax=Tmax)
 
     m, opt, stat, 
     F, current_misfit, wp, 
@@ -757,6 +761,7 @@ function main(opt_in ::OptionsStat,
 
     close_history(wp)
     d_closeall()
+    explicit_gc(master_pid, chainprocs)
     nothing
 end
 
@@ -825,4 +830,12 @@ function write_to_bin(fp::IOStream, cidx::Int, data)
     write(fp, cidx)
     write(fp, data)
     flush(fp)
+end
+
+function explicit_gc(master_pid, chainprocs)
+    pids = [master_pid; chainprocs]
+    @sync for p in pids
+        @async remotecall_fetch(GC.gc, p)
+    end
+    nothing
 end
