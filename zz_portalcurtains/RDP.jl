@@ -374,8 +374,8 @@ function writevtkfromxyzrhodir(nlayers::Int; src_dir="", dst_dir="", src_epsg=0,
         plist = makeplist(X, Y)
         latlonglist = reprojecttoGDA94(plist, src_epsg)
         X, Y = makexyfromlatlonglist(latlonglist)
-        transD_GP.writevtkfromxyzrho(ρlow, ρmid, ρhigh, X, Y, Z, zall, ln; dst_dir)
-        transD_GP.writevtkphifromsummary(ϕmean, ϕsdev, X, Y, Z, ln; dst_dir)
+        transD_GP.CommonToAll.writevtkfromxyzrho(ρlow, ρmid, ρhigh, X, Y, Z, zall, ln; dst_dir)
+        transD_GP.CommonToAll.writevtkphifromsummary(ϕmean, ϕsdev, X, Y, Z, ln; dst_dir)
         fn = joinpath(dst_dir, "Line_$(ln).vts")
         transD_GP.writevtkxmlforcurtain(fn; src_epsg=epsg_GDA94, dst_epsg=epsg_WGS84, suffix="", vmin, vmax)
     end
