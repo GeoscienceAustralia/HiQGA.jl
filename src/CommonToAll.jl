@@ -20,7 +20,7 @@ export trimxft, assembleTat1, gettargtemps, checkns, getchi2forall, nicenup, plo
         writeijkfromsounding, nanmean, infmean, nanstd, infstd, infnanmean, infnanstd, 
         kde_sj, plotmanygrids, readwell, getlidarheight, plotblockedwellonimages, getdeterministicoutputs, writeasegdfnfromonerow,
         writeasegdat, getprobabilisticoutputs, readfzipped, readxyzrhoϕ, writevtkxmlforcurtain, getRandgridr, getallxyinr, getXYlast,
-        getprobabilisticlinesfromdirectory, readxyzrhoϕnu, plotgausshist, findMAE, getclosestidx, getpostatXY, getpostatwell
+        getprobabilisticlinesfromdirectory, readxyzrhoϕnu, plotgausshist, findMAE, getclosestidx, getpostatXY, getpostatwell, thicktodepth
 
 # Kernel Density stuff
 abstract type KDEtype end
@@ -1206,7 +1206,8 @@ function writevtkxmlforcurtain(;vtkfname="",
 end
 
 function colstovtk(cols::Vector, fname::String; decfactor=1, hasthick=true, islog10=false, prefix="")
-    # for one file in a direcoty
+    # for one file with one line, not used much I don't think 
+    # TBD: delete function
     X, Y, Z, σ, thick = readcols(cols, fname; decfactor)
     thick = thick[1,:]
     zall = thicktodepth(thick; hasthick)
@@ -1217,6 +1218,7 @@ function colstovtk(cols::Vector, fname::String; decfactor=1, hasthick=true, islo
 end
 
 function colstovtk(X, Y, Z, σ, zall, fpath::String, islog10::Bool)
+    # lowest level call
     Ni = length(X)
     Nk = length(zall)
     x = [X[i] for i = 1:Ni, j = 1:1, k = 1:Nk]
@@ -1231,12 +1233,14 @@ function colstovtk(X, Y, Z, σ, zall, fpath::String, islog10::Bool)
 end
 
 function colstovtk(cols::Dict, fname::String; decfactor=1, hasthick=true, islog10=false, prefix="")
+    # dictionary call for a file with multiple lines
     Xc, Yc, Zc, σc, thickc, linec = map(x->get(cols, x, 0), ["X", "Y", "Z", "cond", "thick", "line"])
     X, Y, Z, σ, thick, lines = readcols([Xc, Yc, Zc, σc, thickc, linec], fname; decfactor)
     colstovtk(X, Y, Z, σ, thick, lines, fname; hasthick, islog10, prefix)
 end    
 
 function colstovtk(X, Y, Z, σ, thick_in, lines, fname::String; hasthick=true, islog10=false, prefix="")
+    # no dictionary version next level call
     linenos  = unique(Int.(lines))
     if ndims(thick_in) == 2 
         thick = thick_in[1,:] # assumes all thicknesses are same

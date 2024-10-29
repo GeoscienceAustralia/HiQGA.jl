@@ -70,9 +70,9 @@ function XYZ_zmid_gridtoSEGY(σ, X, Y, Z; dr=nothing, zall=nothing, dz=nothing, 
             dr, zall, dz)
     img[isnan.(img)] .= nanval       
     segypath = dst_dir
-    xymid, = transD_GP.getallxyinr(X, Y, dr)
+    xymid, rm = transD_GP.getallxyinr(X, Y, dr)
     xm, ym, = map(i->xymid[i,:], 1:2)
-    rm = transD_GP.CommonToAll.cumulativelinedist(xm, ym)
+    # rm = transD_GP.CommonToAll.cumulativelinedist(xm, ym)
     topom = (interpolate((gridr,), topofine, Gridded(Linear())))(rm)
     block = SeisBlock(Float32.(img))
     set_header!(block, :dt, dz*1000) # ms
@@ -104,6 +104,40 @@ function writesegyfromxyzrhodir(nlayers::Int; src_dir="", src_epsg=0, dst_dir=""
         fname = "line_$ln"
         X, Y, Z, zall, ρlow, ρmid, ρhigh, ρavg, ϕmean, ϕsdev = transD_GP.readxyzrhoϕ(ln, nlayers; pathname=src_dir)
         [XYZ_zmid_gridtoSEGY(-ρ, X, Y, Z; dr, zall, dz, dst_dir, fname, suffix=str) for (ρ, str) in zip([ρlow, ρmid, ρhigh],["high", "mid", "low"])]
+    end
+end
+
+function colstosegy(cols::Dict, fname::String; dr=nothing, dz=nothing, decfactor=1, hasthick=true, islog10=false, suffix="", dst_dir="", src_epsg=0)
+    # dictionary call for a file with multiple lines
+    @assert !isnothing(dr)
+    @assert !isnothing(dz)
+    Xc, Yc, Zc, σc, thickc, linec = map(x->get(cols, x, 0), ["X", "Y", "Z", "cond", "thick", "line"])
+    X, Y, Z, σ, thick, lines = transD_GP.readcols([Xc, Yc, Zc, σc, thickc, linec], fname; decfactor)
+    colstosegy(X, Y, Z, σ, thick, lines; dr, dz, hasthick, islog10, suffix, dst_dir, src_epsg)
+end    
+
+function colstosegy(X, Y, Z, σ, thick_in, lines; dr=nothing, dz=nothing, hasthick=true, islog10=false, suffix="", dst_dir="", src_epsg=0)
+    # no dictionary version next level call with decimation already done, if any
+    @assert !isnothing(dr)
+    @assert !isnothing(dz)
+    linenos  = unique(Int.(lines))
+    if ndims(thick_in) == 2 
+        thick = thick_in[1,:] # assumes all thicknesses are same
+    else
+        thick = thick_in
+    end
+    zall = transD_GP.thicktodepth(thick; hasthick)
+    isdir(dst_dir) || mkpath(dst_dir)
+    ioproj = open(joinpath(dst_dir, "0000_projection.txt"), "w")
+    write(ioproj, "EPSG: $src_epsg")
+    close(ioproj)
+    for l in linenos
+        idx = lines .== l
+        fstring = "LEI_Line_$l"
+        @info "doing Line "*fstring
+        T = islog10 ?  x->x : x->log10(x) # if log 10 leave alone
+        # [@info size(x) for x in (T.(σ[idx,:]), X[idx], Y[idx], Z[idx], zall)] 
+        XYZ_zmid_gridtoSEGY(T.(σ[idx,:])', X[idx], Y[idx], Z[idx]; dr, zall, dz, dst_dir, fname=fstring, suffix)
     end
 end
 
