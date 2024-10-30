@@ -1,0 +1,14 @@
+1	 X
+2	 Y
+3	 Z
+4	 fid
+5	 linenum
+6	 rRx
+7	 zRxLM
+8	 zTxLM
+9	 zRxHM
+10	 zTxHM
+11	 rTx
+12	61	 zcenter
+62	111	 log10_cond
+112	 phid_err

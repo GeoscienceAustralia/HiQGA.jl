@@ -1,0 +1,14 @@
+[ Info: size is 8304
+[ Info: there are 8303 workers at 2024-10-14T15:52:38.754
+[ Info: reading /scratch/ns59/ASEG_Hobart_Workshop_2024/UDF_data/twolines.dat
+[ Info: reading /scratch/ns59/ASEG_Hobart_Workshop_2024/UDF_data/electronics_halt.jl
+[ Info: read 274 out of 2600
+[ Info: read 559 out of 2600
+[ Info: read 846 out of 2600
+[ Info: read 1131 out of 2600
+[ Info: read 1417 out of 2600
+[ Info: read 1703 out of 2600
+[ Info: read 1990 out of 2600
+[ Info: read 2275 out of 2600
+[ Info: read 2562 out of 2600
+[ Info: starting at 2024-10-14T15:55:00.970
