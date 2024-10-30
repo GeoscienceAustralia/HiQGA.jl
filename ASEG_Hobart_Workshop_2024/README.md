@@ -8,7 +8,7 @@ and will only require the use of a computer with at least 7 CPUs. Most laptops c
 
 To view the pre-run notebooks, simply click the `.ipynb` file in GitHub on your browser.
 
-Julia scripts on which the notebooks are based, are in the directories
+Julia scripts (not notebooks) on which the notebooks are based, are in the directories
 
 ```
 synthetic/  
@@ -25,7 +25,7 @@ The directory
 ```
 viz
 ```
-contains a Julia script that uses the accompanying [RDP.jl](https://github.com/GeoscienceAustralia/HiQGA.jl/blob/55400fa97c57f576701e239e651ccce83557cf46/zz_portalcurtains/RDP.jl) in commit `55400fa` for [VTK)[https://vtk.org/) visualization in [ParaView](https://www.paraview.org/) or another VTK viewer such as [VisIt](https://visit-dav.github.io/visit-website/).  
+contains a Julia script that uses the accompanying [RDP.jl](https://github.com/GeoscienceAustralia/HiQGA.jl/blob/55400fa97c57f576701e239e651ccce83557cf46/zz_portalcurtains/RDP.jl) module in commit `55400fa` for [VTK](https://vtk.org/) visualization in [ParaView](https://www.paraview.org/) or another VTK viewer such as [VisIt](https://visit-dav.github.io/visit-website/).  
 
 ## Installation of HiQGA version used in the workshop
 To install the workshop stable release, use Julia's `Pkg` REPL by hitting `]` to enter `pkg>` mode. Then enter the following, at the `pkg>` prompt:
