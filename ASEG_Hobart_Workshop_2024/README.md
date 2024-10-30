@@ -6,7 +6,7 @@ Jupyter notebooks are in the directory
 ``` 
 and will only require the use of a computer with at least 7 CPUs. Most laptops can run these in 2024. Remember to change any file paths to your local disk if running the notebooks yourself. 
 
-To view the pre-run notebooks, simply click the `.ipynb` file in GitHub on your browser.
+**To view the pre-run notebooks with results, simply click the `.ipynb` file in GitHub on your browser.**
 
 Julia scripts (not notebooks) on which the notebooks are based, are in the directories
 
