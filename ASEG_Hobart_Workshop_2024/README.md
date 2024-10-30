@@ -19,7 +19,7 @@ UDF_probabilistic/
 
 Simply run within Julia, or an IDE like Julia/VSCode, the files in numbered order for `synthetic/`. Remember to change any file paths to your local disk!
 
-Please note that the `UDF_deterministic/` and `UDF_probabilistic/` directories use MPI and 1,000s of cores. The `submit.sh` scripts for `qsub`/PBS on the Gadi cluster, as well as diagnostic output from HiQGA is included in these directories. These two directories only require you run the 01, 02 and 04 scripts to plot pre-run results. However, for the probabilistic inversions, the full posteriors are too large to provide here. Again, remember to change any file paths to your local disk.
+Please note that the `UDF_deterministic/` and `UDF_probabilistic/` directories use MPI and 1,000s of cores. The `submit.sh` scripts for `qsub`/PBS on the Gadi cluster, as well as diagnostic output from HiQGA is included in these directories. These two directories only require you run within Julia, the 01, 02 and 04 scripts to plot pre-run results. However, for the probabilistic inversions, the full posteriors are too large to provide here. Again, remember to change any file paths to your local disk.
 
 The directory
 ```
