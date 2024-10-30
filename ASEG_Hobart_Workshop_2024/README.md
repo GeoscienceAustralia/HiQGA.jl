@@ -13,7 +13,7 @@ UDF_probabilistic/
 
 Simply run the files in numbered order for `synthetic/` and `UDF_data/`. Remember to change any file paths to your local disk!
 
-Please note that the `UDF_deterministic/` and `UDF_probabilistic/` directories use MPI and 1,000s of cores. The submit scripts for PBS on the Gadi cluster as well as diagnostic output from HiQGA to generate the results for the pre-run notebooks is included. These two directories only require the 01, 02 and 04 scripts to plot pre-run results, but for the probabilistic inversions, the full posteriors are too large to provide here. Again, remember to change any file paths to your local disk.
+Please note that the `UDF_deterministic/` and `UDF_probabilistic/` directories use MPI and 1,000s of cores. The submit scripts for qsub/PBS on the Gadi cluster, as well as diagnostic output from HiQGA is included. These two directories only require the 01, 02 and 04 scripts to plot pre-run results. However, for the probabilistic inversions, the full posteriors are too large to provide here. Again, remember to change any file paths to your local disk.
 
 ## Installation of HiQGA version used in the workshop
 To install the latest stable release, in a perfect world we'd use Julia's `Pkg` REPL by hitting `]` to enter `pkg>` mode. Then enter the following, at the `pkg>` prompt:
