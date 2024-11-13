@@ -30,9 +30,9 @@ contains a Julia script that uses the accompanying [RDP.jl](https://github.com/G
 ## Installation of HiQGA version used in the workshop
 To install the workshop stable release, use Julia's `Pkg` REPL by hitting `]` to enter `pkg>` mode. Then enter the following, at the `pkg>` prompt:
 ```
-pkg> add HiQGA @0.4.8
+pkg> add HiQGA @0.4.9
 ```
-For the latest HiQGA version (not used in the workshop), drop the `@0.4.8`
+For the latest HiQGA version (not used in the workshop), drop the `@0.4.9`
 
 ## Docs
 References, detailed instructions for installation, running examples and setting your environment on a cluster are ☞ [<img src="https://img.shields.io/badge/docs-stable-steelblue.svg">](https://geoscienceaustralia.github.io/HiQGA.jl/)
