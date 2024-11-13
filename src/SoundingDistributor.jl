@@ -2,13 +2,13 @@ module SoundingDistributor
 using Distributed
 export splittasks, getss, getpids, writetogloballog, catlocallogs, getss_deterministic
 
-function splittasks(soundings::AbstractVector; nchainspersounding=nothing, ppn=nothing)
+function splittasks(soundings::AbstractVector; nchainspersounding=nothing, ppn=nothing, fname="")
     nsoundings = length(soundings)
     ncores = nworkers()
-    splittasks(;nsoundings, ncores, nchainspersounding, ppn)
+    splittasks(;nsoundings, ncores, nchainspersounding, ppn, fname)
 end
 
-function splittasks(;nsoundings=nothing, ncores=nothing, nchainspersounding=nothing, ppn=nothing)
+function splittasks(;nsoundings=nothing, ncores=nothing, nchainspersounding=nothing, ppn=nothing, fname="")
     # split into sequential iterations of parallel soundings
     @assert !any(isnothing.([nsoundings, ncores, nchainspersounding, ppn]))
     @assert mod(ppn, nchainspersounding+1) == 0
@@ -16,7 +16,12 @@ function splittasks(;nsoundings=nothing, ncores=nothing, nchainspersounding=noth
     subtractone = 1
     nparallelsoundings = Int((ncores+1)/(nchainspersounding+1)) - subtractone
     nsequentialiters = ceil(Int, nsoundings/nparallelsoundings)
-    writetogloballog( "will require $nsequentialiters iterations of $nparallelsoundings soundings in one iteration", iomode="w")
+    str = "will require $nsequentialiters iterations of $nparallelsoundings soundings in one iteration"
+    if isempty(fname)
+        @info str
+    else
+        writetogloballog(str; iomode="w", fname)
+    end
     nsequentialiters, nparallelsoundings
 end    
 
@@ -50,12 +55,12 @@ function writetogloballog(str::String; fname="global.log", iomode="a", newline=t
     close(io)
 end
 
-function catlocallogs(nparallelsoundings, nchainspersounding)
+function catlocallogs(nparallelsoundings, nchainspersounding, batchstr::String)
     managerpids = [p[1] for p in getpids.(1:nparallelsoundings, nchainspersounding)]
     map(managerpids) do p
-        locallogfile = "$p.log"
+        locallogfile = batchstr*"_$p.log"
         if isfile(locallogfile)
-            writetogloballog(read(locallogfile, String), newline=false)
+            writetogloballog(read(locallogfile, String); newline=false, fname = batchstr*"_global.log" )
             rm(locallogfile)
         end
     end

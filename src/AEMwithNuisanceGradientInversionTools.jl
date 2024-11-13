@@ -1,5 +1,5 @@
 module AEMwithNuisanceGradientInversionTools
-using Distributed, Dates, Printf, PyPlot, DelimitedFiles, StatsBase
+using Distributed, Dates, Printf, PyPlot, DelimitedFiles, StatsBase, Random
 using ..AbstractOperator, ..CommonToAll, ..GP, ..SoundingDistributor
 import ..AbstractOperator.makeoperator
 import ..AbstractOperator.setnuboundsandstartforgradinv
@@ -243,25 +243,26 @@ function loopacrossAEMsoundings(soundings::Array{S, 1}, aem_in, σstart, σ0, nu
                             usebox             = true,
                             reducenuto         = 0.2,
                             debuglevel         = 0,
-                            breaknuonknown     = false,       
+                            breaknuonknown     = false,
+                            batchstr           = randstring(15),
                             ) where S<:Sounding
 
     @assert nsequentialiters  != -1
     nparallelsoundings = nworkers()
     nsoundings = length(soundings)
     zall = zboundarytocenter(aem_in.z[aem_in.nfixed+1:end]) # needed for sounding compression in write
-    
-    writetogloballog("will require $nsequentialiters iterations of $nparallelsoundings soundings", iomode="w")
-    writetogloballog("starting sequential parallel iterations at $(Dates.now())")
+    fname = batchstr*"_"*zipsaveprefix*"_global.log"
+    writetogloballog("will require $nsequentialiters iterations of $nparallelsoundings soundings"; iomode="w", fname)
+    writetogloballog("starting sequential parallel iterations at $(Dates.now())"; fname)
     for iter = 1:nsequentialiters
         ss = getss_deterministic(iter, nsequentialiters, nparallelsoundings, nsoundings)
-        writetogloballog("soundings in loop $iter of $nsequentialiters $ss")
+        writetogloballog("soundings in loop $iter of $nsequentialiters $ss"; fname)
         pids = workers()
         t2 = time()
         @sync for (i, s) in enumerate(ss)
             aem = makeoperator(aem_in, soundings[s])
             nubounds, nustart = setnuboundsandstartforgradinv(aem, nuboundsΔ)
-            fname = soundings[s].sounding_string*"_gradientinv.dat"
+            fname_ = soundings[s].sounding_string*"_gradientinv.dat"
             σstart_, σ0_ = map(x->x*ones(length(aem.ρ)-1), [σstart, σ0])
             @async remotecall_fetch(gradientinv, pids[i], σstart_, σ0_, nustart, aem;
                                                 regtype            = regtype         ,              
@@ -275,7 +276,7 @@ function loopacrossAEMsoundings(soundings::Array{S, 1}, aem_in, σstart, σ0, nu
                                                 β²                 = β²              ,
                                                 regularizeupdate   = regularizeupdate,              
                                                 knownvalue         = knownvalue      ,              
-                                                fname              = fname           ,
+                                                fname              = fname_           ,
                                                 ntriesnu, nubounds, boxiters, usebox, reducenuto, debuglevel, breaknuonknown,
                                                 minimprovfrac, verbose, minimprovkickinstep) 
                 
@@ -285,7 +286,7 @@ function loopacrossAEMsoundings(soundings::Array{S, 1}, aem_in, σstart, σ0, nu
         compresssoundings && compress(soundings[ss[1]:ss[end]], zall, size(nuboundsΔ, 1),
             isfirstparalleliteration = isfirstparalleliteration, prefix=zipsaveprefix)
         dt = time() - t2 # seconds
-        writetogloballog("done $iter out of $nsequentialiters at $(Dates.now()) in $dt sec")
+        writetogloballog("done $iter out of $nsequentialiters at $(Dates.now()) in $dt sec"; fname)
     end
 end
 

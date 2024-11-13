@@ -322,6 +322,7 @@ end
 
 # Driver code for McMC inversion with no nuisances
 function loopacrossAEMsoundings(soundings::Array{S, 1}, aem_in::Operator1D, opt_in::Options;
+                            batchstr           = randstring(15),
                             Tmax               = -1,
                             nsamples           = -1,
                             nchainsatone       =  1,
@@ -335,12 +336,12 @@ function loopacrossAEMsoundings(soundings::Array{S, 1}, aem_in::Operator1D, opt_
     @assert Tmax != -1
 
     nsoundings = length(soundings)
-    nsequentialiters, nparallelsoundings = splittasks(soundings; nchainspersounding, ppn)
-    
-    writetogloballog("starting sequential parallel iterations at $(Dates.now())")
+    fname = batchstr*"_global.log"
+    nsequentialiters, nparallelsoundings = splittasks(soundings; nchainspersounding, ppn, fname)
+    writetogloballog("starting sequential parallel iterations at $(Dates.now())"; fname)
     for iter = 1:nsequentialiters
         ss = getss(iter, nsequentialiters, nparallelsoundings, nsoundings)
-        writetogloballog("soundings in loop $iter of $nsequentialiters $ss")
+        writetogloballog("soundings in loop $iter of $nsequentialiters $ss"; fname)
         t2 = time()
         @sync for (i, s) in Iterators.reverse(enumerate(ss))
             pids = getpids(i, nchainspersounding)
@@ -350,12 +351,12 @@ function loopacrossAEMsoundings(soundings::Array{S, 1}, aem_in::Operator1D, opt_
             opt.fdataname = soundings[s].sounding_string*"_"
 
             @async remotecall_fetch(main, pids[1], opt, aem, collect(pids[2:end]);
-                                    Tmax, nsamples, nchainsatone, nominaltime)
+                                    Tmax, nsamples, nchainsatone, nominaltime, batchstr)
 
         end # @sync
         dt = time() - t2 #seconds
-        catlocallogs(nparallelsoundings, nchainspersounding)
-        writetogloballog("done $iter out of $nsequentialiters at $(Dates.now()) in $dt sec")
+        catlocallogs(nparallelsoundings, nchainspersounding, batchstr)
+        writetogloballog("done $iter out of $nsequentialiters at $(Dates.now()) in $dt sec"; fname)
         GC.gc()
     end
 end

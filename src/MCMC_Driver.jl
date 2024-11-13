@@ -380,7 +380,7 @@ function init_file_pointers_and_darrays(opt_in::OptionsStat,
             wp, wpns, wpn, iterlast
 end
 
-function domcmciters(iterlast, nsamples, chains, mns::DArray{ModelNonstat}, m::DArray{ModelStat}, 
+function domcmciters(batchstr, iterlast, nsamples, chains, mns::DArray{ModelNonstat}, m::DArray{ModelStat}, 
             mn::DArray{ModelNuisance}, optns::DArray{OptionsNonstat}, opt::DArray{OptionsStat},
             optn::DArray{OptionsNuisance}, statns, stat, statn, current_misfit, F, wpns, wp, wpn, nominaltime)
     # for nonstat, stat, and nuisances all together         
@@ -411,7 +411,7 @@ function domcmciters(iterlast, nsamples, chains, mns::DArray{ModelNonstat}, m::D
                                             current_misfit, F,
                                             chain.T, isample, wp, chain_idx, chain.master_pid)
         end
-        t, tlong, doquit = disptime(isample, t, tlong, nsamples, nominaltime)
+        t, tlong, doquit = disptime(isample, t, tlong, nsamples, nominaltime, batchstr)
         doquit && break
     end
 end
@@ -421,6 +421,7 @@ function main(opt_in     ::OptionsStat,
             optn_in      ::OptionsNuisance,
             F_in         ::Operator,
             chainprocs   ::Array{Int, 1};
+            batchstr     = "",
             nsamples     = 4001,
             nchainsatone = 1,
             Tmax         = 2.5,
@@ -433,7 +434,7 @@ function main(opt_in     ::OptionsStat,
     statns, statn, F, current_misfit, wp, wpns, wpn, 
     iterlast = init_file_pointers_and_darrays(opt_in, optns_in, optn_in, F_in, chains)
 
-    domcmciters(iterlast, nsamples, chains, mns, m, mn, optns, opt,
+    domcmciters(batchstr, iterlast, nsamples, chains, mns, m, mn, optns, opt,
         optn, statns, stat, statn, current_misfit, F, wpns, wp, wpn, nominaltime)
 
     close_history.([wp, wpns, wpn])
@@ -446,16 +447,17 @@ function main(opt_in ::OptionsStat,
     optns_in     ::OptionsNonstat,
     optn         ::OptionsNuisance,
     F_in         ::Operator;
+    batchstr     = "", 
     nchains      = 4,
     nsamples     = 4001,
     nchainsatone = 1,
     Tmax         = 2.5,
     nominaltime  = nothing)
     # unnecessary but for backwards compat
-    # for nonstat and stat together 
+    # for nonstat stat and nuisances together 
     pids = workers()
     @assert length(pids) == nchains
-    main(opt_in, optns_in, optn, F_in, workers(); nsamples=nsamples, Tmax=Tmax, nchainsatone=nchainsatone, nominaltime)
+    main(opt_in, optns_in, optn, F_in, workers(); nsamples=nsamples, Tmax=Tmax, nchainsatone=nchainsatone, nominaltime, batchstr)
 end
 
 function init_file_pointers_and_darrays(opt_in::OptionsStat,
@@ -503,7 +505,7 @@ function init_file_pointers_and_darrays(opt_in::OptionsStat,
             wp, wpns, iterlast
 end
 
-function domcmciters(iterlast, nsamples, chains, mns::DArray{ModelNonstat}, m::DArray{ModelStat}, 
+function domcmciters(batchstr, iterlast, nsamples, chains, mns::DArray{ModelNonstat}, m::DArray{ModelStat}, 
             optns::DArray{OptionsNonstat}, opt::DArray{OptionsStat}, 
             statns, stat, current_misfit, F, wpns, wp, nominaltime)
     # for nonstat and stat together        
@@ -527,7 +529,7 @@ function domcmciters(iterlast, nsamples, chains, mns::DArray{ModelNonstat}, m::D
                                             current_misfit, F,
                                             chain.T, isample, wp, chain_idx, chain.master_pid)
         end
-        t, tlong, doquit = disptime(isample, t, tlong, nsamples, nominaltime)
+        t, tlong, doquit = disptime(isample, t, tlong, nsamples, nominaltime, batchstr)
         doquit && break
     end
 end
@@ -536,6 +538,7 @@ function main(opt_in     ::OptionsStat,
             optns_in     ::OptionsNonstat,
             F_in         ::Operator,
             chainprocs   ::Array{Int, 1};
+            batchstr     = "",
             nsamples     = 4001,
             nchainsatone = 1,
             Tmax         = 2.5,
@@ -549,7 +552,7 @@ function main(opt_in     ::OptionsStat,
     statns, F, current_misfit, wp, wpns,  
     iterlast = init_file_pointers_and_darrays(opt_in, optns_in, F_in, chains)
 
-    domcmciters(iterlast, nsamples, chains, mns, m, optns, opt,
+    domcmciters(batchstr, iterlast, nsamples, chains, mns, m, optns, opt,
         statns, stat, current_misfit, F, wpns, wp, nominaltime)
 
     close_history.([wp, wpns])
@@ -561,6 +564,7 @@ end
 function main(opt_in ::OptionsStat,
     optns_in     ::OptionsNonstat,
     F_in         ::Operator;
+    batchstr     = "",
     nchains      = 4,
     nsamples     = 4001,
     nchainsatone = 1,
@@ -570,7 +574,7 @@ function main(opt_in ::OptionsStat,
     # for nonstat and stat together 
     pids = workers()
     @assert length(pids) == nchains
-    main(opt_in, optns_in, F_in, workers(); nsamples=nsamples, Tmax=Tmax, nchainsatone=nchainsatone, nominaltime)
+    main(opt_in, optns_in, F_in, workers(); nsamples=nsamples, Tmax=Tmax, nchainsatone=nchainsatone, nominaltime, batchstr)
 end   
 
 function init_file_pointers_and_darrays(opt_in::OptionsStat, optn_in::OptionsNuisance,
@@ -618,7 +622,7 @@ function init_file_pointers_and_darrays(opt_in::OptionsStat, optn_in::OptionsNui
         wp, wpn, iterlast
 end
 
-function domcmciters(iterlast, nsamples, chains, m::DArray{ModelStat}, mn::DArray{ModelNuisance}, 
+function domcmciters(batchstr, iterlast, nsamples, chains, m::DArray{ModelStat}, mn::DArray{ModelNuisance}, 
             opt::DArray{OptionsStat}, optn::DArray{OptionsNuisance}, stat, statn, 
             current_misfit, F, wp, wpn, nominaltime)
     # purely stationary GP moves + nuisance        
@@ -642,7 +646,7 @@ function domcmciters(iterlast, nsamples, chains, m::DArray{ModelStat}, mn::DArra
                                             current_misfit, F,
                                             chain.T, isample, wp, chain_idx, chain.master_pid)
         end
-        t, tlong, doquit = disptime(isample, t, tlong, nsamples, nominaltime)
+        t, tlong, doquit = disptime(isample, t, tlong, nsamples, nominaltime, batchstr)
         doquit && break
     end
 end
@@ -651,6 +655,7 @@ function main(opt_in       ::OptionsStat,
         optn_in      ::OptionsNuisance,
         F_in         ::Operator,
         chainprocs   ::Array{Int, 1};
+        batchstr     = "",
         nsamples     = 4001,
         nchainsatone = 1,
         Tmax         = 2.5,
@@ -663,7 +668,7 @@ function main(opt_in       ::OptionsStat,
     statn, F, current_misfit, wp, wpn, 
     iterlast = init_file_pointers_and_darrays(opt_in, optn_in, F_in, chains)
 
-    domcmciters(iterlast, nsamples, chains, m, mn, opt,
+    domcmciters(batchstr, iterlast, nsamples, chains, m, mn, opt,
         optn, stat, statn, current_misfit, F, wp, wpn, nominaltime)
 
     close_history.([wp, wpn])
@@ -675,6 +680,7 @@ end
 function main(opt_in ::OptionsStat,
     optn_in     ::OptionsNuisance,
     F_in         ::Operator;
+    batchstr     = "",
     nchains      = 4,
     nsamples     = 4001,
     nchainsatone = 1,
@@ -684,7 +690,7 @@ function main(opt_in ::OptionsStat,
     # purely stationary GP moves + nuisance  
     pids = workers()
     @assert length(pids) == nchains
-    main(opt_in, optn_in, F_in, workers(); nsamples=nsamples, Tmax=Tmax, nchainsatone=nchainsatone, nominaltime)
+    main(opt_in, optn_in, F_in, workers(); nsamples=nsamples, Tmax=Tmax, nchainsatone=nchainsatone, nominaltime, batchstr)
 end 
 
 function init_file_pointers_and_darrays(opt_in::OptionsStat, F_in::Operator, 
@@ -721,7 +727,7 @@ function init_file_pointers_and_darrays(opt_in::OptionsStat, F_in::Operator,
         wp, iterlast
 end
 
-function domcmciters(iterlast, nsamples, chains, m::DArray{ModelStat}, 
+function domcmciters(batchstr, iterlast, nsamples, chains, m::DArray{ModelStat}, 
             opt::DArray{OptionsStat}, stat, 
             current_misfit, F, wp, nominaltime)
     # purely stationary GP moves     
@@ -736,7 +742,7 @@ function domcmciters(iterlast, nsamples, chains, m::DArray{ModelStat},
                                             current_misfit, F,
                                             chain.T, isample, wp, chain_idx, chain.master_pid)
         end
-        t, tlong, doquit = disptime(isample, t, tlong, nsamples, nominaltime)
+        t, tlong, doquit = disptime(isample, t, tlong, nsamples, nominaltime, batchstr)
         doquit && break
     end
 end
@@ -744,6 +750,7 @@ end
 function main(opt_in ::OptionsStat,
         F_in         ::Operator,
         chainprocs   ::Array{Int, 1};
+        batchstr     = "",
         nsamples     = 4001,
         nchainsatone = 1,
         Tmax         = 2.5,
@@ -756,7 +763,7 @@ function main(opt_in ::OptionsStat,
     F, current_misfit, wp, 
     iterlast = init_file_pointers_and_darrays(opt_in, F_in, chains)
 
-    domcmciters(iterlast, nsamples, chains, m, opt,
+    domcmciters(batchstr, iterlast, nsamples, chains, m, opt,
         stat, current_misfit, F, wp, nominaltime)
 
     close_history(wp)
@@ -767,6 +774,7 @@ end
 
 function main(opt_in ::OptionsStat,
     F_in         ::Operator;
+    batchstr     = "",
     nchains      = 4,
     nsamples     = 4001,
     nchainsatone = 1,
@@ -776,7 +784,7 @@ function main(opt_in ::OptionsStat,
     # purely stationary GP moves    
     pids = workers()
     @assert length(pids) == nchains
-    main(opt_in, F_in, workers(); nsamples=nsamples, Tmax=Tmax, nchainsatone=nchainsatone, nominaltime)
+    main(opt_in, F_in, workers(); nsamples=nsamples, Tmax=Tmax, nchainsatone=nchainsatone, nominaltime, batchstr)
 end   
 
 function swap_temps(chains::Array{Chain, 1})
@@ -792,9 +800,9 @@ function swap_temps(chains::Array{Chain, 1})
     end
 end
 
-function disptime(isample, t, tlong, nsamples, nominaltime)
+function disptime(isample, t, tlong, nsamples, nominaltime, batchstr::String)
     iomode = isample == 1 ? "w" : "a"
-    io = open("$(myid()).log", iomode)
+    io = open(batchstr*"_$(myid()).log", iomode)
     logger = ConsoleLogger(io)
     doquit = false
     with_logger(logger) do
