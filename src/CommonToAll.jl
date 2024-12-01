@@ -16,7 +16,7 @@ export trimxft, assembleTat1, gettargtemps, checkns, getchi2forall, nicenup, plo
         plotprofile, gridpoints, splitsoundingsbyline, getsoundingsperline, docontinue, linestartend,
         compatidxwarn, dfn2hdr, getgdfprefix, readlargetextmatrix, pairinteractionplot, flipline, 
         summaryconductivity, plotsummarygrids1, getVE, writevtkfromsounding, trapezoidrule,
-        readcols, colstovtk, findclosestidxincolfile, zcentertoboundary, zboundarytocenter, 
+        readcols, colstovtk, findclosestidxincolfile, zcentertoboundary, zboundarytocenter, zboundarytocenter_inexact,
         writeijkfromsounding, nanmean, infmean, nanstd, infstd, infnanmean, infnanstd, 
         kde_sj, plotmanygrids, readwell, getlidarheight, plotblockedwellonimages, getdeterministicoutputs, writeasegdfnfromonerow,
         writeasegdat, getprobabilisticoutputs, readfzipped, readxyzrhoϕ, writevtkxmlforcurtain, getRandgridr, getallxyinr, getXYlast,
@@ -1279,15 +1279,15 @@ function zcentertoboundary(zall)
     zb
 end
 
-# function zboundarytocenter(zb; fudgelast=false)
+function zboundarytocenter_inexact(zb; fudgelast=false)
 # no more fudging, this is superseded
-#     thickness = diff(zb)
-#     zall = zb[1:end-1] + thickness/2
-#     if fudgelast
-#         zall = [zall; zb[end]+thickness[end]/2]
-#     end
-#     zall    
-# end    
+    thickness = diff(zb)
+    zall = zb[1:end-1] + thickness/2
+    if fudgelast
+        zall = [zall; zb[end]+thickness[end]/2]
+    end
+    zall    
+end    
 
 function zboundarytocenter(zb)
     # first get extendfrac r
