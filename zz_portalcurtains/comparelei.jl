@@ -12,7 +12,7 @@ line, X, Y, Z, thick, σ = transD_GP.readcols([5,7,8,9,[53,82],[23,52]],
     startfrom=1, decfactor=5)
 idx = line .== linewanted
 Xd, Yd, Zd, thick, σd = map(x->x[idx,:],(X, Y, Z, thick, σ))
-zalld = transD_GP.zboundarytocenter_inexact(cumsum(thick[1,:]))
+zalld = transD_GP.zboundarytocenter_inexact(cumsum(thick[1,:]), fudgelast=true)
 ## Get probabilistic
 Xp, Yp, Zp, zallp, ρlow, ρmid, ρhigh, = transD_GP.readxyzrhoϕ(linewanted, 52, 
      pathname="/Users/anray/Documents/work/projects/largeaem/final_01/summaries_all/AusAEM_01/2017_QLD/summary")
