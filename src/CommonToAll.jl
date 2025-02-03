@@ -1279,17 +1279,11 @@ function zcentertoboundary(zall)
     zb
 end
 
-function zboundarytocenter_inexact(zb; fudgelast=false)
-# no more fudging, this is superseded
-    thickness = diff(zb)
-    zall = zb[1:end-1] + thickness/2
-    if fudgelast
-        zall = [zall; zb[end]+thickness[end]/2]
-    end
-    zall    
-end    
-
 function zboundarytocenter(zb)
+    # only for exact depth of last layer halfspace for geometric thickness increase
+    # default used in transD_GP. If you have other generic thickness
+    # use thicktodepth()
+    
     # first get extendfrac r
     numerator = diff(zb[2:end])
     denom = diff(zb[1:end-1])
@@ -1453,6 +1447,7 @@ end
 function getnextxyinr(XY1, XY2, Δr)
     Δx, Δy = XY2 - XY1
     r̂  = normalize([Δx, Δy])
+    @assert sqrt(Δx^2 + Δy^2) >= Δr "Δr throws it beyond next point"
     XY1 + Δr*r̂
 end
 
