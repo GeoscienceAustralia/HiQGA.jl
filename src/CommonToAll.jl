@@ -2273,11 +2273,12 @@ function getzall(zheights)
     zall
 end
 
-function plotmanygrids(σ, X, Y, Z, zcentre; yl=[], xl=[],
+function plotmanygrids(σ, X, Y, Z, zcentre; yl=[], xl=[], cmapσdiff="inferno",
         cmapσ="turbo", vmin=-Inf, vmax=Inf, topowidth=1, fontsize=12, spacefactor=5,
         dr=nothing, dz=nothing, plotbinning=true, δ²=1e-3, regtype=:R1, donn=false, hspace=1,
         figsize=(10,10), smallratio=0.1, preferEright=true, delbin=15., 
-        titles=fill("", length(σ)), XYprofiles = nothing, drawprofiles=true)
+        titles=fill("", length(σ)), XYprofiles = nothing, drawprofiles=true, 
+        makedifffig=false, vmindiff=Inf, vmaxdiff=Inf, difffigsize=(10,3), lidarfile=nothing)
     @assert !isnothing(dr) # pass as variable as it is used by other functions too       
     if isnothing(dz)
         mins = [zc[1] for zc in zcentre] # depth to first centre
@@ -2294,6 +2295,10 @@ function plotmanygrids(σ, X, Y, Z, zcentre; yl=[], xl=[],
     coord_mle = getsmoothline(m, sd; δ², regtype)
     # either of x, y are means, either of xr, yr are the fit
     x, y, xr, yr = get_x_y(r, m, coord_mle, preferEright)
+    # now if a lidarfile is provided, get elevation at xr, yr
+    if !isnothing(lidarfile)
+        zr = getlidarheight(lidarfile, [xr[:]';yr[:]'])
+    end
     plotbinning && plotbinningresults(X, Y, x, y, xr, yr)
     outmap = map(zip(σ, X, Y, Z, zcentre)) do (s, xx, yy, topo, zc)
         id = getclosestidx([xx';yy'], xr', yr', showinfo=false)
@@ -2306,7 +2311,8 @@ function plotmanygrids(σ, X, Y, Z, zcentre; yl=[], xl=[],
             zatXY = nothing 
             satXY = nothing
         end
-        img, gridr, gridz, topofine, R = makegrid(s[:,id], xr, yr, topo[id]; donn, dr, zall=zc, dz)
+        topouse = isnothing(lidarfile) ? topo[id] : zr
+        img, gridr, gridz, topofine, R = makegrid(s[:,id], xr, yr, topouse; donn, dr, zall=zc, dz)
         img, gridr, gridz, topofine, R, zatXY, satXY
     end
     img, gridr, gridz, topofine, R, zatXY, satXY = [[out[i] for out in outmap] for i in 1:7]
@@ -2345,7 +2351,29 @@ function plotmanygrids(σ, X, Y, Z, zcentre; yl=[], xl=[],
     cb.set_label("Log₁₀ S/m", labelpad=0)
     nicenup(fig, fsize=fontsize, h_pad=0)
     fig.subplots_adjust(hspace = all(isempty.(titles)) ? 0 : hspace)
+
+    if makedifffig
+        difffig(img, gridr[1], gridz[1], topofine[1], difffigsize, vmindiff, vmaxdiff, cmapσdiff, topowidth, yl, fontsize)
+    end    
+
     xr, yr, ax, zatXY, satXY # return easting northing of grid and figure axes
+end
+
+function difffig(img, gridr, gridz, topofine, difffigsize, vmindiff, vmaxdiff, cmapσdiff, topowidth, yl, fontsize)
+    fig, ax = plt.subplots(1,1, figsize=difffigsize)
+    sdimage = std(img)
+    if (isinf(vmindiff) || isinf(vmaxdiff))
+        vmindiff, vmaxdiff = extrema(.!isnan.(sdimage))
+    end
+    imhandle = ax.imshow(std(img), extent=[gridr[1], gridr[end], gridz[end], gridz[1]]; 
+            cmap=cmapσdiff, aspect="auto", vmin=vmindiff, vmax=vmaxdiff)
+    ax.plot(gridr, topofine, linewidth=topowidth, "-k")
+    ax.set_ylim(yl)
+    cb = fig.colorbar(imhandle)
+    cb.set_label("Log₁₀ S/m")
+    ax.set_ylabel("Height m")
+    ax.set_xlabel("Distance m")
+    nicenup(fig, fsize=fontsize)
 end
 
 function getbinby(X, Y, preferEright)
@@ -2481,7 +2509,7 @@ function findMAE(mm::Vector{T}, Mwell::Vector{S}) where T<:Array where S<:Real
     nanmean(reduce(hcat, absdevs), 2) # mean of ndepths × namples in nsamples dirn
 end
 
-function makeblockedwellimage(readwellarray, zall, xr, yr; distblank=50, dr=nothing, donn=false, displaydistanceaway=true )
+function makeblockedwellimage(readwellarray, zall, xr, yr; distblank=50, dr=nothing, donn=false, displaydistanceaway=true, lidarfile=nothing )
     # xr, yr are the line path along which to find closest well index
     @assert !isnothing(dr)
     wellname, Xwell, Ywell, Zwell, z_rho_well = [[well[i] for well in readwellarray] for i in 1:5]
@@ -2491,13 +2519,18 @@ function makeblockedwellimage(readwellarray, zall, xr, yr; distblank=50, dr=noth
     end)
     Mwell = [Mwell;Mwell[end,:]'] # dummy last cell in depth
     idx, _ = getclosestidxanddist([Xwell';Ywell'], xr', yr')
+    if !isnothing(lidarfile)
+        zr = getlidarheight(lidarfile, [xr[:]';yr[:]'])
+    end
+    topouse = isnothing(lidarfile) ? Zwell[idx] : zr
     Mclosest = Mwell[:,idx] # this needs to be plotted on image of line with coordinates xr, yr
     idxclosest, distanceaway = getclosestidxanddist([xr'; yr'], Xwell', Ywell')
     displaydistanceaway && [@printf("WELL: %s DISTANCE: %.2f m\n", w, d) for (w,d) in zip(wellname, distanceaway)]
     _, dist = getclosestidxanddist([xr[idxclosest]';yr[idxclosest]'], xr', yr')
     Mclosest[:,dist .> distblank] .= NaN # but first NaN out further than distblank m away from well
+    Mclosest
     # interpolate linearly as usual onto line with xr, yr coordinates with depth and line distance
-    img, gridr, gridz, _ = makegrid(Mclosest, xr, yr, Zwell[idx]; donn, dr, zall, dz=zall[1]*2)
+    img, gridr, gridz, _ = makegrid(Mclosest, xr, yr, topouse; donn, dr, zall, dz=zall[1]*2)
     hsegs, vsegs = outlinewells(img, gridr, gridz)
     img, gridr, gridz, hsegs, vsegs
 end    
@@ -2561,10 +2594,10 @@ function getlidarheight(lidarheightfile::String, xy)
 end    
 
 function plotblockedwellonimages(ax, wellarray, zall, xr, yr; donn=false,
-        vmin=nothing, vmax=nothing, dr=15, distblank=4dr, cmap="turbo", color="k", linewidth=0.5)
+        vmin=nothing, vmax=nothing, dr=15, distblank=4dr, cmap="turbo", color="k", linewidth=0.5, lidarfile=nothing)
         @assert !isnothing(vmin)
         @assert !isnothing(vmax)
-    img, gridr, gridz, hsegs, vsegs = makeblockedwellimage(wellarray, zall, xr, yr; distblank, dr, donn)
+    img, gridr, gridz, hsegs, vsegs = makeblockedwellimage(wellarray, zall, xr, yr; distblank, dr, donn, lidarfile)
     plotwelloutline(ax, img, hsegs, vsegs, gridr, gridz, vmin, vmax; cmap, color, linewidth)
     wnames = [String(w[1]) for w in wellarray]
     annotatewells(ax[end], wnames, hsegs)
