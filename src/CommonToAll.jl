@@ -2509,75 +2509,75 @@ function findMAE(mm::Vector{T}, Mwell::Vector{S}) where T<:Array where S<:Real
     nanmean(reduce(hcat, absdevs), 2) # mean of ndepths × namples in nsamples dirn
 end
 
-function makeblockedwellimage(readwellarray, zall, xr, yr; distblank=50, dr=nothing, donn=false, displaydistanceaway=true, lidarfile=nothing )
+function makeblockedwellimage(wellarray, zall, xr, yr; distblank=50, dr=nothing, donn=false, displaydistanceaway=true, lidarfile=nothing )
     # xr, yr are the line path along which to find closest well index
     @assert !isnothing(dr)
-    wellname, Xwell, Ywell, Zwell, z_rho_well = [[well[i] for well in readwellarray] for i in 1:5]
+    @assert mod(distblank, dr) == 0
+    wellname, Xwell, Ywell, Zwell, z_rho_well = [[well[i] for well in wellarray] for i in 1:5]
     zboundaries = zcentertoboundary(zall)
     Mwell = reduce(hcat, map(z_rho_well) do zρ
                 block1Dvalues([zρ[:,2]], zρ[:,1], [zboundaries[1:end-1] zboundaries[2:end]], :mean)'
     end)
     Mwell = [Mwell;Mwell[end,:]'] # dummy last cell in depth
+    # idx is length of xr, yr
     idx, _ = getclosestidxanddist([Xwell';Ywell'], xr', yr')
     if !isnothing(lidarfile)
         zr = getlidarheight(lidarfile, [xr[:]';yr[:]'])
     end
     topouse = isnothing(lidarfile) ? Zwell[idx] : zr
     Mclosest = Mwell[:,idx] # this needs to be plotted on image of line with coordinates xr, yr
+    # this is inline distance along line
+    rr = cumulativelinedist(xr, yr)
+    # interpolate linearly as usual onto line with xr, yr coordinates with depth and line distance
+    img, gridr, gridz, topofine = makegrid(Mclosest, xr, yr, topouse; donn, dr, zall, dz=zall[1]*2)
+    # idxclosest is length of wellarray
     idxclosest, distanceaway = getclosestidxanddist([xr'; yr'], Xwell', Ywell')
     displaydistanceaway && [@printf("WELL: %s DISTANCE: %.2f m\n", w, d) for (w,d) in zip(wellname, distanceaway)]
-    _, dist = getclosestidxanddist([xr[idxclosest]';yr[idxclosest]'], xr', yr')
-    Mclosest[:,dist .> distblank] .= NaN # but first NaN out further than distblank m away from well
-    Mclosest
-    # interpolate linearly as usual onto line with xr, yr coordinates with depth and line distance
-    img, gridr, gridz, _ = makegrid(Mclosest, xr, yr, topouse; donn, dr, zall, dz=zall[1]*2)
-    hsegs, vsegs = outlinewells(img, gridr, gridz)
-    img, gridr, gridz, hsegs, vsegs
-end    
-
-function outlinewells(img, gridr, gridz)
-    # for all wells, works for only one vertical well at any X,Y along line
-    mapimg = isnan.(img)
-    idxvert = findall(mapimg[:,2:end] .!= mapimg[:,1:end-1])
-    vertcoords = reduce(vcat, ([[id[2] id[1]] for id in idxvert]))
-    cols = unique(vertcoords[:,1])
-    vsegs = map(cols) do c
-        x1 = vertcoords[findfirst(vertcoords[:,1] .== c),2]
-        x2 = vertcoords[findlast(vertcoords[:,1] .== c),2]
-        [c-0.5 x1-1.5; c-0.5 x2-0.5] # the +- offsets are voodoo
-    end
-    vall = reduce(vcat, vsegs)
-
-    hsegs =  map(1:length(vsegs)) do i
-        r = iseven(i) ? 2(i-1) : 2i-1
-        [vall[r,:]';vall[r+2,:]']
-    end
-
-    _ = map((hsegs, vsegs)) do x # scales to image dimensions, the .+ offsets are voodoo
-        _ = map(x) do xy
-            xy[:,1] .= xy[:,1]/size(img, 2)*(gridr[end]-gridr[1]) .+ gridr[2]/2
-            xy[:,2] .= xy[:,2]/size(img, 1)*(gridz[end]-gridz[1]) .+ (gridz[1]+gridz[2])/2
+    # NaN out farther than distblank
+    gridcenter = 0.5(gridr[1:end-1]+gridr[2:end])
+    dist = reduce(hcat, [abs.(gridcenter .- rr[i]) for i in idxclosest])
+    distflag = vec(reduce(&, dist .> distblank, dims=2))
+    img[:,distflag] .= NaN
+    # now find changes in the flag to mark well location and refine idxclosest to conform to grid
+    c = findall(distflag[:] .== 0)
+    idxclosest = zeros(Int, length(wellarray))
+    idxclosest[1] = c[1]
+    count = 1
+    for i in 2:length(c)
+        if c[i-1] != c[i]-1
+            count += 1
+            idxclosest[count] = c[i]
         end
     end
-    hsegs, vsegs # these need to be plotted with gridr, gridz as usual
+    xcoords, elevcoords, depth = rectangulatewells(gridcenter, zall, Mwell, distblank, topofine, idxclosest, dr)
+    img, gridr, gridz, xcoords, elevcoords, depth
 end    
 
-function plotwelloutline(ax, img, hsegs, vsegs, gridr, gridz, vmin, vmax; cmap="turbo", color="k", linewidth=0.5)
+function rectangulatewells(gridcenter, zall, Mwell, distblank, topouse, idxclosest, dr)
+    xcoords = gridcenter[idxclosest] .- dr/2
+    idx_z_start = [findfirst(.!isnan.(m)) for m in eachcol(Mwell)] .-1
+    elevcoords = topouse[idxclosest] - zall[idx_z_start] 
+    idx_z_end = [findlast(.!isnan.(m)) for m in eachcol(Mwell)] 
+    depths = map(zip(idx_z_start, idx_z_end)) do (izstart, izend)
+        depth = zall[izend] - zall[izstart]
+    end
+    xcoords, elevcoords, depths
+end
+
+function plotwelloutline(ax, img, xcoords, elevcoords, depths, gridr, gridz, vmin, vmax, distblank; cmap="turbo", color="k", linewidth=0.5)
     # plot the well outline on axis
     ax.imshow(-img; extent=[gridr[1], gridr[end], gridz[end], gridz[1]], cmap, vmin, vmax)
-    for v in vsegs
-        ax.plot(v[:,1], v[:,2]; color, linewidth)
-    end
-    for h in hsegs
-        ax.plot(h[:,1], h[:,2]; color, linewidth)
-    end
+    map(zip(xcoords, elevcoords, depths)) do (x, y, Δy)
+        ax.add_patch(matplotlib.patches.Rectangle((x,y), 2distblank, -Δy; edgecolor=color, fill=false, linewidth))
+        ax.plot(x, y, "+")
+    end 
     ax.set_aspect("auto")
 end
 
-function plotwelloutline(ax::Array, img, hsegs, vsegs, gridr, gridz, vmin, vmax; cmap="turbo", color="k", linewidth=0.5)
+function plotwelloutline(ax::Array, img, xcoords, elevcoords, depths, gridr, gridz, vmin, vmax, distblank; cmap="turbo", color="k", linewidth=0.5)
     # plot into each axis, the outline
     for a in ax
-        plotwelloutline(a, img, hsegs, vsegs, gridr, gridz, vmin, vmax; cmap, color, linewidth)
+        plotwelloutline(a, img, xcoords, elevcoords, depths, gridr, gridz, vmin, vmax, distblank; cmap, color, linewidth)
     end
 end
 
@@ -2597,16 +2597,17 @@ function plotblockedwellonimages(ax, wellarray, zall, xr, yr; donn=false,
         vmin=nothing, vmax=nothing, dr=15, distblank=4dr, cmap="turbo", color="k", linewidth=0.5, lidarfile=nothing)
         @assert !isnothing(vmin)
         @assert !isnothing(vmax)
-    img, gridr, gridz, hsegs, vsegs = makeblockedwellimage(wellarray, zall, xr, yr; distblank, dr, donn, lidarfile)
-    plotwelloutline(ax, img, hsegs, vsegs, gridr, gridz, vmin, vmax; cmap, color, linewidth)
+    img, gridr, gridz, xcoords, elevcoords, depths = makeblockedwellimage(wellarray, zall, xr, yr; distblank, dr, 
+        lidarfile)
+    plotwelloutline(ax, img, xcoords, elevcoords, depths, gridr, gridz, vmin, vmax, distblank; cmap, color, linewidth)
     wnames = [String(w[1]) for w in wellarray]
-    annotatewells(ax[end], wnames, hsegs)
+    annotatewells(ax[end], wnames, xcoords, elevcoords, depths, distblank)
     
 end
 
-function annotatewells(ax, wnames, hsegs)
-    for (h, wn) in zip(hsegs[2:2:end], wnames)
-        ax.text(h[end,1], h[end,2], wn, fontsize=8)
+function annotatewells(ax, wnames, xcoords, elevcoords, depths, distblank)
+    map(zip(xcoords, elevcoords, depths, wnames)) do (x, y, Δy, wn)
+        ax.text(x +2distblank, y-Δy, wn, fontsize=8)
     end
 end
 
