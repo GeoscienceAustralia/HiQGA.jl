@@ -2569,7 +2569,6 @@ function plotwelloutline(ax, img, xcoords, elevcoords, depths, gridr, gridz, vmi
     ax.imshow(-img; extent=[gridr[1], gridr[end], gridz[end], gridz[1]], cmap, vmin, vmax)
     map(zip(xcoords, elevcoords, depths)) do (x, y, Δy)
         ax.add_patch(matplotlib.patches.Rectangle((x,y), 2distblank, -Δy; edgecolor=color, fill=false, linewidth))
-        ax.plot(x, y, "+")
     end 
     ax.set_aspect("auto")
 end
