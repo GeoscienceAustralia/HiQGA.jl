@@ -293,14 +293,23 @@ function makeAEMoperatorandoptions(sounding::Sounding;
                         showgeomplot = false,
                         plotfield = false,
                         useML = false,
-                        modelprimary = false
+                        modelprimary = false,
+                        isdIdt        = nothing,
+                        rampchoice    = nothing,
                         )
-    aem, zall, znall,  = makeoperator(sounding;
-                        zfixed, ρfixed, zstart, extendfrac,
-                        dz = dz, ρbg, nlayers, ntimesperdecade,
-                        nfreqsperdecade, useML, showgeomplot,
-                        modelprimary, plotfield)
-
+    if isnothing(isdIdt) # call VTEM or SkyTEM
+        aem, zall, znall,  = makeoperator(sounding;
+                            zfixed, ρfixed, zstart, extendfrac,
+                            dz = dz, ρbg, nlayers, ntimesperdecade,
+                            nfreqsperdecade, useML, showgeomplot,
+                            modelprimary, plotfield)
+    else # call VTEM for dIdt defined
+        aem, zall, znall,  = makeoperator(sounding; isdIdt, rampchoice,
+                            zfixed, ρfixed, zstart, extendfrac,
+                            dz = dz, ρbg, nlayers, ntimesperdecade,
+                            nfreqsperdecade, useML, showgeomplot,
+                            modelprimary, plotfield)
+    end
     opt = make_tdgp_opt(znall = znall,
                         fileprefix = sounding.sounding_string,
                         nmin = nmin,
@@ -357,7 +366,7 @@ function loopacrossAEMsoundings(soundings::Array{S, 1}, aem_in::Operator1D, opt_
         dt = time() - t2 #seconds
         catlocallogs(nparallelsoundings, nchainspersounding, batchstr)
         writetogloballog("done $iter out of $nsequentialiters at $(Dates.now()) in $dt sec"; fname)
-        GC.gc()
+        # GC.gc()
     end
 end
 

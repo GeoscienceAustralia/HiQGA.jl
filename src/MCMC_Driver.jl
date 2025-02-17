@@ -439,7 +439,7 @@ function main(opt_in     ::OptionsStat,
 
     close_history.([wp, wpns, wpn])
     d_closeall()
-    explicit_gc(master_pid, chainprocs)
+    # explicit_gc(master_pid, chainprocs)
     nothing
 end
 
@@ -557,7 +557,7 @@ function main(opt_in     ::OptionsStat,
 
     close_history.([wp, wpns])
     d_closeall()
-    explicit_gc(master_pid, chainprocs)
+    # explicit_gc(master_pid, chainprocs)
     nothing
 end
 
@@ -673,7 +673,7 @@ function main(opt_in       ::OptionsStat,
 
     close_history.([wp, wpn])
     d_closeall()
-    explicit_gc(master_pid, chainprocs)
+    # explicit_gc(master_pid, chainprocs)
     nothing
 end
 
@@ -768,7 +768,7 @@ function main(opt_in ::OptionsStat,
 
     close_history(wp)
     d_closeall()
-    explicit_gc(master_pid, chainprocs)
+    # explicit_gc(master_pid, chainprocs)
     nothing
 end
 
