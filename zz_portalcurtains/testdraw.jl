@@ -22,7 +22,7 @@ x, y = RDP.smoothline(XY1b, λ²=10000, finefactor=1000, regtype=:R2, fname="bas
 x, y = [[xy[i] for xy in RDP.readpoints(["base_menindee.txt", "base_1_menindee.txt", "base_2a_menindee.txt", "base_2b_menindee.txt", 
                     "base_3a_menindee.txt", "base_3b_menindee.txt"])] for i in 1:2]
 map(axp) do ax
-    for a in ax[1:6]
+    for a in ax[1:8]
         for (xx, yy) in zip(x, y)
             a.plot(xx, yy, "--k", linewidth=0.5)
         end

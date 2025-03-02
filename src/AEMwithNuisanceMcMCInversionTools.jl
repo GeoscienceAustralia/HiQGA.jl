@@ -194,7 +194,7 @@ function loopacrossAEMsoundings(soundings::Array{S, 1}, aem_in::Operator1D, opt_
         dt = time() - t2 #seconds
         catlocallogs(nparallelsoundings, nchainspersounding, batchstr)
         writetogloballog("done $iter out of $nsequentialiters at $(Dates.now()) in $dt sec"; fname)
-        GC.gc()
+        # GC.gc()
     end
 end
 

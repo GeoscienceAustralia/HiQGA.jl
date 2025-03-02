@@ -202,6 +202,8 @@ function read_survey_files(;
     startfrom = 1,
     skipevery = 1,
     multnoise = 0.03,
+    multnoise_LM = nothing,
+    multnoise_HM = nothing,
     datacutoff_LM = nothing,
     datacutoff_HM = nothing,
     X = -1,
@@ -228,6 +230,12 @@ function read_survey_files(;
     @assert Z > 0
     @assert linenum > 0
     @assert fid > 0
+    if !isnothing(multnoise_LM) | !isnothing(multnoise_HM)
+        @assert isnothing(multnoise) "set multnoise to nothing to be consistent!"
+    else
+        multnoise_LM = multnoise
+        multnoise_HM = multnoise
+    end        
     if forceML
         @assert !isnothing(datacutoff_LM)
         @assert !isnothing(datacutoff_HM)
@@ -277,8 +285,8 @@ function read_survey_files(;
     if !relerror
         @assert size(d_LM, 2) == length(LM_noise)
         @assert size(d_HM, 2) == length(HM_noise)
-        σ_LM = sqrt.((multnoise*d_LM).^2 .+ (LM_noise').^2)
-        σ_HM = sqrt.((multnoise*d_HM).^2 .+ (HM_noise').^2)
+        σ_LM = sqrt.((multnoise_LM*d_LM).^2 .+ (LM_noise').^2)
+        σ_HM = sqrt.((multnoise_HM*d_HM).^2 .+ (HM_noise').^2)
         if !isempty(noise_scalevec) 
             @assert length(noise_scalevec) == length(LM_times)+length(HM_times)
             σ_LM = σ_LM.*(noise_scalevec[1:length(LM_times)])'

@@ -409,7 +409,7 @@ function makeoperator(sounding::VTEMsoundingData;
             calcjacobian  = false,
             plotfield     = false,
             isdIdt        = false,
-            rampchoice    = :mid,
+            rampchoice    = :next,
             )
     
     zall, znall, zboundaries = setupz(zstart, extendfrac, dz=dz, n=nlayers, showplot=showgeomplot)
