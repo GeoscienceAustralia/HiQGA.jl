@@ -608,7 +608,7 @@ function makezρ(zboundaries::Array{Float64, 1};
     z, ρ, nfixed
 end
 
-function nicenup(g::PyPlot.Figure;fsize=12, h_pad=nothing, increasefraction=1.1, minsize=true)
+function nicenup(g::PyPlot.Figure;fsize=12, h_pad=nothing, w_pad = nothing, increasefraction=1.1, minsize=true)
     for ax in g.axes
         if !isempty(ax.get_yticklabels())
             fs = ax.get_yticklabels()[1].get_fontsize()
@@ -641,7 +641,13 @@ function nicenup(g::PyPlot.Figure;fsize=12, h_pad=nothing, increasefraction=1.1,
         g.tight_layout()
     else
         g.tight_layout(;h_pad)
-    end        
+    end
+    if isnothing(w_pad)
+        g.tight_layout()
+    else
+        g.tight_layout(;w_pad)
+    end 
+    nothing
 end
 
 function getnewfontsize(fs, increasefraction, fsize; minsize=true)
@@ -2321,7 +2327,8 @@ function plotmanygrids(σ, X, Y, Z, zcentre; yl=[], xl=[], cmapσdiff="inferno",
         dr=nothing, dz=nothing, plotbinning=true, δ²=1e-3, regtype=:R1, donn=false, hspace=1,
         figsize=(10,10), smallratio=0.1, preferEright=true, delbin=15., 
         titles=fill("", length(σ)), XYprofiles = nothing, drawprofiles=true, 
-        makedifffig=false, vmindiff=Inf, vmaxdiff=Inf, difffigsize=(10,3), lidarfile=nothing)
+        makedifffig=false, vmindiff=Inf, vmaxdiff=Inf, difffigsize=(10,3), lidarfile=nothing,
+        leftrightxycorners=[], showbulkstatsfigure=false, regionlinewidth=2, regionlinecolor="k")
     @assert !isnothing(dr) # pass as variable as it is used by other functions too       
     if isnothing(dz)
         mins = [zc[1] for zc in zcentre] # depth to first centre
@@ -2367,8 +2374,9 @@ function plotmanygrids(σ, X, Y, Z, zcentre; yl=[], xl=[], cmapσdiff="inferno",
         idx_ = getclosestidx([xr'; yr'], XYprofiles[1,:]', XYprofiles[2,:]', showinfo=false)
         Rtoplotat = [cumulativelinedist(xr, yr)[id_] for id_ in idx_]
     end
-    imhandle = map(zip(ax, img, gridr, gridz, topofine, titles)) do (
-        ax_, img_, gridr_, gridz_, topofine_, ti) 
+    bulkstat_mean = !isempty(leftrightxycorners) ? zeros(length(σ)) : zeros(0)
+    imhandle = map(zip(ax, img, gridr, gridz, topofine, titles, 1:length(σ))) do (
+        ax_, img_, gridr_, gridz_, topofine_, ti, i) 
         imhandle_ = ax_.imshow(img_, extent=[gridr_[1], gridr_[end], gridz_[end], gridz_[1]]; 
             cmap=cmapσ, aspect="auto", vmin, vmax)
         ax_.plot(gridr_, topofine_, linewidth=topowidth, "-k")
@@ -2377,6 +2385,10 @@ function plotmanygrids(σ, X, Y, Z, zcentre; yl=[], xl=[], cmapσdiff="inferno",
             plotprofile(ax_, idx, topofine_, gridr_)
         end    
         isempty(ti) || ax_.set_title(ti)
+        if !isempty(leftrightxycorners)
+            bulkstat_mean[i] = getbulkstatfromimageregion(img_, gridr_, gridz_; 
+                leftrightxycorners, showfig=showbulkstatsfigure)
+        end
         imhandle_
     end
     map(1:nsub-3) do i
@@ -2396,13 +2408,35 @@ function plotmanygrids(σ, X, Y, Z, zcentre; yl=[], xl=[], cmapσdiff="inferno",
     fig.subplots_adjust(hspace = all(isempty.(titles)) ? 0 : hspace)
 
     if makedifffig
-        difffig(img, gridr[1], gridz[1], topofine[1], difffigsize, vmindiff, vmaxdiff, cmapσdiff, topowidth, yl, fontsize)
+        difffig(img, gridr[1], gridz[1], topofine[1], difffigsize, vmindiff, vmaxdiff, cmapσdiff, topowidth, yl, 
+            fontsize, leftrightxycorners, regionlinecolor, regionlinewidth)
     end    
 
-    xr, yr, ax, zatXY, satXY # return easting northing of grid and figure axes
+    xr, yr, ax, zatXY, satXY, bulkstat_mean # return easting northing of grid and figure axes
 end
 
-function difffig(img, gridr, gridz, topofine, difffigsize, vmindiff, vmaxdiff, cmapσdiff, topowidth, yl, fontsize)
+function getbulkstatfromimageregion(imgin, gridr, gridz; leftrightxycorners=[], central_tendency=:mean, showfig=false)
+    @assert !isempty(leftrightxycorners)
+    x1, elev1, x2, elev2 = leftrightxycorners
+    @assert x1<x2
+    @assert elev1>elev2
+    idxr = x1 .< gridr .< x2
+    idxz = elev1 .> gridz .> elev2
+    # won't work for edge pixel at right or bottom!!
+    img = copy(imgin)
+    mpart = vec(img[idxz[1:end-1], idxr[1:end-1]])
+    # @info sum(.!isnan.(mpart))
+    m = eval(central_tendency)(mpart[.!isnan.(mpart)])
+    img[idxz[1:end-1], idxr[1:end-1]] .= m
+    if showfig
+        f, ax = plt.subplots(1,1)
+        ax.imshow(img, extent=[gridr[1], gridr[end], gridz[end], gridz[1]];aspect="auto")
+    end
+    m
+end
+
+function difffig(img, gridr, gridz, topofine, difffigsize, vmindiff, vmaxdiff, cmapσdiff, topowidth, 
+        yl, fontsize, leftrightxycorners, color, linewidth)
     fig, ax = plt.subplots(1,1, figsize=difffigsize)
     sdimage = std(img)
     if (isinf(vmindiff) || isinf(vmaxdiff))
@@ -2411,6 +2445,10 @@ function difffig(img, gridr, gridz, topofine, difffigsize, vmindiff, vmaxdiff, c
     imhandle = ax.imshow(std(img), extent=[gridr[1], gridr[end], gridz[end], gridz[1]]; 
             cmap=cmapσdiff, aspect="auto", vmin=vmindiff, vmax=vmaxdiff)
     ax.plot(gridr, topofine, linewidth=topowidth, "-k")
+    if !isempty(leftrightxycorners)
+        x1, elev1, x2, elev2 = leftrightxycorners
+        ax.add_patch(matplotlib.patches.Rectangle((x1,elev1), x2-x1, (elev2-elev1); edgecolor=color, fill=false, linewidth))
+    end
     ax.set_ylim(yl)
     cb = fig.colorbar(imhandle)
     cb.set_label("Log₁₀ S/m")
