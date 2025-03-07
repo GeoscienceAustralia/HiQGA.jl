@@ -1408,13 +1408,15 @@ function makegrid(vals::AbstractArray, soundings::Array{S, 1}; donn=false,
 end
 
 function makegrid(vals::AbstractArray, X, Y, topo; donn=false,
-    dr=10, zall=[NaN], dz=-1)
+    dr=10, zall=[NaN], dz=-1, minahd=nothing, maxahd=nothing)
     @assert all(.!isnan.(zall)) 
     @assert dz>0
     R, gridr = getRandgridr(X, Y, dr)
     # height = topo in mAHD - depth # mAHD
-    minahd = minimum(topo) - maximum(zall) # should really be zboundary[end] but are both in halfspace
-    maxahd = maximum(topo) # top is the one to get right
+    if (isnothing(minahd) | isnothing(maxahd))
+        minahd = minimum(topo) - maximum(zall) # should really be zboundary[end] but are both in halfspace
+        maxahd = maximum(topo) # top is the one to get right
+    end    
     gridz = range(maxahd, minahd, step=-dz) 
     gridr_, gridz_ = map((gridr, gridz)) do a 
         0.5(a[1:end-1]+a[2:end])
@@ -2328,7 +2330,8 @@ function plotmanygrids(σ, X, Y, Z, zcentre; yl=[], xl=[], cmapσdiff="inferno",
         figsize=(10,10), smallratio=0.1, preferEright=true, delbin=15., 
         titles=fill("", length(σ)), XYprofiles = nothing, drawprofiles=true, 
         makedifffig=false, vmindiff=Inf, vmaxdiff=Inf, difffigsize=(10,3), lidarfile=nothing,
-        leftrightxycorners=[], showbulkstatsfigure=false, regionlinewidth=2, regionlinecolor="k")
+        leftrightxycorners=[], showbulkstatsfigure=false, regionlinewidth=2, regionlinecolor="k",
+        minahd=nothing, maxahd=nothing)
     @assert !isnothing(dr) # pass as variable as it is used by other functions too       
     if isnothing(dz)
         mins = [zc[1] for zc in zcentre] # depth to first centre
@@ -2362,7 +2365,7 @@ function plotmanygrids(σ, X, Y, Z, zcentre; yl=[], xl=[], cmapσdiff="inferno",
             satXY = nothing
         end
         topouse = isnothing(lidarfile) ? topo[id] : zr
-        img, gridr, gridz, topofine, R = makegrid(s[:,id], xr, yr, topouse; donn, dr, zall=zc, dz)
+        img, gridr, gridz, topofine, R = makegrid(s[:,id], xr, yr, topouse; donn, dr, zall=zc, dz, minahd, maxahd)
         img, gridr, gridz, topofine, R, zatXY, satXY
     end
     img, gridr, gridz, topofine, R, zatXY, satXY = [[out[i] for out in outmap] for i in 1:7]
@@ -2408,7 +2411,7 @@ function plotmanygrids(σ, X, Y, Z, zcentre; yl=[], xl=[], cmapσdiff="inferno",
     fig.subplots_adjust(hspace = all(isempty.(titles)) ? 0 : hspace)
 
     if makedifffig
-        difffig(img, gridr[1], gridz[1], topofine[1], difffigsize, vmindiff, vmaxdiff, cmapσdiff, topowidth, yl, 
+        difffig(img, gridr[1], gridz[1], topofine[end], difffigsize, vmindiff, vmaxdiff, cmapσdiff, topowidth, yl, 
             fontsize, leftrightxycorners, regionlinecolor, regionlinewidth)
     end    
 
