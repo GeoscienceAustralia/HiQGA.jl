@@ -296,13 +296,24 @@ function makeAEMoperatorandoptions(sounding::Sounding;
                         modelprimary = false,
                         isdIdt        = nothing,
                         rampchoice    = nothing,
+                        isRLCfilter = [],
                         )
+    # this is horrible but isdIdt is only for VTEM
+    # and isRLCfilter is only for SkyTEM ... 
     if isnothing(isdIdt) # call VTEM or SkyTEM
-        aem, zall, znall,  = makeoperator(sounding;
-                            zfixed, ρfixed, zstart, extendfrac,
-                            dz = dz, ρbg, nlayers, ntimesperdecade,
-                            nfreqsperdecade, useML, showgeomplot,
-                            modelprimary, plotfield)
+        if isempty(RLCfilter) # VTEM
+            aem, zall, znall,  = makeoperator(sounding;
+                                zfixed, ρfixed, zstart, extendfrac,
+                                dz = dz, ρbg, nlayers, ntimesperdecade,
+                                nfreqsperdecade, useML, showgeomplot,
+                                modelprimary, plotfield)
+        else # SkyTEM for defined isRLCfilter
+            aem, zall, znall,  = makeoperator(sounding;
+                                zfixed, ρfixed, zstart, extendfrac,
+                                dz = dz, ρbg, nlayers, ntimesperdecade,
+                                nfreqsperdecade, useML, showgeomplot,
+                                modelprimary, plotfield, isRLCfilter)
+        end                     
     else # call VTEM for dIdt defined
         aem, zall, znall,  = makeoperator(sounding; isdIdt, rampchoice,
                             zfixed, ρfixed, zstart, extendfrac,
