@@ -572,8 +572,9 @@ function makeoperator(aem::dBzdt, sounding::SkyTEMsoundingData)
     @assert !(aem.useML & sounding.forceML) "useML and forceML cannot both be true"
     useML = (aem.useML | sounding.forceML) # OR logic for useML with true, true disqualified earlier
     modelprimary = aem.Flow.useprimary === 1. ? true : false
+    isRLCfilter = aem.Flow.isRLCfilter[1:end-1] # the last high freq AEM_VMD_HMD_puts in, to the aem struct
     makeoperator(sounding, ntimesperdecade, nfreqsperdecade, modelprimary, aem.Flow.calcjacobian, useML, 
-        copy(aem.z), copy(aem.ρ), copy(aem.Flow.isRLCfilter))
+        copy(aem.z), copy(aem.ρ), isRLCfilter)
 end
 
 # all plotting codes here assume that the model is in log10 resistivity, SANS

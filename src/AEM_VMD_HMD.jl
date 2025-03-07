@@ -155,7 +155,7 @@ function HFieldDHT(;
         @assert length(isRLCfilter) == length(lowpassfcs)
     end
     lowpassfcs = float.([lowpassfcs..., 5e6])
-    isRLCfilter = Bool.([isRLCfilter]..., false)
+    isRLCfilter = Bool.([isRLCfilter..., false])
     quadnodes, quadweights = gausslegendre(glegintegorder)
     rxwithinloop = false
     log10Filter_base = log10.(Filter_base/rRx)
