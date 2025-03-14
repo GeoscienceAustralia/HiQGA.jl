@@ -100,7 +100,7 @@ function HFieldDHT(;
       minresptime = 1.e-6, # I think responses earlier than this are unstable
       calcjacobian = false,
       isdIdt = false,
-      rampchoice = :mid, # if using dIdt instead of I a choice has to be made
+      rampchoice = :next, # if using dIdt instead of I a choice has to be made
       )
     @assert all(freqs .> 0.)
     @assert freqhigh > freqlow
