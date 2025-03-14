@@ -301,7 +301,7 @@ function makeAEMoperatorandoptions(sounding::Sounding;
     # this is horrible but isdIdt is only for VTEM
     # and isRLCfilter is only for SkyTEM ... 
     if isnothing(isdIdt) # call VTEM or SkyTEM
-        if isempty(RLCfilter) # VTEM
+        if isempty(isRLCfilter) # VTEM
             aem, zall, znall,  = makeoperator(sounding;
                                 zfixed, ρfixed, zstart, extendfrac,
                                 dz = dz, ρbg, nlayers, ntimesperdecade,

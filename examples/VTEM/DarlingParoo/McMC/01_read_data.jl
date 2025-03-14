@@ -18,5 +18,5 @@ soundings = transD_GP.VTEM1DInversion.read_survey_files(; X, Y, Z,
 									tx_rx_dz_pass_through = 0.01, # GA-AEM Z up, +ve is rx over tx
 									startfrom        = 1,
 									skipevery        = 1,
-									dotillsounding   = 2,
+									dotillsounding   = 3,
 									makeqcplots      = true)
