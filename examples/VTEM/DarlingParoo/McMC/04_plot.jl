@@ -1,4 +1,4 @@
-dr = 10
+dr = 12
 idx = [1,2]
 burninfrac = 0.5
 vmin, vmax = -2.5, 0.5

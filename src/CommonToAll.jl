@@ -1492,7 +1492,13 @@ function getallxyinr(Xin, Yin, Δr; rangelenth=0)
     end
     xyfine, gridr
 end
-    
+
+function cumulativelinedist(soundings::Vector{T}) where T<: Sounding
+    X = [s.X for s in soundings]
+    Y = [s.Y for s in soundings]
+    cumulativelinedist(X,Y)
+end
+
 function cumulativelinedist(X,Y)
     dx = diff(X)
     dy = diff(Y)
@@ -1638,83 +1644,74 @@ function plotprofile(ax, idxs, Z, R)
     end
 end
 
-function getRsplits(R, Rmax)
-    q, rmn = divrem(maximum(R), Rmax)
-    thereisrmn = !iszero(rmn)
-    idx = thereisrmn ? zeros(Int, Int(q+1)) : zeros(Int, Int(q)) 
-    i = 1
-    for (ir, r) in enumerate(R)
-        if r >= Rmax*i
-            idx[i] = ir
-            i += 1
-        end
-    end
-    idx, thereisrmn        
-end    
-
-function getinterpsplits(idx_split, nimages, gridx)
-    i_idx = 1:nimages
-    ab = zeros(Int, nimages,2)
-    for i in i_idx
-        a = i == firstindex(i_idx) ? 1 : idx_split[i-1]
-        b = i != lastindex(i_idx)  ? idx_split[i] : lastindex(gridx)
-        b = b-1 # as we are now providing 1 less than the number of edges since 26c19a0d2e4a
-        ab[i,1] = a
-        ab[i,2] = b
-    end
-    if ab[end,1] == ab[end,2]
-        ab = ab[1:end-1,:]
-        nimages = nimages-1
-    end
-    ab, nimages
-end
-
 function plotsummarygrids1(soundings, meangrid, phgrid, plgrid, pmgrid, gridx, gridz, topofine, R, Z, χ²mean, χ²sd, lname; qp1=0.05, qp2=0.95,
                         figsize=(10,10), fontsize=12, cmap="turbo", vmin=-2, vmax=0.5, Rmax=nothing,
                         topowidth=2, idx=nothing, omitconvergence=false, useML=false, preferEright=false, preferNright=false,
                         saveplot=false, yl=nothing, dpi=300, showplot=true, showmean=false, logscale=true)
+
+    f(Rm) = plotsummarygrids(soundings, meangrid, phgrid, plgrid, pmgrid, gridx, gridz, topofine, R, Z, χ²mean, χ²sd, lname; qp1, qp2,
+                            figsize, fontsize, cmap, vmin, vmax, Rmax=Rm,topowidth, idx, omitconvergence, useML, preferEright, preferNright,
+                            saveplot, yl, dpi, showplot, showmean, logscale)
+
+    f(nothing) # whole line
+    if !isnothing(Rmax) # also do Rmax slits
+        f(Rmax)
+    end
+end
+
+function plotsummarygrids(soundings, meangrid, phgrid, plgrid, pmgrid, gridx, gridz, topofine, R, Z, χ²mean, χ²sd, lname; qp1=0.05, qp2=0.95,
+    figsize=(10,10), fontsize=12, cmap="turbo", vmin=-2, vmax=0.5, Rmax=nothing,
+    topowidth=2, idx=nothing, omitconvergence=false, useML=false, preferEright=false, preferNright=false,
+    saveplot=false, yl=nothing, dpi=300, showplot=true, showmean=false, logscale=true)
     if isnothing(Rmax)
-        Rmax = maximum(gridx)
+        Rmax = maximum(R)
     end
-    while true
-        idx_split, thereisrmn = getRsplits(gridx, Rmax)
-        nimages = length(idx_split)
-        dr = gridx[2] - gridx[1]
-        dr >= Rmax && error("dr:$dr >= Rmax:$Rmax, decrease dr")
-        if iszero(idx_split[1]) && thereisrmn # Rmax is larger than section
-            nx = length(range(gridx[1], Rmax, step=dr))
-        elseif !iszero(idx_split[1]) && !thereisrmn # Rmax is exactly the section length
-            nx = length(gridx)
-        elseif iszero(idx_split[2]) # Rmax is smaller than the section
-            nx = idx_split[1]
-        else    
-            nx = idx_split[2]-idx_split[1] # There are many Rmax length splits 
-        end    
-        ab, nimages = getinterpsplits(idx_split, nimages, gridx)
-        i_idx = 1:nimages
-        for i in i_idx
-            a, b = ab[i,1], ab[i,2]
-            a_uninterp = i == firstindex(i_idx) ? 1 : findlast(R.<=gridx[a])
-            b_uninterp = i != lastindex(i_idx)  ? findlast(R.<=gridx[b]) : lastindex(soundings)
-            if thereisrmn && i == lastindex(i_idx)
-                xrangelast = range(gridx[a], step=dr, length=nx)
-            else 
-                xrangelast = nothing
-            end
-            f, s, icol = setupconductivityplot(gridx[a:b], omitconvergence, showmean, R[a_uninterp:b_uninterp], 
-                figsize, fontsize, lname, χ²mean[a_uninterp:b_uninterp], χ²sd[a_uninterp:b_uninterp], useML, i, nimages, logscale)
-            
-            summaryconductivity(s, icol, f, soundings[a_uninterp:b_uninterp], 
-                meangrid[:,a:b], phgrid[:,a:b], plgrid[:,a:b], pmgrid[:,a:b], 
-                gridx[a:b], gridz, topofine[a:b], R[a_uninterp:b_uninterp], Z[a_uninterp:b_uninterp], ; qp1, qp2, fontsize, 
+    # much better name than grids1
+    # is for the probabilistic inversions
+    dr = gridx[2] - gridx[1]
+    dr >= Rmax && error("dr:$dr >= Rmax:$Rmax, decrease dr")
+    startendimageindex = getgridxsplits(gridx, Rmax)
+    a_im, b_im = startendimageindex[:,1], startendimageindex[:,2]
+    startendsoundingindex = getsoundingsplits(soundings, gridx[b_im])
+    a_s, b_s = startendsoundingindex[:,1], startendsoundingindex[:,2]
+    @assert size(startendimageindex, 1) == size(startendsoundingindex, 1) # number of splits
+    nimages = length(a_im)
+    for i in 1:nimages
+        gridx_, topo_ = map(x->x[a_im[i]:b_im[i]+1], (gridx, topofine))
+        meangrid_, phgrid_, plgrid_, pmgrid_ = map(x->x[:,a_im[i]:b_im[i]], (meangrid, phgrid, plgrid, pmgrid))
+        soundings_, R_, Z_, χ²mean_, χ²sd_ = map(x->x[a_s[i]:b_s[i]], (soundings, R, Z, χ²mean, χ²sd))
+        f, s, icol = setupconductivityplot(gridx_, omitconvergence, showmean, R_, 
+                figsize, fontsize, lname, χ²mean_, χ²sd_, useML, i, nimages, logscale)
+        xrangelast = i == nimages ? [gridx_[1], gridx_[1]+Rmax] : nothing
+        summaryconductivity(s, icol, f, soundings_, 
+                meangrid_, phgrid_, plgrid_, pmgrid_, 
+                gridx_, gridz, topo_, R_, Z_, ; qp1, qp2, fontsize, 
                 cmap, vmin, vmax, topowidth, idx, omitconvergence, preferEright, preferNright, yl, showmean, xrangelast)
-            postfix = nimages == 1 ? "_whole" : "_split_$(i)_of_$(nimages)"
-            saveplot && savefig(lname*postfix*".png", dpi=dpi)
-            showplot || close(f)
-        end
-        nimages == 1 && break # don't need another pass if it was whole line to start with
-        Rmax = maximum(gridx) # this will ensure nimages=1 on next pass
+                postfix = nimages == 1 ? "_whole" : "_split_$(i)_of_$(nimages)"
+        saveplot && savefig(lname*postfix*".png", dpi=dpi)
+        showplot || close(f)
     end
+end
+
+function getgridxsplits(gridx::StepRangeLen, Rmax) 
+    nsplits = ceil(gridx[end]/Rmax)
+    rwanted = [i*Rmax for i in 1:nsplits]
+    tree = KDTree(gridx[:]')
+    idx, _ = nn(tree, rwanted')
+    b = idx # end index of split
+    b[end] -= 1 # 1 less pixel than grid edges
+    a = [1, (b[1:end-1] .+1)...] # start of split
+    [a b]
+end
+
+function getsoundingsplits(soundings::Vector{S}, gridxendofsplit) where S<:Sounding
+    R = cumulativelinedist(soundings)
+    tree = KDTree(R[:]')
+    idx, _ = nn(tree, gridxendofsplit[:]')
+    b = idx # end index of split
+    b[end] = length(R) # ensure last sounding is last split
+    a = [1, (b[1:end-1] .+1)...] # start of split
+    [a b]
 end
 
 function setupconductivityplot(gridx, omitconvergence, showmean, R, figsize, fontsize, lname, χ²mean, χ²sd, useML, iimage, nimages, logscale)
