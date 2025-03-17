@@ -178,6 +178,54 @@ The next time you start julia you have HiQGA ready for use with
 julia> using HiQGA
 ```
 navigate to the [examples](https://github.com/GeoscienceAustralia/HiQGA.jl/tree/master/examples) folder to run some example scripts. **You can end here as a regular user, however for development mode see below.**
+
+### MPI or parallel considerations for number of CPUs
+For the deterministic AEM inversions, you can do as many inversions in parallel as you have worker nodes. With McMC though, and the parallel tempering, it is a little more complicated. First of all, if you have a node with 48 CPUs (i.e., ppn=48), it is best to keep an integer number of soundings within a node. Helicopter systems typically need 5 chains per sounding (or, 1 manager + 5 workers = 6 CPUs/sounding) and fixed wing systems need 7 chains per sounding (or, 1 manager + 7 workers = 8 CPUs/sounding) as the likelihood for Tx-Rx geometry misfits can be a little rugose. Secondly, the variable `nchainspersounding+1` must exactly divide the total number of available CPU **workers** when using the function `loopacrossAEMsoundings`. From any numberof cpus total provided to HiQGA, processes `1` through `1+nchainspersounding` are reserved for memory purposes on for massive production jobs. Therefore, to see what works, try running the following before submitting or starting a parallel job:
+```julia
+using HiQGA
+# say there are 24 CPUs on a large compute box you can use
+# say you've done this with an addprocs(23), then for 3 soundings and a helicopter system,
+transD_GP.splittasks(;nsoundings=3, ncores=23, nchainspersounding=5, ppn=24)
+```
+You will get
+```julia
+[ Info: will require 1 iterations of 3 soundings in one iteration
+```
+Say for an actual MPI job where you have a thousands of cores for a fixed wing system, say `ppn=104` and you have 10 nodes available with 1040 cpus. Run this before starting, to see how many iterations it will take to do 800 soundings.
+```julia
+using HiQGA
+transD_GP.splittasks(;nsoundings=800, ncores=1039, nchainspersounding=7, ppn=104)
+[ Info: will require 7 iterations of 129 soundings in one iteration
+```
+You can also violate the stay within a node principle if you have a cluster that does efficient message passing, like this. Say you have an actual `ppn=104` as in the case of the NCI Sandy Rapids nodes. Then for 12 nodes = 104*12 = 1248 CPUs, we ensure this total number is divisible by the `ppn` we are providing HiQGA. Say this is 48, a nice number for helicopter systems since 48/(5+1) is an integer. We can fool HiQGA into thinking we are staying within nodes of 48 CPUs as it only uses the `ppn` value we provide it. We can request 1248 CPUs through `PBS` and a `qsub` script but check our input first like so:
+```julia
+transD_GP.splittasks(;nsoundings=1211, ncores=1247, nchainspersounding=5, ppn=48)
+[ Info: will require 6 iterations of 207 soundings in one iteration
+```
+[Here](https://github.com/GeoscienceAustralia/HiQGA.jl/blob/a8b258d6cef23be7423c9e8652ea0926af28f448/ASEG_Hobart_Workshop_2024/UDF_probabilistic/submit.sh) is an example of a massive job qsub submit script.
+### Troubleshooting MPI set up
+Some folks have reported that the above MPI install provides error messages to the order of "You are using the system provided MPI", indicating that it is not Intel MPI 2021.10.0 that they are working with. In this case, you should first remove MPI.jl
+```
+# goto Pkg mode in Julia by hitting ]
+pgk> rm MPI.jl
+```
+exit Julia, then edit `~/.julia/prefs/MPI.toml` adding in the following lines
+```
+path = "/apps/intel-mpi/2021.10.0"
+library = "/apps/intel-mpi/2021.10.0/lib/release/libmpi.so"
+binary = "system"
+```
+then go back to Julia in Pkg mode, making sure the intel-mpi module is loaded in BASH and add back MPI.jl
+```
+module load intel-mpi/2021.10.0
+julia
+```
+Within Julia, you can then do 
+```
+# hit ] to enter Pkg mode
+pkg>add MPI@0.19.2
+```
+and this should work.
 ## For installing development mode pre-release versions
 ```
 pkg> dev HiQGA
