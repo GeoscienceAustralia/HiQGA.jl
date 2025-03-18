@@ -40,6 +40,7 @@ mutable struct HFieldDHT <: HField
     J1_kernel_v     :: Array{ComplexF64, 2}
     J01kernelhold   :: Vector
     lowpassfcs      :: Array{Float64, 1}
+    isRLCfilter     :: Vector{Bool}
     quadnodes       :: Array{Float64, 1}
     quadweights     :: Array{Float64, 1}
     interplog10ω    :: Array{Float64, 2}
@@ -87,6 +88,7 @@ function HFieldDHT(;
       ntimesperdecade = 10,
       glegintegorder = 5,
       lowpassfcs = [],
+      isRLCfilter = [],
       provideddt = true,
       doconvramp = true,
       modelprimary = false,
@@ -98,7 +100,7 @@ function HFieldDHT(;
       minresptime = 1.e-6, # I think responses earlier than this are unstable
       calcjacobian = false,
       isdIdt = false,
-      rampchoice = :mid, # if using dIdt instead of I a choice has to be made
+      rampchoice = :next, # if using dIdt instead of I a choice has to be made
       )
     @assert all(freqs .> 0.)
     @assert freqhigh > freqlow
@@ -147,7 +149,13 @@ function HFieldDHT(;
     HTD_z_interp = zeros(Float64, length(interptimes))
     HTD_r_interp = zeros(Float64, length(interptimes))
     HTD_az_interp = zeros(Float64, length(interptimes))
+    if isempty(isRLCfilter)
+        isRLCfilter = falses(length(lowpassfcs))
+    else
+        @assert length(isRLCfilter) == length(lowpassfcs)
+    end
     lowpassfcs = float.([lowpassfcs..., 5e6])
+    isRLCfilter = Bool.([isRLCfilter..., false])
     quadnodes, quadweights = gausslegendre(glegintegorder)
     rxwithinloop = false
     log10Filter_base = log10.(Filter_base/rRx)
@@ -181,9 +189,9 @@ function HFieldDHT(;
     useprimary = modelprimary ? one(Float64) : zero(Float64)
     HFieldDHT(thickness, pz, ϵᵢ, zintfc, rTE, rTM, zRx, zTx, rTx, rRx, freqs, times, ramp, log10ω, interptimes, minresptime,
             HFD_z, HFD_r, HFD_az, HFD_z_interp, HFD_r_interp, HFD_az_interp,
-            HTD_z_interp, HTD_r_interp, HTD_az_interp, dBzdt, dBrdt, dBazdt, J0_kernel_h, J1_kernel_h, J0_kernel_v, J1_kernel_v, J01kernelhold, lowpassfcs,
-            quadnodes, quadweights, preallocate_ω_Hsc(interptimes, lowpassfcs)..., rxwithinloop, provideddt, doconvramp, useprimary,
-            nkᵣeval, interpkᵣ, log10interpkᵣ, log10Filter_base, getradialH, getazimH, 
+            HTD_z_interp, HTD_r_interp, HTD_az_interp, dBzdt, dBrdt, dBazdt, J0_kernel_h, J1_kernel_h, J0_kernel_v, J1_kernel_v, J01kernelhold, 
+            lowpassfcs, isRLCfilter, quadnodes, quadweights, preallocate_ω_Hsc(interptimes, lowpassfcs, isRLCfilter)..., rxwithinloop, 
+            provideddt, doconvramp, useprimary, nkᵣeval, interpkᵣ, log10interpkᵣ, log10Filter_base, getradialH, getazimH, 
             calcjacobian, Jtemp, similar(Jtemp), Jac_z, Jac_az, Jac_r, HFD_z_J, HTD_z_J_interp, dBzdt_J,  HFD_az_J, HTD_az_J_interp, dBazdt_J, 
             HFD_r_J, HTD_r_J_interp, dBrdt_J, isdIdt, rampchoice)
 end
@@ -292,7 +300,7 @@ end
 
 gettimesperdec(timevec) = getfreqsperdec(timevec) # same calculation in time
 
-function preallocate_ω_Hsc(interptimes, lowpassfcs)
+function preallocate_ω_Hsc(interptimes, lowpassfcs, isRLCfilter)
     ω   = zeros(length(Filter_t_base), length(interptimes))
     Hsc = zeros(ComplexF64, length(Filter_t_base), length(interptimes))
     for itime = 1:length(interptimes)
@@ -300,9 +308,14 @@ function preallocate_ω_Hsc(interptimes, lowpassfcs)
         ω[:,itime] = log10.(Filter_t_base/t)
         Hsc[:,itime] = ones(ComplexF64, length(Filter_t_base))
         s = 1im*10 .^ω[:,itime]
-        for fc in lowpassfcs
-             Hs = 1 ./( 1 .+s./(2*pi*fc))
-             Hsc[:,itime] .= Hsc[:,itime].*Hs
+        for (fc, isrlc) in zip(lowpassfcs, isRLCfilter)
+            ω₀ = 2*pi*fc
+            if !isrlc
+                Hs = 1 ./(1 .+ s/ω₀) # BW order 1, the default
+            else
+                Hs = ω₀^2 ./ (ω₀^2 .+ s.^2 + 2s*ω₀) # Critically damped RLC
+            end
+            Hsc[:,itime] .= Hsc[:,itime].*Hs
         end
     end
     ω, 10 .^ω, Hsc

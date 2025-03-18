@@ -51,7 +51,7 @@ function dBzdt(;times           = [1.],
         freqlow         = 1e-4,
         freqhigh        = 1e6,
         isdIdt          = false, 
-        rampchoice      = :mid
+        rampchoice      = :next
         )
    
     @assert size(σ)  == size(d)

@@ -66,18 +66,19 @@ function dBzdt(;timeslow  = [.1],
                 z         = [-1.],
                 ρ         = [-1.],
                 lowpassfcs = [],
+                isRLCfilter = [],
                 nfixed    = 1)
     nmax = length(ρ)+1            
     @assert size(σlow)  == size(dlow)
     @assert size(σhigh) == size(dhigh)
 
     Flow = AEM_VMD_HMD.HFieldDHT(;
-        ntimesperdecade, nfreqsperdecade, lowpassfcs, 
+        ntimesperdecade, nfreqsperdecade, lowpassfcs, isRLCfilter,
         times = timeslow, ramp = ramplow, nmax, zTx = zTxlow, zRx = zRxlow, 
         rRx, rTx, modelprimary, calcjacobian)
 
     Fhigh = AEM_VMD_HMD.HFieldDHT(;
-        ntimesperdecade, nfreqsperdecade, lowpassfcs, 
+        ntimesperdecade, nfreqsperdecade, lowpassfcs, isRLCfilter,
         times = timeshigh, ramp = ramphigh, nmax, zTx = zTxhigh, zRx = zRxhigh, 
         rRx, rTx, modelprimary, calcjacobian)
 
@@ -532,6 +533,7 @@ function makeoperator(sounding::SkyTEMsoundingData;
                        nfreqsperdecade = 5,
                        showgeomplot = false,
                        useML = false,
+                       isRLCfilter = [],
                        calcjacobian = false,
                        modelprimary = false,
                        plotfield = false)
@@ -545,7 +547,7 @@ function makeoperator(sounding::SkyTEMsoundingData;
     z, ρ, nfixed = makezρ(zboundaries; zfixed=zfixed, ρfixed=ρfixed)
     ρ[z.>=zstart] .= ρbg
 
-    aem = makeoperator(sounding, ntimesperdecade, nfreqsperdecade, modelprimary, calcjacobian, useML, z, ρ)
+    aem = makeoperator(sounding, ntimesperdecade, nfreqsperdecade, modelprimary, calcjacobian, useML, z, ρ, isRLCfilter)
     
     if plotfield
         plotwaveformgates(aem)
@@ -555,11 +557,12 @@ function makeoperator(sounding::SkyTEMsoundingData;
     aem, zall, znall, zboundaries
 end
 
-function makeoperator(sounding::SkyTEMsoundingData, ntimesperdecade, nfreqsperdecade, modelprimary, calcjacobian, useML, z, ρ)
+function makeoperator(sounding::SkyTEMsoundingData, ntimesperdecade, nfreqsperdecade, modelprimary, calcjacobian, 
+        useML, z, ρ, isRLCfilter)
     dBzdt(;ntimesperdecade, nfreqsperdecade, modelprimary, calcjacobian, useML,
         timeslow = sounding.LM_times, ramplow = sounding.LM_ramp, zRxlow=sounding.zRxLM, zTxlow = sounding.zTxLM,
         timeshigh = sounding.HM_times, ramphigh = sounding.HM_ramp, zRxhigh=sounding.zRxHM, zTxhigh = sounding.zTxHM,
-        rRx=sounding.rRx, rTx = sounding.rTx, z, ρ, lowpassfcs = sounding.lowpassfcs, 
+        rRx=sounding.rRx, rTx = sounding.rTx, z, ρ, lowpassfcs = sounding.lowpassfcs, isRLCfilter,
         dlow=sounding.LM_data/μ₀, dhigh=sounding.HM_data/μ₀, σlow=sounding.LM_noise/μ₀, σhigh=sounding.HM_noise/μ₀)
 end   
 
@@ -569,7 +572,9 @@ function makeoperator(aem::dBzdt, sounding::SkyTEMsoundingData)
     @assert !(aem.useML & sounding.forceML) "useML and forceML cannot both be true"
     useML = (aem.useML | sounding.forceML) # OR logic for useML with true, true disqualified earlier
     modelprimary = aem.Flow.useprimary === 1. ? true : false
-    makeoperator(sounding, ntimesperdecade, nfreqsperdecade, modelprimary, aem.Flow.calcjacobian, useML, copy(aem.z), copy(aem.ρ))
+    isRLCfilter = aem.Flow.isRLCfilter[1:end-1] # the last high freq AEM_VMD_HMD_puts in, to the aem struct
+    makeoperator(sounding, ntimesperdecade, nfreqsperdecade, modelprimary, aem.Flow.calcjacobian, useML, 
+        copy(aem.z), copy(aem.ρ), isRLCfilter)
 end
 
 # all plotting codes here assume that the model is in log10 resistivity, SANS
