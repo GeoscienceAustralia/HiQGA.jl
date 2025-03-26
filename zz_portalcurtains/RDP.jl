@@ -271,6 +271,33 @@ function writedosbatchfile(jpegsavename::String; isfirst=false, islast=false)
     nothing
 end
 
+function writencibatchfile(jpegsavename::String; isfirst=false, islast=false)
+    lname = basename(jpegsavename)
+    dst_dir = dirname(dirname(jpegsavename))
+    fname = joinpath(dst_dir, "tileall.sh")
+    if isfirst
+        f = open(fname, "w")
+        str = """
+        #!/bin/bash
+        module load java/jdk-17.0.2
+
+        """
+        write(f, str)
+    else
+        f = open(fname, "a")    
+    end
+    # java -jar tiler-jar-with-dependencies.jar -tilesize 512 -noLayerDef -source 200701_low.jpg -output xml_and_tiles/
+    # write(f, "call ribbon.bat -tilesize $tilesize -noLayerDef -source jpeg\\$lname -output xml_and_tiles\\\n")
+    write(f, "java -jar ~/bin/tiler-jar-with-dependencies.jar -tilesize $tilesize -noLayerDef -source jpeg/$lname -output xml_and_tiles/\n")
+    write(f, "cd xml_and_tiles/\n")
+    write(f, "7z a $(lname[1:end-4]).zip ./$(lname[1:end-4])/*\n")
+    write(f, "cd ..\n")
+    write(f, "rm -Rf xml_and_tiles/$(lname[1:end-4])\n")
+    islast && write(f, "echo \"DONE!\"\n")
+    close(f)
+    nothing
+end
+
 function pltpoint(ax, pts)
     pt = reduce(hcat, pts)'
     ax.plot(pt[:,1], pt[:,2], "*-")
@@ -307,6 +334,7 @@ function writeimageandcolorbar(img::Array, gridr, gridz, line::Int; cmap="turbo"
     jpegsavename = joinpath(jpegpath, "$line"*suffix*".jpg")
     savefig(jpegsavename; dpi, bbox_inches = "tight", pad_inches = 0)
     writedosbatchfile(jpegsavename; isfirst, islast)
+    writencibatchfile(jpegsavename; isfirst, islast)
     close(fig)
     nothing
 end
