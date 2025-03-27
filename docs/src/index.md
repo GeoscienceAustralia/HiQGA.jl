@@ -204,8 +204,7 @@ transD_GP.splittasks(;nsoundings=1211, ncores=1247, nchainspersounding=5, ppn=48
 ```
 [Here](https://github.com/GeoscienceAustralia/HiQGA.jl/blob/a8b258d6cef23be7423c9e8652ea0926af28f448/ASEG_Hobart_Workshop_2024/UDF_probabilistic/submit.sh) is an example of a massive job qsub submit script.
 ### Troubleshooting MPI set up
-Some folks have reported that the above MPI install provides error messages to the order of "You are using the system provided MPI", indicating that it is not Intel MPI 2021.10.0 that they are working with. In this case, you should first remove MPI.jl
-exit Julia, then edit `~/.julia/prefs/MPI.toml` adding in the following lines
+Some folks have reported that the above MPI install provides error messages to the order of "You are using the system provided MPI", indicating that it is not Intel MPI 2021.10.0 that they are working with. In this case, you should exit Julia, then edit `~/.julia/prefs/MPI.toml` adding in the following lines
 ```
 path = "/apps/intel-mpi/2021.10.0"
 library = "/apps/intel-mpi/2021.10.0/lib/release/libmpi.so"
