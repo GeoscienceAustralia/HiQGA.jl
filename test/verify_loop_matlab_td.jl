@@ -1,4 +1,4 @@
-using PyPlot, Revise, HiQGA.transD_GP, Random, Statistics
+using PyPlot, HiQGA.transD_GP, Random, Statistics
 ## from matlab circle code
 matlabLM = vec([5.588e-9  3.9533e-9  2.6558e-9  1.7276e-9  1.1292e-9  7.3569e-10  4.9102e-10  3.401e-10  2.4425e-10  1.8129e-10  1.3582e-10  1.0205e-10  7.7079e-11  5.8448e-11  4.4735e-11  3.4357e-11 2.6101e-11  1.9288e-11])
 matlabHM = vec([5.4669e-10  3.4682e-10  2.4341e-10  1.7922e-10  1.3526e-10  1.0387e-10  8.0645e-11  6.343e-11  5.0158e-11  3.9315e-11  3.0087e-11  2.2234e-11  1.5781e-11  1.0723e-11  6.9601e-12 4.3111e-12  2.5472e-12  1.4351e-12  7.7144e-13  3.9605e-13  2.0261e-13])

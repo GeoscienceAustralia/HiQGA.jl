@@ -1,4 +1,4 @@
-using PyPlot, Revise, HiQGA.transD_GP, Random, Statistics
+using PyPlot, HiQGA.transD_GP, Random, Statistics
 include("skytem_response.jl")
 ##  modeling parameters
 ntimesperdecade = 10

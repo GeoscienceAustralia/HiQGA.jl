@@ -1,4 +1,4 @@
-using PyPlot, DelimitedFiles, Random, Statistics, Revise,
+using PyPlot, DelimitedFiles, Random, Statistics,
       HiQGA.transD_GP
 ## model fixed parts, i.e., air
 zfixed   = [-1e5]

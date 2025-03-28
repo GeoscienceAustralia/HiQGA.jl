@@ -1,4 +1,4 @@
-using PyPlot, Revise, HiQGA.transD_GP, DelimitedFiles, Random, BenchmarkTools
+using PyPlot, HiQGA.transD_GP, DelimitedFiles, Random, BenchmarkTools
 ## set geometry
 rMin = 100 #m
 rMax = 20000  #m

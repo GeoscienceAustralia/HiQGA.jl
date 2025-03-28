@@ -1,4 +1,4 @@
-using PyPlot, Revise, HiQGA.transD_GP, Random, Statistics
+using PyPlot, HiQGA.transD_GP, Random, Statistics
 ## waveform and times
 ramp =  [  # -0.0400066666667    0.5
 			-0.0400000000000    0.0
