@@ -1,4 +1,4 @@
-using PyPlot, Revise, HiQGA.transD_GP, Random, Statistics, BenchmarkTools
+using PyPlot, HiQGA.transD_GP, Random, Statistics, BenchmarkTools
 profile_within_vscode = true
 calcjacobian = true
 ## model

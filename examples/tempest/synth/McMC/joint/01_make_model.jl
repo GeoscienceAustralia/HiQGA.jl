@@ -1,11 +1,7 @@
-using Revise
 using PyPlot, DelimitedFiles, Random, Statistics, HiQGA.transD_GP
-
-Random.seed!(23)
 
 zfixed = [-1e5]
 ρfixed = [1e12]
-nmax = 100
 
 zstart = 0.0
 extendfrac, dz = 1.03, 1.5
