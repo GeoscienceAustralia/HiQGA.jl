@@ -79,7 +79,7 @@ Then enter the following, at the `pkg>` prompt:
 pkg> add HiQGA 
 ```
 ### VSCode on the NCI ###
-Install Julia from binary for your platform, download the VSCode RPM at a plce where you have write access and free inodes. Then at the terminal, write:
+Install Julia from binary for your platform, download the VSCode RPM at a place where you have write access and free inodes. Then at the terminal, write:
 `rpm2cpio code-xxxx-vyyy.rpm | cpio -idv`
 The VScode binary is at `<rpmdir>/usr/share/code/bin/code`, where `<rpmdir>` is the folder where you ran the `rpm2cpio` command. The best way to make running VSCode easy is to add the following line to `~/.bashrc`:
 ```
