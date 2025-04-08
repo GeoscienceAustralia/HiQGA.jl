@@ -1,5 +1,7 @@
+# API intro if you do want to modify HiQGA.transD_GP, 
+# and add your own physics
 using HiQGA.transD_GP
-
+cd(@__DIR__) # Change to this directory
 # Forward setttings
 # dummy physics struct defined in src/FooPhysics.jl
 F = transD_GP.FooPhysics.Foo(25, rand(10))
@@ -42,7 +44,7 @@ opt = transD_GP.OptionsStat(nmin = nmin,
 
 ## Put forward and inverse together
 # initialise a random model
-m = transD_GP.init(opt)
+m = transD_GP.init(opt, 1) # 1 is a parallel-write thing, not important here.
 
 # compute misfit
 transD_GP.get_misfit(m, opt, FOp)

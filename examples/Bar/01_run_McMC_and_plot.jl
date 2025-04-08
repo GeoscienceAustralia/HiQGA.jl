@@ -11,7 +11,7 @@ addprocs(nchains)
     include("BarPhysicsInversion.jl")
     using .BarPhysicsInversion
 end    
-## run McMC
+## run McMC - sample a uniform prior between 0 and 1 at depths between 0 and 1 with 5 nuclei
 @time transD_GP.main(opt, FOp, Tmax=Tmax, nsamples=nsamples, nchains=nchains, nchainsatone=nchainsatone)
 rmprocs(workers())
 ## plot

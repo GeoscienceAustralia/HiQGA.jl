@@ -6,9 +6,9 @@ addprocs(nchains)
 @info "workers are $(workers())"
 @everywhere using Distributed
 @everywhere using HiQGA.transD_GP
-## run McMC
+## run McMC 
 @time transD_GP.main(opt, FOp, Tmax=Tmax, nsamples=nsamples, nchains=nchains, nchainsatone=nchainsatone)
 rmprocs(workers())
-## plot
+## plot - sample a uniform prior between 0 and 1 at depths between 0 and 1 with 5 nuclei
 transD_GP.getchi2forall(opt, fsize=8, alpha=0.5)
 transD_GP.plot_posterior(FOp, opt,  burninfrac=0.5, figsize=(8.5,4), fsize=8, nbins=50)
