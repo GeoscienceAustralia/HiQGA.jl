@@ -63,11 +63,11 @@ cd ~/bin
 ln -s /somwehere/home/me/julia-x.x.x/bin/julia .
 ```
 Make sure your `$HOME/bin` is in your `$PATH` else which you can check with `echo $PATH | grep "$HOME/bin"`. If you do not see your `bin` directory highlighted, do `export PATH=~/bin:$PATH`
-The preferred development and usage environment for HiQGA is [Visual Studio Code](https://code.visualstudio.com/), which provides interactive execution of Julia code through the [VSCode Julia extension](https://code.visualstudio.com/docs/languages/julia). To install VSCode on the National Computational Infrastructure (NCI), you need to extract the VSCode rpm package using the steps in [this gist](https://gist.github.com/a2ray/701347f703b72abb630d2521b43c5f22), to a location where your account has write access. You will NOT be using vscode on a gadi login node, but on OOD.
+The preferred development and usage environment for HiQGA is [Visual Studio Code](https://code.visualstudio.com/), which provides interactive execution of Julia code through the [VSCode Julia extension](https://code.visualstudio.com/docs/languages/julia). To install VSCode on the National Computational Infrastructure (NCI), see underneath. You will NOT be using vscode on a gadi login node, but on [ARE](https://are.nci.org.au).
 
 Get Julia language support from VSCode after launching the VSCode binary by going to File->Extensions by searching for Julia. If after installation it doesn't find the Julia binary, go to File->Extensions->Julia->Manage (the little gear icon) and manually type in `/home/yourusername/bin/julia` in the "Executable Path" field.
 
-It is also useful to use Revise.jl to ensure changes to the package are immediately reflected in a running Julia REPL (this is the reason that Revise is a dependency on some example scripts as noted above). More information on a workflow to use Revise during development can be found [here](https://gist.github.com/a2ray/e593751b24e45f8160ba8041fb811680).
+It is also useful to use Revise.jl to ensure changes to the package are immediately reflected in a running Julia REPL (this is the reason that Revise is a dependency on some example scripts as noted above). More information on a workflow to use Revise during development can be found [here](https://gist.github.com/a2ray/e593751b24e45f8160ba8041fb811680). However, do not use `Revise` for production runs and long MPI jobs.
 
 As [shown above](#installation), to install HiQGA, start Julia and go into the `Pkg` REPL by hitting `]` to enter `pkg>` mode like so: 
 ```
@@ -78,7 +78,19 @@ Then enter the following, at the `pkg>` prompt:
 ```
 pkg> add HiQGA 
 ```
-
+### VSCode on the NCI ###
+Install Julia from binary for your platform, download the VSCode RPM at a plce where you have write access and free inodes. Then at the terminal, write:
+`rpm2cpio code-xxxx-vyyy.rpm | cpio -idv`
+The VScode binary is at `<rpmdir>/usr/share/code/bin/code`, where `<rpmdir>` is the folder where you ran the `rpm2cpio` command. The best way to make running VSCode easy is to add the following line to `~/.bashrc`:
+```
+prepend_path PATH ${HOME}/bin
+```
+and then in `~/bin` create a file called `code` with the following contents
+```
+#!/bin/bash
+/path/to/vscode/usr/share/code/code --no-sandbox
+```
+and then do `source ~/.bashrc` or restart the terminal. The next time you run `code` from your terminal it will bring up VSCode. Use VScode on ARE, not a Gadi login node.
 ### Installing MPI.jl and MPIClusterManagers.jl on NCI
 We have found that the safest bet for MPI.jl to work without [UCX issues](https://docs.juliahub.com/MPI/nO0XF/0.19.2/knownissues/#UCX) on NCI is to use intel-mpi. In order to install MPI.jl and configure it to  use the intel-mpi provided by the module `intel-mpi/2021.10.0`, following the example below. 
 
