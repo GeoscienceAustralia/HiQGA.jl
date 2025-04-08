@@ -1,4 +1,7 @@
+# API intro if you don't want to modify HiQGA.transD_GP, 
+# but add your own physics and use transD
 using HiQGA.transD_GP
+cd(@__DIR__) # Change to this directory
 include("BarPhysics.jl")
 include("BarPhysicsInversion.jl")
 using .BarPhysicsInversion
@@ -44,7 +47,7 @@ opt = transD_GP.OptionsStat(nmin = nmin,
 
 ## Put forward and inverse together
 # initialise a random model
-m = transD_GP.init(opt) 
+m = transD_GP.init(opt, 1) # 1 is a parallel-write thing, not important here.
 
 # compute misfit
 transD_GP.get_misfit(m, opt, FOp)
