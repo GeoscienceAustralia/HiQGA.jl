@@ -1,5 +1,5 @@
 module RDP
-using LinearAlgebra, Dates, ArchGDAL, Printf, DataFrames, CSV,
+using LinearAlgebra, Dates, ArchGDAL, Printf, DataFrames, CSV, Statistics,
     PyPlot, Images, FileIO, HiQGA, Interpolations, NearestNeighbors, DelimitedFiles,
     SegyIO
 import GeoFormatTypes as GFT
@@ -48,14 +48,51 @@ function scaledRDP(xin...;ϵ=1.0) # input x,y,z,etc.
     end
 end
 
-function worldcoordinates(;gridr=nothing, gridz=nothing)
-    # from https://support.esri.com/en-us/knowledge-base/faq-what-is-the-format-of-the-world-file-used-for-geore-000002860
-    A = step(gridr)
-    D = 0
-    B = 0
-    E = step(gridz)
-    C = A/2
-    F = gridz[1] + E/2
+function worldcoordinates(x1, y1, x2, y2, VE;gridr=nothing, gridz=nothing)
+    # # from https://support.esri.com/en-us/knowledge-base/faq-what-is-the-format-of-the-world-file-used-for-geore-000002860
+    # A = step(gridr)
+    # D = 0
+    # B = 0
+    # E = step(gridz)
+    # C = A/2
+    # F = gridz[1] + E/2
+    ## above is wonky
+    # taken from Ross but very hacky 
+    # https://github.com/GeoscienceAustralia/ga-aem/blob/eb9b3b1eb19d8613ff8bdcaabada9e870aa0beda/src/ctlinedata2georefimage.cpp#L523
+    #==
+    	//Line 1: A: x component of the pixel width (x-scale)
+		//Line 2: D: y component of the pixel width (y-skew)
+		//Line 3: B: x component of the pixel height (x-skew)
+		//Line 4: E: y component of the pixel height (y-scale), almost always negative
+		//Line 5: C: x-coordinate of the center of the upper left pixel
+		//Line 6: F: y-coordinate of the center of the upper left pixel
+    ==#
+    dh = diff(gridr)[1]
+    dv = dh / VE
+    v2 = maximum(gridz)
+    elevation_median = median(gridz)
+    # this zeems to remain the same but should it?
+    angle = atan(y2 - y1, x2 - x1);
+    vshift = (v2 - elevation_median);
+    ix0 = x1 - (dh / dv) * vshift * sin(angle);
+    iy0 = y1 + (dh / dv) * vshift * cos(angle);
+    A = dh * cos(angle)
+    D = dh * sin(angle)
+    C = ix0
+    F = iy0
+    if abs(x2-x1) > abs(y2-y1) # mostly EW
+        negdh = x1 > x2 ? 1 : -1 
+        B = dh * sin(angle)
+        E = negdh * dh * cos(angle) # Ross has -dh * cos(angle) but upside down for me ....
+    else # mostly NS
+        negdh = 1
+        if y1 > y2
+            negdh = -1
+            C = x1 + (dh / dv) * vshift * sin(angle);
+        end
+        B = negdh * dh * sin(angle)
+        E = negdh * dh * cos(angle) # Ross has -dh * cos(angle) but upside down for me ....
+    end
     @sprintf("%.3f\n%.3f\n%.3f\n%.3f\n%.3f\n%.3f", A, D, B, E, C, F)
 end
 
@@ -141,7 +178,7 @@ function colstosegy(X, Y, Z, σ, thick_in, lines; dr=nothing, dz=nothing, hasthi
     end
 end
 
-function writepathextentfiles(line, nrows, ncols, gridr, topo, gridz, X, Y; suffix="", dst_dir="", src_epsg=0)
+function writepathextentfiles(line, nrows, ncols, gridr, topo, gridz, X, Y; suffix="", dst_dir="", src_epsg=0, VE)
     geompath = joinpath(dst_dir,"geometry")
     isdir(geompath) || mkpath(geompath)
     f = open(joinpath(geompath, "$line"*suffix*".path.txt"), "w")
@@ -161,7 +198,7 @@ function writepathextentfiles(line, nrows, ncols, gridr, topo, gridz, X, Y; suff
     close(f)
     jpegpath = joinpath(dst_dir,"jpeg")
     f = open(joinpath(jpegpath, "$line"*suffix*".jgw"), "w")
-    write(f, worldcoordinates(;gridr=gridrfine, gridz))
+    write(f, worldcoordinates(x[1], y[1], x[end], y[end], VE;gridr=gridrfine, gridz))
     close(f)
 end    
 
@@ -329,7 +366,7 @@ function writeimageandcolorbar(img::Array, gridr, gridz, line::Int; cmap="turbo"
     fig, ax = plt.subplots(;figsize)
     ax.imshow(img; cmap, extent=[gridr[1], gridr[end], gridz[end], gridz[1]], vmin, vmax)
     ax.set_aspect(VE)
-    ax.set_aspect("auto")
+    # ax.set_aspect("auto") #why auto after VE?
     ax.axis("off")
     jpegsavename = joinpath(jpegpath, "$line"*suffix*".jpg")
     savefig(jpegsavename; dpi, bbox_inches = "tight", pad_inches = 0)
@@ -374,11 +411,11 @@ function doonecurtaintriad(line::Int; nlayers=0, pathname="", dr=0, dz=0, dst_di
             i == 3 && (isl = true)
         end
         writeimageandcolorbar(img, gridr, gridz, line; cmap, fnamebar, suffix, dst_dir, isfirst=writecb, islast=isl,
-        vmin, vmax, dpi, writecolorbar=writecb,
-        barfigsize, VE, shrink)
+            vmin, vmax, dpi, writecolorbar=writecb,
+            barfigsize, VE, shrink)
         h, w = getimgsize(line, dst_dir, suffix)
         writeworldXML(latlonglist; h, w, line, gridz, suffix, dst_dir)
-        writepathextentfiles(line, h, w, gridr, topofine, gridz, X_, Y_; suffix, dst_dir, src_epsg)
+        writepathextentfiles(line, h, w, gridr, topofine, gridz, X_, Y_; suffix, dst_dir, src_epsg, VE)
     end
 end
 
@@ -461,7 +498,7 @@ function writeshpfromxyzrhodir(nlayers::Int; prefix="", src_dir="", dst_dir="", 
         plist = makeplist(X, Y)
         longlat = reverse.(reprojecttoGDA94(plist, src_epsg))
         R = transD_GP.CommonToAll.cumulativelinedist(X,Y)
-        (;geom=ArchGDAL.createlinestring(longlat), Line=ln, Length=R[end], soundings_inverted=length(R))
+        (;geom=ArchGDAL.createlinestring(longlat), Line=ln, Length=R[end], n_inverted=length(R))
     end
     # writeesri
     path = joinpath(dst_dir, "shp")
