@@ -81,7 +81,11 @@ function worldcoordinates(x1, y1, x2, y2, VE;gridr=nothing, gridz=nothing)
     C = ix0
     F = iy0
     if abs(x2-x1) > abs(y2-y1) # mostly EW
-        negdh = x1 > x2 ? 1 : -1 
+        negdh = -1
+        if x1 > x2 
+            negdh = 1
+            F = y1 - (dh / dv) * vshift * cos(angle);
+        end    
         B = dh * sin(angle)
         E = negdh * dh * cos(angle) # Ross has -dh * cos(angle) but upside down for me ....
     else # mostly NS
