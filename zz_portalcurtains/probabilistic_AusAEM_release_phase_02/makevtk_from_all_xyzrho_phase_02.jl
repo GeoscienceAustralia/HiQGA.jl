@@ -1,5 +1,5 @@
 using HiQGA, PyPlot
-includet("RDP.jl")
+using RDP
 nlayers = 52
 vmin, vmax = -2.5, 0.5
 outputrootdir = "/scratch/ns59/ar0754/probabilistic_AEM_phase_02_products"

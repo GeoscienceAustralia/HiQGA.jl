@@ -1,5 +1,5 @@
 using HiQGA, PyPlot
-includet("RDP.jl")
+using RDP
 ##
 nlayers = 52
 dr = 200

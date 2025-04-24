@@ -4,4 +4,4 @@ using HiQGA, Pkg
 pathdir = dirname(dirname(pathof(HiQGA))) # to get to root of HiQGA install directory
 Pkg.develop(;path=joinpath(pathdir, "zz_portalcurtains") # which has its own src directory
 ```
-Please note, RDP.jl is not a registered julia package, so anytime you update HiQGA, if any changes have been made to registered HiQGA and the RDP src directory, changes will propagate here.
+Please note, RDP.jl is not a registered julia package, so anytime you update HiQGA, if any changes have been made to registered HiQGA and the included RDP src directory, changes will propagate here.

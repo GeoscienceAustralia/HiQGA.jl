@@ -1,5 +1,5 @@
 using HiQGA, PyPlot, DelimitedFiles
-includet("RDP.jl")
+using RDP
 nlayers = 52
 vmin, vmax = -2.5, 0.5
 items = [item for item in walkdir("/home/547/ar0754/z67/ar0754/largeaem/production")]

@@ -1,5 +1,5 @@
 using HiQGA, PyPlot
-includet("RDP.jl")
+using RDP
 nlayers = 52
 rootdir = "/Users/anray/Documents/work/projects/largeaem/final_01/shapefiles/"
 ## multiple surveys

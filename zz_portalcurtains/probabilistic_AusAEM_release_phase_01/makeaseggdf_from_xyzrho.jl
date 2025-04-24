@@ -1,5 +1,5 @@
 using HiQGA, PyPlot
-includet("RDP.jl")
+using RDP
 src_epsg = 28354
 nlayers = 52
 src_dir = "/Users/anray/Documents/work/projects/largeaem/final_01/summaries_all/AusAEM_03_ERC/2021_ERC_01/summary"
