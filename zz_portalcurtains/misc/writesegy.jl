@@ -1,6 +1,6 @@
 using SegyIO, PyPlot, HiQGA
 cd(@__DIR__)
-includet("RDP.jl")
+using RDP
 pathname="/Users/anray/Documents/work/projects/largeaem/final_01/summaries_all/AusAEM_03_ERC/2021_ERC_01/summary"
 nlayers = 52
 line = 1001001
