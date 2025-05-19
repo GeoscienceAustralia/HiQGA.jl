@@ -10,7 +10,7 @@ import ..AbstractOperator.Sounding # for storing real data
 import ..AbstractOperator.returnforwrite
 import ..AbstractOperator.getndata
 import ..AbstractOperator.plotmodelfield!
-using Random, PyPlot, DelimitedFiles, LinearMaps, SparseArrays, ..GP, LinearAlgebra, Statistics
+using Random, PyPlot, DelimitedFiles, LinearMaps, SparseArrays, ..GP, LinearAlgebra, Statistics, PositiveFactorizations
 
 μ = AEM_VMD_HMD.μ
 const pVinv = 1e12
@@ -26,7 +26,7 @@ mutable struct dBzdt<:Operator1D
     select     :: Array{Bool, 1}
     ndata      :: Int
     J          :: AbstractArray
-    W          :: SparseMatrixCSC
+    W          #:: SparseMatrixCSC
     res        :: Vector
 end
 
@@ -84,7 +84,8 @@ function allocateJ(FJt, σ, select, nfixed, nmodel, calcjacobian)
     # since majority of Jacobian allocations are in aem.F
     res = similar(σ[select]) 
     Wdiag = 1 ./σ[select]
-    W = sparse(diagm(Wdiag))        
+    # W = sparse(diagm(Wdiag))        
+    W = diagm(Wdiag)
     return res, J, W
 end
 
