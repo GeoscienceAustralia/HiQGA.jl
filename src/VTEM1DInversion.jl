@@ -201,7 +201,13 @@ function read_survey_files(;
     @assert size(d, 2) == length(σ_halt)
     σ_halt[:] .*= units
     d[:]      .*= units
-    σ           = sqrt.((multnoise*d).^2 .+ (σ_halt').^2)
+
+    if isa(multnoise, Array)
+        @assert size(d,2) == length(multnoise)
+    end
+
+    σ = sqrt.((d.*multnoise').^2 .+ (σ_halt').^2)
+
     if !isempty(noise_scalevec) 
         @assert length(noise_scalevec) == length(times)
         σ = σ.*noise_scalevec'
