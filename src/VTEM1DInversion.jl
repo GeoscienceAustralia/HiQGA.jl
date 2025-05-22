@@ -28,6 +28,7 @@ mutable struct dBzdt<:Operator1D
     J          :: AbstractArray
     W          #:: SparseMatrixCSC
     res        :: Vector
+    corr       #correlation matrix or nothing
 end
 
 function dBzdt(;times           = [1.],
@@ -51,7 +52,8 @@ function dBzdt(;times           = [1.],
         freqlow         = 1e-4,
         freqhigh        = 1e6,
         isdIdt          = false, 
-        rampchoice      = :next
+        rampchoice      = :next,
+        corr            = nothing
         )
    
     @assert size(σ)  == size(d)
@@ -68,10 +70,17 @@ function dBzdt(;times           = [1.],
     @assert length(F.thickness) >= length(z)
     # for Gauss-Newton
     res, J, W = allocateJ(F.dBzdt_J, σ, select, nfixed, length(ρ), calcjacobian)
-    aem = dBzdt(d, useML, σ, F, z, nfixed, copy(ρ), select, ndata, J, W, res)
+    !isnothing(corr) && (modifyWforcorr!(W, corr))
+    aem = dBzdt(d, useML, σ, F, z, nfixed, copy(ρ), select, ndata, J, W, res, corr)
     showgates && plotwaveformgates(aem)
     aem
 end
+
+function modifyWforcorr!(W, R)
+    U = cholesky(Positive, R, Val{false}).U
+    WtW = W * (U\(U'\W))
+    copy!(W, Matrix(cholesky(Positive, WtW, Val{false}).U))
+end  
 
 function allocateJ(FJt, σ, select, nfixed, nmodel, calcjacobian)
     if calcjacobian && !isempty(select)
@@ -417,6 +426,7 @@ function makeoperator(sounding::VTEMsoundingData;
             plotfield     = false,
             isdIdt        = false,
             rampchoice    = :next,
+            corr          = nothing
             )
     
     zall, znall, zboundaries = setupz(zstart, extendfrac, dz=dz, n=nlayers, showplot=showgeomplot)
@@ -425,7 +435,7 @@ function makeoperator(sounding::VTEMsoundingData;
     aem = dBzdt(;d=sounding.data/μ, σ=sounding.noise/μ, modelprimary,
         times=sounding.times, ramp=sounding.ramp, ntimesperdecade, nfreqsperdecade, lowpassfcs=sounding.lowpassfcs,
         rTx=sounding.rTx, zTx=sounding.zTx, zRx=sounding.zRx, z, ρ, calcjacobian, useML, showgates=plotfield, isdIdt,
-        rampchoice)
+        rampchoice, corr)
     plotfield && plotmodelfield!(aem, log10.(ρ[2:end]))
     aem, zall, znall, zboundaries
 end
@@ -439,7 +449,7 @@ function makeoperator(aem::dBzdt, sounding::VTEMsoundingData)
     dBzdt(;d=sounding.data/μ, σ=sounding.noise/μ, modelprimary, lowpassfcs=sounding.lowpassfcs,
         times=sounding.times, ramp=sounding.ramp, ntimesperdecade, nfreqsperdecade, isdIdt, rampchoice,
         rTx=sounding.rTx, zTx=sounding.zTx, zRx=sounding.zRx,
-        z=copy(aem.z), ρ=copy(aem.ρ), 
+        z=copy(aem.z), ρ=copy(aem.ρ), corr=copy(aem.corr),
         aem.F.calcjacobian, aem.useML, showgates=false)
 end
 

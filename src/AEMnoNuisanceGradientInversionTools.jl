@@ -108,10 +108,14 @@ function plotconvandlast(soundings, delr, delz;
         idxgood = isassigned.(Ref(res), 1:length(res))
         rall = reduce(hcat, res[idxgood])
         doreshist && plotgausshist(vec(rall), title="All Lines residuals")
-        map(eachrow(rall)) do r
+        
+        k = map(eachrow(rall)) do r
             n = length(r)
             sqrt(r'r/n) # should return timechannel scaling factors in noise
         end
+
+        
+        return rall, k
     end
 end
 
