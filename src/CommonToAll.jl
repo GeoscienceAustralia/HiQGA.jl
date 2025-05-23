@@ -2135,15 +2135,15 @@ function plotgausshist(x;nbins=20, figsize=(4,4), title="")
     nicenup(f)
 end
 
-function plotgausshist(x, ax;nbins=20, color=nothing)
+function plotgausshist(x, ax;nbins=20, color=nothing, alpha=1)
     h = normalize(fit(Histogram, x; nbins), mode=:pdf)
     edges = h.edges[1]
     width=diff(edges)
     ax.bar(edges[1:end-1], h.weights, align="edge", width=width)
     if isnothing(color)
-        ax.plot(edges, 1/sqrt(2pi)*exp.(-edges.^2), "--")
+        ax.plot(edges, 1/sqrt(2pi)*exp.(-edges.^2), "--"; alpha)
     else
-        ax.plot(edges, 1/sqrt(2pi)*exp.(-edges.^2), "--", color=color)
+        ax.plot(edges, 1/sqrt(2pi)*exp.(-edges.^2), "--"; color, alpha)
     end
 end
 

@@ -446,10 +446,11 @@ function makeoperator(aem::dBzdt, sounding::VTEMsoundingData)
     modelprimary = aem.F.useprimary === 1. ? true : false
     isdIdt = aem.F.isdIdt
     rampchoice = aem.F.rampchoice
+    corr = isnothing(aem.corr) ? nothing : copy(aem.corr)
     dBzdt(;d=sounding.data/μ, σ=sounding.noise/μ, modelprimary, lowpassfcs=sounding.lowpassfcs,
         times=sounding.times, ramp=sounding.ramp, ntimesperdecade, nfreqsperdecade, isdIdt, rampchoice,
         rTx=sounding.rTx, zTx=sounding.zTx, zRx=sounding.zRx,
-        z=copy(aem.z), ρ=copy(aem.ρ), corr=copy(aem.corr),
+        z=copy(aem.z), ρ=copy(aem.ρ), corr,
         aem.F.calcjacobian, aem.useML, showgates=false)
 end
 
