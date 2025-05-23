@@ -2139,7 +2139,7 @@ function plotgausshist(x, ax;nbins=20, color=nothing, alpha=1)
     h = normalize(fit(Histogram, x; nbins), mode=:pdf)
     edges = h.edges[1]
     width=diff(edges)
-    ax.bar(edges[1:end-1], h.weights, align="edge", width=width, alpha)
+    ax.bar(edges[1:end-1], h.weights; align="edge", width, alpha)
     if isnothing(color)
         ax.plot(edges, 1/sqrt(2pi)*exp.(-edges.^2), "--"; alpha)
     else
