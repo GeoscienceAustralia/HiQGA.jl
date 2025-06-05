@@ -13,7 +13,7 @@ export plotconvandlast, loopacrossAEMsoundings
 # for deterministic inversions, read in
 function compress(soundings, zall; prefix="", rmfile=true, isfirstparalleliteration=false)
     fname = soundings[1].sounding_string*"_gradientinv.dat"    
-    !isfile(fname) && throw(AssertionError("file does not exist perhaps soundings already zipped?"))
+    !isfile(fname) && throw(AssertionError("file $fname does not exist perhaps soundings already zipped?"))
     fout = prefix == "" ? "zipped.dat" : prefix*"_zipped.dat"
     isfirstparalleliteration && isfile(fout) && throw(AssertionError("Zipped file "*fout*" exists, will not overwrite!"))
     for (i, s) in enumerate(soundings)
