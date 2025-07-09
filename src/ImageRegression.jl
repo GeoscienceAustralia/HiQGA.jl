@@ -2,7 +2,7 @@ module ImageRegression
 import ..AbstractOperator.get_misfit
 using ..AbstractOperator
 using PyPlot, LinearAlgebra, Statistics
-using Random, Images, ImageIO, FileIO, ..CommonToAll
+using Random, Images, ImageIO, ..CommonToAll
 
 import ..Model, ..Options, ..OptionsStat, ..OptionsNonstat
 
