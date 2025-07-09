@@ -1,4 +1,4 @@
-using LinearMaps, SparseArrays, PositiveFactorizations, LazyGrids
+using LinearMaps, SparseArrays, PositiveFactorizations
 using Roots:find_zero
 using .AbstractOperator, .GP, Optim
 import .AbstractOperator.setnuforinvtype
@@ -342,7 +342,7 @@ function gradientinv(   m::AbstractVector,
         show_trace = debuglevel > 0 ? true : false
         if usebox
             res = optimize(f, nubounds[:,1], nubounds[:,2], nu, Fminbox(BFGS(linesearch=Optim.LineSearches.BackTracking(order=3))), 
-                Optim.Options(;show_trace, outer_f_tol=f_abstol, f_tol=f_abstol, outer_iterations = boxiters, iterations=ntriesnu)) 
+                Optim.Options(;show_trace, outer_f_abstol=f_abstol, f_abstol=f_abstol, outer_iterations = boxiters, iterations=ntriesnu)) 
         else
             @warn "will not be stable if nuisance outside bounds! set usebox=true"   
             res = optimize(f, nu, BFGS(), 
