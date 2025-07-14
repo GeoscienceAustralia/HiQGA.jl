@@ -557,8 +557,10 @@ function getfieldFD!(F::HFieldDHT, z::Array{Float64, 1}, ρ::Array{Float64, 1})
 end
 
 function docomplexinterp(cmplxarray, xgiven, xwanted)
-    splreal = CubicSpline(real(cmplxarray), xgiven)
-    splimag = CubicSpline(imag(cmplxarray), xgiven)
+    splreal = CubicSpline(real(cmplxarray), xgiven, 
+        extrapolation_left = ExtrapolationType.Linear, extrapolation_right = ExtrapolationType.Linear)
+    splimag = CubicSpline(imag(cmplxarray), xgiven,
+        extrapolation_left = ExtrapolationType.Linear, extrapolation_right = ExtrapolationType.Linear)
     splreal.(xwanted) + 1im*splimag.(xwanted)
 end    
 
@@ -586,32 +588,44 @@ end
 
 function getfieldTD!(F::HFieldDHT, z::Array{Float64, 1}, ρ::Array{Float64, 1})
     getfieldFD!(F, z, ρ)
-    spl_z_real = CubicSpline(real(F.HFD_z), F.log10ω) # TODO preallocate
-    spl_z_imag = CubicSpline(imag(F.HFD_z), F.log10ω) # TODO preallocate
+    spl_z_real = CubicSpline(real(F.HFD_z), F.log10ω,
+        extrapolation_left = ExtrapolationType.Linear, extrapolation_right = ExtrapolationType.Linear) # TODO preallocate
+    spl_z_imag = CubicSpline(imag(F.HFD_z), F.log10ω,
+        extrapolation_left = ExtrapolationType.Linear, extrapolation_right = ExtrapolationType.Linear) # TODO preallocate
     if F.getradialH
-        spl_r_real = CubicSpline(real(F.HFD_r), F.log10ω) # TODO preallocate
-        spl_r_imag = CubicSpline(imag(F.HFD_r), F.log10ω) # TODO preallocate
+        spl_r_real = CubicSpline(real(F.HFD_r), F.log10ω,
+            extrapolation_left = ExtrapolationType.Linear, extrapolation_right = ExtrapolationType.Linear) # TODO preallocate
+        spl_r_imag = CubicSpline(imag(F.HFD_r), F.log10ω,
+            extrapolation_left = ExtrapolationType.Linear, extrapolation_right = ExtrapolationType.Linear) # TODO preallocate
     end
     if F.getazimH
-        spl_az_real = CubicSpline(real(F.HFD_az), F.log10ω) # TODO preallocate
-        spl_az_imag = CubicSpline(imag(F.HFD_az), F.log10ω) # TODO preallocate
+        spl_az_real = CubicSpline(real(F.HFD_az), F.log10ω,
+            extrapolation_left = ExtrapolationType.Linear, extrapolation_right = ExtrapolationType.Linear) # TODO preallocate
+        spl_az_imag = CubicSpline(imag(F.HFD_az), F.log10ω,
+            extrapolation_left = ExtrapolationType.Linear, extrapolation_right = ExtrapolationType.Linear) # TODO preallocate
     end
     if F.calcjacobian
         spl_z_J_real, spl_z_J_imag, spl_r_J_real, 
         spl_r_J_imag, spl_az_J_real, spl_az_J_imag = map(x->Vector{CubicSpline}(undef, length(ρ)), 1:6)
         for ilayer = 2:length(ρ)
             # always get vertical components
-            spl_z_J_real[ilayer] = CubicSpline(real(vec(F.HFD_z_J[ilayer,:])), F.log10ω)
-            spl_z_J_imag[ilayer] = CubicSpline(imag(vec(F.HFD_z_J[ilayer,:])), F.log10ω)
+            spl_z_J_real[ilayer] = CubicSpline(real(vec(F.HFD_z_J[ilayer,:])), F.log10ω,
+                extrapolation_left = ExtrapolationType.Linear, extrapolation_right = ExtrapolationType.Linear)
+            spl_z_J_imag[ilayer] = CubicSpline(imag(vec(F.HFD_z_J[ilayer,:])), F.log10ω,
+                extrapolation_left = ExtrapolationType.Linear, extrapolation_right = ExtrapolationType.Linear)
             # radial component
             if F.getradialH
-                spl_r_J_real[ilayer] = CubicSpline(real(vec(F.HFD_r_J[ilayer,:])), F.log10ω)
-                spl_r_J_imag[ilayer] = CubicSpline(imag(vec(F.HFD_r_J[ilayer,:])), F.log10ω)
+                spl_r_J_real[ilayer] = CubicSpline(real(vec(F.HFD_r_J[ilayer,:])), F.log10ω,
+                    extrapolation_left = ExtrapolationType.Linear, extrapolation_right = ExtrapolationType.Linear)
+                spl_r_J_imag[ilayer] = CubicSpline(imag(vec(F.HFD_r_J[ilayer,:])), F.log10ω,
+                    extrapolation_left = ExtrapolationType.Linear, extrapolation_right = ExtrapolationType.Linear)
             end    
             # azimuthal component
             if F.getazimH
-                spl_az_J_real[ilayer] = CubicSpline(real(vec(F.HFD_az_J[ilayer,:])), F.log10ω)
-                spl_az_J_imag[ilayer] = CubicSpline(imag(vec(F.HFD_az_J[ilayer,:])), F.log10ω)
+                spl_az_J_real[ilayer] = CubicSpline(real(vec(F.HFD_az_J[ilayer,:])), F.log10ω,
+                    extrapolation_left = ExtrapolationType.Linear, extrapolation_right = ExtrapolationType.Linear)
+                spl_az_J_imag[ilayer] = CubicSpline(imag(vec(F.HFD_az_J[ilayer,:])), F.log10ω,
+                    extrapolation_left = ExtrapolationType.Linear, extrapolation_right = ExtrapolationType.Linear)
             end    
         end
         temp = zeros(length(Filter_t_base))
@@ -665,14 +679,17 @@ function getfieldTD!(F::HFieldDHT, z::Array{Float64, 1}, ρ::Array{Float64, 1})
         end
     end
     if F.doconvramp
-        splz = CubicSpline(F.HTD_z_interp, log10.(F.interptimes)) # TODO preallocate
+        splz = CubicSpline(F.HTD_z_interp, log10.(F.interptimes),
+            extrapolation_left = ExtrapolationType.Linear, extrapolation_right = ExtrapolationType.Linear) # TODO preallocate
         if F.getradialH
-            splr = CubicSpline(F.HTD_r_interp, log10.(F.interptimes)) # TODO preallocate
+            splr = CubicSpline(F.HTD_r_interp, log10.(F.interptimes),
+                extrapolation_left = ExtrapolationType.Linear, extrapolation_right = ExtrapolationType.Linear) # TODO preallocate
         else
             splr = splz
         end
         if F.getazimH
-            splaz = CubicSpline(F.HTD_az_interp, log10.(F.interptimes)) # TODO preallocate
+            splaz = CubicSpline(F.HTD_az_interp, log10.(F.interptimes),
+                extrapolation_left = ExtrapolationType.Linear, extrapolation_right = ExtrapolationType.Linear) # TODO preallocate
         else
             splaz = splz
         end
@@ -686,12 +703,15 @@ function convramp!(F::HFieldDHT, splz::CubicSpline, splr::CubicSpline, splaz::Cu
         fill!(F.dBzdt_J, 0.)
         splz_J, splr_J, splaz_J = map(x->Vector{CubicSpline}(undef, nlayers), 1:3)
         for ilayer = 2:nlayers
-            splz_J[ilayer] = CubicSpline(F.HTD_z_J_interp[ilayer,:], log10.(F.interptimes)) 
+            splz_J[ilayer] = CubicSpline(F.HTD_z_J_interp[ilayer,:], log10.(F.interptimes),
+                extrapolation_left = ExtrapolationType.Linear, extrapolation_right = ExtrapolationType.Linear) 
             if F.getradialH
-                splr_J[ilayer] = CubicSpline(F.HTD_r_J_interp[ilayer,:], log10.(F.interptimes)) 
+                splr_J[ilayer] = CubicSpline(F.HTD_r_J_interp[ilayer,:], log10.(F.interptimes),
+                    extrapolation_left = ExtrapolationType.Linear, extrapolation_right = ExtrapolationType.Linear) 
             end
             if F.getazimH    
-                splaz_J[ilayer] = CubicSpline(F.HTD_az_J_interp[ilayer,:], log10.(F.interptimes)) 
+                splaz_J[ilayer] = CubicSpline(F.HTD_az_J_interp[ilayer,:], log10.(F.interptimes),
+                    extrapolation_left = ExtrapolationType.Linear, extrapolation_right = ExtrapolationType.Linear) 
             end    
         end
         if F.getradialH

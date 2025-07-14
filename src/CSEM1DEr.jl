@@ -284,8 +284,10 @@ function getfield!(F::RadialErLagged, z::Array{Float64, 1}, ρ::Array{Float64, 1
         # fit spline at computed receiver locations
         # Dierckx needs x to be increasing so end:-1:1
         # Er
-        splReal = CubicSpline(real(ErBase[end:-1:1,ifreq]), log10.(F.rR[end:-1:1]))
-        splImag = CubicSpline(imag(ErBase[end:-1:1,ifreq]), log10.(F.rR[end:-1:1]))
+        splReal = CubicSpline(real(ErBase[end:-1:1,ifreq]), log10.(F.rR[end:-1:1]),
+            extrapolation_left = ExtrapolationType.Linear, extrapolation_right = ExtrapolationType.Linear)
+        splImag = CubicSpline(imag(ErBase[end:-1:1,ifreq]), log10.(F.rR[end:-1:1]),
+            extrapolation_left = ExtrapolationType.Linear, extrapolation_right = ExtrapolationType.Linear)
         # evaluate spline at required rRx
         F.Er[:,ifreq] = splReal.(log10.(F.rRx)) - 1im*splImag.(log10.(F.rRx))
     end # loop over frequencies
