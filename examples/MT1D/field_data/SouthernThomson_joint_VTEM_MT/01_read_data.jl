@@ -27,9 +27,11 @@ frame_height = 30
 d = [177,221]
 ##
 using HiQGA.transD_GP.NearestNeighbors
+include(fname_specs_halt)
 soundings = transD_GP.VTEM1DInversion.read_survey_files(; X, Y, Z, 
 									fid, linenum, frame_height,
-									d, fname_dat, fname_specs_halt,
+									d, fname_dat, lowpassfcs, times, 
+									ramp, σ_halt, rTx,
 									startfrom        = 1,
 									skipevery        = 1,
 									dotillsounding   = nothing,

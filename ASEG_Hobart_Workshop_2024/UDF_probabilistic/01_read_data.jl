@@ -18,8 +18,9 @@ relerror = false
 units = 1e-12
 ##
 using HiQGA.transD_GP
-soundings = transD_GP.SkyTEM1DInversion.read_survey_files(fname_dat = fname_dat,
-					                 fname_specs_halt = fname_specs_halt,
+include(fname_specs_halt)
+soundings = transD_GP.SkyTEM1DInversion.read_survey_files(;
+									 fname_dat = fname_dat,
 						             LM_Z             = LM_Z,
 									 HM_Z             = HM_Z,
 									 frame_height     = frame_height,
@@ -36,4 +37,7 @@ soundings = transD_GP.SkyTEM1DInversion.read_survey_files(fname_dat = fname_dat,
                                      startfrom        = 1,
 									 skipevery        = 1,
 									 dotillsounding   = nothing,
-									 makeqcplots      = true)
+									 makeqcplots      = true,
+									 lowpassfcs,
+    								 LM_times, HM_times, LM_ramp, HM_ramp, 
+									 LM_noise, HM_noise, rTx)

@@ -1,3 +1,4 @@
+cd(@__DIR__)
 ## info to read data
 # datafile
 fname_dat = "coincidewithtempest.dat"
@@ -17,8 +18,11 @@ relerror = false
 units = 1e-12
 ##
 using HiQGA.transD_GP
-soundings = transD_GP.SkyTEM1DInversion.read_survey_files(fname_dat = fname_dat,
-						             fname_specs_halt = fname_specs_halt,
+include(fname_specs_halt)
+soundings = transD_GP.SkyTEM1DInversion.read_survey_files(;fname_dat = fname_dat,
+									 lowpassfcs,
+									 LM_times, HM_times, LM_ramp, HM_ramp, 
+									 LM_noise, HM_noise, rTx,
 						             LM_Z             = LM_Z,
 									 HM_Z             = HM_Z,
 									 frame_height     = frame_height,

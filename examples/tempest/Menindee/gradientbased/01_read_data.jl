@@ -1,10 +1,13 @@
 ## read the soundings
+cd(@__DIR__)
 using PyPlot, HiQGA.transD_GP
 fname_dat = "L9000001.XYZ"
 zipsaveprefix = splitpath(fname_dat)[end]
+fname_specs_halt="electronics_halt.jl"
+include(fname_specs_halt)
 soundings = transD_GP.TEMPEST1DInversion.read_survey_files(;
 	fname_dat,
-	fname_specs_halt="electronics_halt.jl",
+	times, ramp, Hx_add_noise, Hz_add_noise,
 	frame_height = 42,
 	frame_dz = 38,
 	frame_dx = 37,

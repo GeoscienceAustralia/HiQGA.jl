@@ -808,8 +808,22 @@ function read_survey_files(;
     lineslessthan = nothing,
 	fsize = 10,
     dabsmin = nothing, # for very low amp
-    earlyreturn = false, # to figure out very low amp
+    earlyreturn = false, # to figure out very low amp,
+    # these must now be passed in
+    times = zeros(0),
+    ramp = zeros(0,2),
+    Hx_add_noise = zeros(0),
+    Hz_add_noise = zeros(0),
     )
+
+    @assert isempty(fname_specs_halt) """
+        \n***
+        include times, ramp, Hx_add_noise, Hz_add_noise explictly.
+        If you already have an fname_specs_halt file, just include it
+        before invoking read_survey_files() and use these variables
+        as keyword args to this function
+        ***
+        """
 
     @assert frame_height > -99999999
     @assert frame_dz > -99999999
@@ -887,8 +901,9 @@ function read_survey_files(;
     @warn "!!! assuming Hzs and Hzp in same z dirn"
     d_Hz = d_Hzs .+ d_Hzp
     
-    @info "reading $fname_specs_halt"
-    include(fname_specs_halt)
+    # this is now read explicitly
+    # @info "reading $fname_specs_halt"
+    # include(fname_specs_halt)
     @assert size(d_Hx, 2) == length(times)
     @assert size(d_Hz, 2) == length(times)
     @assert size(d_Hx, 2) == length(Hx_add_noise)

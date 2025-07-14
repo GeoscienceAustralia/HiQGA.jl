@@ -1,3 +1,4 @@
+using Statistics
 # Tx dimensions
 rTx = 10.4
 # Low Pass filter corner frequencies
