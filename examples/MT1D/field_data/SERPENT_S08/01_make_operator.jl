@@ -1,4 +1,5 @@
 using HiQGA.transD_GP, PyPlot, DelimitedFiles, HiQGA.transD_GP.CSEM1DEr.DataInterpolations
+cd(@__DIR__)
 ## model fixed parts, i.e., air, but only to be compatible with AEM ...
 zfixed   = [-1e5]
 ρfixed   = [1e12]

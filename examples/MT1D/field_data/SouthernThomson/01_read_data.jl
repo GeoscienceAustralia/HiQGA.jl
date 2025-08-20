@@ -1,4 +1,5 @@
 using HiQGA
+cd(@__DIR__)
 ## read MT data
 fname = "WIT2.edi"
 freqs, d_log10_ρ, d_phase_deg, σ_log10_ρ, σ_phase_deg = transD_GP.MT1DInversion.read_edi(fname, showplot=true, errorfrac=.06)

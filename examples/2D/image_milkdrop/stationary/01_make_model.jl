@@ -1,5 +1,6 @@
 using PyPlot, Distributed, Random
 using HiQGA.transD_GP
+cd(@__DIR__)
 ##
 img =     transD_GP.Img(
           filename         = "../stationary/4.2.01.png",

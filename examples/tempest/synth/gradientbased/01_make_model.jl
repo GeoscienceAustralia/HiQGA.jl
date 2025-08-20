@@ -1,5 +1,5 @@
 using PyPlot, DelimitedFiles, Random, Statistics, HiQGA.transD_GP
-
+cd(@__DIR__)
 Random.seed!(23)
 zfixed = [-1e5]
 ρfixed = [1e12]

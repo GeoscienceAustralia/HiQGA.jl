@@ -1,4 +1,5 @@
 using HiQGA
+cd(@__DIR__)
 # common to both
 zfixed   = [-1e5]
 ρfixed   = [1e12]
