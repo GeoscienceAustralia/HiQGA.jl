@@ -15,7 +15,7 @@ xbounds = permutedims([extrema(znall)...])
 using Random
 Random.seed!(12)
 opt = transD_GP.OptionsStat(;nmin, nmax, xbounds, fbounds,
-                        fdataname = fileprefix, xall, λ, δ, sdev_prop, sdev_pos,
+                        xall, λ, δ, sdev_prop, sdev_pos,
                         demean, sampledc, sdev_dc, K,
                         quasimultid = false, save_freq = 50, fdataname = fileprefix,
                         )
