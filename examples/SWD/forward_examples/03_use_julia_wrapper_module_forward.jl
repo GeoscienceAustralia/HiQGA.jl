@@ -2,8 +2,9 @@ cd(@__DIR__) # Change to this directory
 ENV["JULIA_PYTHONCALL_EXE"] = "@PyCall"
 include("../src/SWDPhysics.jl")
 np = SWDPhysics.np
-pyconvert = SWDPhysics.pyconvert
-
+if !@isdefined pyconvert
+    pyconvert = SWDPhysics.pyconvert
+end
 ## model
 thick = [10., 10., 10, 10,  10,  10, 10,  10, 10]
 vp        = [7.0 , 6.8, 7., 7.6, 8.4, 9., 9.4, 9.6, 9.5]  
