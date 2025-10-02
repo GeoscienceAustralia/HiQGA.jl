@@ -21,4 +21,4 @@ opt = transD_GP.OptionsStat(;nmin, nmax, xbounds, fbounds,
                         fdataname = fileprefix,
                         )
 ## 
-transD_GP.get_misfit(vs, opt, swd)
+@info "@info χ² is $(transD_GP.get_misfit(vs, opt, swd))" # check χ²

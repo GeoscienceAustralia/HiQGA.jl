@@ -1,7 +1,7 @@
 cd(@__DIR__) # Change to this directory
 ENV["JULIA_PYTHONCALL_EXE"] = "@PyCall"
-include("SWDPhysics.jl")
-include("SWDInversion.jl")
+include("../src/SWDPhysics.jl")
+include("../src/SWDInversion.jl")
 using .SWDInversion, HiQGA, NearestNeighbors, PyPlot, Random
 Random.seed!(11)
 np = SWDPhysics.np

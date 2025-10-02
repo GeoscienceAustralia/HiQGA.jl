@@ -1,6 +1,6 @@
 cd(@__DIR__) # Change to this directory
 ENV["JULIA_PYTHONCALL_EXE"] = "@PyCall"
-includet("SWDPhysics.jl")
+include("../src/SWDPhysics.jl")
 np = SWDPhysics.np
 pyconvert = SWDPhysics.pyconvert
 

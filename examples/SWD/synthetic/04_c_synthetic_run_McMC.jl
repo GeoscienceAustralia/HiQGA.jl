@@ -7,8 +7,8 @@ addprocs(nchains)
 @everywhere begin
     using Distributed
     using HiQGA.transD_GP
-    include("SWDPhysics.jl")
-    include("SWDInversion.jl")
+    include("../src/SWDPhysics.jl")
+    include("../src/SWDInversion.jl")
     using .SWDInversion
 end    
 ## run McMC - sample a uniform prior between 0 and 1 at depths between 0 and 1 with 5 nuclei
