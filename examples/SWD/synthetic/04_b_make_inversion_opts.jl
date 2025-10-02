@@ -8,7 +8,7 @@ xbounds = permutedims([extrema(znall)...]) # spatial bounds, n_spatial_dims × 2
 sdev_pos = [0.05abs(diff([extrema(znall)...])[1])] # perturbation for position, n_spatial_dims × 2 array
 sdev_prop = 0.07*diff(fbounds, dims=2)[:] # perturbation for property, n_property × 2 array
 sdev_dc = 0.008*diff(fbounds, dims=2)[:] # DC perturbation for property, n_property × 2 array
-λ, δ = [5.5], 0.1 # correlation length, nugget
+λ, δ = [2], 0.1 # correlation length, nugget
 ## Initialize a stationary GP using these options
 using Random
 Random.seed!(12)
