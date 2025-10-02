@@ -14,7 +14,7 @@ using Random
 Random.seed!(12)
 opt = transD_GP.OptionsStat(;nmin, nmax, xbounds, fbounds,
                         xall, λ, δ, sdev_prop, sdev_pos,
-                        demean, sampledc, sdev_dc, K,
+                        sdev_dc, K,
                         quasimultid = false, 
                         save_freq = 25, 
                         stat_window = 200,
