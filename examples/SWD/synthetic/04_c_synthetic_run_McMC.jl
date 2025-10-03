@@ -1,7 +1,7 @@
 # set up McMC using 4 chains
 using Distributed
-nsamples, nchains, nchainsatone = 50001, 6, 1 # make sure your computer has nchains+1 cpus!
-Tmax = 2.2
+nsamples, nchains, nchainsatone = 50001, 4, 1 # make sure your computer has nchains+1 cpus!
+Tmax = 2.5
 addprocs(nchains)
 @info "workers are $(workers())"
 @everywhere begin

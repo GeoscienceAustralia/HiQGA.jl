@@ -69,14 +69,20 @@ function get_misfit(x::AbstractArray, swd::SWDispInversion)
     try
         disps = SWDPhysics.getdispersion(swd.thick, vs*swd.vpovervs, vs, swd.ρ, swd.periods, swd.modes, swd.waves)
         map(zip(disps, swd.d, swd.σ, swd.r)) do (disp, d, sd, res)
-            res[:] = (disp.velocity - d)./sd
+            n = length(disp.velocity)
+            if n == length(res) # same no. of periods returned by disba as we have data
+                res[:] = (disp.velocity - d)./sd
+            else
+                res[:] .= Inf # different number of data
+            end 
         end
-    catch 
+    catch #e # not actually catching the exception e, lump all errors here
+        # @info e
         map(swd.r) do res
             res[:] .= Inf
         end
     end
-    chi2by2 = sum(reduce(vcat, swd.r).^2)
+    chi2by2 = 0.5sum(reduce(vcat, swd.r).^2)
 end
 
 end

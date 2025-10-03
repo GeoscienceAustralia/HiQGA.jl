@@ -25,8 +25,8 @@ vp = vs * vpovervs
 ρ = 0.32 * vp .+ 0.77
 σ =  0.02 # noise in km/s
 ## convert to numpy arrays
-periodswanted = np.array(10 .^range(log10(3), log10(80), 20))
-modeswanted = np.array([0])
+periodswanted = np.array(10 .^range(log10(3), log10(80), 10))
+modeswanted = np.array([0, 1])
 waveswanted = pyconvert.(String, (["rayleigh"]))
 # one array for each computation call
 periods = reduce(vcat, [[periodswanted for modes in modeswanted] for wave in waveswanted])
@@ -37,7 +37,8 @@ waves = reduce(vcat, [[wave for mode in modeswanted] for wave in waveswanted])
 swdresults = SWDPhysics.getdispersion(thick, vp, vs, ρ, periods, modes, waves);
 noisy_data = [s.velocity + σ*randn(size(s.velocity)) for s in swdresults]
 noisesd = [σ*ones(size(s.velocity)) for s in swdresults]
-
+# careful, not all asked for periods are computed!! Also in the misfit function.
+periods_computed = [np.array(p) for p in getfield.(swdresults, :period)]
 ## plot
 using PyPlot
 fig, ax = plt.subplots(1, 2, sharex=true, sharey=true, figsize=(8,4))
@@ -56,7 +57,7 @@ fig.tight_layout()
 swd = SWDInversion.SWDispInversion(;
     thick, vpovervs, ρ,     
     d = noisy_data, σ = noisesd,
-    periods, modes, waves
+    periods = periods_computed, modes, waves
 )
 ## check chi^2 error
 r = reduce(vcat, swd.d) - reduce(vcat, getfield.(swdresults, :velocity))
