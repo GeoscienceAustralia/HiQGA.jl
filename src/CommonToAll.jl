@@ -1904,7 +1904,7 @@ function calchighalt(fname_dat, windownum_start, windownum_end;
     end
     nwindows = windownum_end - windownum_start + 1
     if !isnothing(times)
-        @assert length(times) = nwindows
+        @assert length(times) == nwindows
         xlab = "time "*time_units
         dologx = true
     else
@@ -1919,13 +1919,13 @@ function calchighalt(fname_dat, windownum_start, windownum_end;
     ax.semilogy(times, bias, label="bias calculated")
     ax.semilogy(times, sdev, label="sdev calculated")
     if !isnothing(agreednoise)
-        ax.semilogy(times, agreedbias, label="bias agreed")
-        ax.semilogy(times, agreedsdev, label="sdev agreed")
+        ax.semilogy(agreedbias[:,1], agreedbias[:,2], label="bias agreed")
+        ax.semilogy(agreednoise[:,1], agreednoise[:,2], label="sdev agreed")
     end
     ax.set_title(suffix*" noise")
     ax.set_xlabel(xlab)
     ax.set_ylabel(amp_units)
-    dologx && ax.set_xcale("log")
+    dologx && ax.set_xscale("log")
     nicenup(f, fsize=fontsize)
     !isempty(suffix) && (suffix = "_"*suffix)
     savefig(fname_dat[1:end-4]*suffix*".png")
