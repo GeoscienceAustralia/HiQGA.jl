@@ -137,15 +137,19 @@ function writesegyfromxyzrhodir(nlayers::Int; src_dir="", src_epsg=0, dst_dir=""
     @assert !isnothing(src_epsg)
     lines = transD_GP.getprobabilisticlinesfromdirectory(src_dir)
     isdir(dst_dir) || mkpath(dst_dir)
-    ioproj = open(joinpath(dst_dir, "0000_projection.txt"), "w")
-    write(ioproj, "EPSG: $src_epsg")
-    close(ioproj)
+    writeprojectiontxt(dst_dir, src_epsg)
     map(lines) do ln
         @info "doing line $ln"
         fname = "line_$ln"
         X, Y, Z, zall, ρlow, ρmid, ρhigh, ρavg, ϕmean, ϕsdev = transD_GP.readxyzrhoϕ(ln, nlayers; pathname=src_dir)
         [XYZ_zmid_gridtoSEGY(-ρ, X, Y, Z; dr, zall, dz, dst_dir, fname, suffix=str) for (ρ, str) in zip([ρlow, ρmid, ρhigh],["high", "mid", "low"])]
     end
+end
+
+function writeprojectiontxt(dst_dir, src_epsg)
+    ioproj = open(joinpath(dst_dir, "0000_projection.txt"), "w")
+    write(ioproj, "EPSG: $src_epsg")
+    close(ioproj)
 end
 
 function colstosegy(cols::Dict, fname::String; dr=nothing, dz=nothing, decfactor=1, hasthick=true, islog10=false, suffix="", dst_dir="", src_epsg=0)
@@ -169,9 +173,7 @@ function colstosegy(X, Y, Z, σ, thick_in, lines; dr=nothing, dz=nothing, hasthi
     end
     zall = transD_GP.thicktodepth(thick; hasthick)
     isdir(dst_dir) || mkpath(dst_dir)
-    ioproj = open(joinpath(dst_dir, "0000_projection.txt"), "w")
-    write(ioproj, "EPSG: $src_epsg")
-    close(ioproj)
+    writeprojectiontxt(dst_dir, src_epsg)
     for l in linenos
         idx = lines .== l
         fstring = "LEI_Line_$l"
@@ -453,6 +455,7 @@ function doallcurtaintriads(;src_dir="", dst_dir="curtains", prefix="",
     VE=20, shrink = 25_000)
     
     isdir(dst_dir) || mkpath(dst_dir)
+    writeprojectiontxt(dst_dir, src_epsg)
     lines = transD_GP.getprobabilisticlinesfromdirectory(src_dir)
     map(lines) do line
         @info "Doing line $line"
