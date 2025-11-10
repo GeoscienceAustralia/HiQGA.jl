@@ -12,7 +12,7 @@ line, X, Y, Z, thick, σ = transD_GP.readcols([5,7,8,9,[53,82],[23,52]],
     startfrom=1, decfactor=5)
 idx = line .== linewanted
 Xd, Yd, Zd, thick, σd = map(x->x[idx,:],(X, Y, Z, thick, σ))
-zalld = transD_GP.thicktodepth(cumsum(thick[1,:]))
+zalld = transD_GP.thicktodepth(thick[1,:])
 ## Get probabilistic
 Xp, Yp, Zp, zallp, ρlow, ρmid, ρhigh, = transD_GP.readxyzrhoϕ(linewanted, 52, 
      pathname="/g/data/ha3/probabilistic_AEM_phase_01/AusAEM_01/2017_QLD/summary")
