@@ -1,5 +1,6 @@
 # # Example - Bayesian nonlinear regression
 # ## Setup
+cd(@__DIR__)
 using PyPlot, Random, LinearAlgebra, Distributed, DelimitedFiles, HiQGA.transD_GP
 # Import data representing the "true" function
 Random.seed!(200)

@@ -168,7 +168,22 @@ function read_survey_files(;
     datacutoff = nothing,
     noise_scalevec = zeros(0),
     tx_rx_dz_pass_through = 0.01, # Z up GA-AEM reading convention +ve is rx above tx
-    nanchar = "*")
+    nanchar = "*",
+    # these must now be passed in
+    lowpassfcs= zeros(0),
+    times = zeros(0),
+    ramp = zeros(0,2),
+    σ_halt = zeros(0),
+    rTx = 0.)
+
+    @assert isempty(fname_specs_halt) """
+        \n***
+        include lowpassfcs, times, ramp, σ_halt, rTx explictly.
+        If you already have an fname_specs_halt file, just include it
+        before invoking read_survey_files() and use these variables
+        as keyword args to this function
+        ***
+        """
 
     @assert frame_height > 0
     @assert all(d .> 0)
@@ -194,8 +209,9 @@ function read_survey_files(;
     idxbadz = zTx .>= 0
     (sum(idxbadz) > 0 ) && @warn("kicking out $(sum(idxbadz)) bad zTx underground")
     
-    @info "reading $fname_specs_halt"
-    include(fname_specs_halt)
+    # explicit input now for lowpassfcs, times, ramp, and σ_halt, rTx
+    # @info "reading $fname_specs_halt" 
+    # include(fname_specs_halt)
     @assert size(d, 2) == length(times)
     @assert size(d, 2) == length(σ_halt)
     σ_halt[:] .*= units

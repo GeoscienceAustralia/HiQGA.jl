@@ -1,4 +1,4 @@
-using PyPlot, HiQGA.transD_GP, Random, SpecialFunctions
+using PyPlot, HiQGA.transD_GP, Random, HiQGA.transD_GP.AEM_VMD_HMD.SpecialFunctions
 ## model
 zfixed   = [-1e5,   0,    ]
 rho      = [1e20,   1,  ]

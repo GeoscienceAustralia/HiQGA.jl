@@ -1,8 +1,11 @@
 ## read the soundings
+cd(@__DIR__)
 using PyPlot, HiQGA.transD_GP
-soundings = transD_GP.TEMPEST1DInversion.read_survey_files(
+fname_specs_halt="electronics_halt.jl"
+include(fname_specs_halt)
+soundings = transD_GP.TEMPEST1DInversion.read_survey_files(;
 	fname_dat= "91010901.asc",
-	fname_specs_halt="electronics_halt.jl",
+	times, ramp, Hx_add_noise, Hz_add_noise,
 	frame_height = 20,
 	frame_dz = 32,
 	frame_dx = 30,

@@ -215,7 +215,24 @@ function read_survey_files(;
     nanchar = "*",
     lineslessthan = nothing,
     forceML = false, # for very low amp, in conjunction with datacutoff_LM and datacutoff_HM
+    # these must now be passed in
+    lowpassfcs= zeros(0),
+    LM_times = zeros(0),
+    HM_times = zeros(0),
+    LM_ramp = zeros(0,2),
+    HM_ramp = zeros(0,2),
+    LM_noise = zeros(0),
+    HM_noise = zeros(0),
+    rTx = 0.
     )
+    @assert isempty(fname_specs_halt) """
+           \n***
+           include lowpassfcs, LM_times, HM_times, LM_ramp, HM_ramp, 
+           LM_noise, HM_noise, rTx explictly.If you have an fname_specs_halt file, 
+           just include it before invoking read_survey_files() and use these 
+           variables as keyword args to this function
+           ***
+           """
     @assert frame_height > 0
     @assert (frame_dz > 0) | !isnothing(tx_rx_dz_pass_through)
     @assert (frame_dx > 0) | !isnothing(tx_rx_dx_pass_through)
@@ -274,9 +291,10 @@ function read_survey_files(;
     else
         rRx = sqrt(tx_rx_dx_pass_through^2 + tx_rx_dy_pass_through^2)*ones(size(soundings, 1))
     end
-
-    @info "reading $fname_specs_halt"
-    include(fname_specs_halt)
+    
+    # explicit input now for lowpassfcs, times, ramp, and σ_halt, rTx
+    # @info "reading $fname_specs_halt"
+    # include(fname_specs_halt)
     @assert size(d_LM, 2) == length(LM_times)
     @assert size(d_HM, 2) == length(HM_times)
     d_LM[:]     .*= units

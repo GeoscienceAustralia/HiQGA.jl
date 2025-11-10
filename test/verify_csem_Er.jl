@@ -41,7 +41,7 @@ G = transD_GP.CSEM1DEr.RadialErDHT(rRx  = F.rRx,
                           )
 @info "Vanilla DHT time"
 transD_GP.CSEM1DEr.getfield!(G, zfixed, rhofixed)
-@btime transD_GP.CSEM1DEr.getfield!($G, $z, $ρ)
+@btime transD_GP.CSEM1DEr.getfield!($G, $zfixed, $rhofixed)
 ## plot
 figure()
 subplot(121)
