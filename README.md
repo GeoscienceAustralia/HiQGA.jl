@@ -14,6 +14,10 @@ To install the latest stable release, in a perfect world we'd use Julia's `Pkg` 
 ```
 pkg> add HiQGA
 ```
+Please note that as of v0.5.0, HiQGA will error for AEM inversions if the `electronics_halt.jl` is included with `read_survey_files()`. This is due to Julia language changes which disallow including from within a function (as the compiler has to deal with unexpected code changes during run-time -- probably a good thing). The error message tells you what to do if you used the old style `read_survey_files()`.
+
+If you run into HiQGA build failures usually due to `PyPlot.jl` errors (`matplotlib` installation errors to do with `PyCall.jl` or `Conda.jl`), install `matplotlib` seperately with `Conda.jl`, before installing HiQGA and then you should be fine.
+
 For the latest development version on here, you'd want to then do
 ```
 pkg> dev HiQGA
