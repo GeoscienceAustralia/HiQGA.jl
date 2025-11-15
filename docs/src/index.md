@@ -49,8 +49,7 @@ Another way is to simply clone or download this repository to your `JULIA_PKG_DE
 ```
 pkg>dev HiQGA
 ```
-[Here's a gist](https://gist.github.com/a2ray/8c2c55c25fee6647501b403886bbe64d) on adding your own module if you want to modify the source code. Alternatively, if you only want to use the sampling methods in `HiQGA.transD_GP` without contributing to the source (boo! j/k) [here's another gist](https://gist.github.com/a2ray/92a8c14483c21dda6ddf56685b95fbb8) which is more appropriate. These gists were written originally for a package called `transD_GP` so you will have to modify `using transD_GP` to `using HiQGA.transD_GP`. Documentation is important and we're working on improving it before a full-release. 
-
+If you want to modify the source code and add your geophysical method, [this example](https://github.com/GeoscienceAustralia/HiQGA.jl/tree/master/examples/Foo) will help you. Alternatively, if you only want to use the sampling methods in `HiQGA.transD_GP` without contributing to the source (boo! j/k) [this example](https://github.com/GeoscienceAustralia/HiQGA.jl/tree/master/examples/Bar) is more appropriate.  
 ## HPC setup on NCI
 If you don't already have access to a `julia` binary, download the appropriate version `.tar.gz` from [here](https://julialang.org/downloads/) and then untar it in a location you have write access to, like so: 
 ```
