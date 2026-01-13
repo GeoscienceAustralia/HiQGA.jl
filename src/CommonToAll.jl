@@ -10,7 +10,7 @@ import ..Options, ..OptionsStat, ..OptionsNonstat, ..OptionsNuisance,
 
 export trimxft, assembleTat1, gettargtemps, checkns, getchi2forall, nicenup, plotconv,
         plot_posterior, make1Dhist, make1Dhists, setupz, zcontinue, makezρ, plotdepthtransforms,
-        unwrap, getn, geomprogdepth, assemblemodelsatT, getstats, gethimage,
+        unwrap, getn, geomprogdepth, assemblemodelsatT, getstats, gethimage, cosinerolloff,
         assemblenuisancesatT, makenuisancehists, stretchexists, stepmodel,
         makegrid, whichislast, makesummarygrid, makearray, plotNEWSlabels, 
         plotprofile, gridpoints, splitsoundingsbyline, getsoundingsperline, docontinue, linestartend,
@@ -92,6 +92,32 @@ function assembleTat1(optin::Options, stat::Symbol; burninfrac=0.5, temperaturen
     @info "obtained models $(iters[start]) to $(iters[end]) at T=$ttarget"
     mat1
 end
+
+function cosinerolloff(nchannels, l)
+    cosine_rolloff = zeros(nchannels,nchannels)
+    for j = 1:nchannels
+        for i = 1:nchannels
+            cosine_rolloff[i,j] = cos(pi*abs(i-j)/2(nchannels-1)).^l
+        end
+    end
+    return cosine_rolloff
+
+end
+
+
+
+
+function exprolloff(nchannels, l,k)
+    exp_rolloff = zeros(nchannels,nchannels)
+    for j = 1:nchannels
+        for i = 1:nchannels
+            exp_rolloff[i,j] = (exp(-k*abs(i-j))).^l
+        end
+    end
+    return exp_rolloff
+
+end
+
 
 function assemblemodelsatT(opt::OptionsStat; burninfrac=0.9, temperaturenum=-1)
     @assert temperaturenum!=-1 "Please explicitly specify which temperature number"
