@@ -812,6 +812,11 @@ function swap_temps(chains::Array{Chain, 1})
     end
 end
 
+function gc_stats()
+    s = Base.gc_num()
+    return (allocd=s.allocd, freed=s.freed, malloc=s.malloc, poolalloc=s.poolalloc)
+end
+
 function disptime(isample, t, tlong, nsamples, nominaltime, batchstr::String)
     iomode = isample == 1 ? "w" : "a"
     io = open(batchstr*"_$(myid()).log", iomode)
@@ -824,6 +829,7 @@ function disptime(isample, t, tlong, nsamples, nominaltime, batchstr::String)
             dt = time() - t #seconds
             t = time()
             @info("on pid $(myid()) **$(@sprintf("%.2f", dt))**sec** $isample out of $(nsamples)")
+            @info ("health isample=$isample maxrss_kib=$(Sys.maxrss()) gc=$(gc_stats())")
         end
         if !isnothing(nominaltime)
             if mod(isample-1, nw*windowtime) == 0
