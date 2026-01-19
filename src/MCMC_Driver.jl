@@ -628,23 +628,30 @@ function domcmciters(batchstr, iterlast, nsamples, chains, m::DArray{ModelStat},
     # purely stationary GP moves + nuisance        
     
     t, tlong = map(x->time(), 1:2)
+    chainmisfit_ = Vector{Future}(undef, length(chains))
     for isample = iterlast+1:nsamples
         # we do need each remotecall to finish before 
         # moving on to the next kind of move
         swap_temps(chains)
-        @sync for (chain_idx, chain) in enumerate(chains)
+        for (chain_idx, chain) in enumerate(chains)
             # purely nuisance move
-            @async chain.misfit = remotecall_fetch(do_mcmc_step, chain.pid,
+            chainmisfit_[chain_idx] = remotecall(do_mcmc_step, chain.pid,
                                             mn, m, optn, statn,
                                             current_misfit, F,
                                             chain.T, isample, wpn, chain_idx, chain.master_pid)
         end
-        @sync for (chain_idx, chain) in enumerate(chains)
+        for (chain_idx, chain) in enumerate(chains)
+            chain.misfit = fetch(chainmisfit_[chain_idx])
+        end
+        for (chain_idx, chain) in enumerate(chains)
             # purely stationary GP moves + nuisance
-            @async chain.misfit = remotecall_fetch(do_mcmc_step, chain.pid,
+            chainmisfit_[chain_idx] = remotecall(do_mcmc_step, chain.pid,
                                             m, mn, opt, stat,
                                             current_misfit, F,
                                             chain.T, isample, wp, chain_idx, chain.master_pid)
+        end
+        for (chain_idx, chain) in enumerate(chains)
+            chain.misfit = fetch(chainmisfit_[chain_idx])
         end
         t, tlong, doquit = disptime(isample, t, tlong, nsamples, nominaltime, batchstr)
         doquit && break
