@@ -622,6 +622,15 @@ function init_file_pointers_and_darrays(opt_in::OptionsStat, optn_in::OptionsNui
         wp, wpn, iterlast
 end
 
+function fetchmisfit(chains, chainmisfit_)
+    @sync for i in eachindex(chains)
+        @async begin
+            chains[i].misfit = fetch(chainmisfit_[i])
+        end
+    end
+    return nothing
+end
+
 function domcmciters(batchstr, iterlast, nsamples, chains, m::DArray{ModelStat}, mn::DArray{ModelNuisance}, 
             opt::DArray{OptionsStat}, optn::DArray{OptionsNuisance}, stat, statn, 
             current_misfit, F, wp, wpn, nominaltime)
@@ -640,9 +649,7 @@ function domcmciters(batchstr, iterlast, nsamples, chains, m::DArray{ModelStat},
                                             current_misfit, F,
                                             chain.T, isample, wpn, chain_idx, chain.master_pid)
         end
-        for (chain_idx, chain) in enumerate(chains)
-            chain.misfit = fetch(chainmisfit_[chain_idx])
-        end
+        fetchmisfit(chains, chainmisfit_)
         for (chain_idx, chain) in enumerate(chains)
             # purely stationary GP moves + nuisance
             chainmisfit_[chain_idx] = remotecall(do_mcmc_step, chain.pid,
@@ -650,9 +657,7 @@ function domcmciters(batchstr, iterlast, nsamples, chains, m::DArray{ModelStat},
                                             current_misfit, F,
                                             chain.T, isample, wp, chain_idx, chain.master_pid)
         end
-        for (chain_idx, chain) in enumerate(chains)
-            chain.misfit = fetch(chainmisfit_[chain_idx])
-        end
+        fetchmisfit(chains, chainmisfit_)
         t, tlong, doquit = disptime(isample, t, tlong, nsamples, nominaltime, batchstr)
         doquit && break
     end
