@@ -175,7 +175,7 @@ end
 
 function do_mcmc_step(m::ModelStat, mn::ModelNuisance,
     opt::OptionsStat, stat::Stats, current_misfit::Array{Float64, 1},
-    F::Operator, Temp::Float64, isample::Int, wp::Writepointers, chain_idx::Int, master_pid::Int)
+    F::Operator, Temp::Float64, isample::Int)
     # purely stationary GP moves + nuisance
     movetype, priorviolate = do_move!(m, opt, stat)
     if !priorviolate
@@ -184,22 +184,22 @@ function do_mcmc_step(m::ModelStat, mn::ModelNuisance,
     get_acceptance_stats!(isample, opt, stat)
     writemodel = false
     abs(Temp-1.0) < 1e-12 && (writemodel = true)
-    write_history(isample, opt, m, current_misfit[1], stat, wp, Temp, writemodel, chain_idx, master_pid)
+    # write_history(isample, opt, m, current_misfit[1], stat, wp, Temp, writemodel, chain_idx, master_pid)
     return current_misfit[1]
 end
 
 function do_mcmc_step(m::DArray{ModelStat}, mn::DArray{ModelNuisance}, 
     opt::DArray{OptionsStat}, stat::DArray{Stats},
     current_misfit::DArray{Array{Float64, 1}}, F::DArray{x}, Temp::Float64, 
-    isample::Int, wp::Writepointers, chain_idx::Int, master_pid::Int) where x<:Operator
+    isample::Int) where x<:Operator
     misfit = do_mcmc_step(localpart(m)[1], localpart(mn)[1],
         localpart(opt)[1], localpart(stat)[1],localpart(current_misfit)[1], 
-        localpart(F)[1], Temp, isample, wp, chain_idx, master_pid)
+        localpart(F)[1], Temp, isample)
 end
 
 function do_mcmc_step(mn::ModelNuisance, m::Model,
     optn::OptionsNuisance, statn::Stats, current_misfit::Array{Float64,1},
-    F::Operator, Temp::Float64, isample::Int, wpn::Writepointers_nuisance, chain_idx::Int, master_pid::Int)
+    F::Operator, Temp::Float64, isample::Int)
     # this only gets called for moves on the nuisance chain
     # can be either nonstat or stat model
     movetype = do_move!(mn, optn, statn)
@@ -207,18 +207,17 @@ function do_mcmc_step(mn::ModelNuisance, m::Model,
     get_acceptance_stats!(isample, optn, statn)
     writemodel = false
     abs(Temp - 1.0) < 1e-12 && (writemodel = true)
-    write_history(isample, optn, mn, current_misfit[1], statn, wpn, Temp, writemodel, chain_idx, master_pid)
+    # write_history(isample, optn, mn, current_misfit[1], statn, wpn, Temp, writemodel, chain_idx, master_pid)
     return current_misfit[1]
 end
 
 function do_mcmc_step(mn::DArray{ModelNuisance}, m::DArray{S}, 
     optn::DArray{OptionsNuisance}, statn::DArray{Stats},
     current_misfit::DArray{Array{Float64, 1}},
-    F::DArray{x}, Temp::Float64, isample::Int,
-    wpn::Writepointers_nuisance, chain_idx::Int, master_pid::Int) where {x<:Operator, S<:Model}
+    F::DArray{x}, Temp::Float64, isample::Int) where {x<:Operator, S<:Model}
     misfit = do_mcmc_step(localpart(mn)[1], localpart(m)[1], 
             localpart(optn)[1], localpart(statn)[1], localpart(current_misfit)[1],
-            localpart(F)[1], localpart(Temp)[1], localpart(isample)[1], wpn, chain_idx, master_pid)
+            localpart(F)[1], localpart(Temp)[1], localpart(isample)[1])
 end
 
 function do_mcmc_step(m::ModelStat, mns::ModelNonstat, 
@@ -589,8 +588,8 @@ function init_file_pointers_and_darrays(opt_in::OptionsStat, optn_in::OptionsNui
     
     opt_in.history_mode == "a" && setrestartflag.([opt_in, optn_in])
 
-    wp = open_history(opt_in)
-    wpn = open_history(optn_in)
+    # wp = open_history(opt_in)
+    # wpn = open_history(optn_in)
     
     iterlast = 0
     @sync for(idx, chain) in enumerate(chains)
@@ -618,13 +617,12 @@ function init_file_pointers_and_darrays(opt_in::OptionsStat, optn_in::OptionsNui
     current_misfit = map(x -> DArray(x), (m_, mn_, opt_, optn_,
                                     stat_, statn_, F_in_, current_misfit_,
                                     ))
-    return m, mn, opt, optn, stat, statn, F, current_misfit,
-        wp, wpn, iterlast
+    return m, mn, opt, optn, stat, statn, F, current_misfit, iterlast
 end
 
 function domcmciters(batchstr, iterlast, nsamples, chains, m::DArray{ModelStat}, mn::DArray{ModelNuisance}, 
             opt::DArray{OptionsStat}, optn::DArray{OptionsNuisance}, stat, statn, 
-            current_misfit, F, wp, wpn, nominaltime)
+            current_misfit, F, nominaltime)
     # purely stationary GP moves + nuisance        
     
     t, tlong = map(x->time(), 1:2)
@@ -637,14 +635,14 @@ function domcmciters(batchstr, iterlast, nsamples, chains, m::DArray{ModelStat},
             @async chain.misfit = remotecall_fetch(do_mcmc_step, chain.pid,
                                             mn, m, optn, statn,
                                             current_misfit, F,
-                                            chain.T, isample, wpn, chain_idx, chain.master_pid)
+                                            chain.T, isample )
         end
         @sync for (chain_idx, chain) in enumerate(chains)
             # purely stationary GP moves + nuisance
             @async chain.misfit = remotecall_fetch(do_mcmc_step, chain.pid,
                                             m, mn, opt, stat,
                                             current_misfit, F,
-                                            chain.T, isample, wp, chain_idx, chain.master_pid)
+                                            chain.T, isample)
         end
         t, tlong, doquit = disptime(isample, t, tlong, nsamples, nominaltime, batchstr)
         doquit && break
@@ -665,13 +663,13 @@ function main(opt_in       ::OptionsStat,
     chains = Chain(master_pid, chainprocs, nchainsatone=nchainsatone, Tmax=Tmax)
 
     m, mn, opt, optn, stat, 
-    statn, F, current_misfit, wp, wpn, 
+    statn, F, current_misfit, 
     iterlast = init_file_pointers_and_darrays(opt_in, optn_in, F_in, chains)
 
     domcmciters(batchstr, iterlast, nsamples, chains, m, mn, opt,
-        optn, stat, statn, current_misfit, F, wp, wpn, nominaltime)
+        optn, stat, statn, current_misfit, F, nominaltime)
 
-    close_history.([wp, wpn])
+    # close_history.([wp, wpn])
     d_closeall()
     # explicit_gc(master_pid, chainprocs)
     nothing
@@ -800,6 +798,11 @@ function swap_temps(chains::Array{Chain, 1})
     end
 end
 
+function gc_stats()
+    s = Base.gc_num()
+    return (allocd=s.allocd, freed=s.freed, malloc=s.malloc, poolalloc=s.poolalloc)
+end
+
 function disptime(isample, t, tlong, nsamples, nominaltime, batchstr::String)
     iomode = isample == 1 ? "w" : "a"
     io = open(batchstr*"_$(myid()).log", iomode)
@@ -812,6 +815,7 @@ function disptime(isample, t, tlong, nsamples, nominaltime, batchstr::String)
             dt = time() - t #seconds
             t = time()
             @info("on pid $(myid()) **$(@sprintf("%.2f", dt))**sec** $isample out of $(nsamples)")
+            @info ("health isample=$isample maxrss_gib=$(Sys.maxrss()) gc=$(gc_stats())")
         end
         if !isnothing(nominaltime)
             if mod(isample-1, nw*windowtime) == 0
