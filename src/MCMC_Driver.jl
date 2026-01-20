@@ -175,13 +175,19 @@ end
 
 function do_mcmc_step(m::ModelStat, mn::ModelNuisance,
     opt::OptionsStat, stat::Stats, current_misfit::Array{Float64, 1},
-    F::Operator, Temp::Float64, isample::Int)
+    F::Operator, Temp::Float64, isample::Int, nsamples, batchstr)
     # purely stationary GP moves + nuisance
-    movetype, priorviolate = do_move!(m, opt, stat)
-    if !priorviolate
-        mh_step!(m, mn, F, opt, stat, Temp, movetype, current_misfit)
+    t, tlong = map(x->time(), 1:2)
+    for i = isample:nsamples
+        movetype, priorviolate = do_move!(m, opt, stat)
+        if !priorviolate
+            mh_step!(m, mn, F, opt, stat, Temp, movetype, current_misfit)
+        end
+        get_acceptance_stats!(i, opt, stat)
+        if in(myid()-1, 2:8:994)
+            t, tlong, doquit = disptime(i, t, tlong, nsamples, nothing, batchstr)
+        end
     end
-    get_acceptance_stats!(isample, opt, stat)
     writemodel = false
     abs(Temp-1.0) < 1e-12 && (writemodel = true)
     # write_history(isample, opt, m, current_misfit[1], stat, wp, Temp, writemodel, chain_idx, master_pid)
@@ -191,10 +197,10 @@ end
 function do_mcmc_step(m::DArray{ModelStat}, mn::DArray{ModelNuisance}, 
     opt::DArray{OptionsStat}, stat::DArray{Stats},
     current_misfit::DArray{Array{Float64, 1}}, F::DArray{x}, Temp::Float64, 
-    isample::Int) where x<:Operator
+    isample::Int, nsamples, batchstr) where x<:Operator
     misfit = do_mcmc_step(localpart(m)[1], localpart(mn)[1],
         localpart(opt)[1], localpart(stat)[1],localpart(current_misfit)[1], 
-        localpart(F)[1], Temp, isample)
+        localpart(F)[1], Temp, isample, nsamples, batchstr)
 end
 
 function do_mcmc_step(mn::ModelNuisance, m::Model,
@@ -626,27 +632,28 @@ function domcmciters(batchstr, iterlast, nsamples, chains, m::DArray{ModelStat},
     # purely stationary GP moves + nuisance        
     
     t, tlong = map(x->time(), 1:2)
-    for isample = iterlast+1:nsamples
+    isample = iterlast + 1
+    # for isample = iterlast+1:nsamples
         # we do need each remotecall to finish before 
         # moving on to the next kind of move
         swap_temps(chains)
-        @sync for (chain_idx, chain) in enumerate(chains)
-            # purely nuisance move
-            @async chain.misfit = remotecall_fetch(do_mcmc_step, chain.pid,
-                                            mn, m, optn, statn,
-                                            current_misfit, F,
-                                            chain.T, isample )
-        end
+        # @sync for (chain_idx, chain) in enumerate(chains)
+        #     # purely nuisance move
+        #     @async chain.misfit = remotecall_fetch(do_mcmc_step, chain.pid,
+        #                                     mn, m, optn, statn,
+        #                                     current_misfit, F,
+        #                                     chain.T, isample )
+        # end
         @sync for (chain_idx, chain) in enumerate(chains)
             # purely stationary GP moves + nuisance
             @async chain.misfit = remotecall_fetch(do_mcmc_step, chain.pid,
                                             m, mn, opt, stat,
                                             current_misfit, F,
-                                            chain.T, isample)
+                                            chain.T, isample, nsamples, batchstr)
         end
         t, tlong, doquit = disptime(isample, t, tlong, nsamples, nominaltime, batchstr)
-        doquit && break
-    end
+        # doquit && break
+    # end
 end
 
 function main(opt_in       ::OptionsStat,
