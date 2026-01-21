@@ -221,6 +221,34 @@ function do_mcmc_step(mn::DArray{ModelNuisance}, m::DArray{S},
             localpart(F)[1], localpart(Temp)[1], localpart(isample)[1], wpn, chain_idx, master_pid)
 end
 
+function do_mcmc_step__(m::Model, mn::ModelNuisance, opt::OptionsStat, optn::OptionsNuisance,
+            stat::Stats, statn::Stats, current_misfit::Array{Float64,1}, F::Operator,
+            Temp::Float64, isample::T, wp::Writepointers, wpn::Writepointers_nuisance,
+            chain_idx::T, master_pid::T) where{T<:Integer}
+    # with channels, tries to do (nuisance) and (stationary GP + nuisance) sequentially
+    # in theory this is what happens anyway in one iteration
+    # @info "DBG: did we make it here from $(myid())"
+    # moves on the nuisance chain
+    movetype = do_move!(mn, optn, statn)
+    mh_step!(mn, m, F, optn, statn, Temp, movetype, current_misfit)
+    get_acceptance_stats!(isample, optn, statn)
+    writemodel = false
+    abs(Temp - 1.0) < 1e-12 && (writemodel = true)
+    write_history(isample, optn, mn, current_misfit[1], statn, wpn, Temp, writemodel, chain_idx, master_pid)
+    
+    # now on the stationary GP chain with nuisance
+    movetype, priorviolate = do_move!(m, opt, stat)
+    if !priorviolate
+        mh_step!(m, mn, F, opt, stat, Temp, movetype, current_misfit)
+    end
+    get_acceptance_stats!(isample, opt, stat)
+    writemodel = false
+    abs(Temp-1.0) < 1e-12 && (writemodel = true)
+    write_history(isample, opt, m, current_misfit[1], stat, wp, Temp, writemodel, chain_idx, master_pid)
+    
+    return current_misfit[1]
+end
+
 function do_mcmc_step(m::ModelStat, mns::ModelNonstat, 
     opt::OptionsStat, optns::OptionsNonstat, stat::Stats,
     current_misfit::Array{Float64, 1}, F::Operator,
@@ -622,6 +650,134 @@ function init_file_pointers_and_darrays(opt_in::OptionsStat, optn_in::OptionsNui
         wp, wpn, iterlast
 end
 
+struct StepCmd
+    iter :: Int32
+    T    :: Float64
+end
+
+struct StepRes
+    chain_idx :: Int8
+    iter      :: Int32
+    misfit    :: Float64
+end
+
+
+function chain_worker_loop(
+    cmd_ch::RemoteChannel,
+    res_ch::RemoteChannel,
+    chain_idx::Int8,
+    m, mn, opt, optn, stat, statn, current_misfit, F,
+    wp, wpn, master_pid::Int
+)
+    # This runs once per chain worker and then loops forever on take!.
+
+    # Assert singleton localparts
+    @assert length(localpart(m)) == 1
+    @assert length(localpart(mn)) == 1
+    @assert length(localpart(opt)) == 1
+    @assert length(localpart(optn)) == 1
+    @assert length(localpart(stat)) == 1
+    @assert length(localpart(statn)) == 1
+    @assert length(localpart(current_misfit)) == 1
+    @assert length(localpart(F)) == 1
+
+    # Cache local objects ONCE
+    m_loc    = localpart(m)[1]
+    mn_loc   = localpart(mn)[1]
+    opt_loc  = localpart(opt)[1]
+    optn_loc = localpart(optn)[1]
+    stat_loc = localpart(stat)[1]
+    statn_loc= localpart(statn)[1]
+    cm_loc   = localpart(current_misfit)[1]
+    F_loc    = localpart(F)[1]
+
+    while true
+        # @info "DBG: hello from $(myid())"
+        cmd = take!(cmd_ch)             # blocks
+        # @info "DBG: taken cmd"
+        # @info "cmd is " cmd
+        cmd === nothing && break        # shutdown
+
+        # ONE iteration worth of work, internally doing “nuisance + gp+nuisance”
+        # and mutating m_loc/mn_loc/etc locally.
+        misfit = do_mcmc_step__(
+            m_loc, mn_loc, opt_loc, optn_loc,
+            stat_loc, statn_loc, cm_loc, F_loc,
+            cmd.T, Int(cmd.iter), wp, wpn,
+            Int(chain_idx), master_pid
+        )
+        # @info "DBG: hello again from $(myid())"
+        put!(res_ch, StepRes(chain_idx, cmd.iter, misfit))
+    end
+
+    return nothing
+end
+
+function start_chain_workers!(
+    chain_pids::Vector{Int},  # length == nchains (e.g., 7), from global pool ids
+    nchains::Int,
+    m, mn, opt, optn, stat, statn, current_misfit, F,
+    wp, wpn, master_pid::Int)
+    # Results channel hosted on group master (buffered)
+    # You expect nchains results per iteration (e.g., 7). 
+    # If you want to avoid blocking when results arrive slightly out of sync, set buffer ≥ nchains. 
+    # using 8 * nchains as a conservative choice.
+    res_ch = RemoteChannel(() -> Channel{StepRes}(8*nchains), master_pid)
+
+    # One command channel hosted on each worker PID (buffered)
+    # We send one command per iteration and wait for the result before sending the next, 
+    # so even Channel{StepCmd}(1) would work. 
+    # 8 is a cushion.
+    cmd_chs = Vector{RemoteChannel}(undef, nchains)
+    for j in 1:nchains
+        cmd_chs[j] = RemoteChannel(() -> Channel{Union{StepCmd,Nothing}}(8), chain_pids[j])
+    end
+    # @info "DBG: starting persistent loop"
+    # Start persistent loop on each worker ONCE
+    for j in 1:nchains
+        # @info "DBG: starting persistent loop $j on chain_pids $(chain_pids[j])"
+        chain_idx = Int8(j)
+        remotecall(chain_worker_loop, chain_pids[j],
+                        cmd_chs[j], res_ch, chain_idx,
+                        m, mn, opt, optn, stat, statn, current_misfit, F,
+                        wp, wpn, master_pid)
+    end
+
+    return cmd_chs, res_ch
+end
+
+function domcmciters_channels!(
+    iterlast::Int, nsamples::Int,
+    chains, cmd_chs::Vector{RemoteChannel}, res_ch::RemoteChannel, 
+    batchstr, nominaltime)
+
+    nchains = length(chains)
+
+    t, tlong = map(x->time(), 1:2)
+    for isample in (iterlast+1):nsamples
+        # swap uses misfits from previous iter (as in your existing design)
+        swap_temps(chains)
+
+        # send 1 command per chain worker (K=1)
+        for j in 1:nchains
+            put!(cmd_chs[j], StepCmd(Int32(isample), chains[j].T))
+        end
+
+        # barrier: collect exactly nchains results
+        for _ in 1:nchains
+            result = take!(res_ch)
+            chains[Int(result.chain_idx)].misfit = result.misfit
+        end
+
+        t, tlong, doquit = disptime(isample, t, tlong, nsamples, nominaltime, batchstr)
+        doquit && break
+    end
+
+    return nothing
+end
+
+
+
 function domcmciters(batchstr, iterlast, nsamples, chains, m::DArray{ModelStat}, mn::DArray{ModelNuisance}, 
             opt::DArray{OptionsStat}, optn::DArray{OptionsNuisance}, stat, statn, 
             current_misfit, F, wp, wpn, nominaltime)
@@ -660,17 +816,23 @@ function main(opt_in       ::OptionsStat,
         nchainsatone = 1,
         Tmax         = 2.5,
         nominaltime  = nothing)
-    # purely stationary GP moves + nuisance   
+
     master_pid = myid()
-    chains = Chain(master_pid, chainprocs, nchainsatone=nchainsatone, Tmax=Tmax)
+    chains = Chain(master_pid, chainprocs; nchainsatone=nchainsatone, Tmax=Tmax)
 
-    m, mn, opt, optn, stat, 
-    statn, F, current_misfit, wp, wpn, 
-    iterlast = init_file_pointers_and_darrays(opt_in, optn_in, F_in, chains)
+    m, mn, opt, optn, stat, statn, F, current_misfit, wp, wpn, iterlast =
+        init_file_pointers_and_darrays(opt_in, optn_in, F_in, chains)
+    # @info "DBG: initialised darrays"
+    cmd_chs, res_ch = start_chain_workers!(chainprocs, length(chains),
+                                        m, mn, opt, optn, stat, statn, current_misfit, F,
+                                        wp, wpn, master_pid)
+    # @info "DBG: started worker loop"
+    domcmciters_channels!(iterlast, nsamples, chains, cmd_chs, res_ch, batchstr, nominaltime)
 
-    domcmciters(batchstr, iterlast, nsamples, chains, m, mn, opt,
-        optn, stat, statn, current_misfit, F, wp, wpn, nominaltime)
-
+    # # shutdown workers, cleanup, etc.
+    for ch in cmd_chs
+        put!(ch, nothing)
+    end
     close_history.([wp, wpn])
     d_closeall()
     # explicit_gc(master_pid, chainprocs)
