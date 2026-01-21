@@ -396,15 +396,15 @@ function domcmciters(batchstr, iterlast, nsamples, chains, mns::DArray{ModelNons
                                             mns, m, mn, optns, statns,
                                             current_misfit, F,
                                             chain.T, isample, wpns, chain_idx, chain.master_pid)
-        end
-        @sync for (chain_idx, chain) in enumerate(chains)
+        # end
+        # @sync for (chain_idx, chain) in enumerate(chains)
             # purely nuisance move
             @async chain.misfit = remotecall_fetch(do_mcmc_step, chain.pid,
                                             mn, m, optn, statn,
                                             current_misfit, F,
                                             chain.T, isample, wpn, chain_idx, chain.master_pid)
-        end
-        @sync for (chain_idx, chain) in enumerate(chains)
+        # end
+        # @sync for (chain_idx, chain) in enumerate(chains)
             # Stationary GP changes which update nonstationary GP + nuisance
             @async chain.misfit = remotecall_fetch(do_mcmc_step, chain.pid,
                                             m, mns, mn, opt, optns, stat,
@@ -521,8 +521,8 @@ function domcmciters(batchstr, iterlast, nsamples, chains, mns::DArray{ModelNons
                                             mns, m, optns, statns,
                                             current_misfit, F,
                                             chain.T, isample, wpns, chain_idx, chain.master_pid)
-        end
-        @sync for (chain_idx, chain) in enumerate(chains)
+        # end
+        # @sync for (chain_idx, chain) in enumerate(chains)
             # Stationary GP changes which update nonstationary GP
             @async chain.misfit = remotecall_fetch(do_mcmc_step, chain.pid,
                                             m, mns, opt, optns, stat,
@@ -638,8 +638,8 @@ function domcmciters(batchstr, iterlast, nsamples, chains, m::DArray{ModelStat},
                                             mn, m, optn, statn,
                                             current_misfit, F,
                                             chain.T, isample, wpn, chain_idx, chain.master_pid)
-        end
-        @sync for (chain_idx, chain) in enumerate(chains)
+        # end
+        # @sync for (chain_idx, chain) in enumerate(chains)
             # purely stationary GP moves + nuisance
             @async chain.misfit = remotecall_fetch(do_mcmc_step, chain.pid,
                                             m, mn, opt, stat,
