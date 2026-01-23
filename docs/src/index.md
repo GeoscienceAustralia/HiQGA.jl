@@ -91,7 +91,7 @@ and then in `~/bin` create a file called `code` with the following contents
 ```
 and then do `source ~/.bashrc` or restart the terminal. The next time you run `code` from your terminal it will bring up VSCode. Use VScode on ARE, not a Gadi login node.
 ### Installing MPI.jl and MPIClusterManagers.jl on NCI
-We have found that the safest bet for MPI.jl to work without [UCX issues](https://docs.juliahub.com/MPI/nO0XF/0.19.2/knownissues/#UCX) on NCI is to use intel-mpi. In order to install MPI.jl (>=0.20.0 and <0.20.6) and configure it to  use the intel-mpi provided by the module `intel-mpi/2021.10.0`, following the example below. 
+We have found that the safest bet for MPI.jl to work without [UCX issues](https://docs.juliahub.com/MPI/nO0XF/0.19.2/knownissues/#UCX) on NCI is to use intel-mpi. In order to install MPI.jl (>=0.20.0 and <0.20.6 as of 24/01/2026) and configure it to  use the intel-mpi provided by the module `intel-mpi/2021.10.0`, following the example below. 
 
 ```
 $ module load intel-mpi/2021.10.0
@@ -121,7 +121,7 @@ julia> MPIPreferences.use_system_binary(;library_names=["/apps/intel-mpi/2021.10
 
 julia> exit()
 ```
-Once the configuration is completed, install MPI.jl and MPIClusterManagers.jl in a restarted Julia session. We had errors with other versions of MPI.jl >0.20.6.
+Once the configuration is completed, install MPI.jl and MPIClusterManagers.jl in a restarted Julia session. We had errors with versions of 0.20.23 >= MPI.jl >= 0.20.6 as of 24/01/2026. 
 ```
 pkg>add MPI@0.19.2, MPIClusterManagers, Distributed
 Resolving package versions...
