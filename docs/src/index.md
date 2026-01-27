@@ -91,7 +91,7 @@ and then in `~/bin` create a file called `code` with the following contents
 ```
 and then do `source ~/.bashrc` or restart the terminal. The next time you run `code` from your terminal it will bring up VSCode. Use VScode on ARE, not a Gadi login node.
 ### Installing MPI.jl and MPIClusterManagers.jl on NCI
-We have found that the safest bet for MPI.jl to work without [UCX issues](https://docs.juliahub.com/MPI/nO0XF/0.19.2/knownissues/#UCX) on NCI is to use intel-mpi. In order to install MPI.jl and configure it to  use the intel-mpi provided by the module `intel-mpi/2021.10.0`, following the example below. 
+We have found that the safest bet for MPI.jl to work without [UCX issues](https://docs.juliahub.com/MPI/nO0XF/0.19.2/knownissues/#UCX) on NCI is to use intel-mpi. In order to install MPI.jl (>=0.20.0 and <0.20.6 as of 24/01/2026) and configure it to  use the intel-mpi provided by the module `intel-mpi/2021.10.0`, following the example below. 
 
 ```
 $ module load intel-mpi/2021.10.0
@@ -121,7 +121,7 @@ julia> MPIPreferences.use_system_binary(;library_names=["/apps/intel-mpi/2021.10
 
 julia> exit()
 ```
-Once the configuration is completed, install MPI.jl and MPIClusterManagers.jl in a restarted Julia session. We had errors with other versions of MPI.jl besides v0.19.2 on NCI, maybe not an issue elsewhere.
+Once the configuration is completed, install MPI.jl and MPIClusterManagers.jl in a restarted Julia session. We had errors with versions of 0.20.23 >= MPI.jl >= 0.20.6 as of 24/01/2026. 
 ```
 pkg>add MPI@0.19.2, MPIClusterManagers, Distributed
 Resolving package versions...
@@ -215,7 +215,7 @@ transD_GP.splittasks(;nsoundings=1211, ncores=1247, nchainspersounding=5, ppn=48
 ```
 [Here](https://github.com/GeoscienceAustralia/HiQGA.jl/blob/a8b258d6cef23be7423c9e8652ea0926af28f448/ASEG_Hobart_Workshop_2024/UDF_probabilistic/submit.sh) is an example of a massive job qsub submit script.
 ### Troubleshooting MPI set up
-Some folks have reported that the above MPI install provides error messages to the order of "You are using the system provided MPI", indicating that it is not Intel MPI 2021.10.0 that they are working with. In this case, you should exit Julia, then edit `~/.julia/prefs/MPI.toml` adding in the following lines
+Some folks have reported that the above MPI install provides error messages to the order of "You are using the system provided MPI", indicating that it is not Intel MPI 2021.10.0 that they are working with, and it is probably becaus they are using MPI.jl <= 0.19.2, which does not seem to play well with MPIPreferences.jl. In this case, you should exit Julia, then edit `~/.julia/prefs/MPI.toml` adding in the following lines
 ```
 path = "/apps/intel-mpi/2021.10.0"
 library = "/apps/intel-mpi/2021.10.0/lib/release/libmpi.so"
