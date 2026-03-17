@@ -1,5 +1,5 @@
 module AEMnoNuisanceGradientInversionTools
-using Distributed, Dates, Printf, PyPlot, DelimitedFiles, StatsBase, Random
+using Distributed, Dates, Printf, PyPlot, DelimitedFiles, StatsBase, Random, LinearAlgebra, PositiveFactorizations
 using ..AbstractOperator, ..CommonToAll, ..GP, ..SoundingDistributor
 import ..AbstractOperator.makeoperator
 import ..AbstractOperator.Sounding
@@ -81,7 +81,10 @@ function plotconvandlast(soundings, delr, delz;
                 aem = makeoperator(aem_in, s)
                 m = vec(σ[a:b,:][id,:]) # log 10 σ
                 getresidual(aem, m) # used for grad inversions so log10 cond
-                res[i][:,id] .= aem.W*aem.res
+                # res[i][:,id] .= aem.W*aem.res
+                W = aem.W
+                V = cholesky(Positive, inv(W'W), Val{false}).U 
+                res[i][:,id] .= V'\aem.res
             end
         end
         if plotforward && !isempty(idspec) && !isnothing(aem_in)
