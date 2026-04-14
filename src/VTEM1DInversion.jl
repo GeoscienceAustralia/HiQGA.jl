@@ -117,6 +117,7 @@ mutable struct VTEMsoundingData <: Sounding
     ramp            :: Array{Float64, 2}
     noise           :: Array{Float64, 1}
     data            :: Array{Float64, 1}
+    forceML
     writefields
 end
 
@@ -132,7 +133,7 @@ function VTEMsoundingData(;rRx=nothing, zRx=nothing, zTx=12.,
                             times=[1., 2.], ramp=[1 2; 3 4],
                             noise=[1.], data=[1.], 
                             sounding_string="sounding", X=nothing, Y=nothing, Z=nothing,
-                            linenum=nothing, fid=nothing, writefields=[:X, :Y, :Z, :fid, 
+                            linenum=nothing, fid=nothing, forceML=false, writefields=[:X, :Y, :Z, :fid, 
                             :linenum, :zTx, :zRx, :rTx])
     @assert rTx > 0
     @assert zTx < 0 # my coordinate system z down 
@@ -144,7 +145,7 @@ function VTEMsoundingData(;rRx=nothing, zRx=nothing, zTx=12.,
     @assert all((noise .>0) .| isnan.(noise))
     @assert length(data) == length(noise)
     VTEMsoundingData(sounding_string, X, Y, Z, fid, linenum, zTx, zRx, rTx,
-        lowpassfcs, times, ramp, noise, data, writefields)
+        lowpassfcs, times, ramp, noise, data, forceML, writefields)
 end
 
 function read_survey_files(;
@@ -169,6 +170,7 @@ function read_survey_files(;
     noise_scalevec = zeros(0),
     tx_rx_dz_pass_through = 0.01, # Z up GA-AEM reading convention +ve is rx above tx
     nanchar = "*",
+    forceML = false, # for very low amp, in conjunction with datacutoff
     # these must now be passed in
     lowpassfcs= zeros(0),
     times = zeros(0),
@@ -220,8 +222,13 @@ function read_survey_files(;
     if !isempty(noise_scalevec) 
         @assert length(noise_scalevec) == length(times)
         σ = σ.*noise_scalevec'
-    end    
-    if !isnothing(datacutoff)
+    end  
+    
+    if forceML
+        @assert !isnothing(datacutoff)
+    end
+
+    if !isnothing(datacutoff) && !forceML
         # since my dBzdt is +ve
         idxbad = d .< datacutoff
         d[idxbad] .= NaN
@@ -230,20 +237,27 @@ function read_survey_files(;
     nsoundings = size(d, 1)
     s_array = Array{VTEMsoundingData, 1}(undef, nsoundings)
     fracdone = 0 
+    countforceML = 0
+
     for is in 1:nsoundings
         idxbadz[is] && continue
         l, f = Int(whichline[is]), fiducial[is]
+        d_is = vec(d[is,:])
+        lowampflag = checkifdatalow(d_is, datacutoff, forceML)
+        countforceML += lowampflag ? 1 : 0
         s_array[is] = VTEMsoundingData(;zTx=zTx[is], zRx=zRx[is], rTx, 
-            times, ramp, noise=σ[is,:], data=d[is,:], lowpassfcs,
+            times, ramp, noise=σ[is,:], data=d_is, lowpassfcs,
             sounding_string="sounding_$(l)_$f",
             X=easting[is], Y=northing[is], Z=topo[is], fid=f,
-            linenum=l)
+            linenum=l, forceML=lowampflag)
         fracnew = round(Int, is/nsoundings*100)
         if (fracnew-fracdone)>10
             fracdone = fracnew
             @info "read $is out of $nsoundings"
         end        
     end
+    idx = [isassigned(s_array, i) for i in 1:length(s_array)]
+    forceML && @info("low-amplitude forceML on $countforceML out of $(sum(idx)): $(round(100*countforceML/sum(idx)))%")
     return s_array[.!idxbadz]
 end
 
@@ -272,6 +286,16 @@ function plotsoundingdata(d, σ, times, zTx, zRx; figsize=(8,4), fontsize=1)
     ax[2,2].axis("off")
     nicenup(f, fsize=fontsize)
     nothing
+end
+
+function checkifdatalow(d, datacutoff, forceML)
+    lowflag = false
+    !forceML && return lowflag
+    m = mean(log10.(abs.(d)))
+    if (m < log10(datacutoff)) 
+        lowflag = true
+    end    
+    lowflag    
 end
 
 # all calling functions here for misfit, field, etc. assume model is in log10 resistivity
@@ -442,6 +466,8 @@ end
 function makeoperator(aem::dBzdt, sounding::VTEMsoundingData)
     ntimesperdecade = gettimesperdec(aem.F.interptimes)
     nfreqsperdecade = gettimesperdec(aem.F.freqs)
+    @assert !(aem.useML & sounding.forceML) "useML and forceML cannot both be true"
+    useML = (aem.useML | sounding.forceML) # OR logic for useML with true, true disqualified earlier
     modelprimary = aem.F.useprimary === 1. ? true : false
     isdIdt = aem.F.isdIdt
     rampchoice = aem.F.rampchoice
@@ -463,3 +489,5 @@ function plotwaveformgates(aem::dBzdt; figsize=(5,5))
 end    
 
 end
+
+
