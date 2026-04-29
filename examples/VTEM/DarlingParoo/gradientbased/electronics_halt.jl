@@ -1,4 +1,5 @@
 # Tx dimensions
+using Statistics
 rTx = sqrt(530.92/pi)
 # halt_noise
 # gate times
