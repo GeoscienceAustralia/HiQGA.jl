@@ -8,7 +8,7 @@ This package implements both the nested (2-layer) and vanilla trans-dimensional 
 - [*An information theoretic Bayesian uncertainty analysis of AEM systems over Menindee Lakes, Australia*. A.Ray, A-Y. Ley-Cooper, R.C. Brodie, R. Taylor, N. Symington, N. F. Moghaddam, Geophysical Journal International, 235(2)., 2023](https://doi.org/10.1093/gji/ggad337).
 - [*Bayesian inversion using nested trans-dimensional Gaussian processes*, A. Ray, Geophysical Journal International, **226(1)**, 2021](https://doi.org/10.1093/gji/ggab114).
 - [*Bayesian geophysical inversion with trans-dimensional Gaussian process machine learning*, A. Ray and D. Myer, Geophysical Journal International **217(3)**, 2019](https://doi.org/10.1093/gji/ggz111).
-- There is also a flavour of within-bounds Gauss-Newton/Occam's inversion implemented. For SkyTEM, TEMPEST and VTEM (all AEM), this is fully functional, but for other forward propagators you will have to provide a Jacobian (the linearization of the forward operator).
+- There is also a flavour of within-bounds Gauss-Newton/Occam's inversion implemented. For SkyTEM, TEMPEST and VTEM (all AEM), this is fully functional ([see this paper](https://doi.org/10.1111/1365-2478.70171)), but for other forward propagators you will have to provide a Jacobian (the linearization of the forward operator).
 
 ## Installation
 Download Julia from [here](https://julialang.org/downloads/) and install the binary. HPC users e.g., on the [NCI](https://nci.org.au/) look [here, below in the document](#hpc-setup-on-nci) to set up MPI on a cluster for large jobs, or if you do not have Julia installed on your cluster.
@@ -22,8 +22,23 @@ Then enter the following, at the `pkg>` prompt:
 ```
 pkg> add HiQGA 
 ```
-If installing to [follow along](https://www.youtube.com/watch?v=edgzr8vpCKY&list=PL0jP_ahe-BFmRWx6IT9G2zbFHA6qmJ52f&index=6) for the 2022 AEM [workshop branch](https://github.com/GeoscienceAustralia/HiQGA.jl/tree/workshop) use instead of the above `pkg> add HiQGA@0.2.2`
+#If installing to [follow along](https://www.youtube.com/watch?v=edgzr8vpCKY&list=PL0jP_ahe-BFmRWx6IT9G2zbFHA6qmJ52f&index=6) for the 2022 #AEM [workshop branch](https://github.com/GeoscienceAustralia/HiQGA.jl/tree/workshop) use instead of the above `pkg> add HiQGA@0.2.2`
 
+If you have conflicting Julia packages, it is often best to start Julia with the environment set to whichever directory you are operating within, with
+```
+julia --project=.
+```
+and install HiQGA within that project directory as shown above. 
+
+While this will not impact multi-cpu parallel runs, for newer versions of PyPlot/Matplotlib and Julia > v1.10, please ensure that you start Julia single threaded, with no helpers. This is to stave off crashes due to multithreading not being supported in [PyPlot.jl](https://github.com/JuliaPy/PyPlot.jl/tree/067372b47643a833c461a31a45dcc544a2dfaffc). You can do this like so:
+```
+julia -t 1,0
+```
+thanks to [ufechner7 for this tip](https://discourse.julialang.org/t/julia-crashed-when-using-pycall-in-multiple-threads/111004/12). If running Julia within VSCode, goto `File->Preferences->Settings` or `Code->Settings` on a Mac and search for the string `thread`. Under `Extensions` and `Julia` you will see `Num Threads` and `Edit in settings.json`. Please edit this file and explicitly set   
+```
+"julia.NumThreads": 1,
+"julia.numTestProcesses": 0,
+```
 ## Usage
 Examples of how to use the package can be found in the `examples` directory. Simply `cd` to the relevant example directory and `include` the .`jl` files in the order they are named. If using VSCode make sure to do *Julia: Change to this Directory* from the three dots menu on the top right. The Markov Chain Monte Carlo sampler is configured to support parallel tempering on multiple CPUs - some of the examples accomplish this with Julia's built-in multiprocessing, and others use MPI in order to support inversions on HPC clusters that don't work with Julia's default SSH-based multiprocessing. The MPI examples require [MPI.jl](https://github.com/JuliaParallel/MPI.jl) and [MPIClusterManagers.jl](https://github.com/JuliaParallel/MPIClusterManagers.jl/), which are not installed as dependencies for this package, so you will need to ensure they are installed and configured correctly to run these examples. See [here, below in the document](#installing-mpijl-and-mpiclustermanagersjl-on-nci) for MPI on the NCI.
 
@@ -91,7 +106,7 @@ and then in `~/bin` create a file called `code` with the following contents
 ```
 and then do `source ~/.bashrc` or restart the terminal. The next time you run `code` from your terminal it will bring up VSCode. Use VScode on ARE, not a Gadi login node.
 ### Installing MPI.jl and MPIClusterManagers.jl on NCI
-We have found that the safest bet for MPI.jl to work without [UCX issues](https://docs.juliahub.com/MPI/nO0XF/0.19.2/knownissues/#UCX) on NCI is to use intel-mpi. In order to install MPI.jl (>=0.20.0 and <0.20.6 as of 24/01/2026) and configure it to  use the intel-mpi provided by the module `intel-mpi/2021.10.0`, following the example below. 
+We have found that the safest bet for MPI.jl to work without [UCX issues](https://docs.juliahub.com/MPI/nO0XF/0.19.2/knownissues/#UCX) on NCI is to use intel-mpi. In order to install MPI.jl (0.20.0<=MPI.jl<0.20.6 as of 24/01/2026) and configure it to use the intel-mpi provided by the module `intel-mpi/2021.10.0`, following the example below. 
 
 ```
 $ module load intel-mpi/2021.10.0
@@ -121,9 +136,9 @@ julia> MPIPreferences.use_system_binary(;library_names=["/apps/intel-mpi/2021.10
 
 julia> exit()
 ```
-Once the configuration is completed, install MPI.jl and MPIClusterManagers.jl in a restarted Julia session. We had errors with versions of 0.20.23 >= MPI.jl >= 0.20.6 as of 24/01/2026. 
+Once the configuration is completed, install MPI.jl and MPIClusterManagers.jl in a restarted Julia session. We had errors with versions of MPI.jl >= 0.20.6 as of 24/01/2026 -- see open `MPI.jl` issue [here](https://github.com/JuliaParallel/MPI.jl/issues/930).
 ```
-pkg>add MPI@0.19.2, MPIClusterManagers, Distributed
+pkg>add MPI@0.20.5, MPIClusterManagers, Distributed
 Resolving package versions...
   No Changes to `~/.julia/environments/v1.9/Project.toml`
   No Changes to `~/.julia/environments/v1.9/Manifest.toml`
