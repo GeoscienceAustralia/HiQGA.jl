@@ -272,7 +272,7 @@ function gradientinv(   m::AbstractVector,
         foundroot && break
         if !isnothing(minimprovfrac) && (istep > minimprovkickinstep)
             prevχ²= χ²[istep-1][oidx[istep-1]]
-            if (χ²[istep][idx] - prevχ²)/prevχ² < minimprovfrac
+            if (prevχ² - χ²[istep][idx])/prevχ² < minimprovfrac
                 littleimprovement = true
             end
         end
@@ -363,7 +363,7 @@ function gradientinv(   m::AbstractVector,
         foundroot && break
         if !isnothing(minimprovfrac) && (istep > minimprovkickinstep)
             prevχ²= χ²[istep-1][oidx[istep-1]]
-            if (χ²[istep][idx] - prevχ²)/prevχ² < minimprovfrac
+            if (prevχ² - χ²[istep][idx])/prevχ² < minimprovfrac
                 littleimprovement = true
             end
         end
