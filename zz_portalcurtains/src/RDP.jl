@@ -105,11 +105,27 @@ function makeextent(lnum, ncols, nrows, gridr, gridz; suffix="")
         lnum, suffix, 0, 0, ncols, -nrows, gridr[1], maximum(gridz), gridr[end], minimum(gridz))
 end    
 
+function _segy_text_header(dz, src_epsg)
+    lines = [
+        "Date Created: $(Dates.today())",
+        "HiQGA Version: $(pkgversion(HiQGA))",
+        "SEGY Vertical Resolution: $(dz)m",
+        "CRS: EPSG:$src_epsg",
+        "Data units: LOG10 S/m",
+    ]
+    hdr = IOBuffer()
+    for i in 1:40
+        content = i <= length(lines) ? first(lines[i], 75) : ""
+        write(hdr, @sprintf("C%2d %-75s", i, content))
+    end
+    return String(take!(hdr))
+end
+
 function XYZ_zmid_gridtoSEGY(σ, X, Y, Z; dr=nothing, zall=nothing, dz=nothing, fname="line", dst_dir="", suffix="",
-            nanval=-6 #=-6 is in log10=#,)
-    img, gridr, gridz, topofine, R = transD_GP.makegrid(σ, X, Y, Z; 
+            nanval=-6 #=-6 is in log10=#, src_epsg=0)
+    img, gridr, gridz, topofine, R = transD_GP.makegrid(σ, X, Y, Z;
             dr, zall, dz)
-    img[isnan.(img)] .= nanval       
+    img[isnan.(img)] .= nanval
     segypath = dst_dir
     xymid, rm = transD_GP.getallxyinr(X, Y, dr)
     xm, ym, = map(i->xymid[i,:], 1:2)
@@ -129,9 +145,10 @@ function XYZ_zmid_gridtoSEGY(σ, X, Y, Z; dr=nothing, zall=nothing, dz=nothing, 
     set_header!(block, :Crossline3D, Array(1:length(xm)))
     set_header!(block, :ElevationScalar, round.(Int, topom))
     set_header!(block, :DelayRecordingTime, -round(Int, maximum(gridz))) # shift to topo as start
+    block.fileheader.th = _segy_text_header(dz, src_epsg)
     fname = joinpath(segypath, fname*"_"*suffix)
     segy_write(fname*".segy", block)
-end    
+end
 
 function writesegyfromxyzrhodir(nlayers::Int; src_dir="", src_epsg=0, dst_dir="", dr=nothing, dz=nothing)
     @assert !isnothing(src_epsg)
@@ -142,7 +159,7 @@ function writesegyfromxyzrhodir(nlayers::Int; src_dir="", src_epsg=0, dst_dir=""
         @info "doing line $ln"
         fname = "line_$ln"
         X, Y, Z, zall, ρlow, ρmid, ρhigh, ρavg, ϕmean, ϕsdev = transD_GP.readxyzrhoϕ(ln, nlayers; pathname=src_dir)
-        [XYZ_zmid_gridtoSEGY(-ρ, X, Y, Z; dr, zall, dz, dst_dir, fname, suffix=str) for (ρ, str) in zip([ρlow, ρmid, ρhigh],["high", "mid", "low"])]
+        [XYZ_zmid_gridtoSEGY(-ρ, X, Y, Z; dr, zall, dz, dst_dir, fname, suffix=str, src_epsg) for (ρ, str) in zip([ρlow, ρmid, ρhigh],["high", "mid", "low"])]
     end
 end
 
@@ -180,7 +197,7 @@ function colstosegy(X, Y, Z, σ, thick_in, lines; dr=nothing, dz=nothing, hasthi
         @info "doing Line "*fstring
         T = islog10 ?  x->x : x->log10(x) # if log 10 leave alone
         # [@info size(x) for x in (T.(σ[idx,:]), X[idx], Y[idx], Z[idx], zall)] 
-        XYZ_zmid_gridtoSEGY(T.(σ[idx,:])', X[idx], Y[idx], Z[idx]; dr, zall, dz, dst_dir, fname=fstring, suffix)
+        XYZ_zmid_gridtoSEGY(T.(σ[idx,:])', X[idx], Y[idx], Z[idx]; dr, zall, dz, dst_dir, fname=fstring, suffix, src_epsg)
     end
 end
 
