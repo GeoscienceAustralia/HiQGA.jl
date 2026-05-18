@@ -42,7 +42,7 @@ function scaledRDP(xin...;ϵ=1.0) # input x,y,z,etc.
     plistscaled = map(zip(scaled...)) do (x)
          [x...]
     end
-    scaledpgood = reduce(vcat, RDP.rdpreduce(plistscaled, ϵ)')
+    scaledpgood = reduce(vcat, rdpreduce(plistscaled, ϵ)')
     scaledout = map(zip(eachcol(scaledpgood), xin)) do (s, x) 
         s*(maximum(x) - minimum(x)) .+ minimum(x)
     end
@@ -404,7 +404,7 @@ function doonecurtaintriad(line::Int; nlayers=0, pathname="", dr=0, dz=0, dst_di
     X_, Y_, R_, = transD_GP.getXYlast(X, Y, dr)
     plist = makeplist(X_, Y_)
     pgood = rdpreduce(plist, ϵfrac*R_[end])
-    latlonglist = RDP.reprojecttoGDA94(pgood, src_epsg)    
+    latlonglist = reprojecttoGDA94(pgood, src_epsg)    
     map(zip([-ρhigh, -ρmid, -ρlow], ["_low", "_mid", "_high"],(1:3))) do (σ, suffix, i)    
         img, gridr, gridz, topofine, R = transD_GP.makegrid(σ, X, Y, Z; donn,
             dr, zall, dz)
