@@ -145,7 +145,11 @@ function XYZ_zmid_gridtoSEGY(σ, X, Y, Z; dr=nothing, zall=nothing, dz=nothing, 
     set_header!(block, :Crossline3D, Array(1:length(xm)))
     set_header!(block, :ElevationScalar, round.(Int, topom))
     set_header!(block, :DelayRecordingTime, -round(Int, maximum(gridz))) # shift to topo as start
-    block.fileheader.th = _segy_text_header(dz, src_epsg)
+    #block.fileheader.th = _segy_text_header(dz, src_epsg)
+    th_new = _segy_text_header(dz, src_epsg)
+    block.fileheader = FileHeader(th_new, block.fileheader.bfh)
+
+    
     fname = joinpath(segypath, fname*"_"*suffix)
     segy_write(fname*".segy", block)
 end
