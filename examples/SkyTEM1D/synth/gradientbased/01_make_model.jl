@@ -2,7 +2,6 @@ using PyPlot, DelimitedFiles, Random, Statistics,
       HiQGA.transD_GP
 cd(@__DIR__)
 ## model fixed parts, i.e., air
-Random.seed!(23)
 zfixed   = [-1e5]
 ρfixed   = [1e12]
 # Note that the receiver and transmitter need to be in layer 1
