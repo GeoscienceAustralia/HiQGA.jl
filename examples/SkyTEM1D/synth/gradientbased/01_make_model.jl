@@ -1,5 +1,5 @@
 using PyPlot, DelimitedFiles, Random, Statistics,
-      HiQGA.transD_GP
+      HiQGA
 cd(@__DIR__)
 ## model fixed parts, i.e., air
 zfixed   = [-1e5]
@@ -7,13 +7,13 @@ zfixed   = [-1e5]
 # Note that the receiver and transmitter need to be in layer 1
 zstart = 0.0
 extendfrac, dz = 1.03, 1.5
-zall, znall, zboundaries = transD_GP.setupz(zstart, extendfrac, dz=dz, n=65, showplot=true)
+nlayers = 64
+zall, znall, zboundaries = transD_GP.setupz(zstart, extendfrac, dz=dz, n=nlayers, showplot=true)
 z, ρ, nfixed = transD_GP.makezρ(zboundaries; zfixed=zfixed, ρfixed=ρfixed)
 ##  geometry and modeling parameters
 rRx = 13.
 zRx = -42.0
 zTx = -40.0
-freqlow = 1e-3
 include("electronics_halt.jl")
 calcjacobian = true
 ## make SkyTEM operator

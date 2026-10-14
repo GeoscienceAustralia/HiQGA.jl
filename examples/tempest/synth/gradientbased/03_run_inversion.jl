@@ -21,19 +21,5 @@ m, nu, χ², χ²nu, λ², idx = transD_GP.gradientinv(σstart, σ0, nustart, te
                             ntriesnu = 5,
                             boxiters = 2, 
                             usebox = true,
-                            reducenuto = 0.2,
-                            debuglevel = 2,
                             breaknuonknown = false);
 aem = tempest;
-## for plotting forwards
-mn = reduce(hcat, [transD_GP.TEMPEST1DInversion.setnuforinvtype(tempest, n) for n in nu])'
-mfinal = [-mm[i] for (mm, i) in zip(m, idx)]
-mtest = copy(mfinal[end])
-nutest = copy(mn[end,:])
-if tempest.vectorsum
-    @info transD_GP.TEMPEST1DInversion.get_misfit(-mtest, [zRx, x_rx], tempest, nubounds)
-else
-    @info transD_GP.TEMPEST1DInversion.get_misfit(-mtest, [zRx, x_rx, rx_pitch], tempest, nubounds)
-end        
-@info transD_GP.TEMPEST1DInversion.get_misfit(-mtest, nu[end], tempest, nubounds)
-transD_GP.plotmodelfield!(tempest, mtest, nutest)
