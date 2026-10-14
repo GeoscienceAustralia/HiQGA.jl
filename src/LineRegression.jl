@@ -4,7 +4,8 @@ using ..AbstractOperator, ..CommonToAll
 using PyPlot, LinearAlgebra, StatsBase, SparseArrays
 
 import ..Model, ..Options, ..makereg
-import ..AbstractOperator.getresidual, ..AbstractOperator.getsmoothline
+import ..AbstractOperator.getresidual, ..AbstractOperator.getsmoothline, 
+       ..AbstractOperator.modeldim
 
 export Line, makehist
 
@@ -14,11 +15,10 @@ mutable struct Line<:Operator1D
     σ      :: Union{Array{Float64, 1}, Float64}
     select :: Array{Bool, 1}
     # for gradient based inversion
-    J      :: AbstractArray
-    W      :: SparseMatrixCSC
-    res    :: Vector
-    nfixed :: Int
-    ρ      
+    J      :: SparseMatrixCSC{Float64, Int}
+    W      :: Diagonal{Float64, Vector{Float64}}
+    res    :: Vector{Float64}
+    ρ      :: Array{Float64, 1}
 end
 
 function Line(d::Array{Float64, 1} ;useML=false, σ=1.0, calcjacobian=false)
@@ -31,14 +31,14 @@ function Line(d::Array{Float64, 1} ;useML=false, σ=1.0, calcjacobian=false)
     res = copy(d[select])
     if calcjacobian
         J = getA(d)
-        Wdiag = 1 ./σ[select]
+        Wdiag = Diagonal(1 ./σ[select])
     else    
-        J, Wdiag = zeros(0), zeros(0)
+        J, Wdiag = spzeros(0, 0), Diagonal(Float64[]), zeros(0)
     end 
-    W = sparse(diagm(Wdiag))
-    nfixed = 0 # only needed for gradient based
-    Line(d, useML, σ, select, J, W, res, nfixed, copy(d))
+    Line(d, useML, σ, select, J, Wdiag, res, copy(d))
 end
+
+modeldim(F::Line) = length(F.ρ)
 
 function getA(v::AbstractVector)
     m = length(v)

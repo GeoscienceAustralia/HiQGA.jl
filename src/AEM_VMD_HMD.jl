@@ -21,7 +21,7 @@ mutable struct HFieldDHT <: HField
     ramp            :: Array{Float64, 2}
     log10ω          :: Array{Float64, 1}
     interptimes     :: Array{Float64, 1}
-    minresptime
+    minresptime     :: Float64
     HFD_z           :: Array{ComplexF64, 1}
     HFD_r           :: Array{ComplexF64, 1}
     HFD_az          :: Array{ComplexF64, 1}
@@ -57,7 +57,7 @@ mutable struct HFieldDHT <: HField
     getradialH      :: Bool
     getazimH        :: Bool
     calcjacobian    :: Bool
-    Jtemp           :: Vector
+    Jtemp           :: Vector{ComplexF64}
     b               :: Vector # Another Jtemp
     derivmatrix_z   :: Array{ComplexF64, 2} # wavenumber domain Jacobian for J0v
     derivmatrix_az   :: Array{ComplexF64, 2} # wavenumber domain Jacobian for J1h
@@ -65,14 +65,14 @@ mutable struct HFieldDHT <: HField
     HFD_z_J         :: Array{ComplexF64, 2}
     HTD_z_J_interp  :: Array{Float64, 2}
     dBzdt_J         :: Array{Float64, 2}
-    HFD_az_J
-    HTD_az_J_interp     
-    dBazdt_J
-    HFD_r_J
-    HTD_r_J_interp     
-    dBrdt_J
-    isdIdt
-    rampchoice
+    HFD_az_J        :: Array{ComplexF64, 2}
+    HTD_az_J_interp :: Array{Float64, 2}    
+    dBazdt_J        :: Array{Float64, 2}    
+    HFD_r_J         :: Array{ComplexF64, 2}    
+    HTD_r_J_interp  :: Array{Float64, 2}      
+    dBrdt_J         :: Array{Float64, 2}    
+    isdIdt          :: Bool
+    rampchoice      :: Symbol
 end
 
 function HFieldDHT(;
@@ -556,7 +556,7 @@ function getfieldFD!(F::HFieldDHT, z::Array{Float64, 1}, ρ::Array{Float64, 1})
     end # freq loop
 end
 
-function docomplexinterp(cmplxarray, xgiven, xwanted)
+function docomplexinterp(cmplxarray::AbstractVector{ComplexF64}, xgiven::Vector{Float64}, xwanted::Vector{Float64})
     splreal = CubicSpline(real(cmplxarray), xgiven, 
         extrapolation_left = ExtrapolationType.Linear, extrapolation_right = ExtrapolationType.Linear)
     splimag = CubicSpline(imag(cmplxarray), xgiven,
@@ -564,8 +564,10 @@ function docomplexinterp(cmplxarray, xgiven, xwanted)
     splreal.(xwanted) + 1im*splimag.(xwanted)
 end    
 
-function dohankeltx!(HFD_component, ifreq, filtercoeff, rscale, kernelhold, kernelgiven, krgiven, krwanted)
-    kernelhold[:] = docomplexinterp(kernelgiven, krgiven, krwanted)
+function dohankeltx!(HFD_component::AbstractVector{ComplexF64}, ifreq::Int, filtercoeff::Vector{Float64}, 
+        rscale::Float64, kernelhold::Vector{ComplexF64}, kernelgiven::AbstractVector{ComplexF64}, 
+        krgiven::Vector{Float64}, krwanted::Vector{Float64})
+    kernelhold .= docomplexinterp(kernelgiven, krgiven, krwanted)
     HFD_component[ifreq] = dot(kernelhold, filtercoeff)/rscale
 end
 
@@ -582,7 +584,7 @@ function calcfreqdomainjacobian!(doit, ifreq, HFD_component_J, kernelhold, deriv
 end    
 
 function calctimedomainjacobian(temp, HTD_component_J_interp, ilayer, itime, Filter, t, spl_component_J_real, spl_component_J_imag, l10w, w, H)
-    temp[:] = -imag(conj((spl_component_J_real[ilayer].(l10w) .+ 1im*spl_component_J_imag[ilayer].(l10w)).*H)./w)*2/pi
+    temp .= -imag(conj((spl_component_J_real[ilayer].(l10w) .+ 1im*spl_component_J_imag[ilayer].(l10w)).*H)./w)
     HTD_component_J_interp[ilayer,itime] = dot(temp, Filter)/t
 end
 
@@ -631,41 +633,42 @@ function getfieldTD!(F::HFieldDHT, z::Array{Float64, 1}, ρ::Array{Float64, 1})
         temp = zeros(length(Filter_t_base))
     end        
     @views begin
-        for itime = 1:length(F.interptimes)
+        @inbounds for itime = 1:length(F.interptimes)
             l10w, H = F.interplog10ω[:,itime], F.Hsc[:,itime]
             t = F.interptimes[itime]
+            c = 2/pi
             # Conjugate for my sign convention, apply Butterworth and inverse transform
             if F.provideddt
                 # vertical
-                F.HFD_z_interp[:] .= imag(conj((spl_z_real.(l10w) .+ 1im*spl_z_imag.(l10w)).*H))*2/pi
+                F.HFD_z_interp .= imag(conj((spl_z_real.(l10w) .+ 1im*spl_z_imag.(l10w)).*H))*c
                 F.HTD_z_interp[itime] = dot(F.HFD_z_interp, Filter_t_sin)/t
                 if F.calcjacobian
                     for ilayer = 2:length(ρ)
-                        temp[:] = imag(conj((spl_z_J_real[ilayer].(l10w) .+ 1im*spl_z_J_imag[ilayer].(l10w)).*H))*2/pi
+                        temp .= imag(conj((spl_z_J_real[ilayer].(l10w) .+ 1im*spl_z_J_imag[ilayer].(l10w)).*H))*c
                         F.HTD_z_J_interp[ilayer,itime] = dot(temp, Filter_t_sin)/t
                     end    
                 end
                 # radial
                 if F.getradialH
-                    F.HFD_r_interp[:] .= imag(conj((spl_r_real.(l10w) .+ 1im*spl_r_imag.(l10w)).*H))*2/pi
+                    F.HFD_r_interp .= imag(conj((spl_r_real.(l10w) .+ 1im*spl_r_imag.(l10w)).*H))*c
                     F.HTD_r_interp[itime] = dot(F.HFD_r_interp, Filter_t_sin)/t
                 end
                 if F.getazimH
-                    F.HFD_az_interp[:] .= imag(conj((spl_az_real.(l10w) .+ 1im*spl_az_imag.(l10w)).*H))*2/pi
+                    F.HFD_az_interp .= imag(conj((spl_az_real.(l10w) .+ 1im*spl_az_imag.(l10w)).*H))*c
                     F.HTD_az_interp[itime] = dot(F.HFD_az_interp, Filter_t_sin)/t
                 end
             else
                 # vertical
-                w = F.ω[:,itime]
-                F.HFD_z_interp[:] .= -imag(conj((spl_z_real.(l10w) .+ 1im*spl_z_imag.(l10w)).*H)./w)*2/pi
+                w = F.ω[:,itime]*pi/2
+                F.HFD_z_interp .= -imag(conj((spl_z_real.(l10w) .+ 1im*spl_z_imag.(l10w)).*H)./w)
                 F.HTD_z_interp[itime] = dot(F.HFD_z_interp, Filter_t_cos)/t
                 # radial
                 if F.getradialH
-                    F.HFD_r_interp[:] .= -imag(conj((spl_r_real.(l10w) .+ 1im*spl_r_imag.(l10w)).*H)./w)*2/pi
+                    F.HFD_r_interp .= -imag(conj((spl_r_real.(l10w) .+ 1im*spl_r_imag.(l10w)).*H)./w)
                     F.HTD_r_interp[itime] = dot(F.HFD_r_interp, Filter_t_cos)/t
                 end
                 if F.getazimH
-                    F.HFD_az_interp[:] .= -imag(conj((spl_az_real.(l10w) .+ 1im*spl_az_imag.(l10w)).*H)./w)*2/pi
+                    F.HFD_az_interp .= -imag(conj((spl_az_real.(l10w) .+ 1im*spl_az_imag.(l10w)).*H)./w)
                     F.HTD_az_interp[itime] = dot(F.HFD_az_interp, Filter_t_cos)/t
                 end
                 if F.calcjacobian

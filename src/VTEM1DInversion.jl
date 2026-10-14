@@ -9,6 +9,7 @@ using ..AEM_VMD_HMD
 import ..AbstractOperator.Sounding # for storing real data
 import ..AbstractOperator.returnforwrite
 import ..AbstractOperator.getndata
+import ..AbstractOperator.modeldim
 import ..AbstractOperator.plotmodelfield!
 using Random, PyPlot, DelimitedFiles, LinearMaps, SparseArrays, ..GP, LinearAlgebra, Statistics
 
@@ -25,9 +26,9 @@ mutable struct dBzdt<:Operator1D
     ρ          :: Array{Float64, 1}
     select     :: Array{Bool, 1}
     ndata      :: Int
-    J          :: AbstractArray
-    W          :: SparseMatrixCSC
-    res        :: Vector
+    J          :: Array{Float64, 2} 
+    W          :: Diagonal{Float64, Vector{Float64}}
+    res        :: Vector{Float64}
 end
 
 function dBzdt(;times           = [1.],
@@ -73,18 +74,20 @@ function dBzdt(;times           = [1.],
     aem
 end
 
+modeldim(F::dBzdt) = length(F.ρ) - F.nfixed
+
 function allocateJ(FJt, σ, select, nfixed, nmodel, calcjacobian)
     if calcjacobian && !isempty(select)
         J = FJt'
         J = J[select,nfixed+1:nmodel]
     else    
-        J = zeros(0)
+        J = zeros(0,0)
     end
     # always return an allocated residuals and W - small price to pay I think
     # since majority of Jacobian allocations are in aem.F
     res = similar(σ[select]) 
     Wdiag = 1 ./σ[select]
-    W = sparse(diagm(Wdiag))        
+    W = Diagonal(Wdiag)        
     return res, J, W
 end
 

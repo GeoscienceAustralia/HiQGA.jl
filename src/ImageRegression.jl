@@ -1,10 +1,11 @@
 module ImageRegression
 import ..AbstractOperator.get_misfit
 using ..AbstractOperator
-using PyPlot, LinearAlgebra, Statistics
+using PyPlot, LinearAlgebra, Statistics, SparseArrays, Wavelets
 using Random, Images, ImageIO, ..CommonToAll
 
 import ..Model, ..Options, ..OptionsStat, ..OptionsNonstat
+import ..AbstractOperator.getresidual, ..AbstractOperator.modeldim
 
 export Img, get_image_data, calc_image_RMS, get_image_prediction_points,
         plot_image_data, plot_image_posterior, slice_image_posterior
@@ -23,8 +24,13 @@ mutable struct Img<:Operator2D
     σ                 :: Float64
     select            :: Array{Bool}
     N                 :: Int
-    r                 :: Array{Float64, 1}
     xtrain            :: Array{Float64, 2}
+    res               :: Array{Float64, 1}
+    J                 :: SparseMatrixCSC{Float64, Int}
+    W                 :: Diagonal{Float64, Vector{Float64}}
+    dobs              :: Array{Float64, 1}
+    ny                :: Int
+    nx                :: Int
 end
 
 function Img(;
@@ -38,33 +44,71 @@ function Img(;
              select           = [true],
              N                = 1,
              r                = [-1.],
-             xtrain           = [1 1]
+             xtrain           = [1 1],
+             levelmax         = nothing,
+             wt               = nothing,
+             klargest         = nothing,
+             compatbounds     = true,
              )
 
     @assert fractrain > 0 && fractrain < 1
     @assert !(filename == "")
     @assert dec > 1
     @assert σ > 0.0
-    f = get_image(filename, gausskernelwidth, dec)
+    f = get_image(filename, gausskernelwidth, dec; compatbounds)
+    if !isnothing(levelmax)
+        f = truncateimgdwt(f, wt, levelmax)
+    elseif !isnothing(klargest)
+        f = truncateimgdwt_largestK(f, wt, klargest)
+    end
     x = 0:dx:dx*size(f,2)-1
     y = 0:dx:dx*size(f,1)-1
-    Img(filename, x, y, fractrain, dec, gausskernelwidth, f, f, useML, σ, select, N, r, xtrain)
+    Img(filename, x, y, fractrain, dec, gausskernelwidth, f, copy(f), 
+    useML, σ, select, N, xtrain, r, spzeros(0, 0), Diagonal(Float64[]), zeros(0), 
+    length(y), length(x))
 end
 
-function get_image(filename::String, gausskernelwidth::Int, dec)
+function truncateimgdwt(f, wt, ltrunc)
+    fwt = dwt(f, wt)
+    fwttrunc = copy(fwt)
+    col = leveltrunc(ltrunc)
+    fwttrunc[:, col+1 : end] .= 0.
+    fwttrunc[col+1 : end,:] .= 0.
+    ftrunc = idwt(fwttrunc, wt)
+end
+
+getcriticalnum(ksparse, N) = ksparse*log(N/ksparse)
+leveltrunc(ltrunc) = 2^(ltrunc-1)
+
+function truncateimgdwt_largestK(f, wt, K)
+    fwt = dwt(f, wt)
+    thresh = sort(abs.(vec(fwt)), rev=true)[K]   # K-th largest magnitude
+    fwttrunc = copy(fwt)
+    fwttrunc[abs.(fwt) .< thresh] .= 0.0          # keep the K largest anywhere
+    idwt(fwttrunc, wt)
+end
+
+function get_image(filename::String, gausskernelwidth::Int, dec; 
+        compatbounds=true)
     f = Gray.(load(filename))
     f = convert(Array{Float64, 2}, f)[1:dec:end,:1:dec:end]
     # convert image into something that looks like log resistivity
-    f = -1 .+ 3*f
+    if compatbounds
+        f = -1 .+ 3*f
+    end
     # smooth image
-    imfilter(f,Kernel.gaussian(gausskernelwidth))
+    if gausskernelwidth > 0
+        imfilter(f, Kernel.gaussian(gausskernelwidth))
+    end
+    f
 end
 
 function get_image_data(img::Img;
                            sdmaxfrac = 0.05,
                            rseed     = 12,
                            ybreak    = 12321.0,
-                           takeevery = 4
+                           takeevery = 4,
+                           calcjacobian = false
                           )
     @assert ybreak != 12321.0
     @assert sdmaxfrac > 0 && sdmaxfrac < 1
@@ -90,11 +134,31 @@ function get_image_data(img::Img;
     img.d = noisyd
     img.σ = δtry
     img.select = .!isnan.(noisyd[:])
-    img.r = noisyd[img.select]
-    img.xtrain = Xtrain
     img.N = sum(img.select)
+    img.xtrain = Xtrain
+    img.res = zeros(img.N)
+    if calcjacobian
+        img.W = Diagonal(fill(1/img.σ, img.N))
+        img.J = getA(vec(img.d))
+        img.dobs = noisyd[img.select]
+    end
     nothing
 end
+
+function getA(v::AbstractVector)
+    m = length(v)
+    n = sum(.!isnan.(v))
+    # @assert n<m
+    sparse(1:n,findall(.!isnan.(v)),ones(n),n,m)
+end
+
+function getresidual(F::Img, m::AbstractVector; computeJ=false)
+    mul!(F.res, F.J, m, 1.0, 0.0)    # F.res = J·m
+    F.res .-= F.dobs                  # F.res = J·m - d_obs
+    return nothing
+end
+
+modeldim(F::Img) = length(F.f) 
 
 function get_image_prediction_points(img::Img)
     f, x, y = img.f, img.x, img.y
@@ -129,7 +193,7 @@ end
 function get_misfit(m::Model, opt::Options, img::Img)
     chi2by2 = 0.0
     if !opt.debug
-        d, r = img.d, img.r
+        d, r = img.d, img.res
         select = img.select
         r .= m.fstar[select] - d[select]
         if img.useML
@@ -377,8 +441,8 @@ function plot_image_posterior(opt::Options,
                                 pdfnormalize=pdfnormalize, temperaturenum=temperaturenum)
     himage_c, edges_c, CI_c = slice_image_posterior(M, opt, img, :col, rowcolnum=colnum, nbins = nbins, qp1=qp1, qp2=qp2,
                                 pdfnormalize=pdfnormalize, temperaturenum=temperaturenum)
-    f = figure(figsize=figsize)
-    s1 = subplot(223)
+    f, ax = plt.subplots(2,2, (figsize=figsize))
+    s1 = ax[2,1]
     central_tendency = domean ? ("Mean") : ("Percentile "*"$(round(Int, getquant*100))")
     im1 = s1.pcolormesh([img.x;img.x[end]], [img.y;img.y[end]], m, cmap=cmapmean)
     s1.plot([img.x[1], img.x[end]], [img.y[rownum], img.y[rownum]], "--k", alpha=0.5)
@@ -389,7 +453,7 @@ function plot_image_posterior(opt::Options,
     s1.set_aspect(aspect)
     s1.set_xlabel("distance x")
     cb1 = colorbar(im1, ax=s1)
-    s2 = subplot(221, sharex=s1)
+    s2 = ax[1,1]
     im2 = s2.pcolormesh([img.x;img.x[end]], edges_r[:], himage_r', cmap=cmappdf)
     s2.plot(img.x, m[rownum,:][:],"--w", alpha=0.5)
     s2.plot(img.x, CI_r, "--c", alpha=0.5)
@@ -398,16 +462,19 @@ function plot_image_posterior(opt::Options,
     s2.set_xlabel("distance x")
     cb2 = colorbar(im2, ax=s2)
     cb2.ax.set_title("pdf")
-    s3 = subplot(224, sharey=s1)
+    # s3 = subplot(224, sharey=s1)
+    s3 = ax[2,2]
     im3 = s3.pcolormesh(edges_c[:], [img.y;img.y[end]], himage_c, cmap=cmappdf)
     s3.plot(m[:,colnum][:], img.y, "--w", alpha=0.5)
     s3.plot(CI_c, img.y, "--c", alpha=0.5)
     s3.set_title("Pixel value PDF")
     s3.set_xlabel("pixel value")
     s3.set_ylabel("distance y")
-    s3.set_aspect(aspect)
+    s3.sharey(s1)
+    # s3.set_aspect(aspect)
     cb3 = colorbar(im3, ax=s3)
     cb3.ax.set_title("pdf")
+    ax[1, 2].set_visible(false) 
     nicenup(f, fsize=fsize)
 end
 

@@ -1,6 +1,6 @@
 module AEMwithNuisanceGradientInversionTools
 using Distributed, Dates, Printf, PyPlot, DelimitedFiles, StatsBase, Random
-using ..AbstractOperator, ..CommonToAll, ..GP, ..SoundingDistributor
+using ..AbstractOperator, ..CommonToAll, ..SoundingDistributor
 import ..AbstractOperator.makeoperator
 import ..AbstractOperator.setnuboundsandstartforgradinv
 import ..AbstractOperator.Sounding
@@ -230,7 +230,6 @@ function loopacrossAEMsoundings(soundings::Array{S, 1}, aem_in, σstart, σ0, nu
                             λ²min              = 0,
                             λ²max              = 8,
                             β²                 = 0.,
-                            regularizeupdate   = false,
                             knownvalue         = 0.7,
                             compresssoundings  = true,
                             zipsaveprefix      = "",
@@ -245,6 +244,10 @@ function loopacrossAEMsoundings(soundings::Array{S, 1}, aem_in, σstart, σ0, nu
                             debuglevel         = 0,
                             breaknuonknown     = false,
                             batchstr           = randstring(15),
+                            # L1 norm stuff
+                            cd_maxiter         = 200_000, 
+                            cd_tol             = 1e-6,
+                            L1transform        = nothing,
                             ) where S<:Sounding
 
     @assert nsequentialiters  != -1
@@ -273,13 +276,11 @@ function loopacrossAEMsoundings(soundings::Array{S, 1}, aem_in, σstart, σ0, nu
                                                 hi                 = hi              ,              
                                                 λ²min              = λ²min           ,              
                                                 λ²max              = λ²max           ,              
-                                                β²                 = β²              ,
-                                                regularizeupdate   = regularizeupdate,              
+                                                β²                 = β²              ,             
                                                 knownvalue         = knownvalue      ,              
-                                                fname              = fname_           ,
+                                                fname              = fname_          ,
                                                 ntriesnu, nubounds, boxiters, usebox, reducenuto, debuglevel, breaknuonknown,
-                                                minimprovfrac, verbose, minimprovkickinstep) 
-                
+                                                minimprovfrac, verbose, minimprovkickinstep, cd_maxiter, cd_tol, L1transform) 
 
         end # @sync
         isfirstparalleliteration = iter == 1 ? true : false

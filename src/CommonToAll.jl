@@ -2328,7 +2328,7 @@ function plotmanygrids(σ, X, Y, Z, zcentre; yl=[], xl=[], cmapσdiff="inferno",
         titles=fill("", length(σ)), XYprofiles = nothing, drawprofiles=true, 
         makedifffig=false, vmindiff=Inf, vmaxdiff=Inf, difffigsize=(10,3), lidarfile=nothing,
         leftrightxycorners=[], showbulkstatsfigure=false, regionlinewidth=2, regionlinecolor="k",
-        minahd=nothing, maxahd=nothing)
+        minahd=nothing, maxahd=nothing, phidjungle=[], phidcutoff=nothing)
     @assert !isnothing(dr) # pass as variable as it is used by other functions too       
     if isnothing(dz)
         mins = [zc[1] for zc in zcentre] # depth to first centre
@@ -2339,7 +2339,11 @@ function plotmanygrids(σ, X, Y, Z, zcentre; yl=[], xl=[], cmapσdiff="inferno",
         figsize=figsize)
     
     binby, binvals = getbinby(X, Y, preferEright)
-    flipbycoord!(binby, σ, X, Y, Z)
+    if isempty(phidjungle)
+        flipbycoord!(binby, σ, X, Y, Z)
+    else
+        flipbycoord!(binby, σ, X, Y, Z, phidjungle)
+    end
     rmin, rmax = getrangebinextents(binby)
     r, m, sd = binbycoord(rmin, rmax, delbin, binby, binvals)
     coord_mle = getsmoothline(m, sd; δ², regtype)
@@ -2408,8 +2412,37 @@ function plotmanygrids(σ, X, Y, Z, zcentre; yl=[], xl=[], cmapσdiff="inferno",
     fig.subplots_adjust(hspace = all(isempty.(titles)) ? 0 : hspace)
 
     if makedifffig
-        difffig(img, gridr[1], gridz[1], topofine[end], difffigsize, vmindiff, vmaxdiff, cmapσdiff, topowidth, yl, 
+        if isempty(phidjungle)
+            fig, axuse = plt.subplots(1,1, figsize=difffigsize)
+        else
+            fig, axx = plt.subplots(4, 1, gridspec_kw=Dict("height_ratios" => [0.2, 0.5, 0.01, 0.1]), 
+                figsize=difffigsize)
+            axuse = axx[2]
+            map(zip(phidjungle, X, Y)) do (phid, xx, yy)
+                idx_ = getclosestidx([xx'; yy'], xr', yr', showinfo=false)
+                Rtoplotat  = cumulativelinedist(vec(xr), vec(yr))
+                phidtoplot = [phid[id_] for id_ in idx_]
+                axx[1].plot(Rtoplotat, sqrt.(phidtoplot), alpha=0.5)
+            end
+        end
+        difffig(fig, axuse, img, gridr[1], gridz[1], topofine[2], vmindiff, vmaxdiff, cmapσdiff, topowidth, yl, 
             fontsize, leftrightxycorners, regionlinecolor, regionlinewidth)
+        if !isempty(phidjungle)
+            axx[1].set_xlim(ax[1].get_xlim())
+            isnothing(phidcutoff) || axx[1].plot([axx[1].get_xlim()...],sqrt.([phidcutoff, phidcutoff]), "--k")
+            img = axuse.get_images()[end]
+            cb = img.colorbar 
+            cb.remove()
+            cb = fig.colorbar(img, cax=axx[end], orientation="horizontal")
+            axx[1].tick_params(axis="x", bottom=false, labelbottom=false)
+            axx[1].set_ylabel("RMS")
+            axx[2].set_title("Pixel-wise standard deviation")
+            axx[2].sharex(axx[1])
+            axx[end-1].axis("off")
+            cb.set_label("Log₁₀ S/m", labelpad=0)
+            nicenup(fig, fsize=10, minsize=false, h_pad=0, increasefraction=1.05)
+            fig.subplots_adjust(hspace = 0.25)
+        end
     end    
 
     xr, yr, ax, zatXY, satXY, bulkstat_mean # return easting northing of grid and figure axes
@@ -2435,9 +2468,8 @@ function getbulkstatfromimageregion(imgin, gridr, gridz; leftrightxycorners=[], 
     m
 end
 
-function difffig(img, gridr, gridz, topofine, difffigsize, vmindiff, vmaxdiff, cmapσdiff, topowidth, 
+function difffig(fig, ax, img, gridr, gridz, topofine, vmindiff, vmaxdiff, cmapσdiff, topowidth, 
         yl, fontsize, leftrightxycorners, color, linewidth)
-    fig, ax = plt.subplots(1,1, figsize=difffigsize)
     sdimage = std(img)
     if (isinf(vmindiff) || isinf(vmaxdiff))
         vmindiff, vmaxdiff = extrema(.!isnan.(sdimage))
@@ -2452,7 +2484,7 @@ function difffig(img, gridr, gridz, topofine, difffigsize, vmindiff, vmaxdiff, c
     ax.set_ylim(yl)
     cb = fig.colorbar(imhandle)
     cb.set_label("Log₁₀ S/m")
-    ax.set_ylabel("Height m")
+    ax.set_ylabel("Elevation (mAHD)")
     ax.set_xlabel("Distance m")
     nicenup(fig, fsize=fontsize)
 end

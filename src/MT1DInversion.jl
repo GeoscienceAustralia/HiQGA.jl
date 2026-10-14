@@ -9,14 +9,14 @@ abstract type MT1DZ <: Operator1D
 end
 
 mutable struct MT1DZ_nodepthprior <: MT1DZ
-    d_log10_ρ
-    d_phase_deg
-    σ_log10_ρ
-    σ_phase_deg
-    freqs
-    zboundaries
-    irxlayer
-    useML 
+    d_log10_ρ     :: Vector{Float64}
+    d_phase_deg   :: Vector{Float64}
+    σ_log10_ρ     :: Vector{Float64}
+    σ_phase_deg   :: Vector{Float64}
+    freqs         :: Vector{Float64}
+    zboundaries   :: Vector{Float64}
+    irxlayer      :: Int
+    useML         :: Bool
 end
 
 function MT1DZ_nodepthprior(;
@@ -40,18 +40,18 @@ function MT1DZ_nodepthprior(;
 end
 
 mutable struct MT1DZ_depthprior <: MT1DZ
-    d_log10_ρ
-    d_phase_deg
-    σ_log10_ρ
-    σ_phase_deg
-    freqs
-    zboundaries
-    irxlayer
-    useML
-    stretch
-    stretchmodel
-    low
-    Δ
+    d_log10_ρ     :: Vector{Float64}
+    d_phase_deg   :: Vector{Float64}
+    σ_log10_ρ     :: Vector{Float64}
+    σ_phase_deg   :: Vector{Float64}
+    freqs         :: Vector{Float64}
+    zboundaries   :: Vector{Float64}
+    irxlayer      :: Int
+    useML         :: Bool
+    stretch       :: Bool
+    stretchmodel  :: Vector{Float64}
+    low           :: Vector{Float64}
+    Δ             :: Vector{Float64}
 end
 
 function makestretchop(F::MT1DZ_nodepthprior; ρlow=nothing, Δ=nothing)

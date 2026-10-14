@@ -1,6 +1,6 @@
 module AEMnoNuisanceGradientInversionTools
 using Distributed, Dates, Printf, PyPlot, DelimitedFiles, StatsBase, Random
-using ..AbstractOperator, ..CommonToAll, ..GP, ..SoundingDistributor
+using ..AbstractOperator, ..CommonToAll, ..SoundingDistributor
 import ..AbstractOperator.makeoperator
 import ..AbstractOperator.Sounding
 import ..AbstractOperator.returnforwrite
@@ -221,25 +221,18 @@ function loopacrossAEMsoundings(soundings::Array{S, 1}, aem_in, σstart, σ0;
                             hi                 = 1.,
                             λ²min              = 0,
                             λ²max              = 8,
-                            λ²frac             = 4,
                             β²                 = 0.,
-                            ntestdivsλ²        = 50,
-                            αmin               = -4, 
-                            αmax               = 0, 
-                            αfrac              = 4, 
-                            ntestdivsα         = 32,
-                            regularizeupdate   = false,
                             knownvalue         = 0.7,
-                            firstvalue         = :last,
-                            κ                  = GP.Mat52(),
-                            breakonknown       = true,
-                            dobo               = false,
                             compresssoundings  = true,
                             zipsaveprefix      = "",
                             minimprovfrac      = nothing,
                             verbose            = false,
                             minimprovkickinstep = round(Int, nstepsmax/2),
                             batchstr           = randstring(15),
+                            # L1 norm stuff
+                            cd_maxiter         = 200_000, 
+                            cd_tol             = 1e-6,
+                            L1transform        = nothing,
                             ) where S<:Sounding
 
     @assert nsequentialiters  != -1
@@ -267,23 +260,12 @@ function loopacrossAEMsoundings(soundings::Array{S, 1}, aem_in, σstart, σ0;
                                                 hi                 = hi              ,              
                                                 λ²min              = λ²min           ,              
                                                 λ²max              = λ²max           ,              
-                                                λ²frac             = λ²frac          ,              
-                                                ntestdivsλ²        = ntestdivsλ²     ,              
-                                                αmin               = αmin            ,              
-                                                αmax               = αmax            ,              
-                                                αfrac              = αfrac           ,
                                                 β²                 = β²              ,
-                                                ntestdivsα         = ntestdivsα      ,              
-                                                regularizeupdate   = regularizeupdate,              
                                                 knownvalue         = knownvalue      ,              
-                                                firstvalue         = firstvalue      ,              
-                                                κ                  = κ               ,              
-                                                breakonknown       = breakonknown    ,              
-                                                dobo               = dobo            ,
                                                 fname              = fname_           ,
                                                 minimprovfrac, verbose,
-                                                minimprovkickinstep) 
-                
+                                                minimprovkickinstep, cd_maxiter, cd_tol, L1transform,
+                                                ) 
 
         end # @sync
         isfirstparalleliteration = iter == 1 ? true : false

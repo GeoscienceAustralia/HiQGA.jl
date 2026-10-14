@@ -2,7 +2,7 @@ module SkyTEM1DInversion
 import ..AbstractOperator.get_misfit, ..main
 import ..AbstractOperator.Sounding
 import ..AbstractOperator.makeoperator
-import ..AbstractOperator.getresidual
+import ..AbstractOperator.getresidual, ..AbstractOperator.modeldim
 import ..AbstractOperator.returnforwrite
 import ..AbstractOperator.getndata
 import ..AbstractOperator.plotmodelfield!
@@ -30,19 +30,11 @@ mutable struct dBzdt<:Operator1D
     selecthigh :: Array{Bool, 1}
     ndatalow   :: Int
     ndatahigh  :: Int
-    J          :: AbstractArray
-    W          :: SparseMatrixCSC
-    res        :: Vector
+    J          :: Array{Float64, 2} 
+    W          :: Diagonal{Float64, Vector{Float64}}
+    res        :: Vector{Float64}
 end
 
-struct Cinv
-    # assumes diagonal data cov
-    oneoverσ²
-end
-
-function (a::Cinv)(x) 
-    x.*a.oneoverσ²
-end    
 
 function dBzdt(;timeslow  = [.1],
                 timeshigh = [.1],
@@ -96,13 +88,13 @@ function allocateJ(Flow, Fhigh, σlow, σhigh, selectlow, selecthigh, nfixed, nm
         J = [Flow.dBzdt_J'; Fhigh.dBzdt_J']; 
         J = J[[selectlow;selecthigh],nfixed+1:nmodel]
     else    
-        J  = zeros(0)
+        J  = zeros(0,0)
     end
     # always return an allocated residuals and W - small price to pay I think
     # since majority of Jacobian allocations are in aem.F    
     Wdiag = [1 ./σlow[selectlow]; 1 ./σhigh[selecthigh]]
     res = similar(Wdiag)
-    W = sparse(diagm(Wdiag))
+    W = Diagonal(Wdiag)
     return res, J, W
 end    
 
@@ -121,6 +113,8 @@ function getresidual(aem::dBzdt, log10σ::Vector{Float64}; computeJ=false)
     end
     nothing    
 end
+
+modeldim(F::dBzdt) = length(F.ρ) - F.nfixed
 
 mutable struct SkyTEMsoundingData <: Sounding
     sounding_string :: String

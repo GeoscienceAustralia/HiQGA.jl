@@ -11,6 +11,7 @@ import ..AbstractOperator.returnforwrite
 import ..AbstractOperator.getndata
 import ..AbstractOperator.setnuboundsandstartforgradinv # for gradientbased
 import ..AbstractOperator.setnuforinvtype
+import ..AbstractOperator.modeldim
 
 using ..AbstractOperator, ..AEM_VMD_HMD, ..SoundingDistributor
 using PyPlot, LinearAlgebra, ..CommonToAll, Random, DelimitedFiles, Distributed, Dates, Statistics, SparseArrays
@@ -50,10 +51,12 @@ mutable struct Bfield<:Operator1D
 	addprimary :: Bool
 	peakcurrent:: Float64
     vectorsum  :: Bool
-    J          :: AbstractArray
-    W          :: SparseMatrixCSC
-    res        :: Vector
+    J          :: Array{Float64, 2} 
+    W          :: Diagonal{Float64, Vector{Float64}}
+    res        :: Vector{Float64}
 end
+
+modeldim(F::Bfield) = length(F.ρ) - F.nfixed
 
 # If needed to make z axis flip to align with GA-AEM
 const Roll180 = [1. 0. 0.
@@ -136,13 +139,13 @@ function allocateJ(ntimes, nfixed, nmodel, calcjacobian, vectorsum, σx, σz)
     if calcjacobian
         J = zeros(multfac*ntimes, nmodel-nfixed)
     else
-        J = zeros(0)
+        J = zeros(0,0)
     end
     # always return an allocated residuals and W - small price to pay I think
     # since majority of Jacobian allocations are in aem.F
     Wdiag = vectorsum ? ones(multfac*ntimes) : 1 ./[σx; σz]
     res = similar(Wdiag)
-    W = sparse(diagm(Wdiag))
+    W = Diagonal(Wdiag)
     res, J, W    
 end
 

@@ -13,7 +13,6 @@ fdataname = "nutest_"
 sampledc = true
 sdev_dc = 0.012*diff(fbounds, dims=2)[:]
 ## Initialize a stationary GP using these options
-Random.seed!(12)
 opt = transD_GP.OptionsStat(nmin = nmin,
                         nmax = nmax,
                         xbounds = xbounds,

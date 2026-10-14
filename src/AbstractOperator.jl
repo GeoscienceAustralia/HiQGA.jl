@@ -11,6 +11,9 @@ function get_misfit end
 # for gradient based inversion
 function getresidual end
 
+# for regularisation operators and the like
+modeldim(F::Operator) = error("modeldim must be defined for $(typeof(F))")
+
 # many geophysics data types require a sounding type
 abstract type Sounding end
 # we sometimes return things from a sounding in an inversion file
