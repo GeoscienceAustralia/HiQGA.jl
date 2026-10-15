@@ -21,6 +21,8 @@ for (i, mi) in enumerate(m)
     s[2].plot(hps[idx[i],1], χ²[i][idx[i]], "o" )
     s[2].text(.95hps[idx[i],1], 1.05χ²[i][idx[i]], "ϕd = $(@sprintf("%.2f", χ²[i][idx[i]]/ndata)), χ²=$(@sprintf("%.2f", χ²[i][idx[i]]))" )
     s[2].plot(10. .^[λ²min, λ²max], [ndata, ndata], "--k")
+    target = knownvalue*χ²nu[i]
+    s[2].plot(10. .^[λ²min, λ²max], [target, target], "--r")
     s[2].set_ylabel("χ²")
     s[2].set_xlabel("λ²")
     plt.suptitle("Iteration $i, α=$(hps[idx[i],2])")

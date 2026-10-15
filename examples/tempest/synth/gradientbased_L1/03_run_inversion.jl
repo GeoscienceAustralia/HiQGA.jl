@@ -12,12 +12,10 @@ end
 ## do the inversion
 tempest = deepcopy(Torig);
 m, nu, χ², χ²nu, λ², idx = transD_GP.gradientinv(σstart, σ0, nustart, tempest; 
-                            nstepsmax,
-                            minimprovfrac = nothing, 
                             # Occam stuff
                             λ²min, λ²max, β², ntries,
-                            lo, hi, 
-                            knownvalue,
+                            lo, hi, nstepsmax,
+                            knownvalue, 
                             L1transform,
                             cd_maxiter=200_000, cd_tol = 1e-6,
                             # optim stuff

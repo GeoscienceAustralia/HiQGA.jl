@@ -20,16 +20,20 @@ for (i, mi) in enumerate(m)
     s[2].loglog(hps[sortedλidx,1], χ²[i][sortedλidx], ".-", markersize=5)
     s[2].plot(hps[idx[i],1], χ²[i][idx[i]], "o" )
     s[2].text(.95hps[idx[i],1], 1.05χ²[i][idx[i]], "ϕd = $(@sprintf("%.2f", χ²[i][idx[i]]/ndata)), χ²=$(@sprintf("%.2f", χ²[i][idx[i]]))" )
-    s[2].plot(10 .^[λ²min, λ²max], [ndata, ndata], "--k")
+    if i>1
+        targ = knownvalue*χ²[i-1][idx[i-1]]
+        s[2].plot(10.0 .^[λ²min, λ²max], [targ, targ], "--r")
+    end
+    s[2].plot(10.0 .^[λ²min, λ²max], [ndata, ndata], "--k")
     s[2].set_ylabel("χ²")
     s[2].set_xlabel("λ²")
     plt.suptitle("Iteration $i, α=$(hps[idx[i],2])")
-    transD_GP.nicenup(gcf(), fsize=12)
+    transD_GP.nicenup(f, fsize=12)
 end
 ## plots for best in each
 f, s = plt.subplots(1, 2, gridspec_kw=Dict("width_ratios" => [1,1.5]),
         figsize=(8,5))
-alpha = 0.1
+alpha = 0.3
 χ²best = zeros(0)
 idxlast = length(m)
 ndata = length(aem.res)

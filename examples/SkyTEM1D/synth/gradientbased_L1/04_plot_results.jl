@@ -29,12 +29,11 @@ for (i, mi) in enumerate(m)
     s[2].set_xlabel("λ²")
     plt.suptitle("Iteration $i, α=$(hps[idx[i],2])")
     transD_GP.nicenup(f, fsize=12)
-    f.savefig("iteration_$i.png")
 end
 ## plots for best in each
 f, s = plt.subplots(1, 2, gridspec_kw=Dict("width_ratios" => [1,1.5]),
         figsize=(8,5))
-alpha = 0.1
+alpha = 0.3
 χ²best = zeros(0)
 idxlast = length(m)
 ndata = length(aem.res)
